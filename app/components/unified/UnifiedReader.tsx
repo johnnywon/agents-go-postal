@@ -71,9 +71,11 @@ function ReaderLabels({ row, labels, onLabel, onRemoveLabel, pickerOpen }: {
 }
 
 export default function UnifiedReader({
-	open, state, onRemoved, onBack, composeFrom, setComposeFrom, addresses, idle, row, labels, onLabel, onRemoveLabel, pickerOpen,
+	open, autoOpened = false, state, onRemoved, onBack, composeFrom, setComposeFrom, addresses, idle, row, labels, onLabel, onRemoveLabel, pickerOpen,
 }: {
 	open: OpenRef | null;
+	/** Opened by the wide layout rather than the user; shown without marking it read. */
+	autoOpened?: boolean;
 	state?: string;
 	row?: Conversation;
 	labels: ReadonlyMap<string, Label>;
@@ -94,14 +96,14 @@ export default function UnifiedReader({
 	const replyRef = useRef<HTMLDivElement>(null);
 	const marked = useRef<string | null>(null);
 
-	// Opening a conversation marks it read, once per open.
+	// Opening a conversation marks it read, once per open. An auto-opened one waits for the user.
 	useEffect(() => {
-		if (!open || !email || email.id !== open.emailId || marked.current === email.id) return;
+		if (!open || autoOpened || !email || email.id !== open.emailId || marked.current === email.id) return;
 		marked.current = email.id;
 		if (email.read) return;
 		if (email.thread_id) markThreadRead.mutate({ mailboxId: open.mailboxId, threadId: email.thread_id });
 		else updateEmail.mutate({ mailboxId: open.mailboxId, id: email.id, data: { read: true } });
-	}, [open, email, markThreadRead, updateEmail]);
+	}, [open, autoOpened, email, markThreadRead, updateEmail]);
 
 	const replying = isComposing && (composeOptions.mode === "reply" || composeOptions.mode === "reply-all") && !composeOptions.draftEmail;
 	useEffect(() => {

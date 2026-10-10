@@ -141,6 +141,8 @@ export default function UnifiedMail({ addresses }: { addresses: string[] }) {
 	const { labels: labelList, byId: labels, names: labelNames } = useLabels();
 	const [kept, setKept] = useState<Map<string, Conversation>>(new Map());
 	const [currentKey, setCurrentKey] = useState<string | null>(null);
+	// The conversation the wide reader opened by itself. It stays unread until the user opens it.
+	const [autoOpenedKey, setAutoOpenedKey] = useState<string | null>(null);
 	const [selectionState, setSelection] = useState<sel.Selection>(sel.EMPTY_SELECTION);
 	const keptFor = useRef(filterKey);
 	if (keptFor.current !== filterKey) {
@@ -188,10 +190,12 @@ export default function UnifiedMail({ addresses }: { addresses: string[] }) {
 	);
 
 	const openConversation = useCallback(
-		(row: Conversation, replace = true) => {
+		(row: Conversation, replace = true, auto = false) => {
 			setCurrentKey(row.thread_key);
+			// Clear the flag only for the row the user opened; the reader may still show the auto-opened one for a render.
+			setAutoOpenedKey((prev) => (auto ? row.thread_key : prev === row.thread_key ? null : prev));
 			// Opening marks it read; keep it on screen even if the filter is is:unread.
-			setKept((prev) => new Map(prev).set(row.thread_key, { ...row, unread: false, thread_unread_count: 0 }));
+			if (!auto) setKept((prev) => new Map(prev).set(row.thread_key, { ...row, unread: false, thread_unread_count: 0 }));
 			go(filter, { replace, open: { mailboxId: row.mailbox_id, emailId: row.email_id } });
 			setSourcesOpen(false);
 		},
@@ -215,7 +219,7 @@ export default function UnifiedMail({ addresses }: { addresses: string[] }) {
 		if (open || isComposing || !rows.length || autoOpenedFor.current === filterKey) return;
 		if (typeof window === "undefined" || !window.matchMedia(WIDE_READER).matches) return;
 		autoOpenedFor.current = filterKey;
-		openConversation(rows[0]);
+		openConversation(rows[0], true, true);
 	}, [open, isComposing, rows, filterKey, openConversation]);
 
 	const move = (delta: number) => {
@@ -654,6 +658,7 @@ export default function UnifiedMail({ addresses }: { addresses: string[] }) {
 					/>
 					<UnifiedReader
 						open={open}
+						autoOpened={!!openRow && openRow.thread_key === autoOpenedKey}
 						state={openRow?.state}
 						row={openRow}
 						labels={labels}
