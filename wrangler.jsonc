@@ -1,0 +1,96 @@
+{
+	"$schema": "node_modules/wrangler/config-schema.json",
+	"name": "agents-go-postal",
+	// Set to your Cloudflare account ID, or remove to have wrangler ask.
+	// "account_id": "<your-account-id>",
+	"compatibility_date": "2025-11-28",
+	"main": "./workers/app.ts",
+	"observability": {
+		"enabled": true
+	},
+	"compatibility_flags": [
+		"nodejs_compat"
+	],
+	"vars": {
+		// Display name in the header, page titles and status bar. Logo and icons live in public/brand/.
+		"APP_NAME": "Agents Go Postal",
+		// Production deploys must also define POLICY_AUD and TEAM_DOMAIN.
+		// TEAM_DOMAIN may be the base Access URL or the full /cdn-cgi/access/certs URL.
+		// The worker now fails closed outside local development if Access is not configured.
+		"DOMAINS": "example.com",
+		"AUTO_DRAFT_ENABLED": "false",
+		// Kill switch for mailbox pushes to MailIndexDO. "false" stops pushes; changes queue in each mailbox outbox.
+		"INDEX_SYNC_ENABLED": "true",
+		// "unified" serves the one-list view on /; "classic" restores the per-mailbox routes.
+		"MAIL_UI": "unified",
+		"EMAIL_ADDRESSES": ["hello@example.com"]
+	},
+	"routes": [
+		{
+			"pattern": "mail.example.com",
+			"custom_domain": true
+		}
+	],
+	"send_email": [
+		{
+			"name": "EMAIL",
+			"remote": true
+		}
+	],
+	"r2_buckets": [
+		{
+			"binding": "BUCKET",
+			"bucket_name": "agents-go-postal",
+			"preview_bucket_name": "agents-go-postal"
+		}
+	],
+	"ai": {
+		"binding": "AI"
+	},
+	"durable_objects": {
+		"bindings": [
+			{
+				"name": "MAILBOX",
+				"class_name": "MailboxDO"
+			},
+			{
+				"name": "EMAIL_AGENT",
+				"class_name": "EmailAgent"
+			},
+			{
+				"name": "EMAIL_MCP",
+				"class_name": "EmailMCP"
+			},
+			{
+				"name": "MAIL_INDEX",
+				"class_name": "MailIndexDO"
+			}
+		]
+	},
+	"migrations": [
+		{
+			"tag": "v1",
+			"new_sqlite_classes": [
+				"MailboxDO"
+			]
+		},
+		{
+			"tag": "v2",
+			"new_sqlite_classes": [
+				"EmailAgent"
+			]
+		},
+		{
+			"tag": "v3",
+			"new_sqlite_classes": [
+				"EmailMCP"
+			]
+		},
+		{
+			"tag": "v4",
+			"new_sqlite_classes": [
+				"MailIndexDO"
+			]
+		}
+	]
+}

@@ -1,0 +1,58 @@
+import assert from "node:assert/strict";
+import { test } from "node:test";
+import { build } from "esbuild";
+
+const bundle = await build({
+	entryPoints: ["workers/lib/message-meta.ts"],
+	bundle: true,
+	platform: "node",
+	format: "esm",
+	write: false,
+});
+const { htmlToText, parseSender, listHeaders, folderToState, BODY_TEXT_LIMIT } = await import(
+	`data:text/javascript;base64,${Buffer.from(bundle.outputFiles[0].text).toString("base64")}`
+);
+
+test("htmlToText drops markup, style and script, decodes entities, collapses space", () => {
+	const html = `<style>p{color:red}</style><p>Hello&nbsp;<b>there</b> &amp; you</p>\n\n<script>alert(1)</script><div>A &lt;tag&gt; &quot;q&quot; &#39;s&#39; &#8217;</div>`;
+	assert.equal(htmlToText(html), `Hello there & you A <tag> "q" 's' ’`);
+});
+
+test("htmlToText keeps plain text and caps length", () => {
+	assert.equal(htmlToText("plain  text\nbody"), "plain text body");
+	assert.equal(htmlToText("x".repeat(BODY_TEXT_LIMIT + 50)).length, BODY_TEXT_LIMIT);
+	assert.equal(htmlToText(null), "");
+});
+
+test("parseSender reads the display name from the from header", () => {
+	const headers = JSON.stringify([{ key: "from", value: `"Ann B" <Ann@Example.org>` }]);
+	assert.deepEqual(parseSender("ann@example.org", headers), { addr: "ann@example.org", name: "Ann B", domain: "example.org" });
+	assert.deepEqual(parseSender("bob@x.dev", JSON.stringify([{ key: "from", value: "Bob Smith <bob@x.dev>" }])), { addr: "bob@x.dev", name: "Bob Smith", domain: "x.dev" });
+});
+
+test("parseSender falls back to the stored sender", () => {
+	assert.deepEqual(parseSender("Bob@X.dev", null), { addr: "bob@x.dev", name: "", domain: "x.dev" });
+	assert.deepEqual(parseSender("bob@x.dev", "not json"), { addr: "bob@x.dev", name: "", domain: "x.dev" });
+	assert.deepEqual(parseSender("bob@x.dev", JSON.stringify([{ key: "from", value: "bob@x.dev" }])), { addr: "bob@x.dev", name: "", domain: "x.dev" });
+});
+
+test("listHeaders extracts list id and unsubscribe targets", () => {
+	const headers = JSON.stringify([
+		{ key: "list-id", value: "News <news.example.com>" },
+		{ key: "list-unsubscribe", value: "<mailto:u@example.com?subject=unsub>, <https://example.com/u?id=1>" },
+		{ key: "list-unsubscribe-post", value: "List-Unsubscribe=One-Click" },
+	]);
+	assert.deepEqual(listHeaders(headers), {
+		list_id: "news.example.com",
+		unsubscribe: JSON.stringify({ urls: ["mailto:u@example.com?subject=unsub", "https://example.com/u?id=1"], oneClick: true }),
+	});
+	assert.deepEqual(listHeaders(null), { list_id: null, unsubscribe: null });
+	assert.deepEqual(listHeaders(JSON.stringify([{ key: "subject", value: "x" }])), { list_id: null, unsubscribe: null });
+});
+
+test("folderToState maps folders to index states", () => {
+	assert.equal(folderToState("inbox"), "inbox");
+	assert.equal(folderToState("draft"), "draft");
+	assert.equal(folderToState("spam"), "spam");
+	assert.equal(folderToState("receipts"), "folder:receipts");
+});

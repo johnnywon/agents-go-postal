@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1166 172" role="img" aria-label="Agents Go Postal">
+  <rect x="0" y="0" width="1166" height="172" rx="6" fill="#2b3136"/>
+  <rect x="34" y="38" width="136" height="96" rx="6" fill="none" stroke="#f2f4f5" stroke-linejoin="round" stroke-width="10"/>
+  <path d="M34 44 L102 96 L170 44" fill="none" stroke="#f2f4f5" stroke-linejoin="round" stroke-width="10"/>
+  <text x="206" y="116" textLength="926" lengthAdjust="spacingAndGlyphs" font-family="Oxanium, 'Space Grotesk', Helvetica, Arial, sans-serif" font-size="84" font-weight="700" fill="#f2f4f5">AGENTS GO POSTAL</text>
+</svg>
