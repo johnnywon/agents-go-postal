@@ -104,7 +104,9 @@ curl -X POST http://localhost:5173/api/v1/dev/seed \
   -d '{"perMailbox": 15}'
 ```
 
-The seed route exists only in development builds. If the first page load shows "Invalid hook call", Vite optimized dependencies mid-request and loaded React twice: stop the server, `rm -rf node_modules/.vite`, start it again and reload twice.
+The seed route exists only in development builds.
+
+`vite.config.ts` pre-bundles the UI libraries so the first page load after a fresh start works. If a new dependency brings back "Invalid hook call" on a first load, the dev log names it under "new dependencies optimized": add it to `PREBUNDLE`.
 
 To test inbound mail locally, post a raw message to the dev server's email handler:
 

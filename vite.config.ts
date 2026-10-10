@@ -14,8 +14,29 @@ import tsconfigPaths from "vite-tsconfig-paths";
 const wranglerConfig = process.env.AGP_WRANGLER_CONFIG;
 const publicDir = process.env.AGP_PUBLIC_DIR;
 
+// Dependencies Vite otherwise discovers only after the first request. Re-optimizing them
+// mid-load gives the open page a second copy of React ("Invalid hook call").
+const PREBUNDLE = [
+  "@cloudflare/kumo",
+  "@phosphor-icons/react",
+  "@tanstack/react-query",
+  "@tanstack/react-virtual",
+  "@tiptap/extension-color",
+  "@tiptap/extension-highlight",
+  "@tiptap/extension-image",
+  "@tiptap/extension-link",
+  "@tiptap/extension-text-align",
+  "@tiptap/extension-text-style",
+  "@tiptap/extension-underline",
+  "@tiptap/react",
+  "@tiptap/starter-kit",
+  "dompurify",
+  "zustand",
+];
+
 export default defineConfig({
   publicDir: publicDir ? resolve(publicDir) : "public",
+  optimizeDeps: { include: PREBUNDLE },
   plugins: [
     cloudflare({
       viteEnvironment: { name: "ssr" },
