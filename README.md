@@ -61,6 +61,17 @@ Requirements: a domain on Cloudflare, R2, and Workers Paid for outbound email.
 
 To rebrand a deployment, set `APP_NAME` and replace the files listed in `public/brand/README.md`.
 
+### Keeping a deployment in its own repo
+
+A deployment can keep its config and brand files outside this checkout, for example in a private repo that includes this one as a submodule. Build with:
+
+```sh
+AGP_WRANGLER_CONFIG=../wrangler.jsonc AGP_PUBLIC_DIR=../public npm run build
+npx wrangler deploy
+```
+
+`AGP_WRANGLER_CONFIG` replaces `wrangler.jsonc`. Paths inside it, such as `main`, are relative to that file. `AGP_PUBLIC_DIR` replaces `public/`, so it must hold the full set of brand files. `wrangler deploy` then uses the config the build wrote to `build/server/`.
+
 ## Local development
 
 ```sh
