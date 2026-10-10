@@ -160,15 +160,19 @@ app.post("/api/v1/mailboxes", async (c) => {
 	if (allowedAddresses.length > 0 && !allowedAddresses.map((a) => a.toLowerCase()).includes(email)) {
 		return c.json({ error: "Mailbox creation is restricted to configured EMAIL_ADDRESSES" }, 403);
 	}
-	const key = `mailboxes/${email}.json`;
-	if (await c.env.BUCKET.head(key)) return c.json({ error: "Mailbox already exists" }, 409);
-	const defaultSettings = { fromName: name, forwarding: { enabled: false, email: "" }, signature: { enabled: false, text: "" }, autoReply: { enabled: false, subject: "", message: "" } };
-	const finalSettings = { ...defaultSettings, ...settings };
-	await c.env.BUCKET.put(key, JSON.stringify(finalSettings));
-	const stub = c.env.MAILBOX.get(c.env.MAILBOX.idFromName(email));
-	await stub.setMailboxId(email);
+	if (await c.env.BUCKET.head(`mailboxes/${email}.json`)) return c.json({ error: "Mailbox already exists" }, 409);
+	const finalSettings = await createMailbox(c.env, email, name, settings);
 	return c.json({ id: email, email, name, settings: finalSettings }, 201);
 });
+
+/** Store a mailbox's settings and tell its Durable Object its address. */
+async function createMailbox(env: Env, email: string, name: string, settings?: Record<string, unknown>) {
+	const defaultSettings = { fromName: name, forwarding: { enabled: false, email: "" }, signature: { enabled: false, text: "" }, autoReply: { enabled: false, subject: "", message: "" } };
+	const finalSettings = { ...defaultSettings, ...settings };
+	await env.BUCKET.put(`mailboxes/${email}.json`, JSON.stringify(finalSettings));
+	await env.MAILBOX.get(env.MAILBOX.idFromName(email)).setMailboxId(email);
+	return finalSettings;
+}
 
 app.get("/api/v1/mailboxes/:mailboxId", async (c) => {
 	const mailboxId = c.req.param("mailboxId")!;
@@ -558,7 +562,11 @@ async function receiveEmail(event: { to: string; raw: ReadableStream; rawSize: n
 	}
 
 	const messageId = crypto.randomUUID();
-	if (!(await env.BUCKET.head(`mailboxes/${mailboxId}.json`))) { console.log(`Ignoring email for ${mailboxId}: mailbox does not exist`); return; }
+	if (!(await env.BUCKET.head(`mailboxes/${mailboxId}.json`))) {
+		// A configured address gets its mailbox on first delivery, so mail sent before anyone opens the app is kept.
+		if (allowedAddresses.length === 0) { console.log(`Ignoring email for ${mailboxId}: mailbox does not exist`); return; }
+		await createMailbox(env, mailboxId, mailboxId.split("@")[0] || mailboxId);
+	}
 
 	const stub = env.MAILBOX.get(env.MAILBOX.idFromName(mailboxId));
 

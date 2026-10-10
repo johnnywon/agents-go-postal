@@ -26,21 +26,32 @@ Derived from [cloudflare/agentic-inbox](https://github.com/cloudflare/agentic-in
 
 ## Setup
 
-Requirements: a domain on Cloudflare, R2, and Workers Paid for outbound email.
+Requirements: a domain on Cloudflare, R2, and Workers Paid for outbound email. The `email` commands below need Wrangler 4.149 or later, so they run through `npx wrangler@latest`.
 
-1. **Install.** `npm install`
+1. **Install and sign in.** `npm install`, then `npx wrangler login`.
 2. **Configure `wrangler.jsonc`.** Set `name`, `account_id`, `vars.APP_NAME`, `vars.DOMAINS`, `vars.EMAIL_ADDRESSES` and the route `pattern`. Every address must belong to a domain in `DOMAINS`.
 3. **Create the R2 bucket** named in `r2_buckets`: `npx wrangler r2 bucket create agents-go-postal`
-4. **Deploy.** `npm run deploy`
+4. **Deploy.** `npm run deploy`. Until step 5 is done, every request returns an error asking for Access.
 5. **Turn on Cloudflare Access** for the Worker under Settings > Domains & Routes ([one-click Access](https://developers.cloudflare.com/changelog/post/2025-10-03-one-click-access-for-workers/)). Copy the values the modal shows into Worker secrets:
    ```sh
    npx wrangler secret put POLICY_AUD
    npx wrangler secret put TEAM_DOMAIN
    ```
    `TEAM_DOMAIN` may be the team URL or the full `/cdn-cgi/access/certs` URL.
-6. **Route mail to the Worker.** In your domain's Email Routing, add a catch-all rule (or one rule per address) with the action **Send to Worker**.
-7. **Enable Email Sending** for the domain so the `send_email` binding can deliver replies. See the [Email Service docs](https://developers.cloudflare.com/email-routing/email-workers/send-email-workers/).
-8. **Check it.** `npm run smoke` expects every request to redirect to the Access login.
+6. **Route mail to the Worker.** Enable Email Routing for the domain, then add one rule per address in `EMAIL_ADDRESSES`:
+   ```sh
+   npx wrangler@latest email routing enable example.com
+   npx wrangler@latest email routing rules create example.com \
+     --match-type literal --match-field to --match-value hello@example.com \
+     --action-type worker --action-value agents-go-postal
+   ```
+   `email routing enable` adds and locks Cloudflare MX records at the root of the domain. If that domain already receives mail elsewhere, such as Google Workspace, use a subdomain instead: add it under Email Routing > Settings > Subdomains in the dashboard, since Wrangler only enables whole domains. Rules for subdomain addresses are created on the parent domain.
+7. **Enable Email Sending** so the Worker can send replies. Cloudflare adds the SPF, DKIM and DMARC records:
+   ```sh
+   npx wrangler@latest email sending enable example.com
+   ```
+   This works for a subdomain too, for example `mail.example.com`.
+8. **Check it.** `npm run smoke` expects every request to redirect to the Access login. Then send a message to one of your addresses. A configured address gets its mailbox on first delivery, so mail is kept even if nobody has opened the app yet.
 
 ### Troubleshooting Access
 
@@ -76,11 +87,19 @@ npx wrangler deploy
 
 ```sh
 npm install
+npx wrangler login
 cp .dev.vars.example .dev.vars
 npm run dev
 ```
 
-Access checks are skipped in development.
+Set `account_id` in `wrangler.jsonc` first. Local development still connects to your Cloudflare account: Workers AI always runs remotely and may incur charges, and the `send_email` binding is remote. Access checks are skipped in development.
+
+To test inbound mail locally, post a raw message to the dev server's email handler:
+
+```sh
+curl -X POST 'http://localhost:5173/cdn-cgi/handler/email?from=sender@example.net&to=hello@example.com' \
+  --data-binary @message.eml
+```
 
 ## Checks
 
