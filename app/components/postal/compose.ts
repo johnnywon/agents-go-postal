@@ -43,6 +43,8 @@ export interface ComposeState {
 	draftId?: string;
 	/** The message being replied to or forwarded. */
 	originalId?: string;
+	/** The address that received the original, where the agent finds it. */
+	originalMailbox?: string;
 	/** Quoted original, appended when sending; shown as a box in the inline composer. */
 	quoteHtml?: string;
 	quoteHead?: string;
@@ -117,6 +119,7 @@ export function composeFor(mode: Exclude<ComposeMode, "new">, original: Email, m
 		html: "",
 		files: [],
 		originalId: original.id,
+		originalMailbox: self,
 		quoteHtml,
 		quoteHead: forward ? `— Forwarded message — ${when}, ${original.sender}` : `On ${when}, ${original.sender} wrote:`,
 		quoteText: stripHtml(original.body || "").replace(/\s+/g, " ").trim(),
@@ -141,6 +144,7 @@ export function composeFromDraft(draft: Email, mailboxId: string): ComposeState 
 		files: [],
 		draftId: draft.id,
 		originalId: draft.in_reply_to || undefined,
+		originalMailbox: mailboxId,
 	};
 }
 

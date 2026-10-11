@@ -484,6 +484,9 @@ html:has(.postal), html:has(.postal) body { background: var(--pg-base, #141518);
 .postal .pg-cw:not([data-state="max"]) { border-radius: 6px 6px 0 0 !important; }
 .pg-cw[data-state="min"] { width: 320px; height: 40px; }
 .pg-cw[data-state="max"] { right: auto; bottom: auto; left: 50%; top: 50%; transform: translate(-50%, -50%); width: min(980px, 94vw); height: 88vh; animation: none; }
+/* Popped out: the composer is the whole browser window. */
+.pg-cw[data-state="window"] { inset: 0; right: 0; bottom: 0; width: 100%; height: 100dvh; border: 0; box-shadow: none; animation: none; transform: none; }
+.postal .pg-cw[data-state="window"] { border-radius: 0 !important; }
 .pg-cw-scrim { position: fixed; inset: 0; z-index: 38; background: rgba(6, 7, 8, .55); }
 .pg-cw-head { height: 40px; flex: none; display: flex; align-items: center; gap: 8px; padding: 0 4px 0 14px; background: var(--pg-raised); border-bottom: 1px solid var(--pg-line-2); }
 .pg-cw[data-state="min"] .pg-cw-head { cursor: pointer; }

@@ -15,12 +15,12 @@ import { useCreateLabel, useLabels } from "~/queries/labels";
 import { useMailFacets, useMailList, useViewCounts } from "~/queries/mail";
 import api, { ApiError, type BulkResult, type Conversation, type Label } from "~/services/api";
 import type { Email } from "~/types";
-import { AgentDraftRunner, AgentPanel, AgentRail, type DraftJob, type DraftResult } from "./Agent";
+import { AgentPanel, AgentRail, useDraftWithAgent } from "./Agent";
 import {
-	type ComposeMode, type ComposeState, composeFor, composeFromDraft, emptyCompose, handOff, HANDOFF_KEY, takeHandoff, useAddressInfo,
+	type ComposeMode, type ComposeState, composeFor, composeFromDraft, emptyCompose, handOff, HANDOFF_KEY, useAddressInfo,
 	useMailSender,
 } from "./compose";
-import { ComposeWindow } from "./ComposeWindow";
+import { ComposePopout, ComposeWindow } from "./ComposeWindow";
 import { buildIdentities } from "./identity";
 import { ListPane } from "./ListPane";
 import { LogoutModal, McpModal, SettingsModal, Toast, type ToastState } from "./Modals";
@@ -58,7 +58,15 @@ function useDebounced<T>(value: T, ms: number): T {
 	return v;
 }
 
-export default function PostalMail({ addresses, domains, autoDraft }: { addresses: string[]; domains: string[]; autoDraft: boolean }) {
+type PostalProps = { addresses: string[]; domains: string[]; autoDraft: boolean };
+
+/** A popped-out composer opens this page at #compose and shows only the composer. */
+export default function PostalMail(props: PostalProps) {
+	const [popout] = useState(() => typeof window !== "undefined" && window.location.hash === "#compose");
+	return popout ? <ComposePopout addresses={props.addresses} domains={props.domains} /> : <PostalApp {...props} />;
+}
+
+function PostalApp({ addresses, domains, autoDraft }: PostalProps) {
 	const [searchParams, setSearchParams] = useSearchParams();
 	const queryClient = useQueryClient();
 	const identities = useMemo(() => buildIdentities(domains, addresses), [domains, addresses]);
@@ -156,8 +164,7 @@ export default function PostalMail({ addresses, domains, autoDraft }: { addresse
 	const [prefill, setPrefill] = useState<{ text: string; id: number } | null>(null);
 	const [agentBusy, setAgentBusy] = useState(false);
 	const [replyRequest, setReplyRequest] = useState<{ mode: Exclude<ComposeMode, "new">; id: number } | null>(null);
-	const [draftJob, setDraftJob] = useState<DraftJob | null>(null);
-	const draftWaiter = useRef<{ resolve: (r: DraftResult) => void; reject: (e: Error) => void } | null>(null);
+	const { draftWithAgent, runner: draftRunner } = useDraftWithAgent();
 	const searchRef = useRef<HTMLInputElement>(null);
 	const lastG = useRef(0);
 
@@ -336,55 +343,6 @@ export default function PostalMail({ addresses, domains, autoDraft }: { addresse
 		fallback();
 		return false;
 	};
-
-	const draftWithAgent = (state: ComposeState): Promise<DraftResult> => {
-		const notes = state.html.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
-		const to = state.to[0]?.addr;
-		let mailboxId = state.from;
-		let prompt: string;
-		if ((state.mode === "reply" || state.mode === "reply-all") && state.originalId) {
-			mailboxId = open?.mailboxId ?? state.from;
-			prompt = `Draft a reply to email ${state.originalId} with draft_reply. Read the thread first.${to ? ` Address it to ${to}.` : ""}${notes ? ` Use these notes from me: ${notes}` : ""}`;
-		} else {
-			if (!to) return Promise.reject(new Error("Add a recipient first, then ask the agent."));
-			prompt = `Draft a new email with draft_email to ${to}.${state.subject.trim() ? ` Subject: ${state.subject.trim()}.` : ""}${state.mode === "forward" && state.originalId ? ` It forwards email ${state.originalId}; write a short note to go with it.` : ""}${notes ? ` Use these notes from me: ${notes}` : ""}`;
-		}
-		if (draftWaiter.current) return Promise.reject(new Error("The agent is already drafting."));
-		return new Promise<DraftResult>((resolve, reject) => {
-			const timer = setTimeout(() => {
-				draftWaiter.current = null;
-				setDraftJob(null);
-				reject(new Error("The agent took too long. Try again."));
-			}, 120_000);
-			draftWaiter.current = {
-				resolve: (r) => {
-					clearTimeout(timer);
-					resolve(r);
-				},
-				reject: (e) => {
-					clearTimeout(timer);
-					reject(e);
-				},
-			};
-			setDraftJob({ id: Date.now(), mailboxId, prompt });
-		});
-	};
-
-	const finishDraft = (fn: (w: NonNullable<typeof draftWaiter.current>) => void) => {
-		const waiter = draftWaiter.current;
-		draftWaiter.current = null;
-		setDraftJob(null);
-		if (waiter) fn(waiter);
-		queryClient.invalidateQueries({ queryKey: ["mail"] });
-	};
-
-	// A popped-out compose window arrives as #compose with its draft in storage.
-	useEffect(() => {
-		if (window.location.hash !== "#compose") return;
-		const state = takeHandoff();
-		history.replaceState(null, "", window.location.pathname + window.location.search);
-		if (state) openCompose(state, true);
-	}, []); // eslint-disable-line react-hooks/exhaustive-deps
 
 	// ── Keyboard ───────────────────────────────────────────────────
 	const togglePanelRef = useRef(togglePanel);
@@ -644,14 +602,7 @@ export default function PostalMail({ addresses, domains, autoDraft }: { addresse
 					}}
 				/>
 			)}
-			{draftJob && (
-				<AgentDraftRunner
-					key={draftJob.id}
-					job={draftJob}
-					onDone={(r) => finishDraft((w) => w.resolve(r))}
-					onError={(m) => finishDraft((w) => w.reject(new Error(m)))}
-				/>
-			)}
+			{draftRunner}
 			<Toast toast={toast} onClose={closeToast} />
 			{modal === "settings" && (
 				<SettingsModal

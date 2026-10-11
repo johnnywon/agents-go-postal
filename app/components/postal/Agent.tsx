@@ -5,6 +5,7 @@
 import { ArrowElbowDownLeftIcon, CaretDoubleLeftIcon, CaretDoubleRightIcon, RobotIcon, SparkleIcon, StopIcon, TrashIcon } from "@phosphor-icons/react";
 import { useQueryClient } from "@tanstack/react-query";
 import type { UIMessage } from "ai";
+import type { ComposeState } from "./compose";
 import { useEffect, useMemo, useRef, useState } from "react";
 import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -369,4 +370,66 @@ function Runner({ hooks, job, onDone, onError }: { hooks: Hooks; job: DraftJob; 
 	}, [messages, status]); // eslint-disable-line react-hooks/exhaustive-deps
 
 	return null;
+}
+
+/**
+ * "Draft with agent" for any composer: returns the request function and the
+ * runner element to render while a request is out.
+ */
+export function useDraftWithAgent() {
+	const queryClient = useQueryClient();
+	const [job, setJob] = useState<DraftJob | null>(null);
+	const waiter = useRef<{ resolve: (r: DraftResult) => void; reject: (e: Error) => void } | null>(null);
+
+	const finish = (fn: (w: NonNullable<typeof waiter.current>) => void) => {
+		const w = waiter.current;
+		waiter.current = null;
+		setJob(null);
+		if (w) fn(w);
+		queryClient.invalidateQueries({ queryKey: ["mail"] });
+	};
+
+	const draftWithAgent = (state: ComposeState): Promise<DraftResult> => {
+		const notes = state.html.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+		const to = state.to[0]?.addr;
+		let mailboxId = state.from;
+		let prompt: string;
+		if ((state.mode === "reply" || state.mode === "reply-all") && state.originalId) {
+			mailboxId = state.originalMailbox ?? state.from;
+			prompt = `Draft a reply to email ${state.originalId} with draft_reply. Read the thread first.${to ? ` Address it to ${to}.` : ""}${notes ? ` Use these notes from me: ${notes}` : ""}`;
+		} else {
+			if (!to) return Promise.reject(new Error("Add a recipient first, then ask the agent."));
+			prompt = `Draft a new email with draft_email to ${to}.${state.subject.trim() ? ` Subject: ${state.subject.trim()}.` : ""}${state.mode === "forward" && state.originalId ? ` It forwards email ${state.originalId}; write a short note to go with it.` : ""}${notes ? ` Use these notes from me: ${notes}` : ""}`;
+		}
+		if (waiter.current) return Promise.reject(new Error("The agent is already drafting."));
+		return new Promise<DraftResult>((resolve, reject) => {
+			const timer = setTimeout(() => {
+				waiter.current = null;
+				setJob(null);
+				reject(new Error("The agent took too long. Try again."));
+			}, 120_000);
+			waiter.current = {
+				resolve: (r) => {
+					clearTimeout(timer);
+					resolve(r);
+				},
+				reject: (e) => {
+					clearTimeout(timer);
+					reject(e);
+				},
+			};
+			setJob({ id: Date.now(), mailboxId, prompt });
+		});
+	};
+
+	const runner = job ? (
+		<AgentDraftRunner
+			key={job.id}
+			job={job}
+			onDone={(r) => finish((w) => w.resolve(r))}
+			onError={(m) => finish((w) => w.reject(new Error(m)))}
+		/>
+	) : null;
+
+	return { draftWithAgent, runner };
 }

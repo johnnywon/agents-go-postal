@@ -8,19 +8,25 @@ import {
 } from "@phosphor-icons/react";
 import type { Editor as TipTap } from "@tiptap/react";
 import { useEffect, useRef, useState } from "react";
-import { type AddressInfo, type ComposeState, isValidAddress, parseRecipient, readFiles, type Recipient, textToParagraphs, type useMailSender } from "./compose";
+import { type DraftResult, useDraftWithAgent } from "./Agent";
+import {
+	type AddressInfo, type ComposeState, emptyCompose, isValidAddress, parseRecipient, readFiles, type Recipient, takeHandoff, textToParagraphs,
+	useAddressInfo, useMailSender,
+} from "./compose";
 import { Editor, FormatBar } from "./Editor";
-import { AddressText, type Identities, Swatch } from "./identity";
+import { AddressText, buildIdentities, type Identities, Swatch } from "./identity";
 import { formatSize, sendTimeLabel } from "./model";
-import type { DraftResult } from "./Agent";
+import { usePrefs, useResolvedTheme } from "./prefs";
 
 type Sender = ReturnType<typeof useMailSender>;
 type Field = "to" | "cc" | "bcc";
 
 export interface ComposeWindowProps {
 	initial: ComposeState;
-	/** Opened maximised, as in a popped-out window. */
+	/** Opened maximised. */
 	maximised?: boolean;
+	/** The only thing in its own browser window: fills it, with no pop-out, minimise or full-screen. */
+	standalone?: boolean;
 	addresses: string[];
 	identities: Identities;
 	info: ReadonlyMap<string, AddressInfo>;
@@ -118,7 +124,7 @@ const isoDay = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d
 export function ComposeWindow(props: ComposeWindowProps) {
 	const { identities, info, sender } = props;
 	const [state, setState] = useState<ComposeState>(props.initial);
-	const [mode, setMode] = useState<"normal" | "min" | "max">(props.maximised ? "max" : "normal");
+	const [mode, setMode] = useState<"normal" | "min" | "max" | "window">(props.standalone ? "window" : props.maximised ? "max" : "normal");
 	const [fromOpen, setFromOpen] = useState(false);
 	const [schedOpen, setSchedOpen] = useState(false);
 	const [custom, setCustom] = useState(false);
@@ -273,7 +279,7 @@ export function ComposeWindow(props: ComposeWindowProps) {
 						if (fromOpen || schedOpen) {
 							setFromOpen(false);
 							setSchedOpen(false);
-						} else setMode("min");
+						} else if (mode !== "window") setMode("min");
 					}
 				}}
 			>
@@ -281,15 +287,19 @@ export function ComposeWindow(props: ComposeWindowProps) {
 					<PencilSimpleLineIcon size={14} color="var(--pg-text-5)" />
 					<span className="pg-title">{state.subject.trim() || "New message"}</span>
 					<span className="pg-saved" aria-live="polite">{saved ? "Draft saved" : ""}</span>
-					<button type="button" className="pg-cw-btn" title="Open in new window" aria-label="Open in new window" onMouseDown={(e) => { e.preventDefault(); done.current = true; props.onPopOut(stateRef.current); }}>
-						<ArrowSquareOutIcon size={15} />
-					</button>
-					<button type="button" className="pg-cw-btn" title={mode === "min" ? "Restore" : "Minimize"} aria-label={mode === "min" ? "Restore" : "Minimize"} onMouseDown={(e) => { e.preventDefault(); setMode(mode === "min" ? "normal" : "min"); }}>
-						{mode === "min" ? <CaretUpIcon size={15} /> : <MinusIcon size={15} />}
-					</button>
-					<button type="button" className="pg-cw-btn pg-desktop-only" title="Full screen" aria-label="Full screen" onMouseDown={(e) => { e.preventDefault(); setMode(mode === "max" ? "normal" : "max"); }}>
-						{mode === "max" ? <ArrowsInSimpleIcon size={15} /> : <ArrowsOutSimpleIcon size={15} />}
-					</button>
+					{mode !== "window" && (
+						<>
+							<button type="button" className="pg-cw-btn" title="Open in new window" aria-label="Open in new window" onMouseDown={(e) => { e.preventDefault(); done.current = true; props.onPopOut(stateRef.current); }}>
+								<ArrowSquareOutIcon size={15} />
+							</button>
+							<button type="button" className="pg-cw-btn" title={mode === "min" ? "Restore" : "Minimize"} aria-label={mode === "min" ? "Restore" : "Minimize"} onMouseDown={(e) => { e.preventDefault(); setMode(mode === "min" ? "normal" : "min"); }}>
+								{mode === "min" ? <CaretUpIcon size={15} /> : <MinusIcon size={15} />}
+							</button>
+							<button type="button" className="pg-cw-btn pg-desktop-only" title="Full screen" aria-label="Full screen" onMouseDown={(e) => { e.preventDefault(); setMode(mode === "max" ? "normal" : "max"); }}>
+								{mode === "max" ? <ArrowsInSimpleIcon size={15} /> : <ArrowsOutSimpleIcon size={15} />}
+							</button>
+						</>
+					)}
 					<button type="button" className="pg-cw-btn" title="Save & close" aria-label="Save and close" onMouseDown={(e) => { e.preventDefault(); close(); }}>
 						<XIcon size={15} />
 					</button>
@@ -344,6 +354,12 @@ export function ComposeWindow(props: ComposeWindowProps) {
 					<div className="pg-cw-scroll">
 						<Editor value={state.html} onChange={(html) => patch({ html })} placeholder="Write your message…" size="window" onReady={setEditor} autoFocus={state.to.length > 0} />
 						<div className="pg-signature">{fromInfo?.signatureText}</div>
+						{state.quoteHead && (
+							<div className="pg-quote" style={{ marginBottom: 12 }}>
+								<div className="pg-quote-head">{state.quoteHead}</div>
+								<div className="pg-quote-text">{state.quoteText}</div>
+							</div>
+						)}
 					</div>
 					{state.files.length > 0 && (
 						<div className="pg-files">
@@ -447,5 +463,56 @@ export function ComposeWindow(props: ComposeWindowProps) {
 				</div>
 			</div>
 		</>
+	);
+}
+
+/**
+ * The page a popped-out composer opens (#compose): the composer alone, filling
+ * its own browser window, like Gmail's pop-out. The draft arrives through
+ * storage. Sending, discarding or closing closes the window.
+ */
+export function ComposePopout({ addresses, domains }: { addresses: string[]; domains: string[] }) {
+	const [prefs] = usePrefs();
+	const theme = useResolvedTheme(prefs.theme);
+	const identities = buildIdentities(domains, addresses);
+	const info = useAddressInfo(addresses);
+	const sender = useMailSender(info);
+	const { draftWithAgent, runner } = useDraftWithAgent();
+	const [initial] = useState<ComposeState>(() => takeHandoff() ?? emptyCompose(addresses[0] ?? ""));
+	const [note, setNote] = useState<string | null>(null);
+
+	useEffect(() => {
+		history.replaceState(null, "", `${window.location.pathname}${window.location.search}#compose`);
+	}, []);
+	useEffect(() => {
+		document.title = initial.subject.trim() || "New message";
+	}, [initial]);
+
+	const done = (message: string | null) => {
+		window.close();
+		// A window the app did not open cannot close itself: say what happened and go to the inbox.
+		setNote(message ?? "Closed");
+		setTimeout(() => window.location.replace(`${window.location.pathname}${window.location.search}`), 1200);
+	};
+
+	return (
+		<div className="postal" data-theme={theme} data-keys={prefs.keys ? "on" : "off"}>
+			{note ? (
+				<div className="pg-idle"><p>{note}</p></div>
+			) : (
+				<ComposeWindow
+					initial={initial}
+					standalone
+					addresses={addresses}
+					identities={identities}
+					info={info}
+					sender={sender}
+					draftWithAgent={draftWithAgent}
+					onClosed={done}
+					onPopOut={() => {}}
+				/>
+			)}
+			{runner}
+		</div>
 	);
 }
