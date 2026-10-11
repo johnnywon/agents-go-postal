@@ -16,7 +16,7 @@ Derived from [cloudflare/agentic-inbox](https://github.com/cloudflare/agentic-in
 - **Labels and bulk actions.** Select many conversations to archive, delete, mark read, star, label or move. Undo is available after each action.
 - **Keyboard shortcuts** for navigation and actions.
 - **Per-address isolation.** Every address has its own Durable Object, database and prompt settings.
-- **AI agent.** A side panel that can read, search, label and draft using Workers AI. "Draft with agent" in either composer asks it for a first draft. Labels the agent has applied are marked with a sparkle. Automatic drafting of new mail is off by default (`AUTO_DRAFT_ENABLED`).
+- **AI agent.** A side panel that can read, search, label and draft using Workers AI, or any OpenRouter model with your own key. "Draft with agent" in either composer asks it for a first draft. Labels the agent has applied are marked with a sparkle. Automatic drafting of new mail is off by default (`AUTO_DRAFT_ENABLED`).
 - **MCP server** for connecting outside agents.
 - **Cloudflare Access required.** Outside local development the Worker refuses every request until Access is configured.
 
@@ -24,7 +24,7 @@ Derived from [cloudflare/agentic-inbox](https://github.com/cloudflare/agentic-in
 
 - **Frontend:** React 19, React Router v7 (server rendered), Tailwind CSS, TanStack Query, Zustand, TipTap, `@cloudflare/kumo`
 - **Backend:** Hono, Cloudflare Workers, Durable Objects (SQLite), R2, Email Routing, Email Sending
-- **Agent:** Cloudflare Agents SDK, AI SDK v6, Workers AI
+- **Agent:** Cloudflare Agents SDK, AI SDK v6, Workers AI or OpenRouter
 - **Auth:** Cloudflare Access JWT validation
 
 ## Setup
@@ -86,6 +86,12 @@ Keyboard: `j`/`k` move, `e` archive, `x` select, `r` reply, `a` reply all, `f` f
 ### Scheduled send
 
 Choose a time from the arrow next to Send in the compose window. The message is saved to Drafts with a "Scheduled" badge, and the address's Durable Object sends it with an alarm at that time through the normal sending path. Cancel removes the schedule and keeps the draft. Editing or deleting the draft before the send time cancels it. A send that fails is retried every 15 minutes, up to three attempts; after that the draft stays in Drafts marked "Send failed". Attachments count toward a 1.5 MB limit per scheduled message.
+
+### Agent model
+
+The agent runs on Workers AI (`@cf/moonshotai/kimi-k2.5`) by default. To use OpenRouter instead, open Settings, then Agent, choose OpenRouter, paste an API key and pick a model. Only models that can call tools are listed. Test sends one short prompt to check the key. The chat panel, "Draft with agent" and auto-draft then use that model and bill your OpenRouter account. The prompt-injection check and the draft cleanup on incoming mail stay on Workers AI.
+
+The key is stored in R2 at `config/agent-model.json`, which no route serves. The API returns only its last four characters. Anyone who can open the app can replace or remove it, so keep the app behind Access.
 
 ### Keeping a deployment in its own repo
 

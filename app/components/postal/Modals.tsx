@@ -9,7 +9,7 @@ import {
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 import { queryKeys } from "~/queries/keys";
-import api, { type IndexStatusResponse } from "~/services/api";
+import api, { type AgentProvider, type IndexStatusResponse } from "~/services/api";
 import { type AddressInfo, textToParagraphs } from "./compose";
 import { Editor } from "./Editor";
 import { htmlToPlainText } from "~/lib/utils";
@@ -96,6 +96,115 @@ function Setting({ title, sub, children }: { title: string; sub: React.ReactNode
 	);
 }
 
+function useAgentModelDraft() {
+	const queryClient = useQueryClient();
+	const { data: stored } = useQuery({ queryKey: ["agent-model"], queryFn: api.getAgentModel });
+	const [provider, setProvider] = useState<AgentProvider | null>(null);
+	const [model, setModel] = useState<string | null>(null);
+	const [key, setKey] = useState("");
+	const [removeKey, setRemoveKey] = useState(false);
+	const current = {
+		provider: provider ?? stored?.provider ?? "workers-ai",
+		model: model ?? stored?.model ?? "",
+	};
+	const dirty = !!stored && (current.provider !== stored.provider || current.model.trim() !== stored.model || key.trim() !== "" || removeKey);
+	const save = async () => {
+		const view = await api.updateAgentModel({
+			provider: current.provider,
+			model: current.model.trim(),
+			apiKey: removeKey ? "" : key.trim() || undefined,
+		});
+		queryClient.setQueryData(["agent-model"], view);
+	};
+	return { stored, ...current, key, removeKey, dirty, save, setProvider, setModel, setKey, setRemoveKey };
+}
+
+type AgentModelDraft = ReturnType<typeof useAgentModelDraft>;
+
+function AgentModelSection({ draft }: { draft: AgentModelDraft }) {
+	const openrouter = draft.provider === "openrouter";
+	const { data: models } = useQuery({ queryKey: ["agent-model", "models"], queryFn: api.listAgentModels, enabled: openrouter, staleTime: 3_600_000 });
+	const [test, setTest] = useState<{ busy: boolean; result?: string; ok?: boolean }>({ busy: false });
+	const keySaved = !!draft.stored?.keySet && !draft.removeKey;
+	const hasKey = keySaved || draft.key.trim() !== "";
+
+	const runTest = async () => {
+		setTest({ busy: true });
+		try {
+			const r = await api.testAgentModel({ model: draft.model.trim() || undefined, apiKey: draft.key.trim() || undefined });
+			setTest({ busy: false, ok: r.ok, result: r.ok ? `Replied: ${r.reply || "(empty)"}` : `OpenRouter: ${r.error}` });
+		} catch (e) {
+			setTest({ busy: false, ok: false, result: `OpenRouter: ${(e as Error).message}` });
+		}
+	};
+
+	return (
+		<>
+			<Setting
+				title="Model"
+				sub={openrouter
+					? "Chat and auto-draft run on OpenRouter and bill your OpenRouter account. Safety checks on incoming mail stay on Workers AI."
+					: <>Workers AI, <span className="pg-mono">{draft.stored?.defaultModel ?? "default"}</span>. No key needed.</>}
+			>
+				<Segmented<AgentProvider>
+					label="Agent model provider"
+					value={draft.provider}
+					onChange={(v) => { draft.setProvider(v); setTest({ busy: false }); }}
+					options={[{ value: "workers-ai", label: "Workers AI" }, { value: "openrouter", label: "OpenRouter" }]}
+				/>
+			</Setting>
+			{openrouter && (
+				<>
+					<Setting
+						title="OpenRouter API key"
+						sub={keySaved ? `Saved key ending ${draft.stored?.keyHint || "····"}. Paste a new one to replace it.` : "Stored on your Worker. The key is never sent back to the browser."}
+					>
+						<div className="pg-setting-field">
+							<input
+								className="pg-input pg-mono"
+								type="password"
+								autoComplete="off"
+								spellCheck={false}
+								value={draft.key}
+								placeholder={keySaved ? "••••••••" : "sk-or-…"}
+								aria-label="OpenRouter API key"
+								onChange={(e) => { draft.setKey(e.target.value); draft.setRemoveKey(false); }}
+							/>
+							{keySaved && (
+								<button type="button" className="pg-btn pg-btn-sm pg-btn-quiet" onClick={() => { draft.setRemoveKey(true); draft.setKey(""); }}>Remove</button>
+							)}
+						</div>
+					</Setting>
+					<Setting title="OpenRouter model" sub="Only models that can call tools are listed. The agent needs tools to read, label and draft.">
+						<div className="pg-setting-field">
+						<input
+							className="pg-input pg-mono"
+							list="pg-openrouter-models"
+							value={draft.model}
+							placeholder="provider/model"
+							aria-label="OpenRouter model"
+							spellCheck={false}
+							onChange={(e) => draft.setModel(e.target.value)}
+						/>
+						</div>
+						<datalist id="pg-openrouter-models">
+							{models?.models.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
+						</datalist>
+					</Setting>
+					<div style={{ display: "flex", alignItems: "center", gap: 8, padding: "4px 0 10px" }}>
+						<button type="button" className="pg-btn pg-btn-sm" onClick={runTest} disabled={test.busy || !hasKey || !draft.model.trim()}>
+							{test.busy ? "Testing…" : "Test"}
+						</button>
+						{test.result && (
+							<span role="status" style={{ fontSize: 12, color: test.ok ? "var(--pg-green-text)" : "var(--pg-danger)" }}>{test.result}</span>
+						)}
+					</div>
+				</>
+			)}
+		</>
+	);
+}
+
 type Tab = "general" | "addresses" | "signatures" | "agent" | "index";
 
 function indexRowMatches(row: IndexStatusResponse["mailboxes"][number]) {
@@ -134,18 +243,20 @@ export function SettingsModal({ initialTab, prefs, setPrefs, addresses, identiti
 	const [saving, setSaving] = useState(false);
 	const [error, setError] = useState<string | null>(null);
 	const queryClient = useQueryClient();
+	const agentModel = useAgentModelDraft();
 
 	const dirty = JSON.stringify(draft) !== JSON.stringify(prefs)
 		|| addresses.some((a) => (names[a] ?? "") !== (initialNames[a] ?? ""))
 		|| prompt.trim() !== initialPrompt.trim()
-		|| addresses.some(sigChanged);
+		|| addresses.some(sigChanged)
+		|| agentModel.dirty;
 
 	const save = async () => {
 		setSaving(true);
 		setError(null);
 		try {
 			setPrefs(draft);
-			const writes = addresses.flatMap((a) => {
+			const writes: Promise<unknown>[] = addresses.flatMap((a) => {
 				const mailbox = info.get(a)?.mailbox;
 				if (!mailbox) return [];
 				const name = (names[a] ?? "").trim();
@@ -163,6 +274,7 @@ export function SettingsModal({ initialTab, prefs, setPrefs, addresses, identiti
 				};
 				return [api.updateMailbox(a, settings)];
 			});
+			if (agentModel.dirty) writes.push(agentModel.save());
 			await Promise.all(writes);
 			for (const a of addresses) queryClient.invalidateQueries({ queryKey: queryKeys.mailboxes.detail(a) });
 			onSaved("Settings saved");
@@ -274,6 +386,7 @@ export function SettingsModal({ initialTab, prefs, setPrefs, addresses, identiti
 					)}
 					{tab === "agent" && (
 						<>
+							<AgentModelSection draft={agentModel} />
 							<div style={{ display: "flex", alignItems: "center", gap: 8, padding: "14px 0 8px" }}>
 								<b style={{ fontWeight: 500 }}>Agent prompt</b>
 								<span className="pg-badge">{prompt.trim() ? "Custom" : "Default"}</span>

@@ -237,12 +237,29 @@ export interface IndexStatusResponse {
 	}[];
 }
 
+export type AgentProvider = "workers-ai" | "openrouter";
+export interface AgentModelView {
+	provider: AgentProvider;
+	model: string;
+	keySet: boolean;
+	keyHint: string;
+	defaultModel: string;
+}
+
 // ---------- API client ----------
 
 const api = {
 	// Config
 	getConfig: () =>
 		get<{ domains: string[]; emailAddresses: string[]; mailUi: "postal" | "unified" | "classic"; autoDraft?: boolean }>("/api/v1/config"),
+
+	// Agent model
+	getAgentModel: () => get<AgentModelView>("/api/v1/agent-model"),
+	updateAgentModel: (body: { provider?: AgentProvider; model?: string; apiKey?: string }) =>
+		put<AgentModelView>("/api/v1/agent-model", body),
+	testAgentModel: (body: { model?: string; apiKey?: string }) =>
+		post<{ ok: boolean; reply?: string; error?: string }>("/api/v1/agent-model/test", body),
+	listAgentModels: () => get<{ models: { id: string; name: string }[] }>("/api/v1/agent-model/models"),
 
 	// Mailboxes
 	listMailboxes: () => get<Mailbox[]>("/api/v1/mailboxes"),

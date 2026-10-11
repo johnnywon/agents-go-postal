@@ -9,10 +9,10 @@ import {
 	convertToModelMessages,
 	stepCountIs,
 } from "ai";
-import { createWorkersAI } from "workers-ai-provider";
 import { z } from "zod";
 import type { EmailFull, EmailMetadata } from "../lib/schemas";
 import { verifyDraft, isPromptInjection } from "../lib/ai";
+import { agentModel } from "../lib/agent-model";
 import {
 	getMailboxStub,
 	stripHtmlToText,
@@ -340,12 +340,12 @@ export class EmailAgent extends AIChatAgent<any> {
 	async onChatMessage(onFinish: any) {
 		const env = this.env as Env;
 		const mailboxId = this.name;
-		const workersai = createWorkersAI({ binding: env.AI });
+		const model = await agentModel(env);
 		const tools = createEmailTools(env, mailboxId);
 		const systemPrompt = await getSystemPrompt(env, mailboxId);
 
 		const result = streamText({
-			model: workersai("@cf/moonshotai/kimi-k2.5"),
+			model,
 			system: systemPrompt,
 			messages: await convertToModelMessages(this.messages),
 			tools,
@@ -398,7 +398,7 @@ export class EmailAgent extends AIChatAgent<any> {
 		threadId: string;
 	}) {
 		const env = this.env as Env;
-		const workersai = createWorkersAI({ binding: env.AI });
+		const model = await agentModel(env);
 		const tools = createEmailTools(env, emailData.mailboxId);
 		const systemPrompt = await getSystemPrompt(env, emailData.mailboxId);
 
@@ -527,7 +527,7 @@ Based on the email content and thread context above, draft a reply using draft_r
 
 		try {
 			const result = await generateText({
-				model: workersai("@cf/moonshotai/kimi-k2.5"),
+				model,
 				system: systemPrompt,
 				messages: await convertToModelMessages(messages),
 				tools,

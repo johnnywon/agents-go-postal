@@ -6,6 +6,7 @@ import { type Context, Hono } from "hono";
 import { cors } from "hono/cors";
 import PostalMime from "postal-mime";
 import { z } from "zod";
+import { generateText } from "ai";
 import { type StoredAttachment } from "./lib/attachments";
 import {
 	validateSender,
@@ -16,6 +17,7 @@ import { checkSendAt, ScheduleBody, SCHEDULE_MAX_PAYLOAD_BYTES } from "./lib/sch
 import { handleReplyEmail, handleForwardEmail, handleSendEmail } from "./routes/reply-forward";
 import { Folders } from "../shared/folders";
 import type { Env } from "./types";
+import { mergeAgentModelConfig, OPENROUTER_BASE, openRouterModel, readAgentModelConfig, viewOf, writeAgentModelConfig } from "./lib/agent-model";
 import { requireMailbox, type MailboxContext } from "./lib/mailbox";
 import { getCombinedInbox, InvalidInboxCursorError } from "./lib/combined-inbox";
 import { csrf } from "./lib/csrf";
@@ -144,6 +146,54 @@ if (import.meta.env?.DEV) {
 		return c.json({ created });
 	});
 }
+
+// -- Agent model ----------------------------------------------------
+
+app.get("/api/v1/agent-model", async (c) => {
+	return c.json(viewOf(await readAgentModelConfig(c.env)));
+});
+
+const AgentModelBody = z.object({
+	provider: z.enum(["workers-ai", "openrouter"]).optional(),
+	model: z.string().max(200).optional(),
+	apiKey: z.string().max(500).optional(),
+});
+
+app.put("/api/v1/agent-model", async (c) => {
+	const body = AgentModelBody.parse(await c.req.json());
+	const next = mergeAgentModelConfig(await readAgentModelConfig(c.env), body);
+	if ("error" in next) return c.json({ error: next.error }, 400);
+	await writeAgentModelConfig(c.env, next);
+	return c.json(viewOf(next));
+});
+
+/** Send one short prompt to OpenRouter with the given (or stored) key and model. */
+app.post("/api/v1/agent-model/test", async (c) => {
+	const body = AgentModelBody.parse(await c.req.json().catch(() => ({})));
+	const stored = await readAgentModelConfig(c.env);
+	const apiKey = body.apiKey?.trim() || stored.apiKey;
+	const model = body.model?.trim() || stored.model;
+	if (!apiKey || !model) return c.json({ ok: false, error: "Add an API key and a model first." }, 400);
+	try {
+		const result = await generateText({
+			model: openRouterModel(apiKey, model),
+			prompt: "Reply with the single word OK.",
+			maxOutputTokens: 16,
+		});
+		return c.json({ ok: true, reply: result.text.trim().slice(0, 80) });
+	} catch (e) {
+		return c.json({ ok: false, error: (e as Error).message.slice(0, 300) }, 502);
+	}
+});
+
+/** OpenRouter models that can call tools, for the model picker. */
+app.get("/api/v1/agent-model/models", async (c) => {
+	const res = await fetch(`${OPENROUTER_BASE}/models?supported_parameters=tools`);
+	if (!res.ok) return c.json({ models: [] });
+	const data = (await res.json()) as { data?: { id: string; name?: string }[] };
+	const models = (data.data ?? []).map((m) => ({ id: m.id, name: m.name ?? m.id }));
+	return c.json({ models });
+});
 
 // -- Mailboxes ------------------------------------------------------
 
