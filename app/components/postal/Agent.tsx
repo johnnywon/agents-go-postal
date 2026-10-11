@@ -5,7 +5,7 @@
 import { ArrowElbowDownLeftIcon, CaretDoubleLeftIcon, CaretDoubleRightIcon, RobotIcon, SparkleIcon, StopIcon, TrashIcon } from "@phosphor-icons/react";
 import { useQueryClient } from "@tanstack/react-query";
 import type { UIMessage } from "ai";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { AddressMark, type Identities } from "./identity";
@@ -125,6 +125,10 @@ function AgentChat({ hooks, mailboxId, identities, prefill, onOpenDraft, onBusy 
 	const { messages, sendMessage, status, setMessages, stop } = hooks.useAgentChat({ agent });
 	const busy = status === "streaming" || status === "submitted";
 	const [input, setInput] = useState("");
+	// Up and Down walk through what you asked before, like a shell.
+	const history = useMemo(() => sentHistory(messages), [messages]);
+	const [historyAt, setHistoryAt] = useState<number | null>(null);
+	const unsent = useRef("");
 	const inputRef = useRef<HTMLInputElement>(null);
 	const scrollRef = useRef<HTMLDivElement>(null);
 	const queryClient = useQueryClient();
@@ -153,6 +157,7 @@ function AgentChat({ hooks, mailboxId, identities, prefill, onOpenDraft, onBusy 
 		const t = text.trim();
 		if (!t || busy) return;
 		setInput("");
+		setHistoryAt(null);
 		sendMessage({ text: t });
 	};
 
@@ -190,7 +195,23 @@ function AgentChat({ hooks, mailboxId, identities, prefill, onOpenDraft, onBusy 
 					<input
 						ref={inputRef}
 						value={input}
-						onChange={(e) => setInput(e.target.value)}
+						onChange={(e) => {
+							setInput(e.target.value);
+							setHistoryAt(null);
+						}}
+						onKeyDown={(e) => {
+							if (e.key !== "ArrowUp" && e.key !== "ArrowDown") return;
+							if (e.nativeEvent.isComposing || !history.length) return;
+							const next = stepHistory(history.length, historyAt, e.key === "ArrowUp" ? -1 : 1);
+							if (next === historyAt) return;
+							e.preventDefault();
+							if (historyAt === null) unsent.current = input;
+							setHistoryAt(next);
+							const text = next === null ? unsent.current : history[next];
+							setInput(text);
+							const el = e.currentTarget;
+							requestAnimationFrame(() => el.setSelectionRange(text.length, text.length));
+						}}
 						placeholder="Ask about your mail…"
 						aria-label="Ask the agent"
 						id="pg-agent-input"
@@ -250,6 +271,25 @@ function ChatMessage({ message, onOpenDraft }: { message: UIMessage; onOpenDraft
 		);
 	}
 	return <>{out}</>;
+}
+
+/** Messages you sent, oldest first, without repeats in a row or auto-triggered entries. */
+export function sentHistory(messages: UIMessage[]): string[] {
+	const out: string[] = [];
+	for (const m of messages) {
+		if (m.role !== "user") continue;
+		const text = m.parts.map((p) => (p.type === "text" ? p.text : "")).join("").trim();
+		if (!text || text.startsWith("[Auto-triggered]") || out[out.length - 1] === text) continue;
+		out.push(text);
+	}
+	return out;
+}
+
+/** Next history position: null is the line you were typing; Up from there goes to the newest entry. */
+export function stepHistory(length: number, at: number | null, delta: -1 | 1): number | null {
+	if (delta < 0) return at === null ? length - 1 : Math.max(0, at - 1);
+	if (at === null) return null;
+	return at + 1 >= length ? null : at + 1;
 }
 
 export function AgentRail({ onOpen, busy }: { onOpen: () => void; busy: boolean }) {
