@@ -1,6 +1,6 @@
 # Plan: move mail storage to D1 and rebuild search
 
-Status: in progress. Phase 0 is done ([results](d1-phase0.md)). Phase 1 is done: every caller goes through `mailStore(env)`.
+Status: in progress. Phase 0 is done ([results](d1-phase0.md)). Phase 1 is done: every caller goes through `mailStore(env)`. Phase 2 has started: `migrations/0001_init.sql` is tested on node:sqlite, local D1 and production D1 (`tests/d1-schema.test.mjs`).
 
 ## Summary
 
@@ -56,143 +56,21 @@ The index is not fully derived. `labels`, `label_auto`, `saved_searches`, `undo`
 
 ### Schema
 
-The draft below is the first migration. `id` columns stay text UUIDs so existing ids, URLs and R2 attachment paths survive the copy. FTS needs an integer rowid, so `messages` has both.
+The schema is [`migrations/0001_init.sql`](../migrations/0001_init.sql). It's tested on node:sqlite, local D1 and production D1 by `tests/d1-schema.test.mjs`. In short:
 
-```sql
--- migrations/0001_init.sql
-CREATE TABLE mailboxes (
-	id TEXT PRIMARY KEY,                -- the address, lowercase
-	settings TEXT NOT NULL DEFAULT '{}', -- JSON, was mailboxes/<address>.json
-	created_at TEXT NOT NULL
-);
+| Table | Holds |
+|---|---|
+| `mailboxes` | One row per address, with its settings as JSON (was `mailboxes/<address>.json` in R2) |
+| `folders` | System and custom folders per address |
+| `messages` | Every message from every address, with `mailbox_id`. Text `id` keeps today's ids; integer `rowid` keys the search indexes. Bodies over 512 KB live in R2 (`body_key`). |
+| `messages_fts` | Contentless word index with a weighted `bm25` rank |
+| `messages_trigram` | Contentless substring index over subject, sender, recipient and attachment names |
+| `messages_vocab` | Terms and counts from the word index |
+| `attachments`, `attachment_text` | Attachment metadata, and extracted text for search |
+| `labels`, `message_labels` | Labels across every address. `auto_applied_at` replaces `label_auto`. |
+| `saved_searches`, `scheduled_sends`, `send_keys`, `undo`, `bulk_jobs` | As today, with `mailbox_id` where they belong to one address |
 
-CREATE TABLE folders (
-	mailbox_id TEXT NOT NULL REFERENCES mailboxes(id) ON DELETE CASCADE,
-	id TEXT NOT NULL,
-	name TEXT NOT NULL,
-	is_deletable INTEGER NOT NULL DEFAULT 1,
-	PRIMARY KEY (mailbox_id, id),
-	UNIQUE (mailbox_id, name)
-);
-
-CREATE TABLE messages (
-	rowid INTEGER PRIMARY KEY,           -- FTS rowid
-	id TEXT NOT NULL UNIQUE,             -- was emails.id
-	mailbox_id TEXT NOT NULL REFERENCES mailboxes(id) ON DELETE CASCADE,
-	folder_id TEXT NOT NULL,
-	thread_id TEXT NOT NULL,
-	message_id TEXT,                     -- RFC Message-ID
-	in_reply_to TEXT,
-	email_references TEXT,               -- JSON array
-	date TEXT NOT NULL,
-	subject TEXT NOT NULL DEFAULT '',
-	subject_norm TEXT NOT NULL DEFAULT '',
-	sender TEXT NOT NULL DEFAULT '',
-	sender_name TEXT NOT NULL DEFAULT '',
-	sender_domain TEXT NOT NULL DEFAULT '',
-	recipient TEXT NOT NULL DEFAULT '',
-	cc TEXT,
-	bcc TEXT,
-	snippet TEXT NOT NULL DEFAULT '',
-	body TEXT,                           -- NULL when body_key is set
-	body_key TEXT,                       -- R2 key for bodies over BODY_INLINE_MAX
-	raw_headers TEXT,
-	read INTEGER NOT NULL DEFAULT 0,
-	starred INTEGER NOT NULL DEFAULT 0,
-	has_attachment INTEGER NOT NULL DEFAULT 0,
-	list_id TEXT,
-	unsubscribe TEXT,
-	FOREIGN KEY (mailbox_id, folder_id) REFERENCES folders(mailbox_id, id)
-);
-CREATE INDEX messages_folder_date ON messages (mailbox_id, folder_id, date DESC);
-CREATE INDEX messages_date ON messages (date DESC);
-CREATE INDEX messages_thread ON messages (mailbox_id, thread_id);
-CREATE INDEX messages_message_id ON messages (message_id);
-CREATE INDEX messages_in_reply_to ON messages (in_reply_to);
-CREATE INDEX messages_sender ON messages (sender);
-CREATE INDEX messages_sender_domain ON messages (sender_domain);
-
--- Word search. Contentless: 3.9 KB per message against 10.2 KB for a table
--- that stores its own text (phase 0). bm25() and rank work; snippets are
--- built in the Worker. rowid = messages.rowid.
-CREATE VIRTUAL TABLE messages_fts USING fts5(
-	subject, sender_name, sender, recipient, cc, attachment_names, body_text,
-	content='', contentless_delete=1,
-	tokenize='unicode61 remove_diacritics 2', prefix='2 3'
-);
--- Substring search for codes and partial addresses ("INV-20", "ripe" in stripe).
--- Short fields only; bodies stay out to keep it small.
-CREATE VIRTUAL TABLE messages_trigram USING fts5(
-	subject, sender, recipient, attachment_names,
-	tokenize='trigram'
-);
--- Terms and counts, for "Did you mean" and completion.
-CREATE VIRTUAL TABLE messages_vocab USING fts5vocab(messages_fts, 'row');
-
-CREATE TABLE attachments (
-	id TEXT PRIMARY KEY,
-	message_id TEXT NOT NULL REFERENCES messages(id) ON DELETE CASCADE,
-	filename TEXT NOT NULL,
-	mimetype TEXT NOT NULL,
-	size INTEGER NOT NULL,
-	content_id TEXT,
-	disposition TEXT
-);
-CREATE INDEX attachments_message ON attachments (message_id);
-
-CREATE TABLE labels (
-	id TEXT PRIMARY KEY,
-	name TEXT NOT NULL UNIQUE,
-	color TEXT NOT NULL,
-	position INTEGER NOT NULL DEFAULT 0,
-	auto_applied_at TEXT                 -- was label_auto
-);
-CREATE TABLE message_labels (
-	message_id TEXT NOT NULL REFERENCES messages(id) ON DELETE CASCADE,
-	label_id TEXT NOT NULL REFERENCES labels(id) ON DELETE CASCADE,
-	PRIMARY KEY (message_id, label_id)
-);
-CREATE INDEX message_labels_label ON message_labels (label_id);
-
-CREATE TABLE saved_searches (
-	id TEXT PRIMARY KEY, name TEXT NOT NULL, filter TEXT NOT NULL, position INTEGER NOT NULL DEFAULT 0
-);
-
-CREATE TABLE scheduled_sends (
-	message_id TEXT PRIMARY KEY REFERENCES messages(id) ON DELETE CASCADE, -- the draft
-	mailbox_id TEXT NOT NULL,
-	send_at TEXT NOT NULL,
-	payload TEXT NOT NULL,
-	attempts INTEGER NOT NULL DEFAULT 0,
-	error TEXT,
-	claimed_at TEXT                      -- set by the cron run that is sending it
-);
-CREATE INDEX scheduled_sends_due ON scheduled_sends (send_at) WHERE attempts < 3;
-
-CREATE TABLE send_keys (
-	mailbox_id TEXT NOT NULL,
-	key TEXT NOT NULL,
-	state TEXT NOT NULL,                 -- pending | sent
-	message_id TEXT,
-	created_at TEXT NOT NULL,
-	PRIMARY KEY (mailbox_id, key)
-);
-CREATE INDEX send_keys_created ON send_keys (created_at);
-
-CREATE TABLE attachment_text (
-	attachment_id TEXT PRIMARY KEY REFERENCES attachments(id) ON DELETE CASCADE,
-	state TEXT NOT NULL,                 -- pending | done | skipped | failed
-	text TEXT,                           -- capped at 64 KB
-	updated_at TEXT NOT NULL
-);
-
-CREATE TABLE undo (id TEXT PRIMARY KEY, created_at TEXT NOT NULL, payload TEXT NOT NULL);
-CREATE TABLE bulk_jobs (
-	id TEXT PRIMARY KEY, created_at TEXT NOT NULL, action TEXT NOT NULL, ops TEXT NOT NULL,
-	position INTEGER NOT NULL DEFAULT 0, total INTEGER NOT NULL, affected INTEGER NOT NULL DEFAULT 0,
-	failed TEXT NOT NULL DEFAULT '[]', undo_id TEXT NOT NULL, finished_at TEXT
-);
-```
+A trigger removes a message's search rows when it is deleted, including when a mailbox delete cascades to its messages. The Worker writes search rows itself, in the same `batch()` as the message, because `body_text` is derived from the HTML body. A message's folder must be one of its own mailbox's folders, enforced by a composite foreign key. Production D1 enforces foreign keys by default.
 
 Notes:
 
