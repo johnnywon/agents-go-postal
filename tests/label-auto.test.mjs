@@ -97,3 +97,43 @@ test("toolCreateLabel passes on the index's refusal", async () => {
 	const env = { MAIL_INDEX: { idFromName: () => "global", get: () => indexStub } };
 	assert.deepEqual(await tools.toolCreateLabel(env, { name: "x" }), { error: "Label name is required" });
 });
+
+function labelEnv(labels, overrides = {}) {
+	const calls = [];
+	const indexStub = {
+		listLabels: async () => labels,
+		updateLabel: async (id, input) => (calls.push(["update", id, input]), { label: { ...labels.find((l) => l.id === id), ...input } }),
+		deleteLabel: async (id) => (calls.push(["delete", id]), { deleted: true, affected: 2, failed: [] }),
+		...overrides,
+	};
+	return { env: { MAIL_INDEX: { idFromName: () => "global", get: () => indexStub } }, calls };
+}
+
+test("toolRenameLabel finds the label by name or id and renames it", async () => {
+	const { env, calls } = labelEnv([{ id: "receipts", name: "Receipts", color: "#000", count: 3 }]);
+	const result = await tools.toolRenameLabel(env, { label: "RECEIPTS", name: " Invoices " });
+	assert.deepEqual(result, { status: "renamed", from: "Receipts", label: { id: "receipts", name: "Invoices" } });
+	assert.deepEqual(calls, [["update", "receipts", { name: "Invoices" }]]);
+	assert.match((await tools.toolRenameLabel(env, { label: "nope", name: "x" })).error, /Unknown label/);
+});
+
+test("toolRenameLabel passes on the index's refusal", async () => {
+	const { env } = labelEnv([{ id: "a", name: "A", color: "#000", count: 0 }], { updateLabel: async () => ({ error: 'A label named "B" exists' }) });
+	assert.deepEqual(await tools.toolRenameLabel(env, { label: "a", name: "B" }), { error: 'A label named "B" exists' });
+});
+
+test("toolDeleteLabel deletes by name and reports how many conversations it left", async () => {
+	const { env, calls } = labelEnv([{ id: "promo", name: "Promo", color: "#000", count: 7 }]);
+	assert.deepEqual(await tools.toolDeleteLabel(env, { label: "promo" }), { status: "deleted", label: "Promo", conversations: 7 });
+	assert.deepEqual(calls, [["delete", "promo"]]);
+	assert.match((await tools.toolDeleteLabel(env, { label: "Travel" })).error, /Unknown label/);
+});
+
+test("toolDeleteLabel keeps the label when a mailbox fails", async () => {
+	const { env } = labelEnv([{ id: "promo", name: "Promo", color: "#000", count: 7 }], {
+		deleteLabel: async () => ({ deleted: false, affected: 1, failed: [{ mailboxId: "a@example.com", error: "down" }] }),
+	});
+	const result = await tools.toolDeleteLabel(env, { label: "Promo" });
+	assert.match(result.error, /was kept/);
+	assert.equal(result.failed.length, 1);
+});

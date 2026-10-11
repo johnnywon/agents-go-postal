@@ -378,6 +378,38 @@ export async function toolCreateLabel(env: Env, params: { name: string; color?: 
 	return { status: "created", label: { id: label.id, name: label.name, color: label.color } };
 }
 
+function findLabel<T extends { id: string; name: string }>(labels: T[], ref: string): T | undefined {
+	const r = ref.trim().toLowerCase();
+	return labels.find((l) => l.id === ref.trim() || l.name.toLowerCase() === r);
+}
+
+// ── rename_label ───────────────────────────────────────────────────
+
+/** Rename a label, named by id or name. Conversations keep it. */
+export async function toolRenameLabel(env: Env, params: { label: string; name: string }) {
+	const index = getMailIndexStub(env);
+	const label = findLabel(await index.listLabels(), params.label);
+	if (!label) return { error: `Unknown label: ${params.label}. Use list_labels to see labels.` };
+	const result = await index.updateLabel(label.id, { name: params.name.trim() });
+	if ("error" in result && result.error) return { error: result.error };
+	const updated = (result as { label: { id: string; name: string } | null }).label;
+	if (!updated) return { error: `Unknown label: ${params.label}.` };
+	return { status: "renamed", from: label.name, label: { id: updated.id, name: updated.name } };
+}
+
+// ── delete_label ───────────────────────────────────────────────────
+
+/** Delete a label, named by id or name: it comes off every conversation, then the label goes. */
+export async function toolDeleteLabel(env: Env, params: { label: string }) {
+	const index = getMailIndexStub(env);
+	const label = findLabel(await index.listLabels(), params.label);
+	if (!label) return { error: `Unknown label: ${params.label}. Use list_labels to see labels.` };
+	const result = await index.deleteLabel(label.id);
+	if (!result) return { error: `Unknown label: ${params.label}.` };
+	if (!result.deleted) return { error: `Could not remove ${label.name} from every conversation; it was kept.`, failed: result.failed };
+	return { status: "deleted", label: label.name, conversations: label.count };
+}
+
 // ── label_conversation ─────────────────────────────────────────────
 
 /**

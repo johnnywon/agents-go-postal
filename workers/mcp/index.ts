@@ -6,6 +6,8 @@ import { McpAgent } from "agents/mcp";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import {
+	toolDeleteLabel,
+	toolRenameLabel,
 	toolCreateLabel,
 	toolListMailboxes,
 	toolListEmails,
@@ -327,6 +329,25 @@ export class EmailMCP extends McpAgent<Env> {
 				name: z.string().min(1).max(60).describe("Label name, e.g. Receipts"),
 			},
 			async ({ name }) => mcpResult(await toolCreateLabel(env, { name })),
+		);
+
+		// ── rename_label ───────────────────────────────────────────
+		this.server.tool(
+			"rename_label",
+			"Rename a label. Conversations keep it under the new name.",
+			{
+				label: z.string().describe("The label's id or current name"),
+				name: z.string().min(1).max(60).describe("The new name"),
+			},
+			async ({ label, name }) => mcpResult(await toolRenameLabel(env, { label, name })),
+		);
+
+		// ── delete_label ───────────────────────────────────────────
+		this.server.tool(
+			"delete_label",
+			"Delete a label. It is removed from every conversation that carries it; the mail itself stays. This cannot be undone.",
+			{ label: z.string().describe("The label's id or name") },
+			async ({ label }) => mcpResult(await toolDeleteLabel(env, { label })),
 		);
 
 		// ── label_conversation ─────────────────────────────────────

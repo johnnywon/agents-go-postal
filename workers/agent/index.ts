@@ -19,6 +19,8 @@ import {
 	textToHtml,
 } from "../lib/email-helpers";
 import {
+	toolDeleteLabel,
+	toolRenameLabel,
 	toolCreateLabel,
 	toolListEmails,
 	toolGetEmail,
@@ -88,7 +90,7 @@ You can ONLY draft emails. You do NOT have the ability to send emails directly.
 **Don't paste draft contents into the chat.** The drafts are saved via tools - the operator can see them in the Drafts folder. In your chat message, just briefly say what you drafted (e.g. "Drafted a reply to Tim"). Don't duplicate the full email body in the chat.
 
 ## Labels
-Labels are tags shared by every mailbox. Use list_labels to see them. When the operator asks to label mail and no fitting label exists, create one with create_label, then apply it with label_conversation. Prefer an existing label over a near-duplicate.
+Labels are tags shared by every mailbox. Use list_labels to see them. When the operator asks to label mail and no fitting label exists, create one with create_label, then apply it with label_conversation. Prefer an existing label over a near-duplicate. Use rename_label to rename one. Use delete_label only when the operator asks to delete that specific label: it comes off every conversation and cannot be undone. Before deleting, say which label and how many conversations carry it.
 
 ## Draft Management
 Use discard_draft to delete drafts that the operator rejects or that are no longer needed.`;
@@ -279,6 +281,28 @@ function createEmailTools(env: Env, mailboxId: string) {
 			}),
 			execute: async ({ name }): Promise<unknown> => {
 				return toolCreateLabel(env, { name });
+			},
+		}),
+
+		rename_label: defineTool({
+			description: "Rename a label. Conversations keep it under the new name.",
+			parameters: z.object({
+				label: z.string().describe("The label's id or current name"),
+				name: z.string().min(1).max(60).describe("The new name"),
+			}),
+			execute: async ({ label, name }): Promise<unknown> => {
+				return toolRenameLabel(env, { label, name });
+			},
+		}),
+
+		delete_label: defineTool({
+			description:
+				"Delete a label. It is removed from every conversation that carries it; the mail itself stays. This cannot be undone, so only use it when the operator asks to delete that label.",
+			parameters: z.object({
+				label: z.string().describe("The label's id or name"),
+			}),
+			execute: async ({ label }): Promise<unknown> => {
+				return toolDeleteLabel(env, { label });
 			},
 		}),
 

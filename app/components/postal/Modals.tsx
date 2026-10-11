@@ -314,6 +314,8 @@ const MCP_TOOLS = [
 	["move_email", "Move email to a system folder"],
 	["list_labels", "List labels with counts"],
 	["create_label", "Create a label"],
+	["rename_label", "Rename a label"],
+	["delete_label", "Delete a label"],
 	["label_conversation", "Add or remove labels on a conversation"],
 	["delete_email", "Move email to Trash"],
 ] as const;

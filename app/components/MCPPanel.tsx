@@ -56,6 +56,8 @@ const TOOLS = [
 	{ name: "move_email", desc: "Move email to a system folder" },
 	{ name: "list_labels", desc: "List labels with counts" },
 	{ name: "create_label", desc: "Create a label" },
+	{ name: "rename_label", desc: "Rename a label" },
+	{ name: "delete_label", desc: "Delete a label" },
 	{ name: "label_conversation", desc: "Add or remove labels on a conversation" },
 	{ name: "delete_email", desc: "Move email to Trash" },
 ];
