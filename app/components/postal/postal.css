@@ -180,7 +180,6 @@ html:has(.postal), html:has(.postal) body { background: var(--pg-base, #141518);
 }
 .pg-rail-head:hover { background: var(--pg-hover-raised); color: var(--pg-text-2); }
 .pg-nav .pg-rail-head { padding: 0 10px 0 12px; }
-.pg-tray { color: var(--pg-mail); }
 .pg-nav-scroll {
   flex: 1; min-height: 0; overflow-y: auto; scrollbar-gutter: stable;
   display: grid; grid-template-columns: minmax(0, 1fr); align-content: start; grid-auto-rows: max-content;

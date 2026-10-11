@@ -3,11 +3,13 @@
 //     https://opensource.org/licenses/Apache-2.0
 
 import {
-	ArchiveIcon, BookmarkSimpleIcon, CaretDoubleLeftIcon, CaretDoubleRightIcon, CaretDownIcon, CaretRightIcon, EnvelopeSimpleIcon, FileIcon, GearSixIcon,
-	PaperPlaneTiltIcon, PencilSimpleIcon, PlugsConnectedIcon, PlusIcon, SignOutIcon, StarIcon, TagIcon, TrashIcon, TrayIcon,
-	WarningIcon,
+	BookmarkSimpleIcon, CaretDoubleLeftIcon, CaretDoubleRightIcon, CaretDownIcon, CaretRightIcon, GearSixIcon,
+	PencilSimpleIcon, PlugsConnectedIcon, PlusIcon, SignOutIcon,
 } from "@phosphor-icons/react";
 import { AgentIcon } from "./AgentIcon";
+import {
+	AllAddressesIcon, ArchiveIcon, ByAddressIcon, DraftsIcon, InboxIcon, LabelsIcon, SentIcon, SpamIcon, StarredIcon, TrashIcon, UnreadIcon,
+} from "./NavIcons";
 import { type FormEvent, useState } from "react";
 import type { MailFilter } from "~/lib/mail-filter";
 import type { Label, SavedSearch } from "~/services/api";
@@ -15,15 +17,15 @@ import { AddressText, type Identities, LabelTag, Swatch } from "./identity";
 import { HOME, labelOf, scopeOf, scoped } from "./model";
 
 export const SECONDARY_VIEWS = [
-	{ view: "starred", label: "Starred", Icon: StarIcon },
-	{ view: "drafts", label: "Drafts", Icon: FileIcon },
-	{ view: "sent", label: "Sent", Icon: PaperPlaneTiltIcon },
+	{ view: "starred", label: "Starred", Icon: StarredIcon },
+	{ view: "drafts", label: "Drafts", Icon: DraftsIcon },
+	{ view: "sent", label: "Sent", Icon: SentIcon },
 	{ view: "archive", label: "Archive", Icon: ArchiveIcon },
-	{ view: "spam", label: "Spam", Icon: WarningIcon },
+	{ view: "spam", label: "Spam", Icon: SpamIcon },
 	{ view: "trash", label: "Trash", Icon: TrashIcon },
 ] as const;
 
-const ADDRESS_FOLDERS = [{ view: "inbox", label: "Inbox", Icon: TrayIcon }, ...SECONDARY_VIEWS] as const;
+const ADDRESS_FOLDERS = [{ view: "inbox", label: "Inbox", Icon: InboxIcon }, ...SECONDARY_VIEWS] as const;
 
 export interface SidebarProps {
 	identities: Identities;
@@ -73,17 +75,17 @@ export function Sidebar(props: SidebarProps) {
 	return (
 		<nav className="pg-nav" aria-label="Mail" data-overlay={props.overlay || undefined} data-drawer={props.drawer}>
 			<button type="button" className="pg-rail-head" onClick={props.onCollapse} title="Collapse sidebar">
-				<TrayIcon size={14} weight="fill" className="pg-tray" />
+				<AllAddressesIcon size={14} />
 				<span className="pg-flex" style={{ lineHeight: 1, textAlign: "left" }}>ALL ADDRESSES</span>
 				<CaretDoubleLeftIcon size={14} weight="bold" />
 			</button>
 			<div className="pg-nav-scroll">
 				<button type="button" className="pg-nav-item" aria-current={globalView === "inbox" || undefined} onClick={() => go({ ...HOME, chips: [] })}>
-					<TrayIcon size={16} weight="fill" className="pg-tray" />
+					<InboxIcon size={16} />
 					<span className="pg-flex">Inbox</span>
 				</button>
 				<button type="button" className="pg-nav-item" aria-current={globalView === "unread" || undefined} onClick={() => go({ ...HOME, view: "unread", chips: [] })}>
-					<EnvelopeSimpleIcon size={16} weight="fill" className="pg-tray" />
+					<UnreadIcon size={16} />
 					<span className="pg-flex">Unread</span>
 					<span className="pg-count" style={{ color: "var(--pg-text-6)" }}>{count(props.allUnread)}</span>
 				</button>
@@ -99,7 +101,7 @@ export function Sidebar(props: SidebarProps) {
 
 				<div className="pg-nav-divider" />
 				<button type="button" className="pg-nav-item" aria-expanded={props.mailboxesOpen} onClick={() => props.setLayout({ mailboxesOpen: !props.mailboxesOpen })}>
-					<TrayIcon size={16} weight="fill" className="pg-tray" />
+					<ByAddressIcon size={16} />
 					<span className="pg-flex">By address</span>
 					<span style={{ display: "flex", gap: 3 }}>
 						{identities.groups.map((g) => <Swatch key={g.identity.domain} identity={g.identity} />)}
@@ -159,7 +161,7 @@ export function Sidebar(props: SidebarProps) {
 
 				<div className="pg-nav-divider" />
 				<button type="button" className="pg-nav-item" aria-expanded={props.labelsOpen} onClick={() => props.setLayout({ labelsOpen: !props.labelsOpen })}>
-					<TagIcon size={16} weight="fill" color="var(--pg-text-5)" />
+					<LabelsIcon size={16} />
 					<span className="pg-flex">Labels</span>
 					{props.labelsOpen ? <CaretDownIcon size={10} weight="bold" color="var(--pg-text-8)" /> : <CaretRightIcon size={10} weight="bold" color="var(--pg-text-8)" />}
 				</button>
@@ -287,7 +289,7 @@ export function NavRail({
 	return (
 		<nav className="pg-navrail" aria-label="Mail">
 			<button type="button" className="pg-rail-head" onClick={onExpand} title="Expand sidebar" aria-label="Expand sidebar">
-				<TrayIcon size={14} weight="fill" className="pg-tray" />
+				<AllAddressesIcon size={14} />
 				<CaretDoubleRightIcon size={10} weight="bold" />
 			</button>
 			<div className="pg-navrail-scroll">
@@ -299,7 +301,7 @@ export function NavRail({
 					aria-label={`Inbox, all addresses, ${allUnread ?? 0} unread`}
 					onClick={() => go({ ...HOME, chips: [] })}
 				>
-					<TrayIcon size={16} weight="fill" className="pg-tray" />
+					<InboxIcon size={16} />
 					<span className="pg-n">{allUnread ?? ""}</span>
 				</button>
 				{/* TODO(roadmap): "Needs you" and "Agent handled" rail tiles. */}
@@ -328,7 +330,7 @@ export function NavRail({
 				})}
 				<div className="pg-rail-sep" />
 				<button type="button" className="pg-rail-tile" style={{ height: 40 }} title="Labels" aria-label="Labels" onClick={onLabels}>
-					<TagIcon size={16} weight="fill" />
+					<LabelsIcon size={16} />
 				</button>
 				<div style={{ flex: 1 }} />
 			</div>

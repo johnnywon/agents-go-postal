@@ -11,6 +11,7 @@ import { Fragment, useEffect, useRef, useState } from "react";
 import type { MailFilter } from "~/lib/mail-filter";
 import type { Conversation, Label, MailFacets, ScheduledSend } from "~/services/api";
 import { AddressText, type Identities, LabelChip, LabelTag, Swatch } from "./identity";
+import { AllAddressesIcon } from "./NavIcons";
 import { marks, snippetMarkup } from "./search-window";
 import { dayKey, dayLabel, filterCount, hasChip, labelOf, scopeOf, sendTimeLabel, timeLabel, toggleChip, withoutKinds } from "./model";
 
@@ -110,7 +111,7 @@ export function ListPane(props: ListPaneProps) {
 	) : scope ? (
 		<Swatch identity={identities.of(scope)} />
 	) : (
-		<TrayIcon size={14} weight="fill" className="pg-tray" />
+		<AllAddressesIcon size={14} />
 	);
 
 	const status = props.facets?.status;
@@ -152,7 +153,7 @@ export function ListPane(props: ListPaneProps) {
 						<div className="pg-scrim-click" onClick={() => setScopeOpen(false)} />
 						<div className="pg-popover pg-scope-menu" role="listbox" aria-label="Address">
 							<button type="button" role="option" aria-selected={!scope} className="pg-menu-item" aria-current={!scope || undefined} onClick={() => pickScope(null)}>
-								<TrayIcon size={14} weight="fill" className="pg-tray" style={{ flex: "none" }} />
+								<AllAddressesIcon size={14} />
 								<span className="pg-flex pg-ellipsis" style={{ fontWeight: 500, color: "var(--pg-text-2)" }}>All addresses</span>
 								<span className="pg-count" style={{ fontWeight: 400 }}>{props.allUnread || ""}</span>
 								{!scope && <CheckIcon size={12} weight="bold" />}
