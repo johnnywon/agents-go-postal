@@ -168,6 +168,10 @@ html:has(.postal), html:has(.postal) body { background: var(--pg-base, #141518);
 .postal[data-theme="light"] mark { background: oklch(0.85 0.14 85 / .55); }
 
 /* ── Side column (mailboxes) ───────────────────────────────────────── */
+/* The app and its outer columns meet the browser edge, so their top corners on that side are square. */
+.postal { border-radius: 0 0 6px 6px !important; }
+.postal :is(.pg-nav, .pg-navrail, .pg-nav > .pg-rail-head, .pg-navrail > .pg-rail-head) { border-radius: 0 6px 6px 6px !important; }
+.postal :is(.pg-agent, .pg-agentrail, .pg-agent > .pg-rail-head, .pg-agentrail > .pg-rail-head) { border-radius: 6px 0 6px 6px !important; }
 .pg-nav { width: 236px; flex: none; display: flex; flex-direction: column; border-right: 1px solid var(--pg-line); background: var(--pg-rail); min-height: 0; }
 .pg-rail-head {
   height: 38px; flex: none; display: flex; align-items: center; gap: 8px; width: 100%;
@@ -481,10 +485,13 @@ html:has(.postal), html:has(.postal) body { background: var(--pg-base, #141518);
 .pg-mail-frame iframe { display: block; width: 100%; border: 0; }
 /* Attachments are part of the letter: rows under a hairline, inside the frame. Long names fade before the size column. */
 .pg-attachments { display: flex; flex-direction: column; margin-top: 12px; padding-bottom: 4px; }
-/* The hairline is its own 1px line so the global radius cannot curve its ends. */
-.pg-attachments::before { content: ""; height: 1px; margin-bottom: 8px; background: var(--pg-att-line, var(--pg-line-2)); }
+/* A dotted rule drawn as its own 1px line, so the global radius cannot curve its ends. */
+.pg-attachments::before {
+  content: ""; height: 1px; margin-bottom: 8px;
+  background: repeating-linear-gradient(90deg, var(--pg-att-line, var(--pg-line-3)) 0 1px, transparent 1px 4px);
+}
 .pg-mail-frame[data-kind="html"] .pg-attachments {
-  --pg-att-text: #2a2b2f; --pg-att-muted: #74767c; --pg-att-icon: #5c5e64; --pg-att-hover: #f1f1ee; --pg-att-warn: oklch(0.55 0.13 60); --pg-att-line: #e4e4e0;
+  --pg-att-text: #2a2b2f; --pg-att-muted: #74767c; --pg-att-icon: #5c5e64; --pg-att-hover: #f1f1ee; --pg-att-warn: oklch(0.55 0.13 60); --pg-att-line: #c9c9c4;
   margin: 0 24px; padding-bottom: 14px;
 }
 .pg-attach {
