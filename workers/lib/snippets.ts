@@ -34,27 +34,43 @@ interface Token {
 	end: number;
 	/** Index of the term it matches, or -1. */
 	term: number;
+	/** For a substring match, the matched part of `text`; otherwise the whole word is marked. */
+	part?: [number, number];
 }
 
 /**
  * About `words` words of `text` around the densest cluster of `terms`, as
- * HTML with each matched word in <mark>. Terms match word prefixes. With no
- * match it is the opening words, unmarked. Empty text gives "".
+ * HTML with each matched word in <mark>. Terms match word prefixes; the
+ * `substrings` (words the substring search found) also match inside a word,
+ * and only that part is marked. With no match it is the opening words,
+ * unmarked. Empty text gives "".
  */
-export function snippetHtml(text: string, terms: readonly string[], words = SNIPPET_WORDS): string {
+export function snippetHtml(text: string, terms: readonly string[], words = SNIPPET_WORDS, substrings: readonly string[] = []): string {
 	const source = text.slice(0, MAX_TEXT);
 	const folded = [...new Set(terms.map(fold).filter((t) => t.length > 0))];
+	const inner = [...new Set(substrings.map(fold).filter((t) => t.length > 0))];
 	const tokens: Token[] = [];
 	for (const m of source.matchAll(TOKEN)) {
 		const word = fold(m[0]);
-		tokens.push({ text: m[0], start: m.index!, end: m.index! + m[0].length, term: folded.findIndex((t) => word.startsWith(t)) });
+		const token: Token = { text: m[0], start: m.index!, end: m.index! + m[0].length, term: folded.findIndex((t) => word.startsWith(t)) };
+		if (token.term < 0) {
+			for (const [i, sub] of inner.entries()) {
+				const at = word.indexOf(sub);
+				if (at < 0) continue;
+				token.term = folded.length + i;
+				// Folding can change the length (diacritics); then the whole word is marked.
+				if (word.length === m[0].length) token.part = [at, at + sub.length];
+				break;
+			}
+		}
+		tokens.push(token);
 	}
 	if (tokens.length === 0) return "";
 
 	// The window with the most distinct terms, then the most matches, earliest first.
 	let best = 0;
 	let bestScore = -1;
-	if (folded.length > 0) {
+	if (folded.length + inner.length > 0) {
 		for (let s = 0; s < tokens.length; s++) {
 			if (tokens[s].term < 0) continue;
 			const window = tokens.slice(s, s + words);
@@ -75,7 +91,11 @@ export function snippetHtml(text: string, terms: readonly string[], words = SNIP
 	for (let i = from; i < to; i++) {
 		const t = tokens[i];
 		if (i > from) html += escapeHtml(collapse(source.slice(tokens[i - 1].end, t.start)));
-		html += t.term >= 0 ? `<mark>${escapeHtml(t.text)}</mark>` : escapeHtml(t.text);
+		if (t.term < 0) html += escapeHtml(t.text);
+		else if (t.part) {
+			const [a, b] = t.part;
+			html += `${escapeHtml(t.text.slice(0, a))}<mark>${escapeHtml(t.text.slice(a, b))}</mark>${escapeHtml(t.text.slice(b))}`;
+		} else html += `<mark>${escapeHtml(t.text)}</mark>`;
 	}
 	// Closing punctuation stays with the last word.
 	if (to < tokens.length) html += " …";

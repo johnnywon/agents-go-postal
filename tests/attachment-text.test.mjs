@@ -191,6 +191,7 @@ test("a code inside attachment text is found as a substring", async () => {
 	assert.deepEqual(ids(await search(sql, "UMC4")), [], "not before conversion");
 	await at.extractAttachmentText(sql, src, NOW);
 	assert.deepEqual(ids(await search(sql, "UMC4")), ["m1"], "inside PCAYUMC40002");
+	assert.match((await search(sql, "UMC4")).conversations[0].snippet_html, /^r\.pdf: Invoice number PCAY<mark>UMC4<\/mark>0002/, "the snippet marks it inside the file's text");
 	assert.deepEqual(ids(await search(sql, "5227248")), ["m1"]);
 	assert.deepEqual(ids(await search(sql, "zzq")), []);
 	await sql.run(`DELETE FROM messages WHERE email_id = 'm1'`);

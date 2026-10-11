@@ -112,6 +112,10 @@ test("snippets are escaped text around the words", () => {
 	assert.equal(snip.snippetHtml("no match here", ["zzz"]), "no match here");
 	assert.equal(snip.snippetHtml("", ["a"]), "");
 	assert.equal(snip.snippetText("a <mark>b</mark> &amp; &lt;c&gt;"), "a b & <c>");
+	assert.equal(snip.snippetHtml("Order XK7731Q shipped", ["7731"], 18, ["7731"]), "Order XK<mark>7731</mark>Q shipped", "a substring is marked inside its word");
+	assert.equal(snip.snippetHtml("Order XK7731Q shipped", ["7731"]), "Order XK7731Q shipped", "only when the substring search found it");
+	assert.equal(snip.snippetHtml("a<b>XK7731Q</b>", ["7731"], 18, ["7731"]), "a&lt;b&gt;XK<mark>7731</mark>Q&lt;/b&gt;", "both sides stay escaped");
+	assert.equal(snip.snippetHtml("Réf CAFÉ77 x", ["fe7"], 18, ["fe7"]), "Réf CA<mark>FÉ7</mark>7 x", "diacritics fold inside a word");
 });
 
 test("the list carries snippets for its rows", () => {

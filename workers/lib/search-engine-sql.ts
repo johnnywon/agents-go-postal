@@ -127,6 +127,8 @@ export function snippetTerms(filter: MailFilter): string[] {
  */
 export function* snippetsQuery(conversations: Conversation[], filter: MailFilter): Query<Map<string, string>> {
 	const terms = snippetTerms(filter);
+	// Words found only inside longer words are marked there too.
+	const inner = Object.keys(filter.substrings ?? {});
 	const out = new Map<string, string>();
 	if (conversations.length === 0 || terms.length === 0) return out;
 	const rows = yield sqlStep(
@@ -136,7 +138,7 @@ export function* snippetsQuery(conversations: Conversation[], filter: MailFilter
 	const unmarked: string[] = [];
 	for (const row of rows) {
 		const text = row.body == null ? String(row.snippet ?? "") : htmlToText(String(row.body));
-		const html = snippetHtml(text, terms);
+		const html = snippetHtml(text, terms, undefined, inner);
 		out.set(String(row.email_id), html);
 		if (!html.includes("<mark>")) unmarked.push(String(row.email_id));
 	}
@@ -150,7 +152,7 @@ export function* snippetsQuery(conversations: Conversation[], filter: MailFilter
 	for (const file of files) {
 		const id = String(file.email_id);
 		if (out.get(id)?.includes("<mark>")) continue;
-		const html = snippetHtml(String(file.text ?? ""), terms);
+		const html = snippetHtml(String(file.text ?? ""), terms, undefined, inner);
 		if (html.includes("<mark>")) out.set(id, `${escapeHtml(String(file.filename))}: ${html}`);
 	}
 	return out;
