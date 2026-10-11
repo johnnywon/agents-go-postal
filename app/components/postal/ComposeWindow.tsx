@@ -320,7 +320,7 @@ export function Composer(props: ComposerProps) {
 		}
 	};
 
-	// "Draft with agent" on the collapsed reply bar asks as soon as the composer opens.
+	// "Draft reply" on the collapsed reply bar asks as soon as the composer opens.
 	useEffect(() => {
 		if (!props.initial.askAgent || asked.current) return;
 		asked.current = true;
@@ -565,8 +565,8 @@ export function Composer(props: ComposerProps) {
 						>
 							<SignatureIcon size={16} />
 						</button>
-						<button type="button" className="pg-btn pg-btn-agent" data-busy={agentBusy} title="Draft with agent · The agent writes a first draft here. Nothing is sent." onMouseDown={(e) => { e.preventDefault(); askAgent(); }}>
-							<SparkleIcon size={13} weight="fill" /><span className="pg-agent-label">{agentBusy ? "Drafting…" : "Draft with agent"}</span>
+						<button type="button" className="pg-btn pg-btn-agent" data-busy={agentBusy} title={`${reply ? "Draft reply" : "Draft"} · The agent writes a first draft here. Nothing is sent.`} onMouseDown={(e) => { e.preventDefault(); askAgent(); }}>
+							<SparkleIcon size={13} weight="fill" /><span className="pg-agent-label">{agentBusy ? "Drafting…" : reply ? "Draft reply" : "Draft"}</span>
 						</button>
 						<div className="pg-flex" />
 						<button type="button" className="pg-btn pg-btn-outline" title="Save as draft" onMouseDown={(e) => { e.preventDefault(); saveNow().then(() => finish("Draft saved")); }}>

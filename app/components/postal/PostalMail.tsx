@@ -582,6 +582,7 @@ function PostalApp({ addresses, domains, autoDraft }: PostalProps) {
 						{mobile && <div className="pg-drawer-scrim" onClick={() => setPanelTemp(false)} aria-hidden />}
 						<AgentPanel
 							open={open}
+							reading={open ? openRow?.subject ?? "" : null}
 							onCollapse={togglePanel}
 							overlay={!mobile && narrow}
 							prefill={prefill}

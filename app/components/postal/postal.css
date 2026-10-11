@@ -157,6 +157,25 @@ html:has(.postal), html:has(.postal) body { background: var(--pg-base, #141518);
   display: inline-flex; align-items: center; gap: 4px; height: 19px; padding: 0 7px;
   background: var(--pg-chip); font-size: 11px; color: var(--pg-text-5); white-space: nowrap;
 }
+/* Each label gets a hue (--pg-lh) and a pattern from a hash of its id (labelLook in identity.tsx). */
+.pg-label-chip[data-pattern], .pg-label-ink {
+  --pg-lb: oklch(0.34 0.09 var(--pg-lh)); --pg-lp: oklch(0.48 0.13 var(--pg-lh) / .55); --pg-li: oklch(0.88 0.09 var(--pg-lh));
+}
+.postal[data-theme="light"] :is(.pg-label-chip[data-pattern], .pg-label-ink) {
+  --pg-lb: oklch(0.93 0.06 var(--pg-lh)); --pg-lp: oklch(0.8 0.11 var(--pg-lh) / .6); --pg-li: oklch(0.42 0.13 var(--pg-lh));
+}
+.pg-label-ink { color: var(--pg-li); }
+.pg-label-chip[data-pattern] { background-color: var(--pg-lb); color: var(--pg-li); font-weight: 500; }
+.pg-label-chip[data-pattern="dots"] { background-image: radial-gradient(var(--pg-lp) 1px, transparent 1.4px); background-size: 5px 5px; }
+.pg-label-chip[data-pattern="grid"] {
+  background-image: repeating-linear-gradient(0deg, var(--pg-lp) 0 1px, transparent 1px 6px), repeating-linear-gradient(90deg, var(--pg-lp) 0 1px, transparent 1px 6px);
+}
+.pg-label-chip[data-pattern="diagonal"] { background-image: repeating-linear-gradient(45deg, var(--pg-lp) 0 1px, transparent 1px 5px); }
+.pg-label-chip[data-pattern="cross"] {
+  background-image: repeating-linear-gradient(45deg, var(--pg-lp) 0 1px, transparent 1px 6px), repeating-linear-gradient(-45deg, var(--pg-lp) 0 1px, transparent 1px 6px);
+}
+.pg-label-chip[data-pattern="checks"] { background-image: conic-gradient(var(--pg-lp) 25%, transparent 0 50%, var(--pg-lp) 0 75%, transparent 0); background-size: 6px 6px; }
+.pg-label-chip[data-pattern="rings"] { background-image: radial-gradient(circle, transparent 1.4px, var(--pg-lp) 1.6px 2.3px, transparent 2.5px); background-size: 7px 7px; }
 .pg-label-add { display: inline-flex; align-items: center; height: 20px; padding: 0 7px; border: 1px dashed var(--pg-line-3); font-size: 11px; color: var(--pg-text-8); }
 .pg-label-add:hover { color: var(--pg-text-3); border-color: var(--pg-line-4); }
 .postal mark { background: oklch(0.82 0.13 75 / .3); color: inherit; border-radius: 2px !important; }
@@ -583,7 +602,7 @@ html:has(.postal), html:has(.postal) body { background: var(--pg-base, #141518);
 .pg-agent .pg-rail-head { padding: 0 12px 0 10px; }
 .pg-agent .pg-rail-head .pg-head-label { flex: 1; text-align: right; line-height: 1; }
 .pg-agent-sub { height: 44px; flex: none; display: flex; align-items: center; gap: 8px; padding: 0 12px; border-bottom: 1px solid var(--pg-line); min-width: 0; }
-.pg-agent-sub .pg-name { font-weight: 600; font-size: 13px; color: var(--pg-text-2); }
+.pg-agent-reading { font-size: 12px; color: var(--pg-text-5); }
 .pg-bot { width: 22px; height: 22px; flex: none; display: flex; align-items: center; justify-content: center; background: oklch(0.78 0.14 150 / .14); color: var(--pg-green); }
 .pg-bot.is-small { width: 20px; height: 20px; }
 .pg-agent-scroll { flex: 1; overflow-y: auto; display: flex; flex-direction: column; }

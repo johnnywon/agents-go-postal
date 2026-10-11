@@ -4,7 +4,7 @@
 
 /**
  * The chat agent is one instance shared by every address. Per-address agent
- * instances (named by the address) still run auto-draft and "Draft with agent".
+ * instances (named by the address) still run auto-draft and "Draft reply".
  */
 export const SHARED_AGENT = "all";
 

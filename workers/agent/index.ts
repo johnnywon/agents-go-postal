@@ -418,7 +418,7 @@ function crossAddressTools(env: Env) {
 export class EmailAgent extends AIChatAgent<any> {
 	async onChatMessage(onFinish: any, options?: { body?: AgentContext }) {
 		const env = this.env as Env;
-		// The chat panel uses the shared instance; per-address instances serve "Draft with agent".
+		// The chat panel uses the shared instance; per-address instances serve "Draft reply".
 		const bound = this.name === SHARED_AGENT ? null : this.name;
 		const known = (await mailStore(env).mailboxes.list()).map((m) => m.id.toLowerCase());
 		const model = await agentModel(env);

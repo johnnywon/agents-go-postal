@@ -3,7 +3,7 @@
 //     https://opensource.org/licenses/Apache-2.0
 
 import {
-	ArchiveIcon, ArrowBendDoubleUpLeftIcon, ArrowBendUpLeftIcon, ArrowBendUpRightIcon, CaretLeftIcon, CheckIcon, CodeIcon, DownloadSimpleIcon, EnvelopeOpenIcon, EnvelopeSimpleIcon, FileIcon, ImageIcon, PaperclipIcon, PencilSimpleLineIcon, PlusIcon, SparkleIcon, StarIcon, TagIcon, TrashIcon, XIcon,
+	ArchiveIcon, ArrowBendDoubleUpLeftIcon, ArrowBendUpLeftIcon, ArrowBendUpRightIcon, CaretLeftIcon, CheckIcon, CodeIcon, DownloadSimpleIcon, EnvelopeOpenIcon, EnvelopeSimpleIcon, FileIcon, ImageIcon, PencilSimpleLineIcon, PlusIcon, SparkleIcon, StarIcon, TagIcon, TrashIcon, XIcon,
 } from "@phosphor-icons/react";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Folders } from "shared/folders";
@@ -16,7 +16,7 @@ import type { Email } from "~/types";
 import type { DraftResult } from "./Agent";
 import type { AddressInfo, ComposeMode, ComposeState, useMailSender } from "./compose";
 import { Composer } from "./ComposeWindow";
-import { AddressText, type Identities, Swatch } from "./identity";
+import { AddressText, type Identities, LabelChip, LabelIcon, Swatch } from "./identity";
 import { formatSize, fullDate, nameFromHeaders } from "./model";
 import type { Prefs } from "./prefs";
 
@@ -229,13 +229,13 @@ export function Reader(props: ReaderProps) {
 								<button
 									type="button"
 									className="pg-btn pg-btn-agent"
-									title="Let the agent write a first draft"
+									title="Draft reply · The agent writes a first draft. Nothing is sent."
 									onClick={(e) => {
 										e.stopPropagation();
 										props.startReply("reply", original, undefined, true);
 									}}
 								>
-									<SparkleIcon size={13} weight="fill" />Draft with agent
+									<SparkleIcon size={13} weight="fill" />Draft reply
 								</button>
 							</div>
 						)
@@ -246,8 +246,6 @@ export function Reader(props: ReaderProps) {
 						mailbox={mailbox}
 						identities={identities}
 						labels={rowLabels}
-						attachments={email ? getNonInlineAttachments(email.attachments ?? []) : []}
-						attachmentOwner={() => email?.id ?? ""}
 						sender={sent ? "" : senderAddr}
 						onAddLabel={openPicker}
 					/>
@@ -348,12 +346,10 @@ function Message({ email, mailboxId, images, onShowImages }: {
 	);
 }
 
-function Aside({ mailbox, identities, labels, attachments, attachmentOwner, sender, onAddLabel }: {
+function Aside({ mailbox, identities, labels, sender, onAddLabel }: {
 	mailbox: string;
 	identities: Identities;
 	labels: Label[];
-	attachments: { id: string; filename: string; mimetype: string; size: number }[];
-	attachmentOwner: (attachmentId: string) => string;
 	sender: string;
 	onAddLabel: () => void;
 }) {
@@ -373,29 +369,13 @@ function Aside({ mailbox, identities, labels, attachments, attachmentOwner, send
 			<section>
 				<span className="pg-caption">LABELS</span>
 				<div style={{ display: "flex", flexWrap: "wrap", gap: 5 }}>
-					{labels.map((l) => <span key={l.id} className="pg-label-chip" style={{ height: 20 }}><TagIcon size={10} />{l.name}</span>)}
+					{labels.map((l) => <LabelChip key={l.id} label={l} style={{ height: 20 }} />)}
 					<button type="button" className="pg-label-add" onClick={onAddLabel}>+ add</button>
 				</div>
 			</section>
-			{attachments.length > 0 && (
-				<section>
-					<span className="pg-caption">ATTACHMENTS</span>
-					{attachments.map((a) => (
-						<a key={a.id} className="pg-attach" style={{ maxWidth: "none" }} href={getAttachmentUrl(mailbox, attachmentOwner(a.id), a.id)} download={a.filename} target="_blank" rel="noopener noreferrer">
-							<PaperclipIcon size={16} color="var(--pg-text-5)" />
-							<span style={{ display: "flex", flexDirection: "column", minWidth: 0, flex: 1 }}>
-								<span className="pg-attach-name">{a.filename}</span>
-								<span className="pg-attach-meta">{(a.mimetype.split("/")[1] || a.mimetype).toUpperCase()} · {formatSize(a.size)}</span>
-							</span>
-							<DownloadSimpleIcon size={14} color="var(--pg-text-6)" />
-						</a>
-					))}
-				</section>
-			)}
 			{sender && (
 				<section>
-					<span className="pg-caption">SENDER ACROSS YOUR ADDRESSES</span>
-					<span className="pg-mono" style={{ fontSize: 12, color: "var(--pg-text-4)" }}>{sender.slice(sender.lastIndexOf("@") + 1)}</span>
+					<span className="pg-caption">FROM {sender.slice(sender.lastIndexOf("@") + 1).toUpperCase()}</span>
 					{history.map((h) => {
 						const id = identities.of(h.value);
 						return (
@@ -452,7 +432,7 @@ export function LabelPicker({ left, labels, active, onToggle, onCreate, onClose 
 						return (
 							<button key={l.id} type="button" role="menuitemcheckbox" aria-checked={on} className="pg-menu-item" onClick={() => onToggle(l, !on)}>
 								<span className="pg-check pg-check-neutral" data-on={on}>{on && <CheckIcon size={10} weight="bold" />}</span>
-								<TagIcon size={14} color="var(--pg-text-6)" />
+								<LabelIcon id={l.id} />
 								<span className="pg-flex pg-ellipsis">{l.name}</span>
 							</button>
 						);

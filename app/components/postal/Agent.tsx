@@ -2,7 +2,7 @@
 // Licensed under the Apache 2.0 license found in the LICENSE file or at:
 //     https://opensource.org/licenses/Apache-2.0
 
-import { ArrowElbowDownLeftIcon, CaretDoubleLeftIcon, CaretDoubleRightIcon, RobotIcon, SparkleIcon, StopIcon, TrashIcon } from "@phosphor-icons/react";
+import { ArrowElbowDownLeftIcon, CaretDoubleLeftIcon, CaretDoubleRightIcon, SparkleIcon, StopIcon, TrashIcon } from "@phosphor-icons/react";
 import { useQueryClient } from "@tanstack/react-query";
 import type { UIMessage } from "ai";
 import type { ComposeState } from "./compose";
@@ -88,11 +88,22 @@ export interface DraftResult {
 export interface AgentPanelProps {
 	/** The conversation on screen, so "this email" means something to the agent. */
 	open: AgentContext["open"];
+	/** Subject of the open conversation, shown under the header. */
+	reading: string | null;
 	onCollapse: () => void;
 	overlay: boolean;
 	prefill: { text: string; id: number } | null;
 	onOpenDraft: (mailboxId: string, draftId: string) => void;
 	onBusy: (busy: boolean) => void;
+}
+
+/** What "this email" means to the agent right now. */
+function Reading({ subject }: { subject: string | null }) {
+	return (
+		<span className="pg-agent-reading pg-flex pg-ellipsis" title={subject ?? undefined}>
+			{subject === null ? "No email open" : `Reading: ${subject || "(no subject)"}`}
+		</span>
+	);
 }
 
 export function AgentPanel(props: AgentPanelProps) {
@@ -102,15 +113,14 @@ export function AgentPanel(props: AgentPanelProps) {
 			<button type="button" className="pg-rail-head" onClick={props.onCollapse} title="Collapse agent panel">
 				<CaretDoubleRightIcon size={14} weight="bold" />
 				<span className="pg-head-label">AGENT</span>
-				<RobotIcon size={14} weight="fill" color="var(--pg-green)" />
+				<SparkleIcon size={14} weight="fill" color="var(--pg-green)" />
 			</button>
 			{hooks ? (
 				<AgentChat hooks={hooks} {...props} />
 			) : (
 				<>
 					<div className="pg-agent-sub">
-						<span className="pg-bot"><RobotIcon size={13} weight="fill" /></span>
-						<span className="pg-name">Agent</span>
+						<Reading subject={props.reading} />
 					</div>
 					<div className="pg-agent-empty"><p>{error ?? "Connecting…"}</p></div>
 				</>
@@ -121,7 +131,7 @@ export function AgentPanel(props: AgentPanelProps) {
 
 const SUGGESTIONS = ["What came in today that needs a reply?", "Summarize unread mail", "Draft a reply to the open conversation"];
 
-function AgentChat({ hooks, open, prefill, onOpenDraft, onBusy }: AgentPanelProps & { hooks: Hooks }) {
+function AgentChat({ hooks, open, reading, prefill, onOpenDraft, onBusy }: AgentPanelProps & { hooks: Hooks }) {
 	// One agent for every address; each tool call names the address it acts on.
 	const agent = hooks.useAgent({ agent: "EmailAgent", name: SHARED_AGENT });
 	const context = useRef<AgentContext>({ open });
@@ -176,9 +186,7 @@ function AgentChat({ hooks, open, prefill, onOpenDraft, onBusy }: AgentPanelProp
 	return (
 		<>
 			<div className="pg-agent-sub">
-				<span className="pg-bot"><RobotIcon size={13} weight="fill" /></span>
-				<span className="pg-name">Agent</span>
-				<span className="pg-flex" />
+				<Reading subject={reading} />
 				{messages.length > 0 && !busy && (
 					<button type="button" className="pg-head-btn" title="Clear chat" aria-label="Clear chat" onClick={() => window.confirm("Clear this chat?") && setMessages([])}>
 						<TrashIcon size={13} />
@@ -276,7 +284,7 @@ function ChatMessage({ message, onOpenDraft }: { message: UIMessage; onOpenDraft
 		if (part.type === "text" && part.text.trim()) {
 			out.push(
 				<div key={i} className="pg-agent-a">
-					<span className="pg-bot is-small"><RobotIcon size={12} weight="fill" /></span>
+					<span className="pg-bot is-small"><SparkleIcon size={12} weight="fill" /></span>
 					<div className="pg-answer">
 						<Markdown remarkPlugins={[remarkGfm]} components={{ a: ({ href, children }) => <a href={href} target="_blank" rel="noopener noreferrer">{children}</a> }}>
 							{part.text}
@@ -323,7 +331,7 @@ export function AgentRail({ onOpen, busy }: { onOpen: () => void; busy: boolean 
 			<span className="pg-rail-head"><CaretDoubleLeftIcon size={12} weight="bold" /></span>
 			<span className="pg-vert">
 				<SparkleIcon size={16} weight="fill" />
-				<span className="pg-vert-label">ASK AGENT</span>
+				<span className="pg-vert-label">AGENT</span>
 				{busy && <span className="pg-dot pg-round" title="Agent working" />}
 			</span>
 			<span style={{ flex: 1 }} />
@@ -332,7 +340,7 @@ export function AgentRail({ onOpen, busy }: { onOpen: () => void; busy: boolean 
 	);
 }
 
-// ── Draft with agent ─────────────────────────────────────────────────
+// ── Draft reply ─────────────────────────────────────────────────
 
 export interface DraftJob {
 	id: number;
@@ -397,7 +405,7 @@ function Runner({ hooks, job, onDone, onError }: { hooks: Hooks; job: DraftJob; 
 }
 
 /**
- * "Draft with agent" for any composer: returns the request function and the
+ * "Draft reply" for any composer: returns the request function and the
  * runner element to render while a request is out.
  */
 export function useDraftWithAgent() {

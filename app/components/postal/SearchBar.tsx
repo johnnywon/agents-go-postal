@@ -115,7 +115,7 @@ export const SearchBar = forwardRef<HTMLInputElement, SearchBarProps>(function S
 				)}
 				<img className="deck-brand-logo pg-watermark" src="/brand/logo.svg" alt="" aria-hidden="true" />
 				<span className="pg-kbd pg-desktop-only">/</span>
-				<button type="button" className="pg-icon-btn pg-mobile-only" onClick={props.onAgent} aria-label="Ask agent">
+				<button type="button" className="pg-icon-btn pg-mobile-only" onClick={props.onAgent} aria-label="Open agent">
 					<SparkleIcon size={16} weight="fill" />
 				</button>
 			</div>
