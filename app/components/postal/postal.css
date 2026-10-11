@@ -472,10 +472,12 @@ html:has(.postal), html:has(.postal) body { background: var(--pg-base, #141518);
 .pg-mail-frame[data-kind="html"] { background: #fff; border: 1px solid var(--pg-line-2); }
 .pg-mail-frame iframe { display: block; width: 100%; border: 0; }
 /* Attachments are part of the letter: rows under a hairline, inside the frame. Long names fade before the size column. */
-.pg-attachments { display: flex; flex-direction: column; margin-top: 12px; padding: 8px 0 4px; border-top: 1px solid var(--pg-line-2); }
+.pg-attachments { display: flex; flex-direction: column; margin-top: 12px; padding-bottom: 4px; }
+/* The hairline is its own 1px line so the global radius cannot curve its ends. */
+.pg-attachments::before { content: ""; height: 1px; margin-bottom: 8px; background: var(--pg-att-line, var(--pg-line-2)); }
 .pg-mail-frame[data-kind="html"] .pg-attachments {
-  --pg-att-text: #2a2b2f; --pg-att-muted: #74767c; --pg-att-icon: #5c5e64; --pg-att-hover: #f1f1ee; --pg-att-warn: oklch(0.55 0.13 60);
-  margin: 0 24px; padding: 10px 0 14px; border-top-color: #e4e4e0;
+  --pg-att-text: #2a2b2f; --pg-att-muted: #74767c; --pg-att-icon: #5c5e64; --pg-att-hover: #f1f1ee; --pg-att-warn: oklch(0.55 0.13 60); --pg-att-line: #e4e4e0;
+  margin: 0 24px; padding-bottom: 14px;
 }
 .pg-attach {
   display: flex; align-items: center; gap: 10px; height: 32px; padding: 0 8px; margin: 0 -8px; min-width: 0;
