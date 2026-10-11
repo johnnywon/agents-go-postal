@@ -88,6 +88,8 @@ const D1_ONLY = [
 	["larger:5mb", ["t3"]],
 	["smaller:10k in:anywhere", ["t1", "t2", "t4", "t5"]],
 	["in:Receipts", ["t4"]],
+	["has:link", ["t2"]],
+	["-has:link invoice", ["t1", "t4"]],
 ];
 
 for (const engine of ["d1", "index"]) {
@@ -101,10 +103,9 @@ test("d1: the operators that need D1's tables", () => {
 });
 
 test("index: the D1-only operators are refused, not ignored", () => {
-	for (const q of ["cc:boss", "is:scheduled", "has:pdf", "has:image", "filename:x", "larger:5mb", "smaller:1k"]) {
+	for (const q of ["cc:boss", "is:scheduled", "has:pdf", "has:image", "has:link", "filename:x", "larger:5mb", "smaller:1k"]) {
 		assert.throws(() => find("index", q), /works once mail is stored in D1/, q);
 	}
-	assert.throws(() => find("d1", "has:link"), /isn't searchable yet/);
 });
 
 test("the view applies unless in: names where to look", () => {

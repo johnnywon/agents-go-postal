@@ -57,16 +57,6 @@ export function searchErrors(search: string): QueryError[] {
 	return parseSearch(normalizeSearch(search)).errors;
 }
 
-/** Split text around the first matching term: [before, match, after]. */
-export function highlight(text: string, terms: string[]): [string, string, string] {
-	const low = text.toLowerCase();
-	for (const term of terms) {
-		const at = low.indexOf(term);
-		if (at >= 0) return [text.slice(0, at), text.slice(at, at + term.length), text.slice(at + term.length)];
-	}
-	return [text, "", ""];
-}
-
 export function scopeOf(filter: MailFilter): string | null {
 	const values = chipValues(filter, "address");
 	return values.length === 1 ? values[0] : null;

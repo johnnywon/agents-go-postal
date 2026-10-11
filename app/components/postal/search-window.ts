@@ -100,8 +100,7 @@ export function completions(ctx: CompletionContext, data: CompletionData): Compl
 			);
 		case "in": return withDash(fixed("in", IN_VALUES, partial));
 		case "is": return withDash(fixed("is", IS_SEARCH_VALUES, partial));
-		// has:link waits for the D1 search engine (S4).
-		case "has": return withDash(fixed("has", HAS_SEARCH_VALUES.filter((v) => v !== "link"), partial));
+		case "has": return withDash(fixed("has", HAS_SEARCH_VALUES, partial));
 		case "sort": return withDash(fixed("sort", SORT_VALUES, partial));
 		case "before":
 		case "after":
@@ -131,6 +130,40 @@ export function applyCompletion(text: string, ctx: CompletionContext, insert: st
 /** Add a term to the end of the search. */
 export function appendTerm(text: string, term: string): string {
 	return `${`${text.trim()} ${term}`.trim()} `;
+}
+
+/**
+ * Server snippet HTML, if `<mark>` is its only markup; otherwise null and the
+ * caller shows plain text. The server escapes mail text; this checks again.
+ */
+export function snippetMarkup(html: string | undefined): string | null {
+	if (!html) return null;
+	return /[<>]/.test(html.replace(/<\/?mark>/g, "")) ? null : html;
+}
+
+/** Search text with any `sort:` term replaced: `relevance` drops it, as ranking is the default with words. */
+export function withOrder(search: string, order: "relevance" | "date", force = false): string {
+	const rest = search.replace(/(^|\s)-?sort:\S*/gi, " ").replace(/\s+/g, " ").trim();
+	const term = order === "date" ? "sort:date" : force ? "sort:relevance" : "";
+	return (term ? `${rest} ${term} ` : `${rest} `).trimStart();
+}
+
+/** Text split into pieces, with every word that starts with a search term marked, as the server's snippets mark them. */
+export function marks(text: string, terms: readonly string[]): { text: string; mark: boolean }[] {
+	const fold = (s: string) => s.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase();
+	const folded = terms.map(fold).filter(Boolean);
+	if (folded.length === 0) return [{ text, mark: false }];
+	const out: { text: string; mark: boolean }[] = [];
+	let at = 0;
+	for (const m of text.matchAll(/[\p{L}\p{N}]+/gu)) {
+		const word = fold(m[0]);
+		if (!folded.some((t) => word.startsWith(t))) continue;
+		if (m.index! > at) out.push({ text: text.slice(at, m.index), mark: false });
+		out.push({ text: m[0], mark: true });
+		at = m.index! + m[0].length;
+	}
+	if (at < text.length) out.push({ text: text.slice(at), mark: false });
+	return out;
 }
 
 // ── Recent searches ────────────────────────────────────────────────

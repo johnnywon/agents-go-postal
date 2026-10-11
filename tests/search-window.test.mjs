@@ -44,7 +44,7 @@ test("completions for each operator", () => {
 	assert.deepEqual(complete("label:t"), [`label:"Tax 2026"`], "names with spaces are quoted");
 	assert.deepEqual(complete("in:s"), ["in:starred", "in:sent", "in:spam"]);
 	assert.deepEqual(complete("is:"), ["is:unread", "is:read", "is:starred", "is:scheduled", "is:replied"]);
-	assert.ok(!complete("has:").includes("has:link"), "has:link waits for S4");
+	assert.ok(complete("has:").includes("has:link"));
 	assert.deepEqual(complete("sort:"), ["sort:relevance", "sort:date"]);
 	assert.deepEqual(complete("is:starred"), [], "a finished value isn't offered again");
 	assert.deepEqual(complete("-IS:read"), [], "nor with a dash or in another case");
@@ -124,4 +124,24 @@ test("keys", () => {
 	assert.deepEqual(k("S", s({ open: false }), { ctrl: true }), { type: "save" });
 	assert.equal(k("s", s({ hasText: false }), { meta: true }), null, "nothing to save");
 	assert.equal(k("s", s()), null);
+});
+
+test("snippet markup and the order switch", async () => {
+	const model = w;
+	assert.equal(model.snippetMarkup("a <mark>b</mark> &lt;c&gt;"), "a <mark>b</mark> &lt;c&gt;");
+	assert.equal(model.snippetMarkup("a <img src=x onerror=alert(1)>"), null, "any other tag: plain text instead");
+	assert.equal(model.snippetMarkup("<mark onclick=x>b</mark>"), null);
+	assert.equal(model.snippetMarkup(undefined), null);
+	assert.equal(model.withOrder("invoice", "date"), "invoice sort:date ");
+	assert.equal(model.withOrder("invoice sort:date from:ann", "relevance"), "invoice from:ann ");
+	assert.equal(model.withOrder("common", "relevance", true), "common sort:relevance ");
+	assert.equal(model.withOrder("sort:date", "relevance"), "");
+});
+
+test("every searched word is marked, by word start", () => {
+	const m = (text, terms) => w.marks(text, terms).map((p) => (p.mark ? `[${p.text}]` : p.text)).join("");
+	assert.equal(m("Re: contract draft #2", ["contract", "draft"]), "Re: [contract] [draft] #2");
+	assert.equal(m("Invoices and reinvoice", ["invoice"]), "[Invoices] and reinvoice");
+	assert.equal(m("Le Café", ["cafe"]), "Le [Café]");
+	assert.equal(m("nothing", []), "nothing");
 });

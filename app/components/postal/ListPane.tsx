@@ -11,7 +11,8 @@ import { Fragment, useEffect, useRef, useState } from "react";
 import type { MailFilter } from "~/lib/mail-filter";
 import type { Conversation, Label, MailFacets, ScheduledSend } from "~/services/api";
 import { AddressText, type Identities, LabelChip, LabelTag, Swatch } from "./identity";
-import { dayKey, dayLabel, filterCount, hasChip, highlight, labelOf, scopeOf, sendTimeLabel, timeLabel, toggleChip, withoutKinds } from "./model";
+import { marks, snippetMarkup } from "./search-window";
+import { dayKey, dayLabel, filterCount, hasChip, labelOf, scopeOf, sendTimeLabel, timeLabel, toggleChip, withoutKinds } from "./model";
 
 export interface ListPaneProps {
 	identities: Identities;
@@ -45,6 +46,10 @@ export interface ListPaneProps {
 	onRowAction: (row: Conversation, action: "archive" | "star" | "read" | "trash") => void;
 	onBulk: (action: "archive" | "read" | "star" | "trash") => void;
 	terms: string[];
+	/** How the server ordered a search, when it can rank (D1); else undefined. */
+	order?: "relevance" | "date";
+	rankSkipped?: boolean;
+	onOrder: (order: "relevance" | "date") => void;
 	scheduled: ReadonlyMap<string, ScheduledSend>;
 	onCancelScheduled: (s: ScheduledSend) => void;
 	onClearSearch: () => void;
@@ -61,8 +66,7 @@ const EMPTY: Record<string, { Icon: typeof TrayIcon; title: string; body: string
 };
 
 function Highlighted({ text, terms }: { text: string; terms: string[] }) {
-	const [a, b, c] = highlight(text, terms);
-	return <>{a}{b && <mark>{b}</mark>}{c}</>;
+	return <>{marks(text, terms).map((p, i) => (p.mark ? <mark key={i}>{p.text}</mark> : p.text))}</>;
 }
 
 export function ListPane(props: ListPaneProps) {
@@ -255,6 +259,16 @@ export function ListPane(props: ListPaneProps) {
 					</>
 				)}
 			</div>
+			{props.searching && props.order && !props.loading && rows.length > 0 && (
+				<div className="pg-order">
+					<span>{props.rankSkipped ? "Too many matches to rank. Newest first." : props.order === "relevance" ? "Best match first" : "Newest first"}</span>
+					<span className="pg-flex" />
+					<div className="pg-segmented" role="group" aria-label="Order">
+						<button type="button" aria-pressed={props.order === "relevance"} onClick={() => props.onOrder("relevance")}>Relevance</button>
+						<button type="button" aria-pressed={props.order === "date"} onClick={() => props.onOrder("date")}>Newest</button>
+					</div>
+				</div>
+			)}
 			<div className="pg-list" ref={listRef} data-selecting={selecting}>
 				{props.loading && Array.from({ length: 6 }, (_, i) => (
 					<div key={i} className="pg-skel" aria-hidden>
@@ -320,6 +334,7 @@ export function ListPane(props: ListPaneProps) {
 								<div className="pg-row-when">
 									<span className={groupByDay && dayStart ? "pg-day-first" : undefined}>{dayLabel(row.date)}</span>
 									<span>{timeLabel(row.date)}</span>
+									{(row.match_count ?? 0) > 1 && <span className="pg-row-matches" title={`${row.match_count} messages in this conversation match`}>{row.match_count} matches</span>}
 									<div className="pg-spacer" />
 									<div className="pg-row-glyphs">
 										{row.starred && <StarIcon size={12} weight="fill" className="pg-star" aria-label="Starred" />}
@@ -337,7 +352,9 @@ export function ListPane(props: ListPaneProps) {
 									)}
 									<div className="pg-row-sender">{row.state === "draft" ? "Draft" : row.sender_name || row.sender_addr}</div>
 									<div className="pg-row-subject"><Highlighted text={row.subject || "(no subject)"} terms={props.terms} /></div>
-									{row.snippet && <div className="pg-row-preview"><Highlighted text={row.snippet} terms={props.terms} /></div>}
+									{snippetMarkup(row.snippet_html) !== null
+										? <div className="pg-row-preview" dangerouslySetInnerHTML={{ __html: snippetMarkup(row.snippet_html)! }} />
+										: row.snippet && <div className="pg-row-preview"><Highlighted text={row.snippet} terms={props.terms} /></div>}
 									{/* TODO(roadmap): rule chips on rows (Inquiry, Receipts, DMARC, Triage with their icons) return with rules. */}
 									{(rowLabels.length > 0 || sched) && (
 										<div className="pg-row-labels">

@@ -1,16 +1,16 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
 import { after, before, test } from "node:test";
 import { build } from "esbuild";
 import { Miniflare } from "miniflare";
 import { statements } from "./helpers/schema.mjs";
+import { D1_SCHEMA } from "./helpers/d1-schema.mjs";
 
 // One script of store calls against the Durable Object store and the D1 store.
 // Both must return the same results, so callers can't tell them apart.
 
 const A = "a@example.com";
 const B = "b@example.org";
-const SCHEMA = readFileSync("migrations/0001_init.sql", "utf8");
+const SCHEMA = D1_SCHEMA;
 let mf;
 
 before(async () => {
@@ -144,7 +144,8 @@ test("the combined list, facets, labels, bulk and undo", async () => {
 	await same("inbox", "all", "queryMail", [{ view: "inbox", address: [], from: [], label: [], is: [], has: [], subject: [], q: "", sort: "date", dir: "desc", tzOffset: 0 }], pageKeys);
 	const all = { view: "all", address: [], from: [], label: [], is: [], has: [], subject: [], q: "", sort: "date", dir: "desc", tzOffset: 0 };
 	await same("all", "all", "queryMail", [all], pageKeys);
-	await same("search", "all", "queryMail", [{ ...all, q: "invoice" }], pageKeys);
+	// Newest first: D1 ranks searches by relevance and the Durable Objects do not.
+	await same("search", "all", "queryMail", [{ ...all, q: "invoice sort:date" }], pageKeys);
 	await same("facets", "all", "queryFacets", [all]);
 	await same("folderViews", "all", "folderViews");
 	await same("trashCount", "all", "trashCount");

@@ -1,9 +1,9 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
 import { after, before, test } from "node:test";
 import { build } from "esbuild";
 import { Miniflare } from "miniflare";
 import { statements } from "./helpers/schema.mjs";
+import { D1_SCHEMA } from "./helpers/d1-schema.mjs";
 
 // The copy from the Durable Objects to D1 (workers/store/copy-job.ts): mail
 // stored on the old store reads back the same from D1, including what
@@ -11,7 +11,7 @@ import { statements } from "./helpers/schema.mjs";
 
 const A = "a@example.com";
 const B = "b@example.org";
-const SCHEMA = readFileSync("migrations/0001_init.sql", "utf8");
+const SCHEMA = D1_SCHEMA;
 let mf;
 
 before(async () => {
@@ -152,7 +152,8 @@ test("D1 reads back what the Durable Objects hold", async () => {
 	const pageKeys = (page) => page.conversations.map((c) => ({ key: c.thread_key, email: c.email_id, count: c.thread_count, unread: c.thread_unread_count, labels: c.labels, state: c.state, starred: c.starred }));
 	for (const view of ["inbox", "all", "sent", "drafts", "starred", "trash", "folder:receipts"]) await same(`list ${view}`, "all", "queryMail", [{ ...all, view }], pageKeys);
 	await same("list by label", "all", "queryMail", [{ ...all, label: ["later"] }], pageKeys);
-	await same("list search", "all", "queryMail", [{ ...all, q: "invoice" }], pageKeys);
+	// Newest first: D1 ranks searches by relevance and the Durable Objects do not.
+	await same("list search", "all", "queryMail", [{ ...all, q: "invoice sort:date" }], pageKeys);
 	await same("facets", "all", "queryFacets", [all]);
 	await same("folders", "all", "folderViews");
 	await same("labels", "all", "listLabels");

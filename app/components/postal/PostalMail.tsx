@@ -25,6 +25,7 @@ import { buildIdentities } from "./identity";
 import { ListPane } from "./ListPane";
 import { LogoutModal, McpModal, SettingsModal, Toast, type ToastState } from "./Modals";
 import { conversations, HOME, labelOf, parsePostalFilter, scopeOf, searchErrors, searchTerms, withSearch } from "./model";
+import { withOrder } from "./search-window";
 import { useDeleteSavedSearch, useSavedSearches, useSaveSearch, useSuggest } from "~/queries/search";
 import { useLayout, usePrefs, useResolvedTheme, useWidth } from "./prefs";
 import { Reader } from "./Reader";
@@ -113,6 +114,8 @@ function PostalApp({ addresses, domains, autoDraft }: PostalProps) {
 	const pages = list.data?.pages ?? [];
 	const serverRows = useMemo(() => pages.flatMap((p) => p.conversations), [pages]);
 	const total = pages[0]?.total ?? serverRows.length;
+	// The store ranks searches (D1), or the search asks for date order.
+	const rankable = pages[0]?.order === "relevance" || !!pages[0]?.rankSkipped || /(^|\s)sort:date\b/i.test(debounced);
 	const counts = useViewCounts();
 	const unreadFacets = useMailFacets({ view: "inbox", chips: [{ kind: "is", value: "unread" }], sort: "date", dir: "desc" }, true);
 	const unreadByAddress = useMemo(() => new Map((unreadFacets.data?.address ?? []).map((f) => [f.value.toLowerCase(), f.count])), [unreadFacets.data]);
@@ -566,6 +569,9 @@ function PostalApp({ addresses, domains, autoDraft }: PostalProps) {
 							onRowAction={(row, action) => act(action, [row])}
 							onBulk={(action) => act(action)}
 							terms={terms}
+							order={rankable ? (pages[0]?.order === "relevance" ? "relevance" : "date") : undefined}
+							rankSkipped={!!pages[0]?.rankSkipped}
+							onOrder={(next) => setSearchText(withOrder(search, next, next === "relevance" && !!pages[0]?.rankSkipped))}
 							scheduled={scheduled}
 							onCancelScheduled={async (s) => {
 								try {

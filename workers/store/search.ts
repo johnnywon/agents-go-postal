@@ -27,6 +27,12 @@ export interface CompiledSearch {
 	clauses: Clause[];
 	/** Set when the query names where to look (`in:`); replaces the view. */
 	scope: Clause | null;
+	/**
+	 * The words' FTS expression and the clause in `clauses` that applies it,
+	 * so a ranked list can join the index in its place. Null when the search
+	 * has no words, or only excluded ones.
+	 */
+	match: { expr: string; clause: Clause } | null;
 	errors: string[];
 }
 
@@ -141,8 +147,8 @@ function compileLeaf(leaf: Leaf, engine: SearchEngine, now: number, tzOffset: nu
 				case "image":
 					return d1("has:image", () => sql(`EXISTS (SELECT 1 FROM attachments a WHERE a.email_id = m.email_id AND a.mimetype LIKE 'image/%' AND COALESCE(a.disposition, 'attachment') != 'inline')`));
 				case "link":
-					// Needs a column set when mail is stored; comes with the D1 search engine (S4).
-					return { error: "has:link isn't searchable yet" };
+					// Set when mail is stored (migrations/0002_has_link.sql); older mail is checked by the cron.
+					return d1("has:link", () => sql(`m.has_link = 1`));
 			}
 			break;
 	}
@@ -155,6 +161,14 @@ export interface CompileOptions {
 	engine: SearchEngine;
 	now: number;
 	tzOffset: number;
+	/** Match only the newest this-many messages, for facet counts over broad words. */
+	cap?: number;
+	/**
+	 * Words that match nothing in the word index, with the messages whose
+	 * subject, addresses or attachment names contain them (`messages_trigram`).
+	 * A lone positive word in the map matches those messages instead.
+	 */
+	substrings?: ReadonlyMap<string, readonly number[]>;
 }
 
 /**
@@ -169,6 +183,12 @@ export function compileSearch(query: Pick<SearchQuery, "terms" | "errors">, opti
 	const exclude: string[] = [];
 
 	for (const term of query.terms) {
+		const lone = term.any.length === 1 && !term.negate ? term.any[0] : null;
+		const ids = lone?.type === "word" ? options.substrings?.get(lone.text.toLowerCase()) : undefined;
+		if (ids) {
+			clauses.push({ sql: `m.id IN (SELECT value FROM json_each(?))`, params: [JSON.stringify(ids)] });
+			continue;
+		}
 		const parts = term.any.map((leaf) => compileLeaf(leaf, options.engine, options.now, options.tzOffset));
 		const failed = parts.find((p): p is { error: string } => !!p && "error" in p);
 		if (failed) {
@@ -195,16 +215,21 @@ export function compileSearch(query: Pick<SearchQuery, "terms" | "errors">, opti
 		else clauses.push(joined);
 	}
 
+	let match: CompiledSearch["match"] = null;
 	if (include.length > 0) {
-		const match = exclude.length > 0 ? `(${include.join(" AND ")}) NOT ${or(exclude)}` : include.join(" AND ");
-		clauses.push({ sql: `m.id IN (SELECT rowid FROM messages_fts WHERE messages_fts MATCH ?)`, params: [match] });
+		const expr = exclude.length > 0 ? `(${include.join(" AND ")}) NOT ${or(exclude)}` : include.join(" AND ");
+		const clause: Clause = options.cap
+			? { sql: `m.id IN (SELECT rowid FROM messages_fts WHERE messages_fts MATCH ? ORDER BY rowid DESC LIMIT ?)`, params: [expr, options.cap] }
+			: { sql: `m.id IN (SELECT rowid FROM messages_fts WHERE messages_fts MATCH ?)`, params: [expr] };
+		clauses.push(clause);
+		match = { expr, clause };
 	} else if (exclude.length > 0) {
 		clauses.push({ sql: `m.id NOT IN (SELECT rowid FROM messages_fts WHERE messages_fts MATCH ?)`, params: [exclude.join(" OR ")] });
 	}
 	const scope = scopes.length === 0
 		? null
 		: { sql: scopes.map((c) => `(${c.sql})`).join(" AND "), params: scopes.flatMap((c) => c.params) };
-	return { clauses, scope, errors };
+	return { clauses, scope, match, errors };
 }
 
 function isScope(term: Term): boolean {

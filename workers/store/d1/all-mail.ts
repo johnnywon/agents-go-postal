@@ -35,7 +35,8 @@ import {
 	allLabelsQuery,
 	opSize,
 } from "../../lib/mail-bulk-sql";
-import { type MailFilter, type Query, facetsQuery, folderViewsQuery, mailQuery, runAsync } from "../../lib/mail-index-sql";
+import { type MailFilter, type Query, folderViewsQuery, runAsync } from "../../lib/mail-index-sql";
+import { d1FacetsQuery, d1MailQuery, withSubstrings } from "../../lib/search-engine-sql";
 import type { BulkTarget } from "../../durableObject/mail-index";
 import {
 	createSavedSearchQuery,
@@ -58,6 +59,11 @@ export class D1AllMail {
 		return runAsync(query, (text, ...params) => this.sql.all(text, ...params));
 	}
 
+	/** The filter as D1 runs it: its engine set and its substring matches found, so bulk targets match the list. */
+	#search(filter: MailFilter): Promise<MailFilter> {
+		return this.#run(withSubstrings(onD1(filter)));
+	}
+
 	async #deleteFiles(keys: string[]) {
 		if (keys.length === 0) return;
 		try {
@@ -68,11 +74,11 @@ export class D1AllMail {
 	}
 
 	async queryMail(filter: MailFilter, options: { cursor?: string | null; limit?: number } = {}) {
-		return { ...(await this.#run(mailQuery(onD1(filter), options))), indexing: null };
+		return { ...(await this.#run(d1MailQuery(onD1(filter), options))), indexing: null };
 	}
 
 	async queryFacets(filter: MailFilter) {
-		return this.#run(facetsQuery(onD1(filter)));
+		return this.#run(d1FacetsQuery(onD1(filter)));
 	}
 
 	async folderViews() {
@@ -102,7 +108,7 @@ export class D1AllMail {
 	}
 
 	async threadKeysMatching(filter: MailFilter, limit: number) {
-		return this.#run(matchingThreadKeysQuery(onD1(filter), limit));
+		return this.#run(matchingThreadKeysQuery(await this.#search(filter), limit));
 	}
 
 	async threadKeyOf(mailboxId: string, emailId: string) {
@@ -114,7 +120,7 @@ export class D1AllMail {
 		try {
 			threadKeys = "threadKeys" in target
 				? target.threadKeys
-				: await this.#run(resolveFilterTargetQuery(onD1(target.filter), target.asOf, target.expectedCount));
+				: await this.#run(resolveFilterTargetQuery(await this.#search(target.filter), target.asOf, target.expectedCount));
 		} catch (e) {
 			if (e instanceof BulkConflictError) return { conflict: e.count };
 			throw e;

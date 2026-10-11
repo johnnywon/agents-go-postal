@@ -51,6 +51,13 @@ export function normalizeSubject(subject: string): string {
 	return s.trim().toLowerCase();
 }
 
+/** `has:link`: the body holds a web address. The cron's backfill applies the same test in SQL (LINK_SQL). */
+export function hasLink(body: string | null | undefined): boolean {
+	return !!body && /https?:\/\//i.test(body);
+}
+
+export const LINK_SQL = `(body LIKE '%http://%' OR body LIKE '%https://%')`;
+
 export const bodyKey = (emailId: string) => `bodies/${emailId}.html`;
 
 /**
@@ -94,14 +101,14 @@ export function insertStatements(
 		{
 			sql: `INSERT INTO messages (email_id, mailbox_id, folder_id, thread_id, conversation_id, message_id, in_reply_to,
 				email_references, date, subject, subject_norm, sender_addr, sender_name, sender_domain, recipient, cc, bcc,
-				recipients, snippet, body, body_key, raw_headers, size, read, starred, has_attachment, list_id, unsubscribe)
-				VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+				recipients, snippet, body, body_key, raw_headers, size, read, starred, has_attachment, list_id, unsubscribe, has_link)
+				VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 			params: [
 				email.id, mailboxId, folderId, email.thread_id ?? null, conversationId, email.message_id ?? null, email.in_reply_to ?? null,
 				email.email_references ?? null, email.date, email.subject ?? "", subjectNorm, sender.addr, sender.name, sender.domain,
 				email.recipient ?? "", email.cc ?? null, email.bcc ?? null, recipients, bodyText.slice(0, SNIPPET_LENGTH),
 				options.bodyInR2 ? null : email.body, options.bodyInR2 ? bodyKey(email.id) : null, email.raw_headers ?? null,
-				size, read, email.starred ? 1 : 0, visible.length > 0 ? 1 : 0, list.list_id, list.unsubscribe,
+				size, read, email.starred ? 1 : 0, visible.length > 0 ? 1 : 0, list.list_id, list.unsubscribe, hasLink(email.body) ? 1 : 0,
 			],
 		},
 		...attachments.map((a) => ({

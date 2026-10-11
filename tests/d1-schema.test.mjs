@@ -1,13 +1,13 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
 import { after, before, test } from "node:test";
 import { build } from "esbuild";
 import { Miniflare } from "miniflare";
 import { openSql } from "./helpers/sql.mjs";
+import { D1_SCHEMA } from "./helpers/d1-schema.mjs";
 
-// migrations/0001_init.sql on node:sqlite and on local D1.
+// The D1 migrations on node:sqlite and on local D1.
 
-const SCHEMA = readFileSync("migrations/0001_init.sql", "utf8");
+const SCHEMA = D1_SCHEMA;
 const SYSTEM_FOLDERS = ["inbox", "sent", "draft", "archive", "spam", "trash"];
 
 /** Split migration SQL into statements, keeping CREATE TRIGGER … END; whole. */

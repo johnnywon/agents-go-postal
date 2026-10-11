@@ -19,6 +19,7 @@ import { mailStore, searchEngine } from "../store";
 import type { SearchEngine } from "../store/search";
 import { DATE_TOKENS, emptyFilter, InvalidFilterError, type MailFilter, searchOf, VIEWS } from "./mail-index-sql";
 import type { EmailFull } from "./schemas";
+import { snippetText } from "./snippets";
 import {
 	getFullEmail,
 	getFullThread,
@@ -474,7 +475,8 @@ export const LABEL_MATCHING_MAX = 500;
 export const SEARCH_HELP =
 	`The query uses the mail search language: words match any field by prefix, "exact phrase", -word or -from:x to exclude, a OR b. ` +
 	`Operators: from: to: cc: subject: label: in: (inbox, sent, trash, anywhere or a folder name) is: (unread, read, starred, scheduled, replied) ` +
-	`has: (attachment, pdf, image, draft, unsubscribe) filename: before: after: (2026-01-31 or 30d) newer: older: (7d, 3w, 2m, 1y) larger: smaller: (500k, 5mb) list:.`;
+	`has: (attachment, pdf, image, link, draft, unsubscribe) filename: before: after: (2026-01-31 or 30d) newer: older: (7d, 3w, 2m, 1y) larger: smaller: (500k, 5mb) list:. ` +
+	`Results with words come best match first where the store ranks them (order: "relevance"); add sort:date for newest first.`;
 
 /**
  * Build an index filter. Labels are named by id or name; unknown ones are an
@@ -539,11 +541,14 @@ export async function toolSearchAllMail(env: Env, search: MailSearch & { limit?:
 			date: c.date,
 			from: c.sender_name ? `${c.sender_name} <${c.sender_addr}>` : c.sender_addr,
 			subject: c.subject,
-			snippet: c.snippet,
+			// On D1, the text around the matched words; otherwise the opening lines.
+			snippet: c.snippet_html ? snippetText(c.snippet_html) : c.snippet,
 			unread: c.unread,
 			labels: c.labels,
 			messages: c.thread_count,
+			...(c.match_count !== undefined ? { matched: c.match_count } : {}),
 		})),
+		...(result.order ? { order: result.order } : {}),
 	};
 }
 

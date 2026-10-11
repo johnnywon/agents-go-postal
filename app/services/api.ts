@@ -114,6 +114,10 @@ export interface Conversation {
 	participants: string[];
 	has_draft: boolean;
 	also_in: string[];
+	/** With search words: how many of the conversation's messages matched. */
+	match_count?: number;
+	/** On D1: escaped text around the matched words, with <mark>. Render through snippetMarkup. */
+	snippet_html?: string;
 }
 
 export interface MailPage {
@@ -121,6 +125,9 @@ export interface MailPage {
 	nextCursor: string | null;
 	total?: number;
 	unread?: number;
+	order?: "relevance" | "date" | "from" | "subject";
+	/** Too many matches to rank; the list is newest first. `sort:relevance` ranks it anyway. */
+	rankSkipped?: boolean;
 	indexing: { done: number; total: number } | null;
 }
 
@@ -151,7 +158,7 @@ export interface Suggestions {
 	count: number | null;
 	narrow: { token: string; label: string; count: number }[];
 	nothing: { everywhere: number | null; removals: { text: string; start: number; end: number; count: number }[] } | null;
-	didYouMean: null;
+	didYouMean: { text: string; words: { from: string; to: string }[] } | null;
 	interpretable: boolean;
 	errors: string[];
 }

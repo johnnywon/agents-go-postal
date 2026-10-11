@@ -12,7 +12,8 @@
 import { completionAt, filterTerms, looksLikeRequest, removeRange } from "../../shared/search-complete";
 import { formatSearch, MAX_SEARCH_LENGTH, parseSearch } from "../../shared/search-query";
 import type { SearchEngine } from "../store/search";
-import { filterWhere, InvalidFilterError, type MailFilter, type Query, sqlStep } from "./mail-index-sql";
+import { type DidYouMean, didYouMeanQuery, withSubstrings } from "./search-engine-sql";
+import { FACET_CAP, filterWhere, InvalidFilterError, type MailFilter, type Query, sqlStep } from "./mail-index-sql";
 
 const DAY_MS = 86_400_000;
 const WORD = /[\p{L}\p{N}]/u;
@@ -43,8 +44,8 @@ export interface Suggestions {
 	narrow: SuggestCount[];
 	/** When nothing matched: what searching everywhere or dropping each filter would find. */
 	nothing: { everywhere: number | null; removals: { text: string; start: number; end: number; count: number }[] } | null;
-	/** Spelling suggestions come with the D1 search engine (S4). */
-	didYouMean: null;
+	/** On D1, when nothing matched: the search with unknown words respelled. */
+	didYouMean: DidYouMean | null;
 	interpretable: boolean;
 	errors: string[];
 }
@@ -131,7 +132,8 @@ function* countOf(filter: MailFilter, now: number): Query<number | null> {
 }
 
 function* narrowOf(filter: MailFilter, text: string, now: number): Query<SuggestCount[]> {
-	const w = filterWhere(filter, now);
+	// Counted over the newest matches on D1, as the list's facets are.
+	const w = filterWhere(filter, now, filter.engine === "d1" ? FACET_CAP : undefined);
 	const typed = text.toLowerCase();
 	const out: SuggestCount[] = [];
 	const domains = yield sqlStep(
@@ -186,7 +188,7 @@ export function* suggestQuery(base: MailFilter, text: string, at: number, now = 
 	}
 
 	const valid = formatSearch(parsed);
-	const filter: MailFilter = { ...base, q: valid };
+	const filter: MailFilter = yield* withSubstrings({ ...base, q: valid });
 	out.count = yield* countOf(filter, now);
 	if (out.count === null) {
 		try {
@@ -214,6 +216,7 @@ export function* suggestQuery(base: MailFilter, text: string, at: number, now = 
 		if (count) removals.push({ ...term, count });
 	}
 	out.nothing = { everywhere: everywhere || null, removals };
+	if (base.engine === "d1") out.didYouMean = yield* didYouMeanQuery(text);
 	return out;
 }
 

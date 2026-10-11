@@ -1,15 +1,15 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
 import { after, before, test } from "node:test";
 import { build } from "esbuild";
 import { Miniflare } from "miniflare";
 import { loadTs, openDb } from "./helpers/sqlite.mjs";
+import { D1_SCHEMA } from "./helpers/d1-schema.mjs";
 
 // The combined list, facet and folder queries (mail-index-sql.ts) run on the
 // D1 schema unchanged: synchronously on node:sqlite and asynchronously on D1.
 
 const idx = await loadTs("workers/lib/mail-index-sql.ts");
-const SCHEMA = readFileSync("migrations/0001_init.sql", "utf8");
+const SCHEMA = D1_SCHEMA;
 const NOW = Date.parse("2026-10-11T12:00:00Z");
 const FOLDERS = ["inbox", "sent", "draft", "archive", "spam", "trash", "receipts"];
 

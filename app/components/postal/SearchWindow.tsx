@@ -13,6 +13,7 @@ import {
 	PaperclipIcon,
 	StarIcon,
 	TagIcon,
+	TextAaIcon,
 	UserIcon,
 	XIcon,
 } from "@phosphor-icons/react";
@@ -20,7 +21,8 @@ import { AgentIcon } from "./AgentIcon";
 import { OPERATOR_HELP, OPERATORS } from "../../../shared/search-query";
 import type { Conversation } from "~/services/api";
 import { AddressText, type Identities, Swatch } from "./identity";
-import { dayLabel, highlight, timeLabel } from "./model";
+import { dayLabel, timeLabel } from "./model";
+import { marks, snippetMarkup } from "./search-window";
 import type { Completion } from "./search-window";
 
 export interface FilterSuggestion {
@@ -31,7 +33,7 @@ export interface FilterSuggestion {
 }
 
 const FILTER_ICONS = { unread: EnvelopeSimpleIcon, starred: StarIcon, attachment: PaperclipIcon, label: TagIcon, from: UserIcon };
-const ACTION_ICONS = { ask: AgentIcon, everywhere: GlobeIcon, remove: ArrowCounterClockwiseIcon, search: MagnifyingGlassIcon };
+const ACTION_ICONS = { ask: AgentIcon, everywhere: GlobeIcon, remove: ArrowCounterClockwiseIcon, search: MagnifyingGlassIcon, spell: TextAaIcon };
 
 /** One row of the window. `choose` runs on ↵ or a click. */
 export type WindowRow = { id: string; choose: () => void } & (
@@ -71,8 +73,7 @@ export interface SearchWindowProps {
 }
 
 function Marked({ text, terms }: { text: string; terms: string[] }) {
-	const [a, b, c] = highlight(text, terms);
-	return <>{a}{b && <mark>{b}</mark>}{c}</>;
+	return <>{marks(text, terms).map((p, i) => (p.mark ? <mark key={i}>{p.text}</mark> : p.text))}</>;
 }
 
 function RowBody({ row, terms, identities }: { row: WindowRow; terms: string[]; identities: Identities }) {
@@ -97,7 +98,9 @@ function RowBody({ row, terms, identities }: { row: WindowRow; terms: string[]; 
 							<span className="pg-sw-date">{today ? timeLabel(r.date) : dayLabel(r.date)}</span>
 						</span>
 						<span className="pg-sw-subject pg-ellipsis"><Marked text={r.subject || "(no subject)"} terms={terms} /></span>
-						<span className="pg-sw-snippet pg-ellipsis"><Marked text={r.snippet} terms={terms} /></span>
+						{snippetMarkup(r.snippet_html) !== null
+							? <span className="pg-sw-snippet pg-ellipsis" dangerouslySetInnerHTML={{ __html: snippetMarkup(r.snippet_html)! }} />
+							: <span className="pg-sw-snippet pg-ellipsis"><Marked text={r.snippet} terms={terms} /></span>}
 					</span>
 				</>
 			);

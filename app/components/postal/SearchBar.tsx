@@ -209,6 +209,10 @@ export const SearchBar = forwardRef<HTMLInputElement, SearchBarProps>(function S
 		} else if (current && !props.resultsLoading && props.resultCount === 0) {
 			const rows: WindowRow[] = [];
 			const everywhere = () => setText(appendTerm(withoutScope(text), "in:anywhere"));
+			if (suggestCurrent && suggest.didYouMean) {
+				const fix = suggest.didYouMean;
+				rows.push({ id: "spell", kind: "action", icon: "spell", label: `Did you mean ${fix.words.map((w) => w.to).join(" ")}?`, detail: fix.text, choose: () => setText(`${fix.text} `) });
+			}
 			if (suggestCurrent && suggest.nothing) {
 				// The server counted what each way out would find.
 				const { nothing } = suggest;

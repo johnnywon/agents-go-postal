@@ -101,7 +101,9 @@ The search bar, the agent's `search_all_mail` and `search_emails`, and the MCP t
 | `larger:` `smaller:` | A size including attachments: `500k`, `5mb` |
 | `list:` | A mailing list id |
 
-Unknown operators are searched as plain words. An operator with a value that doesn't parse, such as `before:soon`, is left out and named in the search bar. `cc:`, `filename:`, `larger:`, `smaller:`, `is:scheduled`, `has:pdf` and `has:image` need D1 storage (below). `has:link` and `sort:relevance` are parsed but not yet supported.
+Unknown operators are searched as plain words. An operator with a value that doesn't parse, such as `before:soon`, is left out and named in the search bar. `cc:`, `filename:`, `larger:`, `smaller:`, `is:scheduled`, `has:pdf`, `has:image` and `has:link` need D1 storage (below).
+
+On D1, a search with words lists the best match first: subject matches count most, body text least, and near-ties go to newer mail. Each row shows the text around the matched words and how many messages in the conversation matched. `sort:date`, or Newest above the list, puts newest first. Over 20,000 matching messages the list is newest first, since ranking that many takes too long; `sort:relevance` ranks it anyway. A word of three or more letters that matches no word is searched as part of a word in subjects, addresses and attachment names, so `7731` finds `XK7731Q`. When nothing matches, the window suggests a spelling. On the Durable Object store results are newest first.
 
 The window under the search box shows recent searches (kept in this browser), the people you get the most mail from, filters and addresses. While you type it shows the top six results and filters that narrow them, and with the cursor in an operator it completes the value. `↑` `↓` move, `Tab` completes, `↵` opens the highlighted row or the first result, `⌘↵` runs the search without opening anything, and `Esc` closes the window, then clears the box. `? Operators` in its footer lists every operator.
 
@@ -124,6 +126,8 @@ To move a deployment that already holds mail:
 3. When the page says the counts match, set `"STORAGE": "d1"` in `vars` and deploy. The first cron run after that makes a last pass, then D1 is the only store. The page says when it's done. A new cron trigger can take half an hour to start firing, so add the D1 binding and deploy (step 1) well before you switch.
 
 Pick a quiet hour for step 3. A change made on the old store in the minute before the deploy can overwrite the same message's change on D1 in the minute after it.
+
+Run `npx wrangler d1 migrations apply <database> --remote` before deploying a new version: new code writes columns that later migrations add (`0002_has_link.sql` adds `has_link`). Adding a column doesn't break the version already running.
 
 For two weeks after the switch, new inbound mail is also written to the old store. To move back, remove `STORAGE` and deploy. Mail received in those two weeks comes back with it. Read state, labels, moves, sends and scheduled sends made on D1 do not, and mail scheduled before the switch stays in Drafts unscheduled. Problems inside D1 itself are better fixed with Time Travel (`wrangler d1 time-travel`).
 

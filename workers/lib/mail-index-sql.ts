@@ -245,7 +245,7 @@ export const VIEWS = ["inbox", "unread", "starred", "drafts", "sent", "archive",
 export const IS_VALUES = ["unread", "read", "starred"] as const;
 export const HAS_VALUES = ["attachment", "unsubscribe"] as const;
 export const DATE_TOKENS = ["today", "yesterday", "7d", "30d", "older"] as const;
-export const SORTS = ["date", "from", "subject"] as const;
+export const SORTS = ["date", "from", "subject", "relevance"] as const;
 
 export interface MailFilter {
 	view: string;
@@ -265,6 +265,11 @@ export interface MailFilter {
 	tzOffset: number;
 	/** Which store runs the SQL. Set by the store; some search operators need D1's tables. */
 	engine?: SearchEngine;
+	/**
+	 * D1 only, set by the store: words with no match in the word index, and
+	 * the messages that contain them as a substring (messages_trigram).
+	 */
+	substrings?: Record<string, number[]>;
 }
 
 export function emptyFilter(overrides: Partial<MailFilter> = {}): MailFilter {
@@ -339,17 +344,25 @@ function chipDate(value: string, tzOffset: number): string {
  * doesn't parse or that this store can't run, so a search is never quietly
  * wider than what was typed.
  */
-export function searchOf(filter: MailFilter, now = Date.now()) {
+export function searchOf(filter: MailFilter, now = Date.now(), cap?: number) {
 	const query = parseSearch(filter.q);
 	const subjects: Term[] = filter.subject.map((value) => ({ negate: false, any: [{ type: "op", op: "subject", value, phrase: false }], start: 0, end: 0 }));
-	const compiled = compileSearch({ terms: [...query.terms, ...subjects], errors: query.errors }, { engine: filter.engine ?? "index", now, tzOffset: filter.tzOffset });
+	const compiled = compileSearch({ terms: [...query.terms, ...subjects], errors: query.errors }, {
+		engine: filter.engine ?? "index", now, tzOffset: filter.tzOffset, cap,
+		substrings: filter.substrings ? new Map(Object.entries(filter.substrings)) : undefined,
+	});
 	if (compiled.errors.length > 0) throw new InvalidFilterError(compiled.errors[0]);
 	return compiled;
 }
 
-function clauses(filter: MailFilter, now: number, omit?: Dimension): Clause[] {
+function clauses(filter: MailFilter, now: number, omit?: Dimension, cap?: number): Clause[] {
+	return clausesWithMatch(filter, now, omit, cap).list;
+}
+
+/** The filter's clauses, and which of them applies the words' MATCH (see CompiledSearch.match). */
+function clausesWithMatch(filter: MailFilter, now: number, omit?: Dimension, cap?: number) {
 	const out: Clause[] = [{ sql: `m.deleted = 0`, params: [] }];
-	const search = searchOf(filter, now);
+	const search = searchOf(filter, now, cap);
 	if (omit !== "view") out.push(search.scope ?? viewClause(filter.view));
 	if (omit !== "address" && filter.address.length > 0) out.push(anyOf(filter.address.map(addressClause)));
 	if (omit !== "from" && filter.from.length > 0) out.push(anyOf(filter.from.map(fromClause)));
@@ -374,7 +387,7 @@ function clauses(filter: MailFilter, now: number, omit?: Dimension): Clause[] {
 		if (filter.before) out.push({ sql: `m.date < ?`, params: [chipDate(filter.before, filter.tzOffset)] });
 	}
 	out.push(...search.clauses);
-	return out;
+	return { list: out, match: search.match, sort: parseSearch(filter.q).sort };
 }
 
 function where(list: Clause[]): Clause {
@@ -382,8 +395,8 @@ function where(list: Clause[]): Clause {
 }
 
 /** WHERE clause over `messages m` for a filter, for callers outside this module (bulk targets). */
-export function filterWhere(filter: MailFilter, now = Date.now()): { sql: string; params: unknown[] } {
-	return where(clauses(filter, now));
+export function filterWhere(filter: MailFilter, now = Date.now(), cap?: number): { sql: string; params: unknown[] } {
+	return where(clauses(filter, now, undefined, cap));
 }
 
 // ── Running a query ────────────────────────────────────────────────
@@ -437,6 +450,10 @@ export interface Conversation {
 	participants: string[];
 	has_draft: boolean;
 	also_in: string[];
+	/** With search words: how many of the conversation's messages matched. */
+	match_count?: number;
+	/** Set by the D1 store for rows on the page: escaped text around the matched words, with <mark>. */
+	snippet_html?: string;
 }
 
 type CursorTuple = [string, string, string];
@@ -456,7 +473,7 @@ export function decodeCursor(cursor: string): CursorTuple {
 	}
 }
 
-const SORT_SQL: Record<MailFilter["sort"], string> = {
+const SORT_SQL: Record<Exclude<MailFilter["sort"], "relevance">, string> = {
 	date: `c.latest_date`,
 	from: `COALESCE(NULLIF(LOWER(m.sender_name), ''), m.sender_addr)`,
 	subject: `m.subject_norm`,
@@ -472,7 +489,28 @@ export interface MailPage {
 	nextCursor: string | null;
 	total?: number;
 	unread?: number;
+	/** How the page is ordered. "relevance" only on D1, for searches with words. */
+	order?: "relevance" | "date" | "from" | "subject";
+	/** More than RANK_LIMIT messages matched, so the list is newest first; `sort:relevance` ranks it anyway. */
+	rankSkipped?: boolean;
 }
+
+/**
+ * Ranking cost grows with the number of matches: under 50 ms at 13,000 and
+ * up to 0.46 s at 100,000 in phase 0. Above this the list is newest first
+ * unless relevance is asked for.
+ */
+export const RANK_LIMIT = 20_000;
+
+/**
+ * Column weights for messages_fts (subject, sender_name, sender_addr,
+ * recipients, body_text, attachment_names). Checked against
+ * tests/fixtures/search-corpus.json by tests/search-ranking.test.mjs.
+ */
+export const BM25 = "bm25(messages_fts, 6.0, 3.0, 3.0, 2.0, 1.0, 2.0)";
+
+/** Scores this close count as a tie, so the newer conversation goes first. */
+const RANK_STEP = 0.5;
 
 export function queryMail(
 	exec: Exec,
@@ -488,45 +526,83 @@ export function* mailQuery(
 ): Query<MailPage> {
 	const now = options.now ?? Date.now();
 	const limit = Math.min(Math.max(options.limit ?? 50, 1), 100);
-	const w = where(clauses(filter, now));
-	const dir = filter.dir === "asc" ? "ASC" : "DESC";
-	const cmp = filter.dir === "asc" ? ">" : "<";
-	const sortSql = SORT_SQL[filter.sort];
+	const parts = clausesWithMatch(filter, now);
+	const w = where(parts.list);
+	const searching = !!filter.q.trim() || filter.subject.length > 0;
+
+	// Relevance needs words and D1's weighted index. With words it is the
+	// default for newest-first lists; `sort:date` or oldest-first keep dates.
+	let order: NonNullable<MailPage["order"]> = filter.sort === "relevance" ? "date" : filter.sort;
+	let rankSkipped = false;
+	if (parts.match && filter.engine === "d1") {
+		const asked = filter.sort === "relevance" || parts.sort === "relevance";
+		const byDefault = parts.sort === undefined && filter.sort === "date" && filter.dir === "desc";
+		if (asked || byDefault) {
+			const [row] = yield sqlStep(`SELECT COUNT(*) AS n FROM messages_fts WHERE messages_fts MATCH ?`, parts.match.expr);
+			if (asked || Number(row?.n ?? 0) <= RANK_LIMIT) order = "relevance";
+			else rankSkipped = true;
+		}
+	} else if (filter.sort === "relevance") order = "date";
+	const ranked = order === "relevance" && parts.match !== null;
+
+	const dir = ranked ? "ASC" : filter.dir === "asc" ? "ASC" : "DESC";
+	const cmp = dir === "ASC" ? ">" : "<";
 
 	const matched = `
 		WITH hits AS MATERIALIZED (
 			SELECT m.id, m.thread_key, m.date,
-				ROW_NUMBER() OVER (PARTITION BY m.thread_key ORDER BY m.date DESC, m.id DESC) AS rn
+				ROW_NUMBER() OVER (PARTITION BY m.thread_key ORDER BY m.date DESC, m.id DESC) AS rn,
+				COUNT(*) OVER (PARTITION BY m.thread_key) AS matches
 			FROM messages m WHERE ${w.sql}
 		),
-		convs AS MATERIALIZED (SELECT thread_key, id AS latest_id, date AS latest_date FROM hits WHERE rn = 1)`;
+		convs AS MATERIALIZED (SELECT thread_key, id AS latest_id, date AS latest_date, matches FROM hits WHERE rn = 1)`;
+
+	// Ranked: the best-scoring message represents its conversation. The
+	// index is joined in place of the MATCH clause, so there is still one MATCH.
+	const rest = ranked ? where(parts.list.filter((c) => c !== parts.match!.clause)) : w;
+	const rankedCte = ranked ? `
+		WITH hits AS MATERIALIZED (
+			SELECT m.id, m.thread_key, m.date, f.score,
+				ROW_NUMBER() OVER (PARTITION BY m.thread_key ORDER BY f.score ASC, m.date DESC, m.id DESC) AS rn,
+				COUNT(*) OVER (PARTITION BY m.thread_key) AS matches
+			FROM (SELECT rowid AS rid, ${BM25} AS score FROM messages_fts WHERE messages_fts MATCH ?) f
+			JOIN messages m ON m.id = f.rid
+			WHERE ${rest.sql}
+		),
+		convs AS MATERIALIZED (SELECT thread_key, id AS latest_id, date AS latest_date, matches, score FROM hits WHERE rn = 1)` : "";
+	const cte = ranked ? rankedCte : matched;
+	const cteParams = ranked ? [parts.match!.expr, ...rest.params] : w.params;
+	const sortSql = ranked ? `ROUND(c.score / ${RANK_STEP}) * ${RANK_STEP}` : SORT_SQL[order as keyof typeof SORT_SQL];
 
 	const keyset: Clause = options.cursor
 		? (() => {
 			const [sv, ld, tk] = decodeCursor(options.cursor);
+			const value = ranked ? Number(sv) : sv;
+			if (ranked && !Number.isFinite(value)) throw new InvalidFilterError("Invalid cursor");
 			return {
 				sql: `AND (sort_value ${cmp} ? OR (sort_value = ? AND (latest_date < ? OR (latest_date = ? AND thread_key > ?))))`,
-				params: [sv, sv, ld, ld, tk],
+				params: [value, value, ld, ld, tk],
 			};
 		})()
 		: { sql: "", params: [] };
 
 	const page: Row[] = yield sqlStep(
-		`${matched},
+		`${cte},
 		sorted AS (
-			SELECT c.thread_key, c.latest_id, c.latest_date, ${sortSql} AS sort_value
+			SELECT c.thread_key, c.latest_id, c.latest_date, c.matches, ${sortSql} AS sort_value
 			FROM convs c JOIN messages m ON m.id = c.latest_id
 		)
 		SELECT * FROM sorted WHERE 1 = 1 ${keyset.sql}
 		ORDER BY sort_value ${dir}, latest_date DESC, thread_key ASC
 		LIMIT ?`,
-		...w.params,
+		...cteParams,
 		...keyset.params,
 		limit + 1,
 	);
 
 	const hasMore = page.length > limit;
 	const pageRows = page.slice(0, limit);
+	const matches = new Map(pageRows.map((r) => [Number(r.latest_id), Number(r.matches)]));
 	const conversations = pageRows.length === 0 ? [] : (yield sqlStep(
 		`SELECT m.*,
 			(SELECT COUNT(*) FROM messages t WHERE t.thread_key = m.thread_key AND t.deleted = 0) AS thread_count,
@@ -540,7 +616,10 @@ export function* mailQuery(
 		JOIN messages m ON m.id = p.value
 		ORDER BY p.key`,
 		JSON.stringify(pageRows.map((r) => Number(r.latest_id))),
-	)).map(toConversation);
+	)).map((row) => {
+		const conversation = toConversation(row);
+		return searching ? { ...conversation, match_count: matches.get(Number(row.id)) ?? 1 } : conversation;
+	});
 
 	const last = pageRows[pageRows.length - 1];
 	const result: MailPage = {
@@ -548,6 +627,8 @@ export function* mailQuery(
 		nextCursor: hasMore && last
 			? encodeCursor([String(last.sort_value ?? ""), String(last.latest_date), String(last.thread_key)])
 			: null,
+		order,
+		...(rankSkipped ? { rankSkipped } : {}),
 	};
 
 	if (!options.cursor) {
@@ -616,8 +697,15 @@ export function queryFacets(exec: Exec, filter: MailFilter, now = Date.now()): F
 	return runSync(facetsQuery(filter, now), exec);
 }
 
+/**
+ * On D1, facets with search words count the newest this-many matching
+ * messages: 25 to 45 ms at 100,000 matches in phase 0, against 280 ms for all.
+ */
+export const FACET_CAP = 5_000;
+
 export function* facetsQuery(filter: MailFilter, now = Date.now()): Query<Facets> {
-	const forDim = (dim: Dimension) => where(clauses(filter, now, dim));
+	const cap = filter.engine === "d1" ? FACET_CAP : undefined;
+	const forDim = (dim: Dimension) => where(clauses(filter, now, dim, cap));
 
 	const a = forDim("address");
 	const address = (yield sqlStep(

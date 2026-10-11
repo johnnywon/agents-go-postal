@@ -1,14 +1,14 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
 import { after, before, test } from "node:test";
 import { build } from "esbuild";
 import { Miniflare } from "miniflare";
 import { statements } from "./helpers/schema.mjs";
+import { D1_SCHEMA } from "./helpers/d1-schema.mjs";
 
 // The one-minute cron sends scheduled mail on D1 (docs/d1-migration-plan.md, phase 4).
 
 const A = "a@example.com";
-const SCHEMA = readFileSync("migrations/0001_init.sql", "utf8");
+const SCHEMA = D1_SCHEMA;
 const T0 = Date.parse("2026-01-01T00:00:00Z");
 let mf;
 

@@ -388,6 +388,10 @@ html:has(.postal), html:has(.postal) body { background: var(--pg-base, #141518);
 .pg-row-when .pg-day-first { font-weight: 500; letter-spacing: .04em; color: var(--pg-text-7); }
 .pg-row[data-unread="true"] .pg-row-when { color: var(--pg-text-6); }
 .pg-row[data-unread="true"] .pg-row-when .pg-day-first { font-weight: 600; color: var(--pg-text-3); }
+.pg-row-when .pg-row-matches { margin-top: 3px; color: var(--pg-text-6); }
+.pg-order { display: flex; align-items: center; gap: 8px; height: 34px; padding: 0 8px 0 12px; border-bottom: 1px solid var(--pg-line); flex: none; font: 11px var(--pg-mono); color: var(--pg-text-6); min-width: 0; }
+.pg-order > span:first-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pg-order .pg-segmented > button { height: 22px; font-size: 11px; }
 .pg-row-when .pg-spacer { flex: 1; min-height: 8px; }
 .pg-row-glyphs { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 8px; color: var(--pg-text-6); }
 .pg-row-glyphs .pg-star { color: var(--pg-yellow); }

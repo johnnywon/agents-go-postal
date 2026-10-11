@@ -1,13 +1,13 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
 import { statements } from "./schema.mjs";
+import { D1_SCHEMA } from "./d1-schema.mjs";
 import { loadTs, openDb } from "./sqlite.mjs";
 
 // Seeded mail on both schemas, the combined index (MailIndexDO) and D1, for
 // the search tests.
 
 const idx = await loadTs("workers/lib/mail-index-sql.ts");
-const SCHEMA = readFileSync("migrations/0001_init.sql", "utf8");
+const SCHEMA = D1_SCHEMA;
 export const NOW = Date.parse("2026-10-11T12:00:00Z");
 export const A = "a@example.com";
 export const B = "b@example.org";
@@ -17,7 +17,7 @@ const iso = (hours) => new Date(NOW - hours * 3_600_000).toISOString();
 export const MESSAGES = [
 	{ id: 1, mailbox: A, folder: "inbox", conv: "t1", hours: 1, from: "ann@example.org", name: "Ann Lee", to: A, cc: "boss@example.net", subject: "Invoice October", body: "your invoice is attached, wire transfer details", read: 0, size: 50_000, attachment: ["invoice.pdf", "application/pdf"] },
 	{ id: 2, mailbox: A, folder: "sent", conv: "t1", hours: 0.5, from: A, name: "", to: "ann@example.org", subject: "Re: Invoice October", body: "thanks, paid by wire", read: 1, size: 1000 },
-	{ id: 3, mailbox: A, folder: "inbox", conv: "t2", hours: 30, from: "news@example.net", name: "News", to: A, subject: "Weekly digest", body: "this week in mail", read: 1, starred: 1, size: 1000, list: "<news.example.net>", unsubscribe: "https://example.net/u" },
+	{ id: 3, mailbox: A, folder: "inbox", conv: "t2", hours: 30, from: "news@example.net", name: "News", to: A, subject: "Weekly digest", body: "this week in mail", read: 1, starred: 1, size: 1000, list: "<news.example.net>", unsubscribe: "https://example.net/u", link: true },
 	{ id: 4, mailbox: B, folder: "inbox", conv: "t3", hours: 2, from: "ann@example.org", name: "Ann", to: B, subject: "Lunch", body: "lunch on friday", read: 0, size: 6 * 1024 * 1024, attachment: ["photo.jpg", "image/jpeg"] },
 	{ id: 5, mailbox: B, folder: "receipts", conv: "t4", hours: 50 * 24, from: "billing@example.net", name: "Billing", to: B, subject: "Receipt 2041", body: "receipt for your invoice", read: 1, size: 1000, label: "receipts" },
 	{ id: 6, mailbox: B, folder: "trash", conv: "t5", hours: 3, from: "spam@example.net", name: "", to: B, subject: "Old offer", body: "limited offer transfer", read: 1, size: 1000 },
@@ -39,10 +39,10 @@ export function d1Db() {
 		const recipients = [m.to, m.cc].filter(Boolean).join(", ");
 		db.exec(
 			`INSERT INTO messages (id, email_id, mailbox_id, folder_id, conversation_id, date, subject, subject_norm, sender_addr, sender_name, sender_domain,
-				recipient, cc, recipients, snippet, body, size, read, starred, has_attachment, list_id, unsubscribe)
-			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+				recipient, cc, recipients, snippet, body, size, read, starred, has_attachment, list_id, unsubscribe, has_link)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 			m.id, `e${m.id}`, m.mailbox, m.folder, m.conv, iso(m.hours), m.subject, m.subject.toLowerCase(), m.from, m.name, m.from.split("@")[1],
-			m.to, m.cc ?? null, recipients, m.body, `<p>${m.body}</p>`, m.size, m.read, m.starred ?? 0, m.attachment ? 1 : 0, m.list ?? null, m.unsubscribe ?? null,
+			m.to, m.cc ?? null, recipients, m.body, `<p>${m.body}</p>`, m.size, m.read, m.starred ?? 0, m.attachment ? 1 : 0, m.list ?? null, m.unsubscribe ?? null, m.link ? 1 : 0,
 		);
 		db.exec(
 			`INSERT INTO messages_fts (rowid, subject, sender_name, sender_addr, recipients, body_text, attachment_names) VALUES (?, ?, ?, ?, ?, ?, ?)`,
