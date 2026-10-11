@@ -60,7 +60,6 @@ export function Reader(props: ReaderProps) {
 	const { data: email } = useEmail(open?.mailboxId, open?.emailId);
 	const { data: thread } = useThreadReplies(open?.mailboxId, email?.thread_id);
 	const markThreadRead = useMarkThreadRead();
-	const [expanded, setExpanded] = useState<Set<string>>(new Set());
 	const [shownImages, setShownImages] = useState<Set<string>>(new Set());
 	const [pickerOpen, setPickerOpen] = useState(false);
 	const [pickerLeft, setPickerLeft] = useState(8);
@@ -83,10 +82,12 @@ export function Reader(props: ReaderProps) {
 	}, [email, thread]);
 	const latest = messages[messages.length - 1];
 	const self = open?.mailboxId ?? "";
+	// Reply to the open message, unless it is your own or a draft; then to the latest mail you received.
 	const original = useMemo(() => {
+		if (email && email.folder_id !== Folders.DRAFT && email.sender.toLowerCase() !== self) return email;
 		const received = messages.filter((m) => m.folder_id !== Folders.DRAFT && m.sender.toLowerCase() !== self);
 		return received[received.length - 1] ?? messages.filter((m) => m.folder_id !== Folders.DRAFT).pop() ?? latest;
-	}, [messages, self, latest]);
+	}, [email, messages, self, latest]);
 	const draft = messages.find((m) => m.folder_id === Folders.DRAFT);
 
 	// Opening marks the conversation read, once, unless the setting is off or the layout opened it.
@@ -99,7 +100,6 @@ export function Reader(props: ReaderProps) {
 	}, [open, props.autoOpened, props.prefs.markRead, email, row]); // eslint-disable-line react-hooks/exhaustive-deps
 
 	useEffect(() => {
-		setExpanded(new Set());
 		setPickerOpen(false);
 		scrollRef.current?.scrollTo({ top: 0 });
 	}, [open?.mailboxId, open?.emailId]);
@@ -123,7 +123,7 @@ export function Reader(props: ReaderProps) {
 	const sent = row?.state === "sent";
 	const mailbox = open.mailboxId;
 	const identity = identities.of(mailbox);
-	const head = latest ?? email;
+	const head = email;
 	const senderName = head ? (sent ? head.recipient : nameFromHeaders(head.raw_headers, row?.sender_name || head.sender)) : row?.sender_name ?? "";
 	const senderAddr = head ? (sent ? "" : head.sender) : row?.sender_addr ?? "";
 	const rowLabels = (row?.labels ?? []).map((id) => props.labelsById.get(id)).filter((l): l is Label => !!l);
@@ -190,31 +190,15 @@ export function Reader(props: ReaderProps) {
 					{/* TODO(roadmap): per-email agent card (what the agent did, its steps and one-click actions) returns with rules. */}
 					<div className="pg-reader-content">
 						{!email && <div className="pg-skel" style={{ border: 0, padding: 0 }}><span className="pg-pulse" style={{ width: "80%" }} /></div>}
-						{messages.length > 1 && (
-							<div className="pg-earlier">
-								{messages.slice(0, -1).filter((m) => !expanded.has(m.id)).map((m) => (
-									<button key={m.id} type="button" onClick={() => setExpanded((s) => new Set(s).add(m.id))}>
-										<span className="pg-who">{m.folder_id === Folders.DRAFT ? "Draft" : nameFromHeaders(m.raw_headers, m.sender)}</span>
-										<span className="pg-flex pg-ellipsis">{(m.snippet || "").slice(0, 140)}</span>
-										<span className="pg-when">{fullDate(m.date)}</span>
-									</button>
-								))}
-							</div>
+						{email && (
+							<Message
+								key={email.id}
+								email={email}
+								mailboxId={mailbox}
+								images={props.prefs.images === "always" || shownImages.has(email.id)}
+								onShowImages={() => setShownImages((s) => new Set(s).add(email.id))}
+							/>
 						)}
-						{messages.map((m, i) => {
-							const last = i === messages.length - 1;
-							if (!last && !expanded.has(m.id)) return null;
-							return (
-								<Message
-									key={m.id}
-									email={m}
-									mailboxId={mailbox}
-									showHead={messages.length > 1}
-									images={props.prefs.images === "always" || shownImages.has(m.id)}
-									onShowImages={() => setShownImages((s) => new Set(s).add(m.id))}
-								/>
-							);
-						})}
 					</div>
 					{draft && !props.inline ? (
 						<button type="button" className="pg-reply-bar" onClick={() => props.onEditDraft(draft)}>
@@ -262,8 +246,8 @@ export function Reader(props: ReaderProps) {
 						mailbox={mailbox}
 						identities={identities}
 						labels={rowLabels}
-						attachments={email ? getNonInlineAttachments(messages.flatMap((m) => m.attachments ?? [])) : []}
-						attachmentOwner={(id) => messages.find((m) => m.attachments?.some((a) => a.id === id))?.id ?? email?.id ?? ""}
+						attachments={email ? getNonInlineAttachments(email.attachments ?? []) : []}
+						attachmentOwner={() => email?.id ?? ""}
 						sender={sent ? "" : senderAddr}
 						onAddLabel={openPicker}
 					/>
@@ -316,10 +300,9 @@ function escapeText(text: string): string {
 	return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
 
-function Message({ email, mailboxId, showHead, images, onShowImages }: {
+function Message({ email, mailboxId, images, onShowImages }: {
 	email: Email;
 	mailboxId: string;
-	showHead: boolean;
 	images: boolean;
 	onShowImages: () => void;
 }) {
@@ -334,13 +317,6 @@ function Message({ email, mailboxId, showHead, images, onShowImages }: {
 	const attachments = getNonInlineAttachments(email.attachments);
 	return (
 		<>
-			{showHead && (
-				<div className="pg-message-head">
-					<b>{email.folder_id === Folders.DRAFT ? "Draft" : nameFromHeaders(email.raw_headers, email.sender)}</b>
-					<span className="pg-mono">{email.sender}</span>
-					<span className="pg-mono" style={{ marginLeft: "auto" }}>{fullDate(email.date)}</span>
-				</div>
-			)}
 			{remote && !images && (
 				<div className="pg-images-note">
 					<ImageIcon size={14} />
@@ -349,7 +325,7 @@ function Message({ email, mailboxId, showHead, images, onShowImages }: {
 				</div>
 			)}
 			{/* Plain mail reads on the reader surface; designed HTML mail keeps its white page. */}
-			<div className="pg-mail-frame" data-kind={plain ? "plain" : "html"} data-indent={!showHead || undefined} ref={frameRef}>
+			<div className="pg-mail-frame" data-kind={plain ? "plain" : "html"} ref={frameRef}>
 				{(!plain || palette) && (
 					<EmailIframe autoSize body={body} remoteImages={images} padding={plain ? 0 : 24} palette={plain ? palette : undefined} />
 				)}
