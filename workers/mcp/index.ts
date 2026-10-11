@@ -29,6 +29,7 @@ import {
 } from "../lib/tools";
 import { Folders, FOLDER_TOOL_DESCRIPTION, MOVE_FOLDER_TOOL_DESCRIPTION } from "../../shared/folders";
 import { DATE_TOKENS, VIEWS } from "../lib/mail-index-sql";
+import { mailStore } from "../store";
 import type { Env } from "../types";
 
 /** Wrap a plain result object into MCP content format. */
@@ -79,12 +80,11 @@ export class EmailMCP extends McpAgent<Env> {
 		const env = this.env;
 
 		/**
-		 * Verify a mailbox exists in R2 before operating on it.
+		 * Verify a mailbox exists before operating on it.
 		 * Returns an MCP error response if the mailbox is not found, or null if valid.
 		 */
 		const verifyMailbox = async (mailboxId: string) => {
-			const obj = await env.BUCKET.head(`mailboxes/${mailboxId}.json`);
-			if (!obj) {
+			if (!(await mailStore(env).mailboxes.exists(mailboxId))) {
 				return mcpError(`Mailbox "${mailboxId}" not found. Use list_mailboxes to see available mailboxes.`);
 			}
 			return null;

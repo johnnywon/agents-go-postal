@@ -72,4 +72,16 @@ export interface MailStore {
 	mailbox(mailboxId: string): MailboxStore;
 	/** Mail across every address. */
 	all(): AllMailStore;
+	/** The mailboxes themselves. */
+	mailboxes: MailboxRegistry;
+}
+
+/** The configured addresses and their settings (display name, signature, agent prompt). */
+export interface MailboxRegistry {
+	/** Every mailbox, sorted by address. */
+	list(): Promise<{ id: string; email: string }[]>;
+	get(mailboxId: string): Promise<Record<string, unknown> | null>;
+	exists(mailboxId: string): Promise<boolean>;
+	/** Create the mailbox or replace its settings. */
+	put(mailboxId: string, settings: Record<string, unknown>): Promise<void>;
 }

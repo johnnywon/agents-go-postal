@@ -14,7 +14,6 @@ import type { EmailFull, EmailMetadata } from "../lib/schemas";
 import { verifyDraft, isPromptInjection } from "../lib/ai";
 import { agentModel } from "../lib/agent-model";
 import {
-	listMailboxes,
 	stripHtmlToText,
 	textToHtml,
 } from "../lib/email-helpers";
@@ -103,18 +102,14 @@ Labels are tags shared by every mailbox. Use list_labels to see them. When the o
 Use discard_draft to delete drafts that the operator rejects or that are no longer needed.`;
 
 /**
- * Fetch the custom system prompt for a mailbox from its R2 settings.
+ * Fetch the custom system prompt from a mailbox's settings.
  * Falls back to DEFAULT_SYSTEM_PROMPT if none is configured.
  */
 async function getSystemPrompt(env: Env, mailboxId: string): Promise<string> {
 	try {
-		const key = `mailboxes/${mailboxId}.json`;
-		const obj = await env.BUCKET.get(key);
-		if (obj) {
-			const settings = await obj.json<Record<string, unknown>>();
-			if (typeof settings.agentSystemPrompt === "string" && settings.agentSystemPrompt.trim()) {
-				return settings.agentSystemPrompt;
-			}
+		const settings = await mailStore(env).mailboxes.get(mailboxId);
+		if (typeof settings?.agentSystemPrompt === "string" && settings.agentSystemPrompt.trim()) {
+			return settings.agentSystemPrompt;
 		}
 	} catch {
 		// Fall through to default
@@ -425,7 +420,7 @@ export class EmailAgent extends AIChatAgent<any> {
 		const env = this.env as Env;
 		// The chat panel uses the shared instance; per-address instances serve "Draft with agent".
 		const bound = this.name === SHARED_AGENT ? null : this.name;
-		const known = (await listMailboxes(env.BUCKET)).map((m) => m.id.toLowerCase());
+		const known = (await mailStore(env).mailboxes.list()).map((m) => m.id.toLowerCase());
 		const model = await agentModel(env);
 		const tools = createEmailTools(env, bound, { crossAddress: true, known });
 		// The settings screen saves one prompt to every address, so any address's copy will do.

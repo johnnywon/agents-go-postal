@@ -21,7 +21,7 @@ function files(dir) {
 test("only the store and the Durable Objects touch the mail bindings", () => {
 	const offenders = files("workers")
 		.filter((path) => !path.startsWith("workers/store/") && !path.startsWith("workers/durableObject/"))
-		.filter((path) => /env\.(MAILBOX|MAIL_INDEX)\b|DurableObjectStub<Mail(box|Index)DO>/.test(readFileSync(path, "utf8")));
+		.filter((path) => /env\.(MAILBOX|MAIL_INDEX|DB)\b|DurableObjectStub<Mail(box|Index)DO>|`mailboxes\//.test(readFileSync(path, "utf8")));
 	assert.deepEqual(offenders, [], "use mailStore(env) from workers/store");
 });
 

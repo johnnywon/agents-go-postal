@@ -3,7 +3,7 @@
 //     https://opensource.org/licenses/Apache-2.0
 
 /**
- * Hono middleware: checks the mailbox exists in R2, then attaches its
+ * Hono middleware: checks the mailbox exists, then attaches its
  * store to the Hono context (`c.var.mailbox`).
  */
 import { createMiddleware } from "hono/factory";
@@ -22,14 +22,10 @@ export const requireMailbox = createMiddleware<MailboxContext>(async (c, next) =
 	if (!rawId) return c.json({ error: "Mailbox ID required" }, 400);
 	const mailboxId = decodeURIComponent(rawId);
 
-	// Verify mailbox exists
-	const key = `mailboxes/${mailboxId}.json`;
-	const obj = await c.env.BUCKET.head(key);
-	if (!obj) {
-		return c.json({ error: "Not found" }, 404);
-	}
+	const store = mailStore(c.env);
+	if (!(await store.mailboxes.exists(mailboxId))) return c.json({ error: "Not found" }, 404);
 
-	c.set("mailbox", mailStore(c.env).mailbox(mailboxId));
+	c.set("mailbox", store.mailbox(mailboxId));
 	
 	await next();
 });

@@ -11,7 +11,6 @@ import { type StoredAttachment } from "./lib/attachments";
 import {
 	validateSender,
 	SenderValidationError,
-	listMailboxes,
 } from "./lib/email-helpers";
 import { checkSendAt, ScheduleBody, SCHEDULE_MAX_PAYLOAD_BYTES } from "./lib/scheduled-send";
 import { handleReplyEmail, handleForwardEmail, handleSendEmail } from "./routes/reply-forward";
@@ -23,7 +22,7 @@ import { csrf } from "./lib/csrf";
 import { decodeCursor, InvalidFilterError } from "./lib/mail-index-sql";
 import { parseMailParams } from "./lib/mail-filter-params";
 import { indexedMailboxIds } from "./lib/mail-index-stub";
-import { durableObjectInternals, mailStore } from "./store";
+import { d1Status, durableObjectInternals, mailStore, usesD1 } from "./store";
 import { MOVE_FOLDERS } from "./lib/mail-bulk-sql";
 import { automatedMailReason } from "./lib/message-meta";
 import { dryRunFolderImport, importDeps, runFolderImport } from "./lib/folder-import";
@@ -106,8 +105,8 @@ if (import.meta.env?.DEV) {
 		const ids = await indexedMailboxIds(c.env);
 		let created = 0;
 		for (const [m, mailboxId] of ids.entries()) {
-			const stub = durableObjectInternals(c.env).mailbox(mailboxId);
-			await stub.setMailboxId(mailboxId);
+			if (!usesD1(c.env)) await durableObjectInternals(c.env).mailbox(mailboxId).setMailboxId(mailboxId);
+			const stub = mailStore(c.env).mailbox(mailboxId);
 			for (let i = 0; i < Math.min(perMailbox, 100); i++) {
 				const id = crypto.randomUUID();
 				const sender = senders[(i + m) % senders.length];
@@ -177,7 +176,7 @@ app.get("/api/v1/agent-model/models", async (c) => {
 // -- Mailboxes ------------------------------------------------------
 
 app.get("/api/v1/mailboxes", async (c) => {
-	const allMailboxes = await listMailboxes(c.env.BUCKET);
+	const allMailboxes = await mailStore(c.env).mailboxes.list();
 	return c.json(allMailboxes.map((m) => ({ ...m, name: m.id })));
 });
 
@@ -188,43 +187,33 @@ app.post("/api/v1/mailboxes", async (c) => {
 	if (allowedAddresses.length > 0 && !allowedAddresses.map((a) => a.toLowerCase()).includes(email)) {
 		return c.json({ error: "Mailbox creation is restricted to configured EMAIL_ADDRESSES" }, 403);
 	}
-	if (await c.env.BUCKET.head(`mailboxes/${email}.json`)) return c.json({ error: "Mailbox already exists" }, 409);
+	if (await mailStore(c.env).mailboxes.exists(email)) return c.json({ error: "Mailbox already exists" }, 409);
 	const finalSettings = await createMailbox(c.env, email, name, settings);
 	return c.json({ id: email, email, name, settings: finalSettings }, 201);
 });
 
-/** Store a mailbox's settings and tell its Durable Object its address. */
+/** Create a mailbox with default settings. */
 async function createMailbox(env: Env, email: string, name: string, settings?: Record<string, unknown>) {
 	const defaultSettings = { fromName: name, forwarding: { enabled: false, email: "" }, signature: { enabled: false, text: "" }, autoReply: { enabled: false, subject: "", message: "" } };
 	const finalSettings = { ...defaultSettings, ...settings };
-	await env.BUCKET.put(`mailboxes/${email}.json`, JSON.stringify(finalSettings));
-	await durableObjectInternals(env).mailbox(email).setMailboxId(email);
+	await mailStore(env).mailboxes.put(email, finalSettings);
 	return finalSettings;
 }
 
 app.get("/api/v1/mailboxes/:mailboxId", async (c) => {
 	const mailboxId = c.req.param("mailboxId")!;
-	const obj = await c.env.BUCKET.get(`mailboxes/${mailboxId}.json`);
-	if (!obj) return c.json({ error: "Not found" }, 404);
-	return c.json({ id: mailboxId, name: mailboxId, email: mailboxId, settings: await obj.json() });
+	const settings = await mailStore(c.env).mailboxes.get(mailboxId);
+	if (!settings) return c.json({ error: "Not found" }, 404);
+	return c.json({ id: mailboxId, name: mailboxId, email: mailboxId, settings });
 });
 
 app.put("/api/v1/mailboxes/:mailboxId", async (c) => {
 	const mailboxId = c.req.param("mailboxId")!;
 	const { settings } = (await c.req.json()) as { settings: Record<string, unknown> };
-	const key = `mailboxes/${mailboxId}.json`;
-	if (!(await c.env.BUCKET.head(key))) return c.json({ error: "Not found" }, 404);
-	await c.env.BUCKET.put(key, JSON.stringify(settings));
+	const mailboxes = mailStore(c.env).mailboxes;
+	if (!(await mailboxes.exists(mailboxId))) return c.json({ error: "Not found" }, 404);
+	await mailboxes.put(mailboxId, settings);
 	return c.json({ id: mailboxId, name: mailboxId, email: mailboxId, settings });
-});
-
-app.delete("/api/v1/mailboxes/:mailboxId", async (c) => {
-	const mailboxId = c.req.param("mailboxId")!;
-	const key = `mailboxes/${mailboxId}.json`;
-	if (!(await c.env.BUCKET.head(key))) return c.json({ error: "Not found" }, 404);
-	await c.env.BUCKET.delete(key); // TODO: also delete DO data and R2 attachment blobs
-	await durableObjectInternals(c.env).index().purgeMailbox(mailboxId);
-	return c.body(null, 204);
 });
 
 // -- Unified mail (MailIndexDO) -------------------------------------
@@ -272,6 +261,7 @@ app.get("/api/v1/mail/folders", async (c) => c.json(await mailStore(c.env).all()
 
 /** Index parity: the index's counts beside each mailbox's own counts. */
 app.get("/api/v1/index/status", async (c) => {
+	if (usesD1(c.env)) return c.json(await d1Status(c.env, await indexedMailboxIds(c.env)));
 	const internals = durableObjectInternals(c.env);
 	const index = internals.index();
 	const [status, mailboxIds] = await Promise.all([index.status(), indexedMailboxIds(c.env)]);
@@ -286,6 +276,7 @@ app.get("/api/v1/index/status", async (c) => {
 });
 
 app.post("/api/v1/index/rebuild", async (c) => {
+	if (usesD1(c.env)) return c.json({ error: "D1 keeps one copy of the mail, so there is no separate index to rebuild" }, 409);
 	return c.json(await durableObjectInternals(c.env).index().startRebuild(), 202);
 });
 
@@ -514,7 +505,7 @@ async function receiveEmail(event: { to: string; raw: ReadableStream; rawSize: n
 	}
 
 	const messageId = crypto.randomUUID();
-	if (!(await env.BUCKET.head(`mailboxes/${mailboxId}.json`))) {
+	if (!(await mailStore(env).mailboxes.exists(mailboxId))) {
 		// A configured address gets its mailbox on first delivery, so mail sent before anyone opens the app is kept.
 		if (allowedAddresses.length === 0) { console.log(`Ignoring email for ${mailboxId}: mailbox does not exist`); return; }
 		await createMailbox(env, mailboxId, mailboxId.split("@")[0] || mailboxId);

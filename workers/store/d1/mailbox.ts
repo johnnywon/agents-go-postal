@@ -28,6 +28,7 @@ import {
 	toListRow,
 	type AttachmentRow,
 } from "./rows";
+import { ensureMailboxStatements } from "./registry";
 
 /** Folders whose mail may be hard-deleted. Everywhere else, Delete moves mail to Trash. */
 const HARD_DELETE_FOLDERS: readonly string[] = [Folders.TRASH, Folders.DRAFT];
@@ -35,7 +36,6 @@ const SORT_COLUMNS: Record<string, string> = {
 	id: "m.email_id", subject: "m.subject", sender: "m.sender_addr", recipient: "m.recipient",
 	date: "m.date", read: "m.read", starred: "m.starred",
 };
-const FOLDER_NAMES: Record<string, string> = { inbox: "Inbox", sent: "Sent", draft: "Drafts", archive: "Archive", trash: "Trash", spam: "Spam" };
 const SUBJECT_PREFIX = /^(?:(?:re|fwd?|fw|aw|wg|r[eé]f|sv)\s*:\s*)+/i;
 
 interface SearchOptions {
@@ -58,17 +58,6 @@ export class D1Mailbox {
 
 	constructor(private readonly sql: Sql, private readonly bucket: R2Bucket, mailboxId: string) {
 		this.#id = mailboxId.toLowerCase();
-	}
-
-	/** The mailbox row and its system folders, created on first write. */
-	#ensureStatements() {
-		return [
-			{ sql: `INSERT OR IGNORE INTO mailboxes (id, created_at) VALUES (?, ?)`, params: [this.#id, new Date().toISOString()] },
-			...SYSTEM_FOLDERS.map((f) => ({
-				sql: `INSERT OR IGNORE INTO folders (mailbox_id, id, name, is_deletable) VALUES (?, ?, ?, 0)`,
-				params: [this.#id, f, FOLDER_NAMES[f] ?? f],
-			})),
-		];
 	}
 
 	async #folderId(folder: string): Promise<string | null> {
@@ -137,7 +126,7 @@ export class D1Mailbox {
 	}
 
 	async createEmail(folder: string, email: EmailInput, attachments: AttachmentInput[]) {
-		await this.sql.batch(this.#ensureStatements());
+		await this.sql.batch(ensureMailboxStatements(this.#id));
 		const folderId = await this.#folderId(folder);
 		if (!folderId) {
 			throw new Error(`createEmail: folder "${folder}" not found. Ensure the folder exists before inserting an email.`);

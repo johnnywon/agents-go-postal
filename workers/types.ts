@@ -5,4 +5,8 @@
 export interface Env extends Cloudflare.Env {
 	POLICY_AUD: string;
 	TEAM_DOMAIN: string;
+	/** Mail storage on D1 (docs/d1-migration-plan.md). Used when STORAGE is "d1". */
+	DB?: D1Database;
+	/** "d1" stores mail on D1; anything else, on the Durable Objects. */
+	STORAGE?: string;
 }

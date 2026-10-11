@@ -3,7 +3,7 @@
 //     https://opensource.org/licenses/Apache-2.0
 
 import type { Env } from "../types";
-import { listMailboxes } from "./email-helpers";
+import { mailStore } from "../store";
 
 /** Kill switch: `INDEX_SYNC_ENABLED = "false"` stops mailbox pushes. Mutations still record to the outbox. */
 export function indexSyncEnabled(env: Env): boolean {
@@ -13,7 +13,7 @@ export function indexSyncEnabled(env: Env): boolean {
 /** Mailboxes that exist in R2 and are configured in EMAIL_ADDRESSES, sorted. */
 export async function indexedMailboxIds(env: Env): Promise<string[]> {
 	const configured = new Set(((env.EMAIL_ADDRESSES ?? []) as string[]).map((a) => a.toLowerCase()));
-	return (await listMailboxes(env.BUCKET))
+	return (await mailStore(env).mailboxes.list())
 		.map((mailbox) => mailbox.id.toLowerCase())
 		.filter((id) => configured.size === 0 || configured.has(id))
 		.sort();

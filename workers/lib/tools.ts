@@ -23,7 +23,6 @@ import {
 	getFullThread,
 	buildQuotedReplyBlock,
 	textToHtml,
-	listMailboxes,
 } from "./email-helpers";
 import { verifyDraft } from "./ai";
 import { sendMail } from "./send";
@@ -45,7 +44,7 @@ type MailboxSearchStub = {
 // ── list_mailboxes ─────────────────────────────────────────────────
 
 export async function toolListMailboxes(env: Env) {
-	return listMailboxes(env.BUCKET);
+	return mailStore(env).mailboxes.list();
 }
 
 // ── list_emails ────────────────────────────────────────────────────
@@ -631,8 +630,8 @@ export async function toolSendDraft(env: Env, mailboxId: string, draftId: string
 	const to = splitList(draft.recipient);
 	if (to.length === 0) return { error: "Cannot send: the draft has no recipient" };
 
-	const settings = (await (await env.BUCKET.get(`mailboxes/${mailboxId}.json`))?.json<{ fromName?: string }>()) ?? {};
-	const name = settings.fromName?.trim();
+	const settings = (await mailStore(env).mailboxes.get(mailboxId)) ?? {};
+	const name = typeof settings.fromName === "string" ? settings.fromName.trim() : "";
 	const cc = splitList(draft.cc);
 	const bcc = splitList(draft.bcc);
 	const html = draft.body || "";
