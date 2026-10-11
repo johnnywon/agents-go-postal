@@ -157,27 +157,13 @@ html:has(.postal), html:has(.postal) body { background: var(--pg-base, #141518);
   display: inline-flex; align-items: center; gap: 4px; height: 19px; padding: 0 7px;
   background: var(--pg-chip); font-size: 11px; color: var(--pg-text-5); white-space: nowrap;
 }
-/* Each label gets a hue (--pg-lh) and a pattern from a hash of its id (labelLook in identity.tsx). */
-.pg-label-chip[data-pattern], .pg-label-ink {
-  --pg-lb: oklch(0.34 0.09 var(--pg-lh)); --pg-lp: oklch(0.48 0.13 var(--pg-lh) / .55); --pg-li: oklch(0.88 0.09 var(--pg-lh));
-}
-.postal[data-theme="light"] :is(.pg-label-chip[data-pattern], .pg-label-ink) {
-  --pg-lb: oklch(0.93 0.06 var(--pg-lh)); --pg-lp: oklch(0.8 0.11 var(--pg-lh) / .6); --pg-li: oklch(0.42 0.13 var(--pg-lh));
-}
-.pg-label-ink { color: var(--pg-li); }
-.pg-label-chip[data-pattern] { background-color: var(--pg-lb); color: var(--pg-li); font-weight: 500; }
-.pg-label-chip[data-pattern="dots"] { background-image: radial-gradient(var(--pg-lp) 1px, transparent 1.4px); background-size: 5px 5px; }
-.pg-label-chip[data-pattern="grid"] {
-  background-image: repeating-linear-gradient(0deg, var(--pg-lp) 0 1px, transparent 1px 6px), repeating-linear-gradient(90deg, var(--pg-lp) 0 1px, transparent 1px 6px);
-}
-.pg-label-chip[data-pattern="diagonal"] { background-image: repeating-linear-gradient(45deg, var(--pg-lp) 0 1px, transparent 1px 5px); }
-.pg-label-chip[data-pattern="cross"] {
-  background-image: repeating-linear-gradient(45deg, var(--pg-lp) 0 1px, transparent 1px 6px), repeating-linear-gradient(-45deg, var(--pg-lp) 0 1px, transparent 1px 6px);
-}
-.pg-label-chip[data-pattern="checks"] { background-image: conic-gradient(var(--pg-lp) 25%, transparent 0 50%, var(--pg-lp) 0 75%, transparent 0); background-size: 6px 6px; }
-.pg-label-chip[data-pattern="rings"] { background-image: radial-gradient(circle, transparent 1.4px, var(--pg-lp) 1.6px 2.3px, transparent 2.5px); background-size: 7px 7px; }
-.pg-label-add { display: inline-flex; align-items: center; height: 20px; padding: 0 7px; border: 1px dashed var(--pg-line-3); font-size: 11px; color: var(--pg-text-8); }
-.pg-label-add:hover { color: var(--pg-text-3); border-color: var(--pg-line-4); }
+/* A label's tag: its hue (--pg-lh) and pattern come from a hash of its id (labelLook in identity.tsx). */
+.pg-label-tag { --pg-lb: oklch(0.66 0.15 var(--pg-lh)); --pg-lp: oklch(0.86 0.1 var(--pg-lh)); flex: none; }
+.postal[data-theme="light"] .pg-label-tag { --pg-lb: oklch(0.6 0.16 var(--pg-lh)); --pg-lp: oklch(0.84 0.1 var(--pg-lh)); }
+.pg-lt-base { fill: var(--pg-lb); }
+.pg-lt-ink { fill: var(--pg-lp); }
+.pg-lt-line { fill: none; stroke: var(--pg-lp); stroke-width: 14px; }
+.pg-lt-ring { fill: none; stroke: var(--pg-lp); stroke-width: 8px; }
 .postal mark { background: oklch(0.82 0.13 75 / .3); color: inherit; border-radius: 2px !important; }
 .postal[data-theme="light"] mark { background: oklch(0.85 0.14 85 / .55); }
 
@@ -447,21 +433,38 @@ html:has(.postal), html:has(.postal) body { background: var(--pg-base, #141518);
 .pg-mail-frame[data-kind="plain"] { padding: 4px 0 8px 48px; min-height: 24px; }
 .pg-mail-frame[data-kind="html"] { background: #fff; border: 1px solid var(--pg-line-2); }
 .pg-mail-frame iframe { display: block; width: 100%; border: 0; }
-.pg-attachments { display: flex; flex-wrap: wrap; gap: 6px; }
-.pg-attach { display: flex; align-items: center; gap: 8px; padding: 7px 8px; border: 1px solid var(--pg-line-2); min-width: 0; max-width: 260px; color: var(--pg-text-2); text-decoration: none; }
-.postal a.pg-attach { color: var(--pg-text-2); }
-.pg-attach:hover { background: var(--pg-hover); }
-.pg-attach .pg-attach-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 12px; }
-.pg-attach .pg-attach-meta { font: 11px var(--pg-mono); color: var(--pg-text-8); }
+/* Attachments are part of the letter: rows under a hairline, inside the frame. Long names fade before the size column. */
+.pg-attachments { display: flex; flex-direction: column; margin-top: 12px; padding: 8px 0 4px; border-top: 1px solid var(--pg-line-2); }
+.pg-mail-frame[data-kind="html"] .pg-attachments {
+  --pg-att-text: #2a2b2f; --pg-att-muted: #74767c; --pg-att-icon: #5c5e64; --pg-att-hover: #f1f1ee; --pg-att-warn: oklch(0.55 0.13 60);
+  margin: 0 24px; padding: 10px 0 14px; border-top-color: #e4e4e0;
+}
+.pg-attach {
+  display: flex; align-items: center; gap: 10px; height: 32px; padding: 0 8px; margin: 0 -8px; min-width: 0;
+  color: var(--pg-att-text, var(--pg-text-2)); text-decoration: none; font-size: 13px;
+}
+.postal a.pg-attach { color: var(--pg-att-text, var(--pg-text-2)); }
+.pg-attach:hover { background: var(--pg-att-hover, var(--pg-hover)); }
+.pg-attach .pg-attach-icon { flex: none; color: var(--pg-att-icon, var(--pg-text-5)); }
+.pg-attach .pg-attach-name {
+  flex: 1; min-width: 0; white-space: nowrap; overflow: hidden;
+  -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 32px), transparent);
+  mask-image: linear-gradient(to right, #000 calc(100% - 32px), transparent);
+}
+.pg-attach .pg-attach-ext { color: var(--pg-att-muted, var(--pg-text-8)); }
+.pg-attach .pg-attach-meta { flex: none; min-width: 56px; text-align: right; font: 11px var(--pg-mono); color: var(--pg-att-muted, var(--pg-text-8)); }
+.pg-attach .pg-attach-get { flex: none; color: transparent; }
+.pg-attach:hover .pg-attach-get, .pg-attach:focus-visible .pg-attach-get { color: var(--pg-att-icon, var(--pg-text-5)); }
+.pg-attach[data-risk] .pg-attach-icon, .pg-attach[data-risk] .pg-attach-meta { color: var(--pg-att-warn, var(--pg-amber-text)); font-family: var(--pg-font); }
+.pg-reader-labels { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 8px; }
+.pg-reader-labels .pg-label-chip { height: 20px; }
+.pg-attach-count { margin-left: auto; padding-left: 12px; display: inline-flex; align-items: center; gap: 3px; flex: none; font: 11px var(--pg-mono); color: var(--pg-text-6); }
+.pg-attach-count:hover { color: var(--pg-text-3); }
 .pg-reply-bar {
   margin-top: 24px; display: flex; align-items: center; gap: 10px; height: 44px; padding: 0 6px 0 14px;
   border: 1px solid var(--pg-line-2); cursor: text; color: var(--pg-text-7); width: 100%; text-align: left;
 }
 .pg-reply-bar:hover { border-color: var(--pg-line-4); background: var(--pg-input); }
-.pg-aside { width: 220px; flex: none; position: sticky; top: 0; display: flex; flex-direction: column; gap: 18px; padding-top: 4px; font-size: 12px; }
-.pg-aside section { display: flex; flex-direction: column; gap: 6px; }
-.pg-aside .pg-hint { color: var(--pg-text-6); }
-.pg-aside .pg-history { display: flex; align-items: center; gap: 6px; font: 11px var(--pg-mono); color: var(--pg-text-5); }
 .pg-idle { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; color: var(--pg-text-6); }
 .pg-idle img { width: 64px; height: 64px; opacity: .5; }
 .pg-back { display: none !important; }
@@ -747,10 +750,11 @@ html:has(.postal), html:has(.postal) body { background: var(--pg-base, #141518);
   .pg-reader-scroll { padding: 18px 16px 24px; }
   .pg-mail-frame[data-kind="html"] { margin: 0 -16px; border-width: 1px 0; }
   .pg-mail-frame[data-kind="plain"] { padding-left: 0; }
+  .pg-mail-frame[data-kind="html"] .pg-attachments { margin: 0 16px; }
+  .pg-attach { height: 40px; }
   .pg-sender-line { flex-wrap: wrap; row-gap: 0; }
   .pg-sender-line .pg-date { margin-left: 0; padding-left: 0; flex-basis: 100%; }
-  .pg-aside { display: none; }
-  .pg-agent { position: fixed; left: 0; right: 0; bottom: 0; top: auto; width: 100%; height: min(78dvh, 640px); z-index: 37; border-left: 0; border-top: 1px solid var(--pg-line-2); box-shadow: 0 -16px 40px rgba(0, 0, 0, .5); animation: pg-sheet .2s ease-out; }
+    .pg-agent { position: fixed; left: 0; right: 0; bottom: 0; top: auto; width: 100%; height: min(78dvh, 640px); z-index: 37; border-left: 0; border-top: 1px solid var(--pg-line-2); box-shadow: 0 -16px 40px rgba(0, 0, 0, .5); animation: pg-sheet .2s ease-out; }
   .pg-cw, .pg-cw[data-state="max"] { left: 0; right: 0; top: 0; bottom: 0; width: 100%; height: 100dvh; transform: none; }
   .postal .pg-cw { border-radius: 0 !important; }
   .pg-cw[data-state="min"] { top: auto; height: 44px; }

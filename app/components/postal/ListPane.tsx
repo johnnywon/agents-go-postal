@@ -5,12 +5,12 @@
 import {
 	ArchiveIcon, ArrowsClockwiseIcon, CaretDownIcon, CheckIcon, ClockIcon, EnvelopeOpenIcon, EnvelopeSimpleIcon,
 	FileIcon, FunnelSimpleIcon, MagnifyingGlassIcon, PaperclipIcon, PaperPlaneTiltIcon, PencilSimpleLineIcon, SortAscendingIcon,
-	SortDescendingIcon, StarIcon, TagIcon, TrashIcon, TrayIcon, WarningIcon, XIcon,
+	SortDescendingIcon, StarIcon, TrashIcon, TrayIcon, WarningIcon, XIcon,
 } from "@phosphor-icons/react";
 import { Fragment, useEffect, useRef, useState } from "react";
 import type { MailFilter } from "~/lib/mail-filter";
 import type { Conversation, Label, MailFacets, ScheduledSend } from "~/services/api";
-import { AddressText, type Identities, Swatch } from "./identity";
+import { AddressText, type Identities, LabelChip, LabelTag, Swatch } from "./identity";
 import { dayKey, dayLabel, filterCount, hasChip, highlight, labelOf, scopeOf, sendTimeLabel, timeLabel, toggleChip, withoutKinds } from "./model";
 
 export interface ListPaneProps {
@@ -102,7 +102,7 @@ export function ListPane(props: ListPaneProps) {
 	};
 
 	const scopeIcon = labelView ? (
-		<TagIcon size={14} weight="fill" color="var(--pg-text-5)" />
+		<LabelTag id={labelView} />
 	) : scope ? (
 		<Swatch identity={identities.of(scope)} />
 	) : (
@@ -233,7 +233,7 @@ export function ListPane(props: ListPaneProps) {
 									return (
 										<button key={label.id} type="button" role="menuitemcheckbox" aria-checked={on} className="pg-menu-item" onClick={() => go(toggleChip(filter, { kind: "label", value: label.id }))}>
 											<span className="pg-check pg-check-neutral" data-on={on}>{on && <CheckIcon size={10} weight="bold" />}</span>
-											<TagIcon size={14} color="var(--pg-text-6)" style={{ flex: "none" }} />
+											<LabelTag id={label.id} />
 											<span className="pg-flex pg-ellipsis">{label.name}</span>
 											<span className="pg-count" style={{ fontWeight: 400 }}>{labelFacet.get(label.id) ?? ""}</span>
 										</button>
@@ -349,7 +349,7 @@ export function ListPane(props: ListPaneProps) {
 												</span>
 											)}
 											{rowLabels.map((l) => (
-												<span key={l.id} className="pg-label-chip"><TagIcon size={10} />{l.name}</span>
+												<LabelChip key={l.id} label={l} />
 											))}
 										</div>
 									)}

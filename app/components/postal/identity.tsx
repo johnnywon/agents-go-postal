@@ -2,6 +2,8 @@
 // Licensed under the Apache 2.0 license found in the LICENSE file or at:
 //     https://opensource.org/licenses/Apache-2.0
 
+import { useId } from "react";
+
 /**
  * Domain identity: every domain gets a hue and a shape, derived from its
  * position in DOMAINS. The shape keeps domains apart for colour-blind readers.
@@ -133,4 +135,58 @@ export function buildIdentities(domains: string[], addresses: string[]): Identit
 		groups: ordered.map((d) => ({ identity: of(d), addresses: addresses.filter((a) => domainOf(a) === d) })),
 		of,
 	};
+}
+
+/**
+ * Label identity: a hue and a background pattern picked from a hash of the
+ * label id, so a label looks the same everywhere and across reloads.
+ */
+export const LABEL_PATTERNS = ["dots", "grid", "diagonal", "cross", "checks", "rings"] as const;
+
+export function labelLook(id: string): React.CSSProperties & { "data-pattern": string } {
+	let h = 2166136261;
+	for (let i = 0; i < id.length; i++) h = Math.imul(h ^ id.charCodeAt(i), 16777619);
+	// Murmur3 finalizer: short ids differ in a few low bits, so spread them before taking the hue.
+	h = Math.imul(h ^ (h >>> 16), 0x85ebca6b);
+	h = Math.imul(h ^ (h >>> 13), 0xc2b2ae35);
+	h = (h ^ (h >>> 16)) >>> 0;
+	return { "--pg-lh": String(h % 360), "data-pattern": LABEL_PATTERNS[(h >>> 9) % LABEL_PATTERNS.length] } as never;
+}
+
+export function LabelChip({ label, style }: { label: { id: string; name: string }; style?: React.CSSProperties }) {
+	return (
+		<span className="pg-label-chip" style={style}>
+			<LabelTag id={label.id} size={10} />{label.name}
+		</span>
+	);
+}
+
+const TAG_PATH = "M243.31,136,144,36.69A15.86,15.86,0,0,0,132.69,32H40a8,8,0,0,0-8,8v92.69A15.86,15.86,0,0,0,36.69,144L136,243.31a16,16,0,0,0,22.63,0l84.68-84.68a16,16,0,0,0,0-22.63ZM84,96A12,12,0,1,1,96,84,12,12,0,0,1,84,96Z";
+
+/** One tile of each pattern, in the tag's 256-unit space. */
+const PATTERN_TILES: Record<(typeof LABEL_PATTERNS)[number], { size: number; rotate?: number; tile: React.ReactNode }> = {
+	dots: { size: 44, tile: <circle className="pg-lt-ink" cx="22" cy="22" r="9" /> },
+	grid: { size: 48, tile: <path className="pg-lt-line" d="M0 0H48M0 0V48" /> },
+	diagonal: { size: 44, rotate: 45, tile: <path className="pg-lt-line" d="M0 0V44" /> },
+	cross: { size: 52, rotate: 45, tile: <path className="pg-lt-line" d="M0 0H52M0 0V52" /> },
+	checks: { size: 64, tile: <path className="pg-lt-ink" d="M0 0H32V32H0ZM32 32H64V64H32Z" /> },
+	rings: { size: 52, tile: <circle className="pg-lt-ring" cx="26" cy="26" r="13" /> },
+};
+
+/** The tag shape, filled with the label's hue and pattern. */
+export function LabelTag({ id, size = 14 }: { id: string; size?: number }) {
+	const { "data-pattern": pattern, ...vars } = labelLook(id);
+	const { size: tile, rotate, tile: shape } = PATTERN_TILES[pattern as keyof typeof PATTERN_TILES];
+	const patternId = `pg-lt-${useId().replace(/:/g, "")}`;
+	return (
+		<svg aria-hidden className="pg-label-tag" width={size} height={size} viewBox="0 0 256 256" style={vars}>
+			<defs>
+				<pattern id={patternId} width={tile} height={tile} patternUnits="userSpaceOnUse" patternTransform={rotate ? `rotate(${rotate})` : undefined}>
+					<rect className="pg-lt-base" width={tile} height={tile} />
+					{shape}
+				</pattern>
+			</defs>
+			<path d={TAG_PATH} fill={`url(#${patternId})`} />
+		</svg>
+	);
 }

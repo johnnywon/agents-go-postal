@@ -3,20 +3,19 @@
 //     https://opensource.org/licenses/Apache-2.0
 
 import {
-	ArchiveIcon, ArrowBendDoubleUpLeftIcon, ArrowBendUpLeftIcon, ArrowBendUpRightIcon, CaretLeftIcon, CheckIcon, CodeIcon, DownloadSimpleIcon, EnvelopeOpenIcon, EnvelopeSimpleIcon, FileIcon, ImageIcon, PencilSimpleLineIcon, PlusIcon, SparkleIcon, StarIcon, TagIcon, TrashIcon, XIcon,
+	ArchiveIcon, ArrowBendDoubleUpLeftIcon, ArrowBendUpLeftIcon, ArrowBendUpRightIcon, CalendarBlankIcon, CaretLeftIcon, CheckIcon, CodeIcon, DownloadSimpleIcon, EnvelopeOpenIcon, EnvelopeSimpleIcon, FileAudioIcon, FileCodeIcon, FileDocIcon, FileIcon, FileImageIcon, FilePdfIcon, FilePptIcon, FileTextIcon, FileVideoIcon, FileXlsIcon, FileZipIcon, ImageIcon, PaperclipIcon, PencilSimpleLineIcon, PlusIcon, SparkleIcon, StarIcon, TagIcon, TrashIcon, WarningIcon, XIcon,
 } from "@phosphor-icons/react";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Folders } from "shared/folders";
 import EmailIframe, { type EmailPalette, hasRemoteImages, isPlainHtml } from "~/components/EmailIframe";
 import { getAttachmentUrl, getNonInlineAttachments, rewriteInlineImages } from "~/lib/utils";
 import { useEmail, useMarkThreadRead, useThreadReplies } from "~/queries/emails";
-import { useMailFacets } from "~/queries/mail";
 import type { Conversation, Label } from "~/services/api";
 import type { Email } from "~/types";
 import type { DraftResult } from "./Agent";
 import type { AddressInfo, ComposeMode, ComposeState, useMailSender } from "./compose";
 import { Composer } from "./ComposeWindow";
-import { AddressText, type Identities, LabelChip, LabelIcon, Swatch } from "./identity";
+import { AddressText, type Identities, LabelChip, LabelTag, Swatch } from "./identity";
 import { formatSize, fullDate, nameFromHeaders } from "./model";
 import type { Prefs } from "./prefs";
 
@@ -33,7 +32,6 @@ export interface ReaderProps {
 	prefs: Prefs;
 	labels: Label[];
 	labelsById: ReadonlyMap<string, Label>;
-	showAside: boolean;
 	canTrash: boolean;
 	onBack: () => void;
 	onAction: (action: "archive" | "trash" | "read" | "star") => void;
@@ -128,6 +126,7 @@ export function Reader(props: ReaderProps) {
 	const senderAddr = head ? (sent ? "" : head.sender) : row?.sender_addr ?? "";
 	const rowLabels = (row?.labels ?? []).map((id) => props.labelsById.get(id)).filter((l): l is Label => !!l);
 	const starred = row?.starred ?? !!email?.starred;
+	const attachmentCount = email ? getNonInlineAttachments(email.attachments).length : 0;
 	const unread = row?.unread ?? false;
 	const reply = (mode: Exclude<ComposeMode, "new">) => original && props.startReply(mode, original);
 
@@ -171,6 +170,11 @@ export function Reader(props: ReaderProps) {
 			<div className="pg-reader-scroll" ref={scrollRef}>
 				<div className="pg-reader-main">
 					<h1 className="pg-subject">{row?.subject || email?.subject || "(no subject)"}</h1>
+					{rowLabels.length > 0 && (
+						<div className="pg-reader-labels">
+							{rowLabels.map((l) => <LabelChip key={l.id} label={l} />)}
+						</div>
+					)}
 					<div className="pg-sender">
 						<Avatar name={senderName || senderAddr} seed={senderAddr || senderName} />
 						<div className="pg-sender-text">
@@ -184,6 +188,16 @@ export function Reader(props: ReaderProps) {
 								<span>{sent ? "from" : "to"}</span>
 								<Swatch identity={identity} />
 								<AddressText address={mailbox} identity={identity} bold={false} />
+								{attachmentCount > 0 && (
+									<button
+										type="button"
+										className="pg-attach-count"
+										title={attachmentCount === 1 ? "1 attachment" : `${attachmentCount} attachments`}
+										onClick={() => scrollRef.current?.querySelector(".pg-attachments")?.scrollIntoView({ behavior: "smooth", block: "nearest" })}
+									>
+										<PaperclipIcon size={13} />{attachmentCount}
+									</button>
+								)}
 							</div>
 						</div>
 					</div>
@@ -241,15 +255,6 @@ export function Reader(props: ReaderProps) {
 						)
 					)}
 				</div>
-				{props.showAside && (
-					<Aside
-						mailbox={mailbox}
-						identities={identities}
-						labels={rowLabels}
-						sender={sent ? "" : senderAddr}
-						onAddLabel={openPicker}
-					/>
-				)}
 			</div>
 			{source && <SourceModal email={source} onClose={() => setSource(null)} />}
 		</section>
@@ -322,73 +327,72 @@ function Message({ email, mailboxId, images, onShowImages }: {
 					<button type="button" className="pg-btn" onClick={onShowImages}>Show images</button>
 				</div>
 			)}
-			{/* Plain mail reads on the reader surface; designed HTML mail keeps its white page. */}
+			{/* Plain mail reads on the reader surface; designed HTML mail keeps its white page. Attachments sit inside, under the body. */}
 			<div className="pg-mail-frame" data-kind={plain ? "plain" : "html"} ref={frameRef}>
 				{(!plain || palette) && (
 					<EmailIframe autoSize body={body} remoteImages={images} padding={plain ? 0 : 24} palette={plain ? palette : undefined} />
 				)}
+				{attachments.length > 0 && (
+					<div className="pg-attachments">
+						{attachments.map((a) => <AttachmentRow key={a.id} attachment={a} href={getAttachmentUrl(mailboxId, email.id, a.id)} />)}
+					</div>
+				)}
 			</div>
-			{attachments.length > 0 && (
-				<div className="pg-attachments">
-					{attachments.map((a) => (
-						<a key={a.id} className="pg-attach" href={getAttachmentUrl(mailboxId, email.id, a.id)} download={a.filename} target="_blank" rel="noopener noreferrer">
-							<FileIcon size={16} color="var(--pg-text-5)" />
-							<span style={{ display: "flex", flexDirection: "column", minWidth: 0 }}>
-								<span className="pg-attach-name">{a.filename}</span>
-								<span className="pg-attach-meta">{(a.mimetype.split("/")[1] || a.mimetype).toUpperCase()} · {formatSize(a.size)}</span>
-							</span>
-							<DownloadSimpleIcon size={14} color="var(--pg-text-6)" />
-						</a>
-					))}
-				</div>
-			)}
 		</>
 	);
 }
 
-function Aside({ mailbox, identities, labels, sender, onAddLabel }: {
-	mailbox: string;
-	identities: Identities;
-	labels: Label[];
-	sender: string;
-	onAddLabel: () => void;
-}) {
-	const identity = identities.of(mailbox);
-	const facets = useMailFacets({ view: "all", chips: sender ? [{ kind: "from", value: sender }] : [], sort: "date", dir: "desc" }, !!sender);
-	const history = (facets.data?.address ?? []).slice(0, 5);
+const FILE_KINDS: [RegExp, typeof FileIcon][] = [
+	[/^pdf$/, FilePdfIcon],
+	[/^(zip|gz|tgz|tar|rar|7z|bz2|xz)$/, FileZipIcon],
+	[/^(png|jpe?g|gif|webp|avif|heic|heif|bmp|tiff?)$/, FileImageIcon],
+	[/^(xlsx?|ods|numbers|csv|tsv)$/, FileXlsIcon],
+	[/^(docx?|odt|pages|rtf)$/, FileDocIcon],
+	[/^(pptx?|odp|key)$/, FilePptIcon],
+	[/^(ics|vcs)$/, CalendarBlankIcon],
+	[/^(txt|md|log|eml)$/, FileTextIcon],
+	[/^(mp3|m4a|wav|ogg|flac|aac)$/, FileAudioIcon],
+	[/^(mp4|mov|webm|mkv|avi)$/, FileVideoIcon],
+	[/^(json|xml|yml|yaml)$/, FileCodeIcon],
+];
+
+const MIME_KINDS: [RegExp, typeof FileIcon][] = [
+	[/^application\/pdf$/, FilePdfIcon],
+	[/zip|compressed|x-tar|gzip/, FileZipIcon],
+	[/^image\//, FileImageIcon],
+	[/spreadsheet|excel|csv/, FileXlsIcon],
+	[/wordprocessing|msword/, FileDocIcon],
+	[/presentation|powerpoint/, FilePptIcon],
+	[/^text\/calendar$/, CalendarBlankIcon],
+	[/^audio\//, FileAudioIcon],
+	[/^video\//, FileVideoIcon],
+	[/^text\//, FileTextIcon],
+];
+
+/** Types that run code or open as a page. Phishing hides here, so they get a warning instead of a size. */
+const RISKY: [RegExp, string][] = [
+	[/^(html?|xhtml|svg|shtml|mht|mhtml)$/, "opens in browser"],
+	[/^(exe|msi|bat|cmd|com|scr|pif|vbs|vbe|js|jse|wsf|ps1|jar|app|dmg|pkg|lnk|hta|cpl|iso|img)$/, "runs code"],
+	[/^(docm|xlsm|pptm|dotm|xltm|xlam|ppam)$/, "has macros"],
+];
+
+function splitName(filename: string): [string, string] {
+	const dot = filename.lastIndexOf(".");
+	return dot > 0 && dot < filename.length - 1 ? [filename.slice(0, dot), filename.slice(dot)] : [filename, ""];
+}
+
+function AttachmentRow({ attachment: a, href }: { attachment: { filename: string; mimetype: string; size: number }; href: string }) {
+	const [base, ext] = splitName(a.filename);
+	const type = ext.slice(1).toLowerCase();
+	const risk = RISKY.find(([re]) => re.test(type))?.[1];
+	const Icon = FILE_KINDS.find(([re]) => re.test(type))?.[1] ?? MIME_KINDS.find(([re]) => re.test(a.mimetype.toLowerCase()))?.[1] ?? FileIcon;
 	return (
-		<aside className="pg-aside" aria-label="Details">
-			<section>
-				<span className="pg-caption">DELIVERED TO</span>
-				<span style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12 }}>
-					<Swatch identity={identity} />
-					<AddressText address={mailbox} identity={identity} />
-				</span>
-				<span className="pg-hint">Replies send from this address</span>
-			</section>
-			<section>
-				<span className="pg-caption">LABELS</span>
-				<div style={{ display: "flex", flexWrap: "wrap", gap: 5 }}>
-					{labels.map((l) => <LabelChip key={l.id} label={l} style={{ height: 20 }} />)}
-					<button type="button" className="pg-label-add" onClick={onAddLabel}>+ add</button>
-				</div>
-			</section>
-			{sender && (
-				<section>
-					<span className="pg-caption">FROM {sender.slice(sender.lastIndexOf("@") + 1).toUpperCase()}</span>
-					{history.map((h) => {
-						const id = identities.of(h.value);
-						return (
-							<div key={h.value} className="pg-history">
-								<Swatch identity={id} />
-								<span className="pg-flex pg-ellipsis">{h.value}</span>
-								<span style={{ color: "var(--pg-text-6)" }}>{h.count}</span>
-							</div>
-						);
-					})}
-				</section>
-			)}
-		</aside>
+		<a className="pg-attach" data-risk={risk ? "" : undefined} href={href} download={a.filename} title={risk ? `${a.filename} · ${risk[0].toUpperCase()}${risk.slice(1)}` : a.filename}>
+			{risk ? <WarningIcon size={18} className="pg-attach-icon" /> : <Icon size={18} className="pg-attach-icon" />}
+			<span className="pg-attach-name">{base}<span className="pg-attach-ext">{ext}</span></span>
+			<span className="pg-attach-meta">{risk ?? formatSize(a.size)}</span>
+			<DownloadSimpleIcon size={15} className="pg-attach-get" />
+		</a>
 	);
 }
 
@@ -432,7 +436,7 @@ export function LabelPicker({ left, labels, active, onToggle, onCreate, onClose 
 						return (
 							<button key={l.id} type="button" role="menuitemcheckbox" aria-checked={on} className="pg-menu-item" onClick={() => onToggle(l, !on)}>
 								<span className="pg-check pg-check-neutral" data-on={on}>{on && <CheckIcon size={10} weight="bold" />}</span>
-								<LabelIcon id={l.id} />
+								<LabelTag id={l.id} />
 								<span className="pg-flex pg-ellipsis">{l.name}</span>
 							</button>
 						);

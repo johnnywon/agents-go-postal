@@ -157,7 +157,6 @@ function PostalApp({ addresses, domains, autoDraft }: PostalProps) {
 	const [panelTemp, setPanelTemp] = useState(false);
 	const navOpen = mobile ? navTemp : narrow ? navTemp : layout.nav ?? true;
 	const panelOpen = mobile ? panelTemp : narrow ? panelTemp : layout.panel ?? true;
-	const showAside = !mobile && ((width >= 1500 && !panelOpen) || width >= 1800);
 	const [modal, setModal] = useState<"settings" | "mcp" | "logout" | null>(null);
 	const [toast, setToast] = useState<ToastState | null>(null);
 	const [cw, setCw] = useState<{ key: number; initial: ComposeState; max?: boolean } | null>(null);
@@ -550,7 +549,6 @@ function PostalApp({ addresses, domains, autoDraft }: PostalProps) {
 							prefs={prefs}
 							labels={labels}
 							labelsById={labelsById}
-							showAside={showAside}
 							canTrash={canTrash}
 							onBack={closeConversation}
 							onAction={(a) => act(a, openRow ? [openRow] : null)}

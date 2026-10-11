@@ -1076,7 +1076,7 @@ test("postal domain shapes come from clip-path on .pg-shape-* only, and none is 
 	for (const { selector, decls } of cssBlocks(POSTAL_CSS)) {
 		for (const [prop, value] of decls) {
 			if (prop !== "clip-path" && !/^(-webkit-)?mask/.test(prop)) continue;
-			if (/^(-webkit-)?mask/.test(prop) && /pg-reader-to/.test(selector)) continue; // the address fade, not a shape
+			if (/^(-webkit-)?mask/.test(prop) && /pg-reader-to|pg-attach-name/.test(selector)) continue; // text fades, not shapes
 			if (!/^\.pg-shape-[a-z]+$/.test(selector)) problems.push(`${selector} { ${prop}: ${value} }`);
 			else if (/circle|ellipse|round/.test(value)) problems.push(`${selector} is round`);
 			else shapes.add(selector);

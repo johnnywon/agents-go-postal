@@ -10,7 +10,7 @@ import {
 import { type FormEvent, useState } from "react";
 import type { MailFilter } from "~/lib/mail-filter";
 import type { Label } from "~/services/api";
-import { AddressText, type Identities, Swatch } from "./identity";
+import { AddressText, type Identities, LabelTag, Swatch } from "./identity";
 import { HOME, labelOf, scopeOf, scoped } from "./model";
 
 export const SECONDARY_VIEWS = [
@@ -178,7 +178,7 @@ export function Sidebar(props: SidebarProps) {
 										}
 									}}
 								>
-									<TagIcon size={13} color="var(--pg-text-6)" style={{ flex: "none" }} />
+									<LabelTag id={label.id} size={13} />
 									<span className="pg-flex pg-ellipsis">{label.name}</span>
 									{label.auto && (
 										<button
