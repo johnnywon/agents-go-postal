@@ -327,11 +327,14 @@ export function ListPane(props: ListPaneProps) {
 									</div>
 								</div>
 								<div className="pg-row-main">
-									<div className="pg-row-to" title={`Delivered to ${row.mailbox_id} — replies send from here`}>
-										<Swatch identity={identity} />
-										<AddressText address={row.mailbox_id} identity={identity} />
-										{row.also_in.length > 0 && <span className="pg-also">+{row.also_in.length}</span>}
-									</div>
+									{/* Inside one address every row would repeat it, so the To line only shows when it tells rows apart. */}
+									{(scope !== row.mailbox_id || row.also_in.length > 0) && (
+										<div className="pg-row-to" title={`Delivered to ${row.mailbox_id} — replies send from here`}>
+											<Swatch identity={identity} />
+											<AddressText address={row.mailbox_id} identity={identity} />
+											{row.also_in.length > 0 && <span className="pg-also">+{row.also_in.length}</span>}
+										</div>
+									)}
 									<div className="pg-row-sender">{row.state === "draft" ? "Draft" : row.sender_name || row.sender_addr}</div>
 									<div className="pg-row-subject"><Highlighted text={row.subject || "(no subject)"} terms={props.terms} /></div>
 									{row.snippet && <div className="pg-row-preview"><Highlighted text={row.snippet} terms={props.terms} /></div>}
