@@ -913,10 +913,12 @@ export class MailboxDO extends DurableObject<Env> {
 			 FROM emails
 			 WHERE thread_id IS NOT NULL
 			   AND thread_id != id
-			   AND date >= datetime('now', '-7 days')
+			   AND date >= ?1
 			 GROUP BY thread_id
 			 ORDER BY MAX(date) DESC
 			 LIMIT 50`,
+			// Dates are ISO strings; compare with one, not with datetime(), whose space sorts before "T".
+			new Date(Date.now() - 7 * 86_400_000).toISOString(),
 		);
 
 		const normalizedSender = senderAddress?.toLowerCase().trim();
@@ -953,8 +955,9 @@ export class MailboxDO extends DurableObject<Env> {
 		const hourRow = [...this.ctx.storage.sql.exec(
 			`SELECT COUNT(*) as cnt FROM emails
 			 WHERE folder_id = ?1
-			   AND date >= datetime('now', '-1 hour')`,
+			   AND date >= ?2`,
 			Folders.SENT,
+			new Date(Date.now() - 3_600_000).toISOString(),
 		)][0] as { cnt: number } | undefined;
 
 		if ((hourRow?.cnt ?? 0) >= 20) {
@@ -964,8 +967,9 @@ export class MailboxDO extends DurableObject<Env> {
 		const dayRow = [...this.ctx.storage.sql.exec(
 			`SELECT COUNT(*) as cnt FROM emails
 			 WHERE folder_id = ?1
-			   AND date >= datetime('now', '-1 day')`,
+			   AND date >= ?2`,
 			Folders.SENT,
+			new Date(Date.now() - 86_400_000).toISOString(),
 		)][0] as { cnt: number } | undefined;
 
 		if ((dayRow?.cnt ?? 0) >= 100) {

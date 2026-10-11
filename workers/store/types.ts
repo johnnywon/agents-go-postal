@@ -4,9 +4,9 @@
 
 /**
  * The storage contract every caller goes through (docs/d1-migration-plan.md).
- * Today it is met by the Durable Objects; the D1 store will implement the
- * same methods. Method types come from the Durable Object stubs for now, so
- * the two can't drift apart; the names listed here are the contract.
+ * It is met by the Durable Objects and by the D1 store (workers/store/d1/).
+ * Method types come from the Durable Object classes for now, so the two can't
+ * drift apart; the names listed here are the contract.
  *
  * Index-sync internals (flushIndex, exportIndexRows, indexStatus, applyBatch,
  * rebuild) are not part of it. They exist only to keep the combined index in
@@ -17,21 +17,17 @@ import type { MailIndexDO } from "../durableObject/mail-index";
 
 /** Operations on one address's mail. */
 export type MailboxStore = Pick<
-	DurableObjectStub<MailboxDO>,
+	MailboxDO,
 	// Messages and threads
 	| "getEmails"
 	| "getEmail"
 	| "getThreadEmails"
 	| "createEmail"
 	| "updateEmail"
-	| "updateEmails"
 	| "markThreadRead"
 	| "deleteEmail"
 	| "trashOrDelete"
-	| "purgeTrash"
 	| "moveEmail"
-	| "moveEmails"
-	| "setLabels"
 	| "getAttachment"
 	| "findThreadBySubject"
 	// Folder import (folders to labels)
@@ -53,7 +49,7 @@ export type MailboxStore = Pick<
 
 /** Operations across every address: the combined list, labels, bulk actions and undo. */
 export type AllMailStore = Pick<
-	DurableObjectStub<MailIndexDO>,
+	MailIndexDO,
 	| "queryMail"
 	| "queryFacets"
 	| "folderViews"

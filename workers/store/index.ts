@@ -10,7 +10,10 @@
 import type { MailboxDO } from "../durableObject";
 import type { MailIndexDO } from "../durableObject/mail-index";
 import type { Env } from "../types";
-import type { MailStore } from "./types";
+import { D1AllMail } from "./d1/all-mail";
+import { D1Mailbox } from "./d1/mailbox";
+import { d1Sql } from "./sql";
+import type { AllMailStore, MailboxStore, MailStore } from "./types";
 
 export type { AllMailStore, MailboxStore, MailStore } from "./types";
 
@@ -22,10 +25,24 @@ function indexStub(env: Env): DurableObjectStub<MailIndexDO> {
 	return env.MAIL_INDEX.get(env.MAIL_INDEX.idFromName("global"));
 }
 
+/** `STORAGE = "d1"` with a `DB` binding picks the D1 store; anything else, the Durable Objects. */
+export function usesD1(env: Env): boolean {
+	return String((env as { STORAGE?: string }).STORAGE ?? "") === "d1" && !!(env as { DB?: D1Database }).DB;
+}
+
 export function mailStore(env: Env): MailStore {
+	if (usesD1(env)) {
+		const sql = d1Sql((env as unknown as { DB: D1Database }).DB);
+		const d1: MailStore = {
+			mailbox: (mailboxId) => new D1Mailbox(sql, env.BUCKET, mailboxId),
+			all: () => new D1AllMail(sql, env.BUCKET),
+		};
+		return d1;
+	}
 	return {
-		mailbox: (mailboxId) => mailboxStub(env, mailboxId),
-		all: () => indexStub(env),
+		// Stub method types wrap results for RPC; the values are the same.
+		mailbox: (mailboxId) => mailboxStub(env, mailboxId) as unknown as MailboxStore,
+		all: () => indexStub(env) as unknown as AllMailStore,
 	};
 }
 

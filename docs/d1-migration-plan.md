@@ -1,6 +1,6 @@
 # Plan: move mail storage to D1 and rebuild search
 
-Status: in progress. Phase 0 is done ([results](d1-phase0.md)). Phase 1 is done: every caller goes through `mailStore(env)`. The classic and unified views were retired on 2026-10-11, so the store serves the mail view, the agent, MCP and inbound mail only. Phase 2 has started: `migrations/0001_init.sql` is tested on node:sqlite, local D1 and production D1 (`tests/d1-schema.test.mjs`).
+Status: in progress. Phases 0 to 2 are done: [phase 0 results](d1-phase0.md); every caller goes through `mailStore(env)`; the D1 store (`workers/store/d1/`) implements the whole contract and `tests/store-conformance.test.mjs` runs one script of about 80 calls against both stores with matching results. The classic and unified views were retired on 2026-10-11. `STORAGE=d1` with a `DB` binding switches to D1; no deployment uses it yet.
 
 ## Summary
 
@@ -311,7 +311,7 @@ The copy job is a user-facing feature of one release, so it needs its own README
 |---|---|---|---|
 | 0 | Checks | Done. See [Phase 0 results](#phase-0-results). | 1 day |
 | 1 | Store contract (done) | `workers/store/`: `MailStore` with `mailbox(id)` (one address) and `all()` (every address), and its Durable Object implementation. All 47 call sites in the routes, tools, agent, MCP and helpers go through `mailStore(env)`. Index-sync work that D1 won't need (index status, rebuild, `setMailboxId`, `purgeMailbox`) goes through `durableObjectInternals(env)`. Also: the `Sql` interface with `d1Sql` and byte-sized `chunkByBytes`, and an async node:sqlite `Sql` in `tests/helpers/sql.mjs` that refuses what D1 refuses. A test fails if code outside `workers/store/` or the Durable Objects touches the mail bindings. No behavior change. | 1 day |
-| 2 | D1 schema and store | `migrations/0001_init.sql` and a `MailStore` built on D1 with the same methods the routes, tools and agent use today. Tests run against it. | 4 to 5 days |
+| 2 | D1 schema and store (done) | `migrations/0001_init.sql` with the index's column names, so the list, facet, bulk and label SQL runs on D1 unchanged: those functions are generators driven by `runSync` (Durable Objects) and `runAsync` (D1). `workers/store/d1/` holds the per-address store, the all-mail store and the bulk op applier. Bulk actions apply inline at any size on D1, since an op is one statement. The conformance test compares both stores call by call. | 2 days |
 | 3 | Switch storage | Callers already use `mailStore(env)` (phase 1). This phase adds the `STORAGE` var to pick the Durable Object store or the D1 store, and moves the mailbox list and settings from R2 into the contract. | 1 day |
 | 4 | Jobs | The cron handler: scheduled send with claims, bulk job chunks, sweeps. Large bodies in R2. Reindex search. | 2 days |
 | 5 | Copy job | Export methods, the copy and catch-up job, the parity report, the settings page button, dual inbound writes | 3 to 4 days |

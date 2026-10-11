@@ -9,6 +9,7 @@
 CREATE TABLE mailboxes (
 	id TEXT PRIMARY KEY,                 -- the address, lowercase
 	settings TEXT NOT NULL DEFAULT '{}', -- JSON: display name, signature, agent prompt
+	folders_imported INTEGER NOT NULL DEFAULT 0, -- custom folders became labels; moves go to system folders only
 	created_at TEXT NOT NULL
 );
 
