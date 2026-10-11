@@ -8,6 +8,7 @@
  * attachments, as MailboxDO returns it).
  */
 import { Folders } from "../../../shared/folders";
+import { textKind } from "../../lib/attachment-kind";
 import { htmlToText, listHeaders, parseSender } from "../../lib/message-meta";
 import type { Statement } from "../sql";
 
@@ -59,6 +60,31 @@ export function hasLink(body: string | null | undefined): boolean {
 export const LINK_SQL = `(body LIKE '%http://%' OR body LIKE '%https://%')`;
 
 export const bodyKey = (emailId: string) => `bodies/${emailId}.html`;
+export const attachmentKey = (a: { email_id: string; id: string; filename: string }) => `attachments/${a.email_id}/${a.id}/${a.filename}`;
+
+/** Attachment names as the word index holds them: the ones shown as files, not inline parts. */
+export function attachmentNames(attachments: { filename: string; disposition?: string | null }[]): string {
+	return attachments.filter((a) => (a.disposition ?? "attachment") !== "inline").map((a) => a.filename).join(" ");
+}
+
+export interface SearchFields {
+	subject: string;
+	senderName: string;
+	senderAddr: string;
+	recipients: string;
+	/** The body as text, then any attachment text (d1/attachment-text.ts). */
+	bodyText: string;
+	attachmentNames: string;
+}
+
+/** The word-index row for the message `emailId`. Nothing is written if the message is gone. */
+export function ftsInsert(emailId: string, f: SearchFields): Statement {
+	return {
+		sql: `INSERT INTO messages_fts (rowid, subject, sender_name, sender_addr, recipients, body_text, attachment_names)
+			SELECT id, ?, ?, ?, ?, ?, ? FROM messages WHERE email_id = ?`,
+		params: [f.subject, f.senderName, f.senderAddr, f.recipients, f.bodyText, f.attachmentNames, emailId],
+	};
+}
 
 /**
  * The conversation a new message joins, as the index computes it: a reply
@@ -93,10 +119,11 @@ export function insertStatements(
 	const subjectNorm = normalizeSubject(email.subject || "");
 	const recipients = [email.recipient, email.cc, email.bcc].filter(Boolean).join(", ").toLowerCase();
 	const visible = attachments.filter((a) => (a.disposition ?? "attachment") !== "inline");
-	const attachmentNames = visible.map((a) => a.filename).join(" ");
+	const names = attachmentNames(attachments);
 	const size = new TextEncoder().encode(email.body ?? "").length + attachments.reduce((n, a) => n + a.size, 0);
 	const read = folderId === Folders.SENT ? 1 : email.read ? 1 : 0;
 	const rowid = `(SELECT id FROM messages WHERE email_id = ?)`;
+	const now = new Date().toISOString();
 	return [
 		{
 			sql: `INSERT INTO messages (email_id, mailbox_id, folder_id, thread_id, conversation_id, message_id, in_reply_to,
@@ -115,14 +142,15 @@ export function insertStatements(
 			sql: `INSERT INTO attachments (id, email_id, filename, mimetype, size, content_id, disposition) VALUES (?, ?, ?, ?, ?, ?, ?)`,
 			params: [a.id, email.id, a.filename, a.mimetype, a.size, a.content_id ?? null, a.disposition ?? null],
 		})),
-		{
-			sql: `INSERT INTO messages_fts (rowid, subject, sender_name, sender_addr, recipients, body_text, attachment_names)
-				VALUES (${rowid}, ?, ?, ?, ?, ?, ?)`,
-			params: [email.id, email.subject ?? "", sender.name, sender.addr, recipients, bodyText, attachmentNames],
-		},
+		// Queued for the cron's text extraction, which runs only when ATTACHMENT_SEARCH is on.
+		...attachments.filter((a) => textKind(a)).map((a) => ({
+			sql: `INSERT OR IGNORE INTO attachment_text (attachment_id, state, updated_at) VALUES (?, 'pending', ?)`,
+			params: [a.id, now],
+		})),
+		ftsInsert(email.id, { subject: email.subject ?? "", senderName: sender.name, senderAddr: sender.addr, recipients, bodyText, attachmentNames: names }),
 		{
 			sql: `INSERT INTO messages_trigram (rowid, subject, sender_addr, recipients, attachment_names) VALUES (${rowid}, ?, ?, ?, ?)`,
-			params: [email.id, email.subject ?? "", sender.addr, recipients, attachmentNames],
+			params: [email.id, email.subject ?? "", sender.addr, recipients, names],
 		},
 	];
 }

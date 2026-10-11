@@ -71,6 +71,7 @@ Requirements: a domain on Cloudflare, R2, and Workers Paid for outbound email. T
 | `EMAIL_ADDRESSES` | `vars` | Addresses that get a mailbox. Mail to other addresses is rejected. |
 | `INDEX_SYNC_ENABLED` | `vars` | `false` pauses updates to the combined index; changes queue in each mailbox |
 | `AUTO_DRAFT_ENABLED` | `vars` | `true` drafts a reply to each new message, except list, bulk and automated mail |
+| `ATTACHMENT_SEARCH` | `vars` | `true` makes attachment text searchable (D1 only). Uses one Workers AI `toMarkdown` call per PDF, Word or Excel file. |
 | `POLICY_AUD`, `TEAM_DOMAIN` | secrets | Cloudflare Access verification |
 
 To rebrand a deployment, set `APP_NAME` and replace the files listed in `public/brand/README.md`.
@@ -105,6 +106,8 @@ Unknown operators are searched as plain words. An operator with a value that doe
 
 On D1, a search with words lists the best match first: subject matches count most, body text least, and near-ties go to newer mail. Each row shows the text around the matched words and how many messages in the conversation matched. `sort:date`, or Newest above the list, puts newest first. Over 20,000 matching messages the list is newest first, since ranking that many takes too long; `sort:relevance` ranks it anyway. A word of three or more letters that matches no word is searched as part of a word in subjects, addresses and attachment names, so `7731` finds `XK7731Q`. When nothing matches, the window suggests a spelling. On the Durable Object store results are newest first.
 
+With `ATTACHMENT_SEARCH` set to `true`, the text of PDF, Word, Excel, OpenDocument, text and CSV attachments up to 10 MB is searched with the body. The cron converts five files a minute, newest first, with Workers AI `toMarkdown` (text files are read directly) and keeps up to 64 KB of text per file. New mail is searchable as soon as it arrives and its attachments a minute or two later. Mail stored before the setting was on is converted the same way, newest first. When the match is in a file, the row shows the file's name and the text around the match. Turning the setting off stops new conversions; text already converted stays searchable.
+
 The window under the search box shows recent searches (kept in this browser), the people you get the most mail from, filters and addresses. While you type it shows the top six results and filters that narrow them, and with the cursor in an operator it completes the value. `↑` `↓` move, `Tab` completes, `↵` opens the highlighted row or the first result, `⌘↵` runs the search without opening anything, and `Esc` closes the window, then clears the box. `? Operators` in its footer lists every operator.
 
 When the text reads like a request ("unread newsletters from this week"), the window offers Turn into a search. That sends the text, today's date, your label names and your addresses, never mail, to the model once, and puts the search it makes in the box with a one-line explanation and Undo: `is:unread has:unsubscribe after:7d`. Nothing runs that you can't see. On Workers AI it uses `@cf/meta/llama-3.3-70b-instruct-fp8-fast`, because the default agent model took 10 to 27 seconds; with OpenRouter chosen in Settings it uses that model. If the call fails, the words are searched as typed. Ask the agent about it opens the agent panel with the text instead.
@@ -129,7 +132,7 @@ To move a deployment that already holds mail:
 
 Pick a quiet hour for step 3. A change made on the old store in the minute before the deploy can overwrite the same message's change on D1 in the minute after it.
 
-Run `npx wrangler d1 migrations apply <database> --remote` before deploying a new version: new code writes columns that later migrations add (`0002_has_link.sql` adds `has_link`). Adding a column doesn't break the version already running.
+Run `npx wrangler d1 migrations apply <database> --remote` before deploying a new version: new code writes columns that later migrations add (`0002_has_link.sql` adds `has_link`; `0003_attachment_text.sql` queues older attachments for `ATTACHMENT_SEARCH`). Adding a column doesn't break the version already running.
 
 For two weeks after the switch, new inbound mail is also written to the old store. To move back, remove `STORAGE` and deploy. Mail received in those two weeks comes back with it. Read state, labels, moves, sends and scheduled sends made on D1 do not, and mail scheduled before the switch stays in Drafts unscheduled. Problems inside D1 itself are better fixed with Time Travel (`wrangler d1 time-travel`).
 

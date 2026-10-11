@@ -11,7 +11,7 @@
 import { highlightTerms, type Leaf, parseSearch } from "../../shared/search-query";
 import { htmlToText } from "./message-meta";
 import { type Conversation, facetsQuery, type MailFilter, type MailPage, mailQuery, type Query, sqlStep } from "./mail-index-sql";
-import { fold, snippetHtml } from "./snippets";
+import { escapeHtml, fold, snippetHtml } from "./snippets";
 
 /** Shorter words are left to the word index: the trigram index needs three characters. */
 const MIN_SUBSTRING = 3;
@@ -130,9 +130,25 @@ export function* snippetsQuery(conversations: Conversation[], filter: MailFilter
 		`SELECT email_id, substr(body, 1, ?) AS body, snippet FROM messages WHERE email_id IN (SELECT value FROM json_each(?))`,
 		SNIPPET_BODY, JSON.stringify(conversations.map((c) => c.email_id)),
 	);
+	const unmarked: string[] = [];
 	for (const row of rows) {
 		const text = row.body == null ? String(row.snippet ?? "") : htmlToText(String(row.body));
-		out.set(String(row.email_id), snippetHtml(text, terms));
+		const html = snippetHtml(text, terms);
+		out.set(String(row.email_id), html);
+		if (!html.includes("<mark>")) unmarked.push(String(row.email_id));
+	}
+	// A match in an attachment's text shows that text, after the file name.
+	if (unmarked.length === 0) return out;
+	const files = yield sqlStep(
+		`SELECT a.email_id, a.filename, substr(t.text, 1, ?) AS text FROM attachments a JOIN attachment_text t ON t.attachment_id = a.id
+		WHERE t.state = 'done' AND a.email_id IN (SELECT value FROM json_each(?)) ORDER BY a.rowid`,
+		SNIPPET_BODY, JSON.stringify(unmarked),
+	);
+	for (const file of files) {
+		const id = String(file.email_id);
+		if (out.get(id)?.includes("<mark>")) continue;
+		const html = snippetHtml(String(file.text ?? ""), terms);
+		if (html.includes("<mark>")) out.set(id, `${escapeHtml(String(file.filename))}: ${html}`);
 	}
 	return out;
 }
