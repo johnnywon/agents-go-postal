@@ -220,6 +220,30 @@ export interface IndexStatusResponse {
 	}[];
 }
 
+export interface CopyCounts {
+	states: Record<string, { total: number; unread: number; starred: number }>;
+	labels: Record<string, number>;
+	attachments: number;
+	scheduled: number;
+}
+
+/** The one-time copy from the Durable Objects to D1 (workers/store/copy-job.ts). */
+export interface CopyStatusResponse {
+	available: boolean;
+	storage: "d1" | "durable-objects";
+	state: "none" | "copying" | "catching-up" | "ready" | "done";
+	startedAt?: string;
+	finishedAt?: string | null;
+	error?: string | null;
+	mailboxes: { mailboxId: string; total: number; copied: number; pagesDone: boolean }[];
+	parity: {
+		ok: boolean;
+		checkedAt: string;
+		labels: { ok: boolean; source: string[]; d1: string[] };
+		mailboxes: { mailboxId: string; ok: boolean; source: CopyCounts; d1: CopyCounts; pending: number }[];
+	} | null;
+}
+
 export type AgentProvider = "workers-ai" | "openrouter";
 export interface AgentModelView {
 	provider: AgentProvider;
@@ -310,6 +334,8 @@ const api = {
 	// Mail index
 	getIndexStatus: () => get<IndexStatusResponse>("/api/v1/index/status"),
 	rebuildIndex: () => post<unknown>("/api/v1/index/rebuild"),
+	getCopyStatus: () => get<CopyStatusResponse>("/api/v1/admin/migrate-to-d1"),
+	startCopy: () => post<CopyStatusResponse>("/api/v1/admin/migrate-to-d1", { confirm: true }),
 
 };
 

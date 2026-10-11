@@ -141,6 +141,10 @@ h1, h2, h3 { font-family: var(--font-display); }
 .index-parity td.is-off { font-weight: 700; color: var(--airmail-red); }
 .index-parity-mark { display: inline-block; width: 1.4em; font-weight: 700; }
 .index-parity tr.is-off .index-parity-mark { color: var(--airmail-red); }
+.copy-d1 { margin-top: 24px; padding-top: 16px; border-top: 1px solid #e1e6e9; }
+.copy-d1 > h2 { margin-bottom: 8px; }
+.copy-d1-confirm { display: inline-flex; gap: 8px; }
+.copy-d1-parity { margin: 0; padding-left: 18px; font-size: 13px; list-style: disc; }
 
 @media (max-width: 767px) {
 

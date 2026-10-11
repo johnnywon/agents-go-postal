@@ -128,6 +128,15 @@ export class MailIndexDO extends DurableObject<Env> {
 		return folderViews(this.exec);
 	}
 
+	/** Labels and saved searches, for the copy to D1. */
+	async copyGlobals() {
+		return {
+			labels: this.exec(`SELECT id, name, color, position FROM labels ORDER BY id`),
+			labelAuto: this.exec(`SELECT label_id, applied_at FROM label_auto ORDER BY label_id`),
+			savedSearches: this.exec(`SELECT id, name, filter, position FROM saved_searches ORDER BY id`),
+		};
+	}
+
 	async status() {
 		await this.#startIfEmpty();
 		return {

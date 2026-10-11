@@ -54,6 +54,11 @@ function r2Registry(env: Env): MailboxRegistry {
 	};
 }
 
+/** A D1 database is bound, whichever store is in use. The copy to D1 needs one. */
+export function hasD1(env: Env): boolean {
+	return !!env.DB;
+}
+
 /** `STORAGE = "d1"` with a `DB` binding picks the D1 store; anything else, the Durable Objects. */
 export function usesD1(env: Env): boolean {
 	return String(env.STORAGE ?? "") === "d1" && !!env.DB;
@@ -80,12 +85,14 @@ export function mailStore(env: Env): MailStore {
 /**
  * The Durable Object stubs themselves, for index-sync work that is outside
  * the contract: index status and rebuild, teaching a mailbox its address,
- * and purging a mailbox from the index. Removed with the Durable Objects.
+ * purging a mailbox from the index, and the copy to D1. Removed with the Durable Objects.
  */
 export function durableObjectInternals(env: Env) {
 	return {
 		mailbox: (mailboxId: string) => mailboxStub(env, mailboxId),
 		index: () => indexStub(env),
+		/** The R2 mailbox records, whatever STORAGE says. The copy to D1 reads them. */
+		registry: r2Registry(env),
 	};
 }
 

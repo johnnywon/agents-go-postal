@@ -54,7 +54,7 @@ async function schedule(subject, sendAt) {
 const rows = (sql) => call("rows", sql);
 
 test("the cron does nothing on the Durable Object store", async () => {
-	assert.deepEqual(await call("cronOff"), { skipped: true });
+	assert.deepEqual(await call("cronOff"), { copy: "none", skipped: true });
 });
 
 test("a due message sends once, even with two runs at the same time", async () => {

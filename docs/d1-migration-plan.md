@@ -1,6 +1,6 @@
 # Plan: move mail storage to D1 and rebuild search
 
-Status: in progress. Phases 0 to 2 are done: [phase 0 results](d1-phase0.md); every caller goes through `mailStore(env)`; the D1 store (`workers/store/d1/`) implements the whole contract and `tests/store-conformance.test.mjs` runs one script of about 80 calls against both stores with matching results. The classic and unified views were retired on 2026-10-11. Phase 3 is done too: the whole app runs on D1 with `STORAGE=d1` and a `DB` binding. Phase 4 adds the cron that sends scheduled mail on D1. No deployment uses D1 yet.
+Status: in progress. Phases 0 to 2 are done: [phase 0 results](d1-phase0.md); every caller goes through `mailStore(env)`; the D1 store (`workers/store/d1/`) implements the whole contract and `tests/store-conformance.test.mjs` runs one script of about 80 calls against both stores with matching results. The classic and unified views were retired on 2026-10-11. Phase 3 is done too: the whole app runs on D1 with `STORAGE=d1` and a `DB` binding. Phase 4 adds the cron that sends scheduled mail on D1. Phase 5 adds the copy from the Durable Objects, run from the Mail index page. No deployment uses D1 yet.
 
 ## Summary
 
@@ -284,26 +284,25 @@ Another session is changing `SearchBar.tsx` now. Search work starts after that l
 Every deployment that already holds mail needs a one-time copy. It runs inside the Worker, so it reads Durable Object storage directly and writes D1 through the binding.
 
 1. **Export methods on the old classes.**
-   - `MailboxDO.exportPage({ afterId, limit })` returns full rows: emails with bodies, attachments metadata, `email_labels`, folders, `scheduled_sends` and `send_keys`.
-   - `MailboxDO.changedIds()` returns the ids in `index_outbox`. Outbox rows are deleted after each push to the index (`workers/lib/index-rows.ts`), so the copy job first sets `INDEX_SYNC_ENABLED=false`. Mutations still record to the outbox while sync is paused (`workers/lib/mail-index-stub.ts`), so from that moment the outbox holds every message changed during the copy.
-   - `MailIndexDO.exportGlobals()` returns `labels`, `label_auto` and `saved_searches`.
-2. **The copy job.** `POST /api/v1/admin/migrate-to-d1` with `{ confirm: true }` starts it. A `migration_job` row in D1 tracks progress, and the cron advances it.
-   - First it pauses index sync (`INDEX_SYNC_ENABLED=false`). The combined inbox stops updating until cutover, so the copy should run in a quiet hour.
-   - Then it copies mailbox settings from R2, the global tables, and every mailbox page by page, 200 messages per batch (phase 0: 1.7 ms per message with indexes), using `INSERT OR IGNORE`. A batch stays under 24 MB of payload: one `batch()` call is capped at 32 MiB. Large bodies go to R2.
-   - The job is resumable and idempotent: rerunning it skips rows already copied.
-3. **Catch-up.** After the full copy, each mailbox reads `changedIds()` and re-copies those rows with `INSERT OR REPLACE`, deleting rows that no longer exist. Then it clears the ids it handled from the outbox. This repeats until a pass finds nothing.
-4. **Check.** A parity report compares per-mailbox, per-folder counts, unread counts, label counts and scheduled-send counts between the old storage and D1. The current `/api/v1/index/status` parity page is reused for this.
+   - `MailboxDO.copyStart`, `copyPage`, `copyChanges`, `copyAck`, `copyRows`, `copyMeta`, `copyStatus` and `copyStop` (SQL in `workers/lib/copy-rows.ts`). A page is up to 100 emails with bodies, attachment metadata, labels and the list's conversation id, and stops early at 8 MB of bodies.
+   - `MailIndexDO.copyGlobals()` returns `labels`, `label_auto` and `saved_searches`.
+   - The plan first said to pause index sync so the index outbox would hold every change. A Worker can't change its own vars, and pausing would freeze the combined inbox. Instead, `copyStart` turns on tracking, and from then on `recordChanges` also writes each changed id to a `copy_outbox` table (mailbox migration 12). Only the copy reads and clears it. Index sync carries on.
+2. **The copy job** (`workers/store/copy-job.ts`). `POST /api/v1/admin/migrate-to-d1` with `{ confirm: true }` starts it; `GET` returns progress and the parity report. It refuses when D1 isn't bound, when `STORAGE` is already `d1`, when a copy exists, or when D1 already holds mail. `copy_job` and `copy_mailboxes` in D1 track it, and the cron advances it 20 seconds at a time.
+   - Each run first copies labels and saved searches, then pages through each mailbox in id order. Every write deletes and re-inserts the message, so a page that runs twice changes nothing. Bodies over 512 KB go to R2.
+   - A page can carry a label made after that run's label copy. The writer checks and copies labels first when one is missing.
+3. **Catch-up.** After every page is copied, each mailbox's `copyChanges` is re-copied (or deleted, for ids that are gone) and acked, until a pass finds nothing. Then settings, custom folders, scheduled sends and send keys are brought in line. State becomes `ready`, and every later run repeats the catch-up, so D1 stays current while the deployment waits to switch.
+4. **Check.** A parity report compares, per address, message counts per folder with unread and starred, label counts, attachments and scheduled sends, plus the label list. The Mail index settings page shows it under Copy to D1.
 5. **Cut over.**
-   - Set `STORAGE=d1` and deploy. All reads and writes go to D1 from that point.
-   - Run a final catch-up for the seconds between the last pass and the deploy.
-   - The old classes keep their data and are no longer written.
+   - Set `STORAGE=d1` and deploy. All reads and writes go to D1 from then on. MailboxDO stops sending scheduled mail and stops re-arming its alarm for it.
+   - The first cron run on D1 makes the last pass before it sends anything: messages and scheduled sends only, since D1's settings and labels are now newer. A D1 schedule is removed only if its draft came from the old store, so mail scheduled on D1 in that minute survives. Then each mailbox stops tracking and drops its scheduled rows (the drafts stay), and the job is `done`.
+   - Known gap: a change on the old store in the minute before the deploy overwrites a change to the same message on D1 in the minute after. The README says to switch in a quiet hour.
 6. **Rollback window (two weeks).**
-   - During it, inbound mail is also written to the old `MailboxDO`, so mail received after cutover is not lost if storage has to move back.
+   - During it, inbound mail is also written to the old `MailboxDO` (`mirrorInbound`), so mail received after cutover is not lost if storage has to move back.
    - Other changes made after cutover (read state, labels, moves, sends) are not written back. A rollback loses them. The README says so.
    - Problems inside D1 itself are fixed with Time Travel, not by rolling back.
 7. **Remove.** Delete the dual write, the `STORAGE` flag, the export methods, the old classes (with the `deleted_classes` migration) and `INDEX_SYNC_ENABLED`.
 
-The copy job is a user-facing feature of one release, so it needs its own README section and a button on the Mail index settings page. The button shows progress and the parity result.
+The copy job has a README section (Moving to D1) and a Copy to D1 button on the Mail index settings page, which shows progress and the parity result.
 
 ## Phases
 
@@ -313,8 +312,8 @@ The copy job is a user-facing feature of one release, so it needs its own README
 | 1 | Store contract (done) | `workers/store/`: `MailStore` with `mailbox(id)` (one address) and `all()` (every address), and its Durable Object implementation. All 47 call sites in the routes, tools, agent, MCP and helpers go through `mailStore(env)`. Index-sync work that D1 won't need (index status, rebuild, `setMailboxId`, `purgeMailbox`) goes through `durableObjectInternals(env)`. Also: the `Sql` interface with `d1Sql` and byte-sized `chunkByBytes`, and an async node:sqlite `Sql` in `tests/helpers/sql.mjs` that refuses what D1 refuses. A test fails if code outside `workers/store/` or the Durable Objects touches the mail bindings. No behavior change. | 1 day |
 | 2 | D1 schema and store (done) | `migrations/0001_init.sql` with the index's column names, so the list, facet, bulk and label SQL runs on D1 unchanged: those functions are generators driven by `runSync` (Durable Objects) and `runAsync` (D1). `workers/store/d1/` holds the per-address store, the all-mail store and the bulk op applier. Bulk actions apply inline at any size on D1, since an op is one statement. The conformance test compares both stores call by call. | 2 days |
 | 3 | Switch storage (done) | `STORAGE=d1` with a `DB` binding picks the D1 store. The mailbox list and settings are in the contract (`mailStore(env).mailboxes`): R2 records on the Durable Object store, the `mailboxes` table on D1. On D1 the mail index status page reports per-address counts from the one copy, and rebuild declines. `DELETE /api/v1/mailboxes/:id` is gone: no view used it, and on D1 it would cascade to the mail. Checked by running the app locally on D1 (list, reader, archive and undo, search, labels, drafts, settings). | 1 day |
-| 4 | Jobs (done) | A one-minute cron (`workers/cron.ts`, `triggers.crons` in `wrangler.jsonc`) sends due scheduled mail on D1, up to a minute late. Each run claims its rows first, so overlapping runs send once; the `draft:<id>` send key is the second guard. A claim older than 10 minutes is taken over. Failures retry after 15 minutes, three attempts in all. On the Durable Object store the cron returns at once. Bulk actions need no job chunks on D1 (phase 2). Sweeps need no job: expired send keys are dropped on each claim, expired undo rows on each save. Large bodies were already in R2 (phase 2). Reindex search moves to phase 5, which writes search rows the same way. `tests/cron.test.mjs` covers it. | 2 days |
-| 5 | Copy job | Export methods, the copy and catch-up job, the parity report, the settings page button, dual inbound writes. "Reindex search" rebuilds `messages_fts` and `messages_trigram` from `messages` in chunks, with the copy's search-row code. | 3 to 4 days |
+| 4 | Jobs (done) | A one-minute cron (`workers/cron.ts`, `triggers.crons` in `wrangler.jsonc`) sends due scheduled mail on D1, up to a minute late. Each run claims its rows first, so overlapping runs send once; the `draft:<id>` send key is the second guard. A claim older than 10 minutes is taken over. Failures retry after 15 minutes, three attempts in all. On the Durable Object store the cron returns at once. Bulk actions need no job chunks on D1 (phase 2). Sweeps need no job: expired send keys are dropped on each claim, expired undo rows on each save. Large bodies were already in R2 (phase 2). Reindex search moves to S4. `tests/cron.test.mjs` covers it. | 2 days |
+| 5 | Copy job (done) | `workers/lib/copy-rows.ts` (mailbox side), `workers/store/d1/copy.ts` (D1 writer), `workers/store/copy-job.ts` (the job), the `migrate-to-d1` routes, the Copy to D1 section on the Mail index page, `mirrorInbound` for the two-week window, and the README section. A copy outbox replaces pausing index sync. `tests/copy-job.test.mjs` copies two addresses in slices with changes made mid-copy, compares about 40 reads between the stores, then cuts over; `tests/copy-rows.test.mjs` covers the outbox and page sizes. Checked locally in the browser: 120 messages copied from the page, cut over by the cron, mail served from D1. "Reindex search" moves to S4, where a tokenizer or weight change would need it. | 3 to 4 days |
 | 6 | Move your own deployment | Copy, check, cut over, two-week soak. Fix what it turns up. | 2 weeks elapsed, about 1 day of work |
 | S1 | One query language | `shared/search-query.ts` parser and compiler, used by the mail view, the agent and MCP. Runs on the current index. | 2 to 3 days |
 | S2 | Search window | Full-width window, sections, completion, recent and saved searches, keys, mobile sheet | 3 to 4 days |
@@ -395,7 +394,7 @@ Phase 0 used synthetic mail with a small vocabulary, so broad-word search times 
 
 Corrected:
 
-1. **Catch-up during the copy.** The plan said the copy could replay changes from the `index_outbox` sequence. Outbox rows are deleted after each push (`workers/lib/index-rows.ts:98`), so there's nothing to replay. Fixed: the copy pauses index sync first, and the outbox then holds every change (`workers/lib/mail-index-stub.ts:14`).
+1. **Catch-up during the copy.** The plan said the copy could replay changes from the `index_outbox` sequence. Outbox rows are deleted after each push (`workers/lib/index-rows.ts:98`), so there's nothing to replay. Fixed in phase 5: each mailbox records changes to its own `copy_outbox` while the copy runs, so index sync doesn't pause.
 2. **Drizzle use.** The plan said only basic email CRUD uses Drizzle and recommended dropping it. `MailboxDO` has about 96 Drizzle references. Fixed: keep Drizzle and switch its driver to D1.
 3. **Bulk job progress.** The plan said the UI already polls `bulkJob(id)`. Nothing in `app/` calls it. Fixed: on D1 every bulk action applies inline and returns its result, so there is nothing to poll. The Durable Object jobs go with phase 7.
 4. **Sort options.** The plan said results sort by date only. `SORTS` is date, sender and subject. The point stands: there's no relevance order. Fixed the wording.

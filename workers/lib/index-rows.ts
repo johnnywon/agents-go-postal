@@ -51,6 +51,21 @@ export function normalizedSubjectSql(column: string): string {
 ))`;
 }
 
+/**
+ * The conversation an email `e` groups into in the list: a reply draft with
+ * what it replies to, threaded mail with its thread, the rest by subject.
+ */
+export const CONVERSATION_ID_SQL = `CASE
+	WHEN e.folder_id = '${Folders.DRAFT}' THEN COALESCE(e.in_reply_to, e.id)
+	WHEN e.thread_id IS NOT NULL THEN e.thread_id
+	WHEN ${normalizedSubjectSql("e.subject")} = '' THEN e.id
+	ELSE (
+		SELECT MIN(COALESCE(o.thread_id, o.id)) FROM emails o
+		WHERE o.folder_id != '${Folders.DRAFT}'
+			AND ${normalizedSubjectSql("o.subject")} = ${normalizedSubjectSql("e.subject")}
+	)
+END`;
+
 export function getMeta(exec: Exec, key: string): string | null {
 	const row = exec(`SELECT value FROM index_meta WHERE key = ?`, key)[0];
 	return row ? String(row.value) : null;
@@ -76,6 +91,10 @@ export function recordChanges(exec: Exec, ids: string[]): number {
 		seq,
 		JSON.stringify(unique),
 	);
+	// While the copy to D1 runs, it reads its own outbox (lib/copy-rows.ts).
+	if (getMeta(exec, "copy_tracking") === "1") {
+		exec(`INSERT OR IGNORE INTO copy_outbox (seq, email_id) SELECT ?, value FROM json_each(?)`, seq, JSON.stringify(unique));
+	}
 	return seq;
 }
 
@@ -112,16 +131,7 @@ export function buildIndexRows(exec: Exec, ids: string[], seq: number): IndexRow
 		`SELECT e.id, e.folder_id, e.subject, e.sender, e.recipient, e.cc, e.bcc, e.date,
 			e.read, e.starred, e.body, e.message_id, e.raw_headers,
 			${normalizedSubjectSql("e.subject")} AS subject_norm,
-			CASE
-				WHEN e.folder_id = '${Folders.DRAFT}' THEN COALESCE(e.in_reply_to, e.id)
-				WHEN e.thread_id IS NOT NULL THEN e.thread_id
-				WHEN ${normalizedSubjectSql("e.subject")} = '' THEN e.id
-				ELSE (
-					SELECT MIN(COALESCE(o.thread_id, o.id)) FROM emails o
-					WHERE o.folder_id != '${Folders.DRAFT}'
-						AND ${normalizedSubjectSql("o.subject")} = ${normalizedSubjectSql("e.subject")}
-				)
-			END AS conversation_id,
+			${CONVERSATION_ID_SQL} AS conversation_id,
 			EXISTS (
 				SELECT 1 FROM attachments a
 				WHERE a.email_id = e.id AND COALESCE(a.disposition, 'attachment') != 'inline'

@@ -5,8 +5,9 @@
 import { Button, Loader, useKumoToastManager } from "@cloudflare/kumo";
 import { ArrowsClockwiseIcon } from "@phosphor-icons/react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
 import DeckBrand from "~/components/DeckBrand";
-import api, { type IndexCounts, type IndexStatusResponse } from "~/services/api";
+import api, { type CopyStatusResponse, type IndexCounts, type IndexStatusResponse } from "~/services/api";
 import { pageTitle } from "~/lib/brand";
 
 export function meta({ matches }: { matches: Parameters<typeof pageTitle>[0] }) {
@@ -53,6 +54,77 @@ function jobLine(job: IndexStatusResponse["job"]) {
 	if (job.error && !job.finishedAt) return `Rebuild retrying at ${job.position} of ${job.mailboxes.length}: ${job.error}`;
 	if (!job.finishedAt) return `Rebuilding ${job.position} of ${job.mailboxes.length} addresses.`;
 	return `Last rebuild finished ${new Date(job.finishedAt).toLocaleString()}.`;
+}
+
+const ROLLBACK_DAYS = 14;
+
+function copyLine(copy: CopyStatusResponse): string {
+	const copied = copy.mailboxes.reduce((n, m) => n + m.copied, 0);
+	const total = copy.mailboxes.reduce((n, m) => n + m.total, 0);
+	switch (copy.state) {
+		case "none":
+			return copy.storage === "d1"
+				? "This deployment runs on D1."
+				: "Copies every address's mail, labels and scheduled sends into the D1 database. The mail stays where it is, and the app keeps working while it runs.";
+		case "copying":
+			return `Copying: ${copied.toLocaleString()} of ${total.toLocaleString()} messages.`;
+		case "catching-up":
+			return "Copying the mail that changed during the copy.";
+		case "ready":
+			return copy.parity?.ok
+				? `Copied, and the counts match. To switch, set STORAGE to "d1" and deploy. Until then, changes keep copying every minute.`
+				: "Copied, but some counts differ. The next run copies again; the table below shows where.";
+		case "done": {
+			const until = copy.finishedAt ? new Date(Date.parse(copy.finishedAt) + ROLLBACK_DAYS * 86_400_000).toLocaleDateString() : "";
+			return `Moved to D1${copy.finishedAt ? ` on ${new Date(copy.finishedAt).toLocaleString()}` : ""}. New mail is also written to the old storage until ${until}.`;
+		}
+	}
+}
+
+function CopyToD1() {
+	const toastManager = useKumoToastManager();
+	const queryClient = useQueryClient();
+	const [confirming, setConfirming] = useState(false);
+	const { data } = useQuery({
+		queryKey: ["copy-status"],
+		queryFn: () => api.getCopyStatus(),
+		refetchInterval: (query) => (["copying", "catching-up", "ready"].includes(query.state.data?.state ?? "") ? 5_000 : false),
+	});
+	const start = useMutation({
+		mutationFn: () => api.startCopy(),
+		onSuccess: () => {
+			setConfirming(false);
+			queryClient.invalidateQueries({ queryKey: ["copy-status"] });
+		},
+		onError: (e) => toastManager.add({ title: "Copy did not start", description: (e as Error).message, variant: "error" }),
+	});
+	if (!data?.available) return null;
+	const off = data.parity?.mailboxes.filter((m) => !m.ok) ?? [];
+	return (
+		<section className="copy-d1" aria-labelledby="copy-d1-title">
+			<h2 id="copy-d1-title" className="text-base font-semibold">Copy to D1</h2>
+			<div className="index-settings-summary">
+				<p>{copyLine(data)}{data.error && <> Last run failed: {data.error}. The next run retries.</>}</p>
+				{data.state === "none" && data.storage === "durable-objects" && (
+					confirming ? (
+						<span className="copy-d1-confirm">
+							<Button variant="primary" onClick={() => start.mutate()} loading={start.isPending}>Start copy</Button>
+							<Button variant="secondary" onClick={() => setConfirming(false)}>Cancel</Button>
+						</span>
+					) : (
+						<Button onClick={() => setConfirming(true)}>Copy to D1</Button>
+					)
+				)}
+			</div>
+			{data.parity && (!data.parity.ok || data.state !== "done") && (
+				<ul className="copy-d1-parity">
+					{!data.parity.labels.ok && <li>Labels: {data.parity.labels.source.length} in the index, {data.parity.labels.d1.length} in D1.</li>}
+					{off.map((m) => <li key={m.mailboxId}>{m.mailboxId}: counts differ{m.pending > 0 ? `, ${m.pending.toLocaleString()} changes waiting` : ""}.</li>)}
+					{data.parity.ok && <li>All {data.parity.mailboxes.length} addresses and {data.parity.labels.d1.length} labels match. Checked {new Date(data.parity.checkedAt).toLocaleTimeString()}.</li>}
+				</ul>
+			)}
+		</section>
+	);
 }
 
 export default function IndexSettingsRoute() {
@@ -144,6 +216,7 @@ export default function IndexSettingsRoute() {
 						</div>
 					</>
 				)}
+				<CopyToD1 />
 			</main>
 		</div>
 	);

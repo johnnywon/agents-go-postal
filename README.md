@@ -87,6 +87,22 @@ Keyboard: `j`/`k` move, `e` archive, `x` select, `r` reply, `a` reply all, `f` f
 
 Choose a time from the arrow next to Send in the compose window. The message is saved to Drafts with a "Scheduled" badge, and the address's Durable Object sends it with an alarm at that time through the normal sending path. Cancel removes the schedule and keeps the draft. Editing or deleting the draft before the send time cancels it. A send that fails is retried every 15 minutes, up to three attempts; after that the draft stays in Drafts marked "Send failed". Attachments count toward a 1.5 MB limit per scheduled message.
 
+On D1 storage (below), a one-minute cron sends scheduled mail instead of the alarm, so a message can go out up to a minute after its time.
+
+### Moving to D1
+
+Mail is stored in one Durable Object per address, with a combined index in another. D1 storage keeps everything in one database instead. It is being built now (`docs/d1-migration-plan.md`); new deployments don't need it yet.
+
+To move a deployment that already holds mail:
+
+1. Create a D1 database, bind it as `DB` in your wrangler config with `"migrations_dir": "migrations"`, and run `npx wrangler d1 migrations apply <database> --remote`. Deploy. Nothing changes yet.
+2. Open Settings, then Mail index, and press Copy to D1. The copy runs a slice every minute from the cron. Mail stays where it is and the app keeps working. Changes made during the copy are copied again.
+3. When the page says the counts match, set `"STORAGE": "d1"` in `vars` and deploy. The first cron run after that makes a last pass, then D1 is the only store.
+
+Pick a quiet hour for step 3. A change made on the old store in the minute before the deploy can overwrite the same message's change on D1 in the minute after it.
+
+For two weeks after the switch, new inbound mail is also written to the old store. To move back, remove `STORAGE` and deploy. Mail received in those two weeks comes back with it. Read state, labels, moves, sends and scheduled sends made on D1 do not, and mail scheduled before the switch stays in Drafts unscheduled. Problems inside D1 itself are better fixed with Time Travel (`wrangler d1 time-travel`).
+
 ### Agent model
 
 The agent runs on Workers AI (`@cf/moonshotai/kimi-k2.5`) by default. To use OpenRouter instead, open Settings, then Model & key, choose OpenRouter, paste an API key and pick a model. Only models that can call tools are listed. Test sends one short prompt to check the key. The chat panel, "Draft with agent" and auto-draft then use that model and bill your OpenRouter account. The prompt-injection check and the draft cleanup on incoming mail stay on Workers AI.

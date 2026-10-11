@@ -23,7 +23,19 @@ import {
 	setMeta,
 } from "../lib/index-rows";
 import { indexSyncEnabled } from "../lib/mail-index-stub";
-import { durableObjectInternals } from "../store";
+import { durableObjectInternals, usesD1 } from "../store";
+import {
+	ackCopyChanges,
+	copyCounts,
+	copyMeta,
+	copyPage,
+	copyRows,
+	copyTracking,
+	pendingCopyChanges,
+	readCopyChanges,
+	startCopyTracking,
+	stopCopyTracking,
+} from "../lib/copy-rows";
 import {
 	customFolderCounts,
 	folderEmailIdsSql,
@@ -243,7 +255,8 @@ export class MailboxDO extends DurableObject<Env> {
 	async alarm() {
 		await this.flushIndex();
 		await this.#sendDueScheduled();
-		const next = nextScheduledAt(this.exec);
+		// On D1 the schedules live there; re-arming for rows left here would loop.
+		const next = usesD1(this.env) ? null : nextScheduledAt(this.exec);
 		if (next !== null) await this.#armAlarm(next);
 	}
 
@@ -323,6 +336,8 @@ export class MailboxDO extends DurableObject<Env> {
 	}
 
 	async #sendDueScheduled() {
+		// On D1 the cron sends scheduled mail from the copy; sending here too would send twice.
+		if (usesD1(this.env)) return;
 		const mailboxId = this.#mailboxId();
 		try {
 			const result = await runDueScheduled({
@@ -348,6 +363,50 @@ export class MailboxDO extends DurableObject<Env> {
 		const id = options.mailboxId.toLowerCase();
 		if (getMeta(this.exec, "mailbox_id") !== id) setMeta(this.exec, "mailbox_id", id);
 		return exportIndexRows(this.exec, options);
+	}
+
+	// ── Copy to D1 ─────────────────────────────────────────────────
+	//
+	// Read side of the one-time copy (store/copy-job.ts, lib/copy-rows.ts).
+
+	/** Start recording changes for the copy. Also teaches the mailbox its address. */
+	async copyStart(mailboxId: string) {
+		const id = mailboxId.toLowerCase();
+		if (getMeta(this.exec, "mailbox_id") !== id) setMeta(this.exec, "mailbox_id", id);
+		return startCopyTracking(this.exec);
+	}
+
+	async copyPage(afterId: string | null, limit?: number) {
+		return copyPage(this.exec, afterId, limit);
+	}
+
+	/** The next changed ids with their current rows, and the seq to ack them with. */
+	async copyChanges(limit?: number) {
+		const { ids, seq } = readCopyChanges(this.exec, limit);
+		return { ...copyRows(this.exec, ids), ids, seq };
+	}
+
+	/** Full rows for these ids; the ones that no longer exist are in `missing`. */
+	async copyRows(ids: string[]) {
+		return copyRows(this.exec, ids);
+	}
+
+	async copyAck(ids: string[], seq: number) {
+		ackCopyChanges(this.exec, ids, seq);
+	}
+
+	async copyMeta() {
+		return copyMeta(this.exec);
+	}
+
+	async copyStatus() {
+		return { tracking: copyTracking(this.exec), pending: pendingCopyChanges(this.exec), counts: copyCounts(this.exec) };
+	}
+
+	/** After the last pass: stop tracking, and drop the schedules D1 now sends. The drafts stay. */
+	async copyStop() {
+		stopCopyTracking(this.exec);
+		this.exec(`DELETE FROM scheduled_sends`);
 	}
 
 	/** Source-of-truth counts for the parity page. */

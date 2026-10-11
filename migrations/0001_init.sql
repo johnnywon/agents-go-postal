@@ -180,3 +180,22 @@ CREATE TABLE bulk_job (
 	undo_id TEXT NOT NULL,
 	finished_at TEXT
 );
+
+-- The one-time copy from the Durable Objects (workers/store/copy-job.ts).
+-- One job row; one row per mailbox for its page cursor.
+CREATE TABLE copy_job (
+	id INTEGER PRIMARY KEY CHECK (id = 1),
+	state TEXT NOT NULL,                 -- copying | catching-up | ready | done
+	started_at TEXT NOT NULL,
+	updated_at TEXT NOT NULL,
+	finished_at TEXT,                    -- the final pass after cutover; dual inbound writes run for two weeks after it
+	error TEXT,                          -- the last run's error; the next run retries
+	parity TEXT                          -- JSON from the last check
+);
+CREATE TABLE copy_mailboxes (
+	mailbox_id TEXT PRIMARY KEY,
+	total INTEGER NOT NULL,              -- messages when the copy started
+	copied INTEGER NOT NULL DEFAULT 0,
+	after_id TEXT,                       -- page cursor
+	pages_done INTEGER NOT NULL DEFAULT 0
+);

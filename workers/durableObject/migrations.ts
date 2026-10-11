@@ -221,4 +221,16 @@ export const mailboxMigrations: Migration[] = [
             CREATE INDEX IF NOT EXISTS idx_send_keys_created_at ON send_keys(created_at);
         `,
 	},
+	{
+		// The copy to D1 (lib/copy-rows.ts): ids changed while it runs. Same
+		// shape as index_outbox, but only the copy job reads and clears it.
+		name: "12_copy_outbox",
+		sql: `
+            CREATE TABLE IF NOT EXISTS copy_outbox (
+                seq INTEGER NOT NULL,
+                email_id TEXT NOT NULL,
+                PRIMARY KEY (seq, email_id)
+            );
+        `,
+	},
 ];

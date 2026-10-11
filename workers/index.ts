@@ -22,7 +22,8 @@ import { csrf } from "./lib/csrf";
 import { decodeCursor, InvalidFilterError } from "./lib/mail-index-sql";
 import { parseMailParams } from "./lib/mail-filter-params";
 import { indexedMailboxIds } from "./lib/mail-index-stub";
-import { d1Status, durableObjectInternals, mailStore, usesD1 } from "./store";
+import { d1Status, durableObjectInternals, hasD1, mailStore, usesD1 } from "./store";
+import { advanceCopy, copyStartError, copyStatus, mirrorInbound, startCopy } from "./store/copy-job";
 import { MOVE_FOLDERS } from "./lib/mail-bulk-sql";
 import { automatedMailReason } from "./lib/message-meta";
 import { dryRunFolderImport, importDeps, runFolderImport } from "./lib/folder-import";
@@ -278,6 +279,23 @@ app.get("/api/v1/index/status", async (c) => {
 app.post("/api/v1/index/rebuild", async (c) => {
 	if (usesD1(c.env)) return c.json({ error: "D1 keeps one copy of the mail, so there is no separate index to rebuild" }, 409);
 	return c.json(await durableObjectInternals(c.env).index().startRebuild(), 202);
+});
+
+/** The one-time copy to D1: progress and the parity report. */
+app.get("/api/v1/admin/migrate-to-d1", async (c) => {
+	if (!hasD1(c.env)) return c.json({ available: false, storage: "durable-objects", state: "none", mailboxes: [], parity: null });
+	return c.json({ available: true, storage: usesD1(c.env) ? "d1" : "durable-objects", ...(await copyStatus(c.env)) });
+});
+
+/** Start the copy. The cron carries it on; this runs its first slice. */
+app.post("/api/v1/admin/migrate-to-d1", async (c) => {
+	const { confirm } = (await c.req.json().catch(() => ({}))) as { confirm?: unknown };
+	if (confirm !== true) return c.json({ error: "Send { confirm: true } to start the copy" }, 400);
+	const error = await copyStartError(c.env);
+	if (error) return c.json({ error }, 409);
+	await startCopy(c.env);
+	c.executionCtx.waitUntil(advanceCopy(c.env).catch((e) => console.error("copy to D1 failed:", (e as Error).message)));
+	return c.json(await copyStatus(c.env), 202);
 });
 
 // -- Bulk actions ---------------------------------------------------
@@ -537,7 +555,7 @@ async function receiveEmail(event: { to: string; raw: ReadableStream; rawSize: n
 
 	const originalMessageId = parsedEmail.messageId ? extractMsgId(parsedEmail.messageId) : null;
 
-	await stub.createEmail(Folders.INBOX, {
+	const inbound = {
 		id: messageId, subject: parsedEmail.subject || "",
 		sender: (parsedEmail.from?.address || "").toLowerCase(), recipient: allRecipients.join(", ") || mailboxId,
 		cc: ccRecipients.join(", ") || null, bcc: bccRecipients.join(", ") || null,
@@ -545,7 +563,13 @@ async function receiveEmail(event: { to: string; raw: ReadableStream; rawSize: n
 		body: parsedEmail.html || parsedEmail.text || "",
 		in_reply_to: inReplyTo, email_references: emailReferences.length > 0 ? JSON.stringify(emailReferences) : null,
 		thread_id: threadId, message_id: originalMessageId, raw_headers: JSON.stringify(parsedEmail.headers),
-	}, attachmentData);
+	};
+	await stub.createEmail(Folders.INBOX, inbound, attachmentData);
+	// For two weeks after the move to D1, the old mailbox gets a copy too (store/copy-job.ts).
+	if (usesD1(env)) {
+		ctx.waitUntil(mirrorInbound(env, mailboxId, Folders.INBOX, inbound, attachmentData)
+			.catch((e) => console.error(`inbound mirror failed for ${messageId}:`, (e as Error).message)));
+	}
 
 	const automated = automatedMailReason(JSON.stringify(parsedEmail.headers), parsedEmail.from?.address);
 	if (String(env.AUTO_DRAFT_ENABLED) === "true" && automated) {

@@ -3,15 +3,26 @@
 //     https://opensource.org/licenses/Apache-2.0
 
 /**
- * The one-minute cron. On D1 it sends due scheduled mail. On the Durable
- * Object store it does nothing: each mailbox's alarm sends its own.
+ * The one-minute cron. With a D1 database bound it advances the copy from
+ * the Durable Objects, if one is running. On D1 it then sends due scheduled
+ * mail; on the Durable Object store each mailbox's alarm sends its own.
  */
-import { sendDueScheduledMail, usesD1 } from "./store";
+import { hasD1, sendDueScheduledMail, usesD1 } from "./store";
+import { advanceCopy } from "./store/copy-job";
 import type { Env } from "./types";
 
 export async function runCron(env: Env, now = Date.now()) {
-	if (!usesD1(env)) return { skipped: true as const };
+	let copy: Awaited<ReturnType<typeof advanceCopy>> | "failed" = "none";
+	if (hasD1(env)) {
+		// The copy's final pass runs before sending, so the scheduled sends it brings over are current.
+		copy = await advanceCopy(env).catch((e) => {
+			if (/no such table/.test((e as Error).message)) return "none" as const; // migrations not applied yet
+			console.error("copy to D1 failed:", (e as Error).message);
+			return "failed" as const;
+		});
+	}
+	if (!usesD1(env)) return { copy, skipped: true as const };
 	const scheduled = await sendDueScheduledMail(env, now);
 	if (scheduled.failed.length > 0) console.error(`scheduled send failed for ${scheduled.failed.length} message(s)`);
-	return { skipped: false as const, scheduled };
+	return { copy, skipped: false as const, scheduled };
 }
