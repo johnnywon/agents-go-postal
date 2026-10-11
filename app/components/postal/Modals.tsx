@@ -479,6 +479,8 @@ const MCP_TOOLS = [
 	["get_thread", "Load a conversation thread"],
 	["search_emails", "Search emails by query"],
 	["draft_reply", "Draft a reply to an email"],
+	["create_draft", "Create a new draft"],
+	["update_draft", "Edit a saved draft"],
 	["send_draft", "Send a saved draft"],
 	["mark_email_read", "Mark email as read/unread"],
 	["move_email", "Move email to a system folder"],
