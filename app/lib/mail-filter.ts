@@ -2,6 +2,8 @@
 // Licensed under the Apache 2.0 license found in the LICENSE file or at:
 //     https://opensource.org/licenses/Apache-2.0
 
+import { formatLeaf, type Leaf, parseSearch, type QueryError } from "../../shared/search-query";
+
 /**
  * URL state for the unified mail view. The URL is the single source of
  * truth: a view, an ordered list of filter chips (the drill path), a sort,
@@ -157,7 +159,6 @@ export interface LabelRef {
 	name: string;
 }
 
-const OPERATOR_RE = /(^|\s)(from|to|subject|in|is|has|before|after|label):(?:"([^"]*)"|(\S+))/gi;
 const IN_VIEWS: Record<string, string> = { draft: "drafts", drafts: "drafts", inbox: "inbox", sent: "sent", archive: "archive", spam: "spam", trash: "trash", all: "all", starred: "starred", unread: "unread" };
 
 function resolveLabel(value: string, labels: readonly LabelRef[]): string | null {
@@ -165,39 +166,47 @@ function resolveLabel(value: string, labels: readonly LabelRef[]): string | null
 	return labels.find((l) => l.id === v || l.name.toLowerCase() === v)?.id ?? null;
 }
 
+/** The chip a lone, not excluded item becomes, or the view `in:` picks. Null leaves it in the search text. */
+function chipOf(leaf: Leaf, labels: readonly LabelRef[]): Chip | { view: string } | null {
+	if (leaf.type === "date") return leaf.value.kind === "day" ? { kind: leaf.op, value: formatLeaf(leaf).slice(leaf.op.length + 1) } : null;
+	if (leaf.type !== "op") return null;
+	const { op, value } = leaf;
+	switch (op) {
+		case "from": return !leaf.phrase && (value.includes("@") || value.includes(".")) ? { kind: "from", value } : null;
+		case "to": return leaf.phrase ? null : { kind: "address", value };
+		case "subject": return leaf.phrase ? null : { kind: "subject", value };
+		case "label": {
+			const id = resolveLabel(value, labels);
+			return id ? { kind: "label", value: id } : null;
+		}
+		case "in": return IN_VIEWS[value] ? { view: IN_VIEWS[value] } : null;
+		case "is": return (IS_VALUES as readonly string[]).includes(value) ? { kind: "is", value } : null;
+		case "has": return (HAS_VALUES as readonly string[]).includes(value) ? { kind: "has", value } : null;
+		default: return null;
+	}
+}
+
 /**
- * Turn search text into chips. Known operators become chips; `in:` changes the
- * view; `label:` takes a label name or id; everything else, including unknown
- * operators and unknown labels, stays free text.
+ * Turn search text into chips with the shared parser (shared/search-query.ts).
+ * A lone operator the URL has a chip for becomes that chip; `in:` changes the
+ * view; `label:` takes a label name or id. Everything else, including
+ * exclusions, OR, unknown labels and the newer operators, stays as text for
+ * the server to parse. Operators with bad values are left out and reported.
  */
-export function parseSearchText(input: string, labels: readonly LabelRef[] = []): { view?: string; chips: Chip[]; text: string } {
+export function parseSearchText(input: string, labels: readonly LabelRef[] = []): { view?: string; chips: Chip[]; text: string; errors: QueryError[] } {
+	const query = parseSearch(input);
 	let chips: Chip[] = [];
 	let view: string | undefined;
-	const text = input.replace(OPERATOR_RE, (whole, lead: string, op: string, quoted?: string, bare?: string) => {
-		const value = (quoted ?? bare ?? "").trim();
-		const kind = op.toLowerCase();
-		let chip: Chip | null = null;
-		if (kind === "to") chip = { kind: "address", value };
-		else if (kind === "label") {
-			const id = resolveLabel(value, labels);
-			if (!id) return whole;
-			chip = { kind: "label", value: id };
-		} else if (kind === "in") {
-			const mapped = IN_VIEWS[value.toLowerCase()];
-			if (!mapped) return whole;
-			view = mapped;
-			return lead;
-		} else if (kind === "before" || kind === "after") {
-			const date = value.slice(0, 10);
-			if (!ISO_DATE.test(date)) return whole;
-			chip = { kind, value: date };
-		} else chip = { kind: kind as ChipKind, value: kind === "is" || kind === "has" ? value.toLowerCase() : value };
-		const valid = validChip(chip);
-		if (!valid) return whole;
-		chips = addChip(chips, valid);
-		return lead;
-	});
-	return { view, chips, text: text.replace(/\s+/g, " ").trim() };
+	const rest: string[] = [];
+	for (const term of query.terms) {
+		const chip = !term.negate && term.any.length === 1 ? chipOf(term.any[0], labels) : null;
+		const valid = chip && "kind" in chip ? validChip(chip) : chip;
+		if (valid && "view" in valid) view = valid.view;
+		else if (valid) chips = addChip(chips, valid);
+		else rest.push(input.slice(term.start, term.end));
+	}
+	if (query.sort) rest.push(`sort:${query.sort}`);
+	return { view, chips, text: rest.join(" ").replace(/\s+/g, " ").trim(), errors: query.errors };
 }
 
 /** Apply search-field input to a filter: operators become chips, the rest replaces the text chip. */

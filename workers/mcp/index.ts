@@ -26,6 +26,7 @@ import {
 	toolLabelMatching,
 	toolSearchAllMail,
 	LABEL_MATCHING_MAX,
+	SEARCH_HELP,
 } from "../lib/tools";
 import { Folders, FOLDER_TOOL_DESCRIPTION, MOVE_FOLDER_TOOL_DESCRIPTION } from "../../shared/folders";
 import { DATE_TOKENS, VIEWS } from "../lib/mail-index-sql";
@@ -173,14 +174,14 @@ export class EmailMCP extends McpAgent<Env> {
 		// ── search_emails ──────────────────────────────────────────
 		this.server.tool(
 			"search_emails",
-			"Search for emails matching a query across subject and body fields.",
+			"Search one address's conversations. Same search and results as search_all_mail, limited to that address.",
 			{
 				mailboxId: z.string().describe("The mailbox email address"),
-				query: z.string().describe("Search query to match against subject and body"),
+				query: z.string().describe(`Search text. ${SEARCH_HELP}`),
 				folder: z
 					.string()
 					.optional()
-					.describe("Optional folder to restrict search to"),
+					.describe("Optional folder or view to restrict the search to"),
 			},
 			async ({ mailboxId, query, folder }) => {
 				const denied = await verifyMailbox(mailboxId);
@@ -390,11 +391,11 @@ export class EmailMCP extends McpAgent<Env> {
 
 		// ── search_all_mail / label_matching ──────────────────────
 		const mailSearch = {
-			query: z.string().optional().describe("Words to match in subject, body and sender"),
+			query: z.string().optional().describe(`Search text. ${SEARCH_HELP}`),
 			from: z.array(z.string()).optional().describe("Sender addresses or domains"),
 			to: z.array(z.string()).optional().describe("Your addresses or domains the mail was delivered to. Leave out for every address."),
 			label: z.array(z.string()).optional().describe("Only conversations that already carry these labels (ids or names)"),
-			folder: z.enum(VIEWS).optional().describe("Folder to search. Defaults to all, which covers every folder except Spam and Trash."),
+			folder: z.enum(VIEWS).optional().describe("Folder to search. Defaults to all, which covers every folder except Spam and Trash; anywhere includes them."),
 			unread: z.boolean().optional().describe("true for unread only, false for read only"),
 			starred: z.boolean().optional(),
 			hasAttachment: z.boolean().optional(),

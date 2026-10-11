@@ -104,18 +104,6 @@ const SORT_COLUMN_MAP = {
 	starred: schema.emails.starred,
 } satisfies Record<SortColumn, typeof schema.emails[keyof typeof schema.emails]>;
 
-interface SearchFilterOptions {
-	query: string;
-	folder?: string;
-	from?: string;
-	to?: string;
-	subject?: string;
-	date_start?: string;
-	date_end?: string;
-	is_read?: boolean;
-	is_starred?: boolean;
-	has_attachment?: boolean;
-}
 
 interface GetEmailsOptions {
 	folder?: string;
@@ -881,78 +869,6 @@ export class MailboxDO extends DurableObject<Env> {
 	async markFoldersImported() {
 		setMeta(this.exec, "folders_imported", "1");
 		return { imported: true };
-	}
-
-	// ── Search (raw SQL — dynamic condition builder) ───────────────
-
-	/**
-	 * Build WHERE conditions and params for searchEmails.
-	 */
-	#buildSearchConditions(
-		options: SearchFilterOptions,
-		tableAlias = "",
-	): { conditions: string[]; params: (string | number)[] } {
-		const { query, folder, from, to, subject, date_start, date_end, is_read, is_starred, has_attachment } = options;
-		const prefix = tableAlias ? `${tableAlias}.` : "";
-		const conditions: string[] = [];
-		const params: (string | number)[] = [];
-		let paramIdx = 0;
-
-		const addParam = (value: string | number) => {
-			paramIdx++;
-			params.push(value);
-			return `?${paramIdx}`;
-		};
-
-		if (query) {
-			const p1 = addParam(`%${query}%`);
-			const p2 = addParam(`%${query}%`);
-			const p3 = addParam(`%${query}%`);
-			const p4 = addParam(`%${query}%`);
-			conditions.push(`(${prefix}subject LIKE ${p1} OR ${prefix}body LIKE ${p2} OR ${prefix}sender LIKE ${p3} OR ${prefix}recipient LIKE ${p4} OR ${prefix}cc LIKE ${p4} OR ${prefix}bcc LIKE ${p4})`);
-		}
-		if (folder) {
-			const p = addParam(folder);
-			conditions.push(`${prefix}folder_id = (SELECT id FROM folders WHERE name = ${p} OR id = ${p} LIMIT 1)`);
-		}
-		if (from) { const p = addParam(`%${from}%`); conditions.push(`${prefix}sender LIKE ${p}`); }
-		if (to) { const p = addParam(`%${to}%`); conditions.push(`(${prefix}recipient LIKE ${p} OR ${prefix}cc LIKE ${p} OR ${prefix}bcc LIKE ${p})`); }
-		if (subject) { const p = addParam(`%${subject}%`); conditions.push(`${prefix}subject LIKE ${p}`); }
-		if (date_start) { const p = addParam(date_start); conditions.push(`${prefix}date >= ${p}`); }
-		if (date_end) { const p = addParam(date_end); conditions.push(`${prefix}date <= ${p}`); }
-		if (is_read !== undefined) { const p = addParam(is_read ? 1 : 0); conditions.push(`${prefix}read = ${p}`); }
-		if (is_starred !== undefined) { const p = addParam(is_starred ? 1 : 0); conditions.push(`${prefix}starred = ${p}`); }
-		if (has_attachment) { conditions.push(`${prefix}id IN (SELECT DISTINCT email_id FROM attachments)`); }
-
-		return { conditions, params };
-	}
-
-	async searchEmails(options: SearchFilterOptions & { page?: number; limit?: number }) {
-		const { page = 1, limit: rawLimit = 25 } = options;
-		const limit = Math.min(Math.max(rawLimit, 1), 100);
-		const { conditions, params } = this.#buildSearchConditions(options, "e");
-
-		const where = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
-		const offset = (page - 1) * limit;
-
-		const query = `
-			SELECT e.id, e.subject, e.sender, e.recipient, e.cc, e.bcc, e.date,
-				e.read, e.starred, e.in_reply_to, e.email_references,
-				e.thread_id, e.folder_id,
-				SUBSTR(e.body, 1, 300) as snippet,
-				f.name as folder_name
-			FROM emails e
-			LEFT JOIN folders f ON e.folder_id = f.id
-			${where}
-			ORDER BY e.date DESC LIMIT ?${params.length + 1} OFFSET ?${params.length + 2}`;
-		params.push(limit, offset);
-
-		const result = this.ctx.storage.sql.exec(query, ...params);
-		return [...result].map((row: any) => ({
-			...row,
-			read: !!row.read,
-			starred: !!row.starred,
-		}));
 	}
 
 	// ── Threading helpers (raw SQL) ────────────────────────────────

@@ -83,6 +83,26 @@ Preferences such as theme (dark, light or system), key hints, mark-as-read, remo
 
 Keyboard: `j`/`k` move, `e` archive, `x` select, `r` reply, `a` reply all, `f` forward, `c` new email, `z` undo, `/` or `⌘K` search, `⌘↵` send, `⌘J` agent, `Esc` close.
 
+### Search
+
+The search bar, the agent's `search_all_mail` and `search_emails`, and the MCP tools share one search language (`shared/search-query.ts`). Words match any field by prefix. `"wire transfer"` matches a phrase, `-word` or `-from:example.com` excludes, and `a OR b` matches either.
+
+| Operator | Matches |
+|---|---|
+| `from:` `to:` | A name, address or domain. In the search bar, `to:` with one of your addresses picks that address. |
+| `cc:` | A copied recipient |
+| `subject:` `filename:` | Words in the subject or an attachment name |
+| `label:` | A label, by name |
+| `in:` | `inbox`, `unread`, `starred`, `drafts`, `sent`, `archive`, `spam`, `trash`, `all` (everything but spam and trash), `anywhere`, or a folder name |
+| `is:` | `unread`, `read`, `starred`, `scheduled`, `replied` |
+| `has:` | `attachment`, `pdf`, `image`, `draft`, `unsubscribe` |
+| `before:` `after:` | A date (`2026-01-31`, your local day) or an age (`30d`, `3w`, `2m`, `1y`) |
+| `newer:` `older:` | An age |
+| `larger:` `smaller:` | A size including attachments: `500k`, `5mb` |
+| `list:` | A mailing list id |
+
+Unknown operators are searched as plain words. An operator with a value that doesn't parse, such as `before:soon`, is left out and named in the search bar. `cc:`, `filename:`, `larger:`, `smaller:`, `is:scheduled`, `has:pdf` and `has:image` need D1 storage (below). `has:link` and `sort:relevance` are parsed but not yet supported.
+
 ### Scheduled send
 
 Choose a time from the arrow next to Send in the compose window. The message is saved to Drafts with a "Scheduled" badge, and the address's Durable Object sends it with an alarm at that time through the normal sending path. Cancel removes the schedule and keeps the draft. Editing or deleting the draft before the send time cancels it. A send that fails is retried every 15 minutes, up to three attempts; after that the draft stays in Drafts marked "Send failed". Attachments count toward a 1.5 MB limit per scheduled message.

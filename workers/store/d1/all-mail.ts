@@ -40,6 +40,9 @@ import type { BulkTarget } from "../../durableObject/mail-index";
 import type { Sql } from "../sql";
 import { applyOps } from "./ops";
 
+/** Searches here may use the operators that need D1's tables. */
+const onD1 = (filter: MailFilter): MailFilter => ({ ...filter, engine: "d1" });
+
 export class D1AllMail {
 	constructor(private readonly sql: Sql, private readonly bucket: R2Bucket) {}
 
@@ -57,11 +60,11 @@ export class D1AllMail {
 	}
 
 	async queryMail(filter: MailFilter, options: { cursor?: string | null; limit?: number } = {}) {
-		return { ...(await this.#run(mailQuery(filter, options))), indexing: null };
+		return { ...(await this.#run(mailQuery(onD1(filter), options))), indexing: null };
 	}
 
 	async queryFacets(filter: MailFilter) {
-		return this.#run(facetsQuery(filter));
+		return this.#run(facetsQuery(onD1(filter)));
 	}
 
 	async folderViews() {
@@ -69,7 +72,7 @@ export class D1AllMail {
 	}
 
 	async threadKeysMatching(filter: MailFilter, limit: number) {
-		return this.#run(matchingThreadKeysQuery(filter, limit));
+		return this.#run(matchingThreadKeysQuery(onD1(filter), limit));
 	}
 
 	async threadKeyOf(mailboxId: string, emailId: string) {
@@ -81,7 +84,7 @@ export class D1AllMail {
 		try {
 			threadKeys = "threadKeys" in target
 				? target.threadKeys
-				: await this.#run(resolveFilterTargetQuery(target.filter, target.asOf, target.expectedCount));
+				: await this.#run(resolveFilterTargetQuery(onD1(target.filter), target.asOf, target.expectedCount));
 		} catch (e) {
 			if (e instanceof BulkConflictError) return { conflict: e.count };
 			throw e;

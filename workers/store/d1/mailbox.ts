@@ -38,20 +38,6 @@ const SORT_COLUMNS: Record<string, string> = {
 };
 const SUBJECT_PREFIX = /^(?:(?:re|fwd?|fw|aw|wg|r[eé]f|sv)\s*:\s*)+/i;
 
-interface SearchOptions {
-	query: string;
-	folder?: string;
-	from?: string;
-	to?: string;
-	subject?: string;
-	date_start?: string;
-	date_end?: string;
-	is_read?: boolean;
-	is_starred?: boolean;
-	has_attachment?: boolean;
-	page?: number;
-	limit?: number;
-}
 
 export class D1Mailbox {
 	readonly #id: string;
@@ -269,39 +255,6 @@ export class D1Mailbox {
 	async markFoldersImported() {
 		await this.sql.run(`UPDATE mailboxes SET folders_imported = 1 WHERE id = ?`, this.#id);
 		return { imported: true };
-	}
-
-	// ── Per-address search (the agent's and MCP's search_emails) ───
-
-	async searchEmails(options: SearchOptions) {
-		const limit = Math.min(Math.max(options.limit ?? 25, 1), 100);
-		const offset = ((options.page ?? 1) - 1) * limit;
-		const where = [`m.mailbox_id = ?`];
-		const params: unknown[] = [this.#id];
-		const like = (v: string) => `%${v}%`;
-		if (options.query) {
-			where.push(`(m.subject LIKE ? OR m.body LIKE ? OR m.sender_addr LIKE ? OR m.recipient LIKE ? OR m.cc LIKE ? OR m.bcc LIKE ?)`);
-			params.push(...Array(6).fill(like(options.query)));
-		}
-		if (options.folder) {
-			where.push(`m.folder_id = (SELECT id FROM folders WHERE mailbox_id = ? AND (name = ? OR id = ?) LIMIT 1)`);
-			params.push(this.#id, options.folder, options.folder);
-		}
-		if (options.from) { where.push(`m.sender_addr LIKE ?`); params.push(like(options.from)); }
-		if (options.to) { where.push(`(m.recipient LIKE ? OR m.cc LIKE ? OR m.bcc LIKE ?)`); params.push(...Array(3).fill(like(options.to))); }
-		if (options.subject) { where.push(`m.subject LIKE ?`); params.push(like(options.subject)); }
-		if (options.date_start) { where.push(`m.date >= ?`); params.push(options.date_start); }
-		if (options.date_end) { where.push(`m.date <= ?`); params.push(options.date_end); }
-		if (options.is_read !== undefined) { where.push(`m.read = ?`); params.push(options.is_read ? 1 : 0); }
-		if (options.is_starred !== undefined) { where.push(`m.starred = ?`); params.push(options.is_starred ? 1 : 0); }
-		if (options.has_attachment) where.push(`m.email_id IN (SELECT DISTINCT email_id FROM attachments)`);
-		const rows = await this.sql.all(
-			`SELECT ${LIST_COLUMNS}, f.name AS folder_name
-			FROM messages m LEFT JOIN folders f ON f.mailbox_id = m.mailbox_id AND f.id = m.folder_id
-			WHERE ${where.join(" AND ")} ORDER BY m.date DESC LIMIT ? OFFSET ?`,
-			...params, limit, offset,
-		);
-		return rows.map((r) => ({ ...toListRow(r), folder_name: (r.folder_name as string | null) ?? null }));
 	}
 
 	// ── Sending ────────────────────────────────────────────────────

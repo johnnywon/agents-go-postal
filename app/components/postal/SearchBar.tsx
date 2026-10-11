@@ -23,6 +23,8 @@ export interface SearchBarProps {
 	/** ↑↓ while typing move through the list. */
 	onMove: (delta: number) => void;
 	resultCount: number | null;
+	/** An operator whose value doesn't parse. It is left out of the search. */
+	error?: string;
 	filters: FilterSuggestion[];
 	addresses: { address: string; count?: number }[];
 	identities: Identities;
@@ -105,7 +107,9 @@ export const SearchBar = forwardRef<HTMLInputElement, SearchBarProps>(function S
 				/>
 				{hasQ && (
 					<>
-						{props.resultCount !== null && (
+						{props.error ? (
+							<span className="pg-search-error pg-ellipsis" role="status" title={props.error}>{props.error}</span>
+						) : props.resultCount !== null && (
 							<span className="pg-result-count">{props.resultCount.toLocaleString()} result{props.resultCount === 1 ? "" : "s"}</span>
 						)}
 						<button type="button" className="pg-clear" title="Clear search (Esc)" aria-label="Clear search" onMouseDown={(e) => { e.preventDefault(); props.onChange(""); }}>

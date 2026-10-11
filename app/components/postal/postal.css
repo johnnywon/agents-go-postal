@@ -275,6 +275,7 @@ html:has(.postal), html:has(.postal) body { background: var(--pg-base, #141518);
 .pg-search input::placeholder { color: var(--pg-text-7); }
 .pg-search input:focus-visible { outline: none; }
 .pg-search .pg-result-count { flex: none; font: 11px var(--pg-mono); color: var(--pg-text-5); white-space: nowrap; }
+.pg-search .pg-search-error { flex: 0 1 auto; min-width: 0; max-width: 45%; font: 11px var(--pg-mono); color: var(--pg-danger-text); }
 .pg-search .pg-clear { width: 24px; height: 24px; flex: none; display: flex; align-items: center; justify-content: center; color: var(--pg-text-6); }
 .pg-search .pg-clear:hover { background: var(--pg-hover-raised); color: var(--pg-text-2); }
 /* The logo is a faint, tilted watermark. It is never clipped. */
@@ -760,6 +761,7 @@ html:has(.postal), html:has(.postal) body { background: var(--pg-base, #141518);
   .pg-cw[data-state="min"] { top: auto; height: 44px; }
   .pg-cw-scrim { display: none; }
   .pg-search { padding: 0 6px; }
+  .pg-search .pg-search-error { max-width: 30%; }
   .pg-search input, .pg-agent-input textarea, .pg-chips input, .pg-cw-subject, .pg-field input, .pg-input, .pg-textarea, .pg-label-picker input, .pg-sched-custom input, .pg-editor .ProseMirror { font-size: 16px; }
   .pg-search .pg-watermark { display: none; }
   .pg-toast { bottom: 16px; }

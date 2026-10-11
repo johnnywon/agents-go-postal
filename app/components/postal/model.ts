@@ -20,6 +20,7 @@ import {
 	parseSearchText,
 	removeChip,
 } from "~/lib/mail-filter";
+import { highlightTerms, parseSearch, type QueryError } from "../../../shared/search-query";
 
 const FILTER_KEYS = ["view", "sort", "dir", "address", "from", "label", "is", "has", "subject", "date", "before", "after", "q"];
 
@@ -45,10 +46,15 @@ export function withSearch(filter: MailFilter, search: string, labels: readonly 
 	return applySearch(filter, normalizeSearch(text), labels);
 }
 
-/** Free-text words of the search, for highlighting. */
+/** Free-text words of the search, for highlighting. Excluded words and operators are left out. */
 export function searchTerms(search: string, labels: readonly LabelRef[]): string[] {
 	const parsed = parseSearchText(normalizeSearch(search), labels);
-	return parsed.text.toLowerCase().split(/\s+/).filter((w) => w.length > 0);
+	return highlightTerms(parseSearch(parsed.text));
+}
+
+/** Operators in the search whose values don't parse. They are left out of the search. */
+export function searchErrors(search: string): QueryError[] {
+	return parseSearch(normalizeSearch(search)).errors;
 }
 
 /** Split text around the first matching term: [before, match, after]. */

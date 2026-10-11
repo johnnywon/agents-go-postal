@@ -8,6 +8,8 @@
  * Pure functions over the `Exec` adapter so node:sqlite tests run this code.
  */
 
+import { parseSearch, type Term } from "../../shared/search-query";
+import { compileSearch, resolveDate, type SearchEngine, viewClause as searchViewClause } from "../store/search";
 import type { IndexRow } from "./index-rows";
 import type { Exec } from "./sql-exec";
 
@@ -239,7 +241,7 @@ export function sweepMailbox(exec: Exec, mailboxId: string, generation: number):
 
 // ── Filters ────────────────────────────────────────────────────────
 
-export const VIEWS = ["inbox", "unread", "starred", "drafts", "sent", "archive", "spam", "trash", "all"] as const;
+export const VIEWS = ["inbox", "unread", "starred", "drafts", "sent", "archive", "spam", "trash", "all", "anywhere"] as const;
 export const IS_VALUES = ["unread", "read", "starred"] as const;
 export const HAS_VALUES = ["attachment", "unsubscribe"] as const;
 export const DATE_TOKENS = ["today", "yesterday", "7d", "30d", "older"] as const;
@@ -261,6 +263,8 @@ export interface MailFilter {
 	dir: "asc" | "desc";
 	/** Minutes, as `Date.prototype.getTimezoneOffset()` returns; sets where "today" starts. */
 	tzOffset: number;
+	/** Which store runs the SQL. Set by the store; some search operators need D1's tables. */
+	engine?: SearchEngine;
 }
 
 export function emptyFilter(overrides: Partial<MailFilter> = {}): MailFilter {
@@ -278,22 +282,6 @@ type Dimension = "view" | "address" | "from" | "label" | "status" | "date" | "te
 interface Clause {
 	sql: string;
 	params: unknown[];
-}
-
-const WORD = /[\p{L}\p{N}]/u;
-
-/**
- * FTS5 MATCH string. Every token is a quoted prefix phrase, so operators and
- * punctuation in user text are never parsed as query syntax.
- */
-export function buildMatch(q: string, subjects: string[] = []): string | null {
-	const quote = (token: string) => `"${token.replace(/"/g, '""')}"*`;
-	const tokens = (text: string) => text.split(/\s+/).filter((token) => WORD.test(token));
-	const parts = [
-		...tokens(q).map(quote),
-		...subjects.flatMap(tokens).map((token) => `subject : ${quote(token)}`),
-	];
-	return parts.length > 0 ? parts.join(" AND ") : null;
 }
 
 function startOfLocalDay(now: number, tzOffset: number): number {
@@ -315,17 +303,9 @@ export function dateRange(token: MailFilter["date"], now: number, tzOffset: numb
 }
 
 function viewClause(view: string): Clause {
-	switch (view) {
-		case "inbox": return { sql: `m.state = 'inbox'`, params: [] };
-		case "unread": return { sql: `m.state = 'inbox' AND m.unread = 1`, params: [] };
-		case "starred": return { sql: `m.starred = 1 AND m.state NOT IN ('trash', 'spam')`, params: [] };
-		case "drafts": return { sql: `m.state = 'draft'`, params: [] };
-		case "sent": case "archive": case "spam": case "trash": return { sql: `m.state = ?`, params: [view] };
-		case "all": return { sql: `m.state NOT IN ('trash', 'spam')`, params: [] };
-		default:
-			if (/^folder:[\w-]+$/.test(view)) return { sql: `m.state = ?`, params: [view] };
-			throw new InvalidFilterError(`Unknown view: ${view}`);
-	}
+	const clause = searchViewClause(view);
+	if (!clause) throw new InvalidFilterError(`Unknown view: ${view}`);
+	return clause;
 }
 
 function addressClause(value: string): Clause {
@@ -345,9 +325,32 @@ function anyOf(clauses: Clause[]): Clause {
 	return { sql: `(${clauses.map((c) => c.sql).join(" OR ")})`, params: clauses.flatMap((c) => c.params) };
 }
 
+const ISO_DAY = /^\d{4}-\d{2}-\d{2}$/;
+
+/** A before or after chip: a calendar day starts at the reader's midnight. */
+function chipDate(value: string, tzOffset: number): string {
+	if (!ISO_DAY.test(value)) return value;
+	const [year, month, day] = value.split("-").map(Number);
+	return resolveDate({ kind: "day", year, month, day }, 0, tzOffset);
+}
+
+/**
+ * The search text and subject chips, compiled. Throws on an operator that
+ * doesn't parse or that this store can't run, so a search is never quietly
+ * wider than what was typed.
+ */
+export function searchOf(filter: MailFilter, now = Date.now()) {
+	const query = parseSearch(filter.q);
+	const subjects: Term[] = filter.subject.map((value) => ({ negate: false, any: [{ type: "op", op: "subject", value, phrase: false }], start: 0, end: 0 }));
+	const compiled = compileSearch({ terms: [...query.terms, ...subjects], errors: query.errors }, { engine: filter.engine ?? "index", now, tzOffset: filter.tzOffset });
+	if (compiled.errors.length > 0) throw new InvalidFilterError(compiled.errors[0]);
+	return compiled;
+}
+
 function clauses(filter: MailFilter, now: number, omit?: Dimension): Clause[] {
 	const out: Clause[] = [{ sql: `m.deleted = 0`, params: [] }];
-	if (omit !== "view") out.push(viewClause(filter.view));
+	const search = searchOf(filter, now);
+	if (omit !== "view") out.push(search.scope ?? viewClause(filter.view));
 	if (omit !== "address" && filter.address.length > 0) out.push(anyOf(filter.address.map(addressClause)));
 	if (omit !== "from" && filter.from.length > 0) out.push(anyOf(filter.from.map(fromClause)));
 	if (omit !== "label") {
@@ -367,11 +370,10 @@ function clauses(filter: MailFilter, now: number, omit?: Dimension): Clause[] {
 		const range = dateRange(filter.date, now, filter.tzOffset);
 		if (range.from) out.push({ sql: `m.date >= ?`, params: [range.from] });
 		if (range.to) out.push({ sql: `m.date < ?`, params: [range.to] });
-		if (filter.after) out.push({ sql: `m.date >= ?`, params: [filter.after] });
-		if (filter.before) out.push({ sql: `m.date < ?`, params: [filter.before] });
+		if (filter.after) out.push({ sql: `m.date >= ?`, params: [chipDate(filter.after, filter.tzOffset)] });
+		if (filter.before) out.push({ sql: `m.date < ?`, params: [chipDate(filter.before, filter.tzOffset)] });
 	}
-	const match = buildMatch(filter.q, filter.subject);
-	if (match) out.push({ sql: `m.id IN (SELECT rowid FROM messages_fts WHERE messages_fts MATCH ?)`, params: [match] });
+	out.push(...search.clauses);
 	return out;
 }
 

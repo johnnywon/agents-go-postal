@@ -35,8 +35,6 @@ export type MailboxStore = Pick<
 	| "folderEmailIds"
 	| "importFolder"
 	| "markFoldersImported"
-	// Per-address search (the agent's and MCP's search_emails)
-	| "searchEmails"
 	// Sending
 	| "checkSendRateLimit"
 	| "claimSendKey"

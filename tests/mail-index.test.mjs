@@ -198,12 +198,6 @@ test("status, has, label and subject combine with AND", () => {
 	assert.deepEqual(ids({ subject: ["invoice"], is: ["starred"], has: ["attachment"] }), ["both"]);
 });
 
-test("buildMatch quotes every token so query syntax in user text is inert", () => {
-	assert.equal(idx.buildMatch(`ann@example.org "x" a-b AND OR NEAR : -`), `"ann@example.org"* AND """x"""* AND "a-b"* AND "AND"* AND "OR"* AND "NEAR"*`);
-	assert.equal(idx.buildMatch("", ["Re: lunch"]), `subject : "Re:"* AND subject : "lunch"*`);
-	assert.equal(idx.buildMatch("  ", []), null);
-});
-
 test("search handles operators and punctuation without errors", () => {
 	const { exec } = index();
 	apply(exec, "a@wayne.org", [

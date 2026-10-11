@@ -15,8 +15,9 @@
  */
 
 import { isSystemFolder } from "./mailbox-bulk";
-import { mailStore } from "../store";
-import { DATE_TOKENS, emptyFilter, type MailFilter, VIEWS } from "./mail-index-sql";
+import { mailStore, searchEngine } from "../store";
+import type { SearchEngine } from "../store/search";
+import { DATE_TOKENS, emptyFilter, InvalidFilterError, type MailFilter, searchOf, VIEWS } from "./mail-index-sql";
 import type { EmailFull } from "./schemas";
 import {
 	getFullEmail,
@@ -32,14 +33,6 @@ import type { Env } from "../types";
 
 const splitList = (value: string | null | undefined) =>
 	(value ?? "").split(",").map((a) => a.trim()).filter(Boolean);
-
-// ── Type casts for DO methods not on the base stub type ────────────
-type MailboxSearchStub = {
-	searchEmails: (options: {
-		query: string;
-		folder?: string;
-	}) => Promise<unknown>;
-};
 
 // ── list_mailboxes ─────────────────────────────────────────────────
 
@@ -90,16 +83,20 @@ export async function toolGetThread(
 
 // ── search_emails ──────────────────────────────────────────────────
 
+/**
+ * search_all_mail scoped to one address. A folder that isn't a view is
+ * searched by name with `in:`.
+ */
 export async function toolSearchEmails(
 	env: Env,
 	mailboxId: string,
-	params: { query: string; folder?: string },
+	params: { query: string; folder?: string; limit?: number },
 ) {
-	const stub = mailStore(env).mailbox(mailboxId);
-	return (stub as unknown as MailboxSearchStub).searchEmails({
-		query: params.query,
-		folder: params.folder,
-	});
+	const folder = (params.folder ?? "").trim();
+	const lower = folder.toLowerCase() === "draft" ? "drafts" : folder.toLowerCase();
+	const isView = (VIEWS as readonly string[]).includes(lower);
+	const query = !folder || isView ? params.query : `${params.query} in:"${folder.replace(/"/g, "")}"`;
+	return toolSearchAllMail(env, { query, folder: !folder ? undefined : isView ? lower : "anywhere", to: [mailboxId], limit: params.limit });
 }
 
 // ── draft_reply ────────────────────────────────────────────────────
@@ -473,10 +470,20 @@ export interface MailSearch {
 
 export const LABEL_MATCHING_MAX = 500;
 
-/** Build an index filter. Labels are named by id or name; unknown ones are an error. */
+/** How the `query` argument reads, for the agent's and MCP's tool descriptions. */
+export const SEARCH_HELP =
+	`The query uses the mail search language: words match any field by prefix, "exact phrase", -word or -from:x to exclude, a OR b. ` +
+	`Operators: from: to: cc: subject: label: in: (inbox, sent, trash, anywhere or a folder name) is: (unread, read, starred, scheduled, replied) ` +
+	`has: (attachment, pdf, image, draft, unsubscribe) filename: before: after: (2026-01-31 or 30d) newer: older: (7d, 3w, 2m, 1y) larger: smaller: (500k, 5mb) list:.`;
+
+/**
+ * Build an index filter. Labels are named by id or name; unknown ones are an
+ * error. With `engine`, the query text is checked for that store too.
+ */
 export function mailSearchFilter(
 	search: MailSearch,
 	labels: { id: string; name: string }[],
+	engine?: SearchEngine,
 ): { filter: MailFilter } | { error: string } {
 	const folder = (search.folder ?? "all").trim().toLowerCase();
 	if (!(VIEWS as readonly string[]).includes(folder)) return { error: `Unknown folder: ${search.folder}. Use one of ${VIEWS.join(", ")}.` };
@@ -496,14 +503,21 @@ export function mailSearchFilter(
 	const clean = (list?: string[]) => (list ?? []).map((v) => v.trim()).filter(Boolean).slice(0, 20);
 	const filter = emptyFilter({
 		view: folder,
-		q: (search.query ?? "").trim().slice(0, 200),
+		q: (search.query ?? "").trim(),
 		from: clean(search.from),
 		address: clean(search.to),
 		label: labelIds,
 		is,
 		has: search.hasAttachment ? ["attachment"] : [],
 		date: search.date as MailFilter["date"],
+		engine,
 	});
+	try {
+		searchOf(filter);
+	} catch (e) {
+		if (e instanceof InvalidFilterError) return { error: `${e.message}. ${SEARCH_HELP}` };
+		throw e;
+	}
 	const empty = !filter.q && !filter.from.length && !filter.address.length && !filter.label.length && !filter.is.length && !filter.has.length && !filter.date;
 	if (empty && folder === "all") return { error: "Give at least one search term, sender, address, label, folder or date." };
 	return { filter };
@@ -512,7 +526,7 @@ export function mailSearchFilter(
 /** Search every address at once. Each result names the address it is in. */
 export async function toolSearchAllMail(env: Env, search: MailSearch & { limit?: number }) {
 	const index = mailStore(env).all();
-	const built = mailSearchFilter(search, await index.listLabels());
+	const built = mailSearchFilter(search, await index.listLabels(), searchEngine(env));
 	if ("error" in built) return built;
 	const limit = Math.min(Math.max(search.limit ?? 25, 1), 50);
 	const result = await index.queryMail(built.filter, { limit });
@@ -549,7 +563,7 @@ export async function toolLabelMatching(
 		return { error: `Unknown label: ${unknown.join(", ")}. Use list_labels to see labels, or create_label to make one.` };
 	}
 	if (!params.add?.length && !params.remove?.length && !params.archive) return { error: "Say which labels to add or remove." };
-	const built = mailSearchFilter(search, labels);
+	const built = mailSearchFilter(search, labels, searchEngine(env));
 	if ("error" in built) return built;
 	const threadKeys = await index.threadKeysMatching(built.filter, LABEL_MATCHING_MAX + 1);
 	if (threadKeys.length === 0) return { status: "no matches", conversations: 0 };

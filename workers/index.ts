@@ -22,7 +22,7 @@ import { csrf } from "./lib/csrf";
 import { decodeCursor, InvalidFilterError } from "./lib/mail-index-sql";
 import { parseMailParams } from "./lib/mail-filter-params";
 import { indexedMailboxIds } from "./lib/mail-index-stub";
-import { d1Status, durableObjectInternals, hasD1, mailStore, usesD1 } from "./store";
+import { d1Status, durableObjectInternals, hasD1, mailStore, searchEngine, usesD1 } from "./store";
 import { advanceCopy, copyStartError, copyStatus, mirrorInbound, startCopy } from "./store/copy-job";
 import { MOVE_FOLDERS } from "./lib/mail-bulk-sql";
 import { automatedMailReason } from "./lib/message-meta";
@@ -219,15 +219,15 @@ app.put("/api/v1/mailboxes/:mailboxId", async (c) => {
 
 // -- Unified mail (MailIndexDO) -------------------------------------
 
-function parseMailRequest(url: string) {
-	const parsed = parseMailParams(new URL(url).searchParams);
+function parseMailRequest(env: Env, url: string) {
+	const parsed = parseMailParams(new URL(url).searchParams, searchEngine(env));
 	if (parsed.cursor) decodeCursor(parsed.cursor);
 	return parsed;
 }
 
 app.get("/api/v1/mail", async (c) => {
 	try {
-		const { filter, cursor, limit } = parseMailRequest(c.req.url);
+		const { filter, cursor, limit } = parseMailRequest(c.env, c.req.url);
 		return c.json(await mailStore(c.env).all().queryMail(filter, { cursor, limit }));
 	} catch (error) {
 		if (error instanceof InvalidFilterError) return c.json({ error: error.message }, 400);
@@ -237,7 +237,7 @@ app.get("/api/v1/mail", async (c) => {
 
 app.get("/api/v1/mail/facets", async (c) => {
 	try {
-		const { filter } = parseMailRequest(c.req.url);
+		const { filter } = parseMailRequest(c.env, c.req.url);
 		return c.json(await mailStore(c.env).all().queryFacets(filter));
 	} catch (error) {
 		if (error instanceof InvalidFilterError) return c.json({ error: error.message }, 400);
@@ -307,7 +307,7 @@ app.post("/api/v1/mail/bulk", async (c) => {
 	try {
 		const resolved = "threadKeys" in target
 			? { threadKeys: target.threadKeys, view: parseMailParams(new URLSearchParams({ view: target.view })).filter.view }
-			: { filter: parseMailParams(new URLSearchParams(target.filter)).filter, asOf: target.asOf, expectedCount: target.expectedCount };
+			: { filter: parseMailParams(new URLSearchParams(target.filter), searchEngine(c.env)).filter, asOf: target.asOf, expectedCount: target.expectedCount };
 		const result = await mailStore(c.env).all().bulk(resolved, action);
 		if ("conflict" in result) return c.json({ error: "The list changed. Check the selection and try again.", count: result.conflict }, 409);
 		if ("job" in result) return c.json(result.job, 202);

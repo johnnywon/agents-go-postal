@@ -24,7 +24,7 @@ import { ComposePopout, Composer } from "./ComposeWindow";
 import { buildIdentities } from "./identity";
 import { ListPane } from "./ListPane";
 import { LogoutModal, McpModal, SettingsModal, Toast, type ToastState } from "./Modals";
-import { conversations, HOME, labelOf, parsePostalFilter, scopeOf, searchTerms, withSearch } from "./model";
+import { conversations, HOME, labelOf, parsePostalFilter, scopeOf, searchErrors, searchTerms, withSearch } from "./model";
 import { useLayout, usePrefs, useResolvedTheme, useWidth } from "./prefs";
 import { Reader } from "./Reader";
 import { SearchBar, type FilterSuggestion } from "./SearchBar";
@@ -89,6 +89,7 @@ function PostalApp({ addresses, domains, autoDraft }: PostalProps) {
 	const effective = useMemo(() => withSearch(filter, debounced, labelRefs), [filter, debounced, labelRefs]);
 	const effectiveKey = filterToParams(effective).toString();
 	const terms = useMemo(() => searchTerms(debounced, labelRefs), [debounced, labelRefs]);
+	const searchError = useMemo(() => searchErrors(debounced)[0]?.message, [debounced]);
 
 	const write = useCallback(
 		(next: MailFilter, nextOpen: OpenRef | null, replace = false, nextSearch = debounced) => {
@@ -483,6 +484,7 @@ function PostalApp({ addresses, domains, autoDraft }: PostalProps) {
 						onOpenFirst={() => rows[0] && openConversation(rows[0])}
 						onMove={move}
 						resultCount={searching ? total : null}
+						error={searchError}
 						filters={suggestions}
 						addresses={addresses.map((a) => ({ address: a, count: addressFacet.get(a) }))}
 						identities={identities}

@@ -13,7 +13,11 @@ import {
 	VIEWS,
 	emptyFilter,
 	type MailFilter,
+	searchOf,
 } from "./mail-index-sql";
+import type { SearchEngine } from "../store/search";
+
+import { MAX_SEARCH_LENGTH } from "../../shared/search-query";
 
 const MAX_VALUES = 20;
 const MAX_LENGTH = 200;
@@ -32,7 +36,11 @@ function oneOf<T extends string>(value: string | null, allowed: readonly T[], ke
 	return value as T;
 }
 
-export function parseMailParams(params: URLSearchParams): { filter: MailFilter; cursor: string | null; limit: number } {
+/**
+ * With `engine`, the search text is also compiled for that store, so a bad
+ * operator is refused here rather than inside the store.
+ */
+export function parseMailParams(params: URLSearchParams, engine?: SearchEngine): { filter: MailFilter; cursor: string | null; limit: number } {
 	const view = params.get("view") || "inbox";
 	if (!(VIEWS as readonly string[]).includes(view) && !/^folder:[\w-]+$/.test(view)) {
 		throw new InvalidFilterError(`Invalid view: ${view}`);
@@ -57,7 +65,7 @@ export function parseMailParams(params: URLSearchParams): { filter: MailFilter; 
 	}
 
 	const q = (params.get("q") ?? "").trim();
-	if (q.length > 500) throw new InvalidFilterError("Search text too long");
+	if (q.length > MAX_SEARCH_LENGTH) throw new InvalidFilterError("Search text too long");
 
 	const tz = Number(params.get("tz") ?? 0);
 	const limit = Number(params.get("limit") ?? 50);
@@ -77,12 +85,15 @@ export function parseMailParams(params: URLSearchParams): { filter: MailFilter; 
 		sort: oneOf(params.get("sort"), SORTS, "sort") ?? "date",
 		dir: oneOf(params.get("dir"), ["asc", "desc"] as const, "dir") ?? "desc",
 		tzOffset: Number.isFinite(tz) && Math.abs(tz) <= 14 * 60 ? Math.trunc(tz) : 0,
+		engine,
 	};
 	for (const key of Object.keys(overrides) as (keyof MailFilter)[]) {
 		if (overrides[key] === undefined) delete overrides[key];
 	}
+	const filter = emptyFilter(overrides);
+	if (engine) searchOf(filter);
 	return {
-		filter: emptyFilter(overrides),
+		filter,
 		cursor: params.get("cursor") || null,
 		limit: Number.isFinite(limit) ? Math.min(Math.max(Math.trunc(limit), 1), 100) : 50,
 	};

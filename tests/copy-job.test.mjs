@@ -149,7 +149,6 @@ test("D1 reads back what the Durable Objects hold", async () => {
 	await same("attachment", A, "getAttachment", ["att1"]);
 	await same("scheduled", A, "listScheduled");
 	await same("send key", A, "claimSendKey", ["k1"]);
-	await same("search", A, "searchEmails", [{ query: "invoice" }], dropSnippet);
 	const pageKeys = (page) => page.conversations.map((c) => ({ key: c.thread_key, email: c.email_id, count: c.thread_count, unread: c.thread_unread_count, labels: c.labels, state: c.state, starred: c.starred }));
 	for (const view of ["inbox", "all", "sent", "drafts", "starred", "trash", "folder:receipts"]) await same(`list ${view}`, "all", "queryMail", [{ ...all, view }], pageKeys);
 	await same("list by label", "all", "queryMail", [{ ...all, label: ["later"] }], pageKeys);

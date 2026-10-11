@@ -114,8 +114,6 @@ test("flags, moves and deletes", async () => {
 });
 
 test("search, threading and send limits", async () => {
-	await same("searchEmails", A, "searchEmails", [{ query: "invoice" }], dropSnippet);
-	await same("searchEmails filters", A, "searchEmails", [{ query: "", folder: "sent", is_read: true }], dropSnippet);
 	await same("findThreadBySubject", A, "findThreadBySubject", ["RE: invoice october", "ann@example.net"]);
 	await same("findThreadBySubject other sender", A, "findThreadBySubject", ["Invoice October", "zed@example.net"]);
 	await same("checkSendRateLimit", A, "checkSendRateLimit");
