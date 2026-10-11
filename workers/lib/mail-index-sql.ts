@@ -410,7 +410,7 @@ export async function runAsync<T>(query: Query<T>, read: (sql: string, ...params
 	return step.value;
 }
 
-const sqlStep = (sql: string, ...params: unknown[]): SqlStep => ({ sql, params });
+export const sqlStep = (sql: string, ...params: unknown[]): SqlStep => ({ sql, params });
 
 // ── Conversation list ──────────────────────────────────────────────
 

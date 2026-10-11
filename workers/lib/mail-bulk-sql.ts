@@ -9,7 +9,7 @@
  */
 
 import { DEFAULT_LABEL_COLOR, isLabelColor } from "../../shared/label-colors";
-import { type MailFilter, filterWhere } from "./mail-index-sql";
+import { type MailFilter, type Query, filterWhere, runSync, sqlStep } from "./mail-index-sql";
 import type { Exec } from "./sql-exec";
 
 export const MAX_OP_IDS = 100;
@@ -82,30 +82,32 @@ function moveTarget(action: BulkAction): string | null {
  * BulkConflictError when the count differs from what the user saw.
  */
 /** Thread keys of conversations matching a filter, newest first, at most `limit`. */
-export function matchingThreadKeys(exec: Exec, filter: MailFilter, limit: number, now = Date.now()): string[] {
+export function* matchingThreadKeysQuery(filter: MailFilter, limit: number, now = Date.now()): Query<string[]> {
 	const w = filterWhere(filter, now);
-	return exec(
+	return (yield sqlStep(
 		`SELECT m.thread_key AS k, MAX(m.date) AS d FROM messages m WHERE ${w.sql} GROUP BY m.thread_key ORDER BY d DESC LIMIT ?`,
 		...w.params,
 		limit,
-	).map((r) => String(r.k));
+	)).map((r) => String(r.k));
 }
 
-export function resolveFilterTarget(
-	exec: Exec,
-	filter: MailFilter,
-	asOf: string,
-	expectedCount: number,
-	now = Date.now(),
-): string[] {
+export function matchingThreadKeys(exec: Exec, filter: MailFilter, limit: number, now = Date.now()): string[] {
+	return runSync(matchingThreadKeysQuery(filter, limit, now), exec);
+}
+
+export function* resolveFilterTargetQuery(filter: MailFilter, asOf: string, expectedCount: number, now = Date.now()): Query<string[]> {
 	const w = filterWhere(filter, now);
-	const keys = exec(
+	const keys = (yield sqlStep(
 		`SELECT DISTINCT m.thread_key AS k FROM messages m WHERE ${w.sql} AND m.date <= ?`,
 		...w.params,
 		asOf,
-	).map((r) => String(r.k));
+	)).map((r) => String(r.k));
 	if (keys.length !== expectedCount) throw new BulkConflictError(keys.length);
 	return keys;
+}
+
+export function resolveFilterTarget(exec: Exec, filter: MailFilter, asOf: string, expectedCount: number, now = Date.now()): string[] {
+	return runSync(resolveFilterTargetQuery(filter, asOf, expectedCount, now), exec);
 }
 
 interface PlanRow {
@@ -138,15 +140,10 @@ function groupOps<T extends BulkOp>(make: (mailboxId: string, ids: string[], key
 }
 
 /** Ops that apply an action to these threads, and the undo entries that reverse them. */
-export function planBulk(
-	exec: Exec,
-	threadKeys: string[],
-	view: string,
-	action: BulkAction,
-): { ops: BulkOp[]; entries: UndoEntry[] } {
+export function* planBulkQuery(threadKeys: string[], view: string, action: BulkAction): Query<{ ops: BulkOp[]; entries: UndoEntry[] }> {
 	if (threadKeys.length === 0) return { ops: [], entries: [] };
 	const labelId = action.type === "label_add" || action.type === "label_remove" ? action.labelId : "";
-	const rows: PlanRow[] = exec(
+	const rows: PlanRow[] = (yield sqlStep(
 		`SELECT m.id, m.mailbox_id, m.email_id, m.thread_key, m.state, m.date, m.unread, m.starred,
 			EXISTS (SELECT 1 FROM message_labels l WHERE l.message = m.id AND l.label_id = ?) AS has_label
 		FROM messages m
@@ -154,7 +151,7 @@ export function planBulk(
 		ORDER BY m.thread_key, m.date DESC, m.id DESC`,
 		labelId,
 		JSON.stringify([...new Set(threadKeys)]),
-	).map((r) => ({
+	)).map((r) => ({
 		id: Number(r.id),
 		mailbox_id: String(r.mailbox_id),
 		email_id: String(r.email_id),
@@ -218,6 +215,10 @@ export function planBulk(
 	};
 }
 
+export function planBulk(exec: Exec, threadKeys: string[], view: string, action: BulkAction): { ops: BulkOp[]; entries: UndoEntry[] } {
+	return runSync(planBulkQuery(threadKeys, view, action), exec);
+}
+
 /** Ops that put every recorded row back the way it was before the action. */
 export function planUndo(payload: UndoPayload): BulkOp[] {
 	const ops: BulkOp[] = [];
@@ -241,20 +242,28 @@ export function planUndo(payload: UndoPayload): BulkOp[] {
 // ── Empty Trash ────────────────────────────────────────────────────
 
 /** Messages and conversations in Trash across every mailbox. */
-export function trashCount(exec: Exec): { messages: number; conversations: number } {
-	const row = exec(`SELECT COUNT(*) AS m, COUNT(DISTINCT thread_key) AS c FROM messages WHERE state = 'trash' AND deleted = 0`)[0];
+export function* trashCountQuery(): Query<{ messages: number; conversations: number }> {
+	const row = (yield sqlStep(`SELECT COUNT(*) AS m, COUNT(DISTINCT thread_key) AS c FROM messages WHERE state = 'trash' AND deleted = 0`))[0];
 	return { messages: Number(row.m), conversations: Number(row.c) };
+}
+
+export function trashCount(exec: Exec): { messages: number; conversations: number } {
+	return runSync(trashCountQuery(), exec);
 }
 
 /**
  * Purge ops for every message in Trash. Throws BulkConflictError when the
  * count differs from the one the user confirmed.
  */
-export function planEmptyTrash(exec: Exec, expectedCount: number): BulkOp[] {
-	const rows = exec(`SELECT mailbox_id, email_id FROM messages WHERE state = 'trash' AND deleted = 0 ORDER BY mailbox_id, email_id`)
+export function* planEmptyTrashQuery(expectedCount: number): Query<BulkOp[]> {
+	const rows = (yield sqlStep(`SELECT mailbox_id, email_id FROM messages WHERE state = 'trash' AND deleted = 0 ORDER BY mailbox_id, email_id`))
 		.map((r) => ({ mailbox_id: String(r.mailbox_id), email_id: String(r.email_id), key: "" }));
 	if (rows.length !== expectedCount) throw new BulkConflictError(rows.length);
 	return groupOps((mailboxId, emailIds) => ({ mailboxId, kind: "purge" as const, emailIds }), rows);
+}
+
+export function planEmptyTrash(exec: Exec, expectedCount: number): BulkOp[] {
+	return runSync(planEmptyTrashQuery(expectedCount), exec);
 }
 
 export function opSize(ops: BulkOp[]): number {
@@ -263,20 +272,32 @@ export function opSize(ops: BulkOp[]): number {
 
 // ── Undo records ───────────────────────────────────────────────────
 
+export function* pruneUndoQuery(now = Date.now()): Query<void> {
+	(yield sqlStep(`DELETE FROM undo WHERE created_at < ?`, new Date(now - UNDO_TTL_MS).toISOString()));
+}
+
 export function pruneUndo(exec: Exec, now = Date.now()): void {
-	exec(`DELETE FROM undo WHERE created_at < ?`, new Date(now - UNDO_TTL_MS).toISOString());
+	return runSync(pruneUndoQuery(now), exec);
+}
+
+export function* saveUndoQuery(id: string, payload: UndoPayload, now = Date.now()): Query<void> {
+	(yield* pruneUndoQuery(now));
+	(yield sqlStep(`INSERT INTO undo (id, created_at, payload) VALUES (?, ?, ?)`, id, new Date(now).toISOString(), JSON.stringify(payload)));
 }
 
 export function saveUndo(exec: Exec, id: string, payload: UndoPayload, now = Date.now()): void {
-	pruneUndo(exec, now);
-	exec(`INSERT INTO undo (id, created_at, payload) VALUES (?, ?, ?)`, id, new Date(now).toISOString(), JSON.stringify(payload));
+	return runSync(saveUndoQuery(id, payload, now), exec);
 }
 
 /** The undo record, once. Missing or older than an hour returns null. */
-export function takeUndo(exec: Exec, id: string, now = Date.now()): UndoPayload | null {
-	pruneUndo(exec, now);
-	const row = exec(`DELETE FROM undo WHERE id = ? RETURNING payload`, id)[0];
+export function* takeUndoQuery(id: string, now = Date.now()): Query<UndoPayload | null> {
+	(yield* pruneUndoQuery(now));
+	const row = (yield sqlStep(`DELETE FROM undo WHERE id = ? RETURNING payload`, id))[0];
 	return row ? (JSON.parse(String(row.payload)) as UndoPayload) : null;
+}
+
+export function takeUndo(exec: Exec, id: string, now = Date.now()): UndoPayload | null {
+	return runSync(takeUndoQuery(id, now), exec);
 }
 
 // ── Bulk jobs (over 500 messages) ──────────────────────────────────
@@ -292,39 +313,46 @@ export interface BulkJob {
 	finishedAt: string | null;
 }
 
-export function createBulkJob(exec: Exec, id: string, action: JobAction, ops: BulkOp[], undoId: string, now = Date.now()): void {
-	exec(
+export function* createBulkJobQuery(id: string, action: JobAction, ops: BulkOp[], undoId: string, now = Date.now()): Query<void> {
+	(yield sqlStep(
 		`INSERT INTO bulk_job (id, created_at, action, ops, total, undo_id) VALUES (?, ?, ?, ?, ?, ?)`,
 		id, new Date(now).toISOString(), JSON.stringify(action), JSON.stringify(ops), ops.length, undoId,
-	);
+	));
+}
+
+export function createBulkJob(exec: Exec, id: string, action: JobAction, ops: BulkOp[], undoId: string, now = Date.now()): void {
+	return runSync(createBulkJobQuery(id, action, ops, undoId, now), exec);
 }
 
 /** The oldest unfinished job and its next ops. */
-export function nextBulkOps(exec: Exec, limit: number): { id: string; position: number; ops: BulkOp[] } | null {
-	const row = exec(`SELECT id, ops, position FROM bulk_job WHERE finished_at IS NULL ORDER BY created_at LIMIT 1`)[0];
+export function* nextBulkOpsQuery(limit: number): Query<{ id: string; position: number; ops: BulkOp[] } | null> {
+	const row = (yield sqlStep(`SELECT id, ops, position FROM bulk_job WHERE finished_at IS NULL ORDER BY created_at LIMIT 1`))[0];
 	if (!row) return null;
 	const position = Number(row.position);
 	return { id: String(row.id), position, ops: (JSON.parse(String(row.ops)) as BulkOp[]).slice(position, position + limit) };
 }
 
-export function saveBulkProgress(
-	exec: Exec,
-	id: string,
-	step: { ops: number; affected: number; failed: { mailboxId: string; error: string }[] },
-	now = Date.now(),
-): void {
-	const row = exec(`SELECT position, total, failed FROM bulk_job WHERE id = ?`, id)[0];
+export function nextBulkOps(exec: Exec, limit: number): { id: string; position: number; ops: BulkOp[] } | null {
+	return runSync(nextBulkOpsQuery(limit), exec);
+}
+
+export function* saveBulkProgressQuery(id: string, step: { ops: number; affected: number; failed: { mailboxId: string; error: string }[] }, now = Date.now()): Query<void> {
+	const row = (yield sqlStep(`SELECT position, total, failed FROM bulk_job WHERE id = ?`, id))[0];
 	if (!row) return;
 	const position = Number(row.position) + step.ops;
 	const failed = [...(JSON.parse(String(row.failed)) as unknown[]), ...step.failed];
-	exec(
+	(yield sqlStep(
 		`UPDATE bulk_job SET position = ?, affected = affected + ?, failed = ?, finished_at = ? WHERE id = ?`,
 		position, step.affected, JSON.stringify(failed), position >= Number(row.total) ? new Date(now).toISOString() : null, id,
-	);
+	));
 }
 
-export function getBulkJob(exec: Exec, id: string): BulkJob | null {
-	const row = exec(`SELECT * FROM bulk_job WHERE id = ?`, id)[0];
+export function saveBulkProgress(exec: Exec, id: string, step: { ops: number; affected: number; failed: { mailboxId: string; error: string }[] }, now = Date.now()): void {
+	return runSync(saveBulkProgressQuery(id, step, now), exec);
+}
+
+export function* getBulkJobQuery(id: string): Query<BulkJob | null> {
+	const row = (yield sqlStep(`SELECT * FROM bulk_job WHERE id = ?`, id))[0];
 	if (!row) return null;
 	return {
 		id: String(row.id),
@@ -338,9 +366,17 @@ export function getBulkJob(exec: Exec, id: string): BulkJob | null {
 	};
 }
 
+export function getBulkJob(exec: Exec, id: string): BulkJob | null {
+	return runSync(getBulkJobQuery(id), exec);
+}
+
 /** Finished jobs older than the undo window are dropped. */
+export function* pruneBulkJobsQuery(now = Date.now()): Query<void> {
+	(yield sqlStep(`DELETE FROM bulk_job WHERE finished_at IS NOT NULL AND finished_at < ?`, new Date(now - UNDO_TTL_MS).toISOString()));
+}
+
 export function pruneBulkJobs(exec: Exec, now = Date.now()): void {
-	exec(`DELETE FROM bulk_job WHERE finished_at IS NOT NULL AND finished_at < ?`, new Date(now - UNDO_TTL_MS).toISOString());
+	return runSync(pruneBulkJobsQuery(now), exec);
 }
 
 // ── Labels ─────────────────────────────────────────────────────────
@@ -378,15 +414,23 @@ function cleanColor(color: unknown): string {
 	return color.toLowerCase();
 }
 
-export function allLabels(exec: Exec): Label[] {
-	return exec(`SELECT id, name, color, position FROM labels ORDER BY position, name COLLATE NOCASE`).map((r) => ({
+export function* allLabelsQuery(): Query<Label[]> {
+	return (yield sqlStep(`SELECT id, name, color, position FROM labels ORDER BY position, name COLLATE NOCASE`)).map((r) => ({
 		id: String(r.id), name: String(r.name), color: String(r.color), position: Number(r.position),
 	}));
 }
 
+export function allLabels(exec: Exec): Label[] {
+	return runSync(allLabelsQuery(), exec);
+}
+
 /** Ids of labels an agent has applied. */
+function* autoLabelIdsQuery(): Query<Set<string>> {
+	return new Set((yield sqlStep(`SELECT label_id FROM label_auto`)).map((r) => String(r.label_id)));
+}
+
 function autoLabelIds(exec: Exec): Set<string> {
-	return new Set(exec(`SELECT label_id FROM label_auto`).map((r) => String(r.label_id)));
+	return runSync(autoLabelIdsQuery(), exec);
 }
 
 /** Label definitions with their auto flag, for the R2 backup. */
@@ -399,70 +443,98 @@ export function labelBackup(exec: Exec): (Label & { auto: boolean })[] {
  * Labels with the number of conversations that carry each, outside Trash and
  * Spam. `auto` is true once an agent has applied the label.
  */
-export function listLabels(exec: Exec): (Label & { count: number; auto: boolean })[] {
-	const counts = new Map(exec(
+export function* listLabelsQuery(): Query<(Label & { count: number; auto: boolean })[]> {
+	const counts = new Map((yield sqlStep(
 		`SELECT l.label_id AS id, COUNT(DISTINCT m.thread_key) AS n FROM message_labels l
 		JOIN messages m ON m.id = l.message WHERE m.deleted = 0 AND m.state NOT IN ('trash', 'spam')
 		GROUP BY l.label_id`,
-	).map((r) => [String(r.id), Number(r.n)]));
-	const auto = autoLabelIds(exec);
-	return allLabels(exec).map((label) => ({ ...label, count: counts.get(label.id) ?? 0, auto: auto.has(label.id) }));
+	)).map((r) => [String(r.id), Number(r.n)]));
+	const auto = (yield* autoLabelIdsQuery());
+	return (yield* allLabelsQuery()).map((label) => ({ ...label, count: counts.get(label.id) ?? 0, auto: auto.has(label.id) }));
+}
+
+export function listLabels(exec: Exec): (Label & { count: number; auto: boolean })[] {
+	return runSync(listLabelsQuery(), exec);
 }
 
 /** Flag labels as agent-applied. Unknown ids are skipped. Returns the ids newly flagged. */
-export function markLabelsAuto(exec: Exec, ids: string[], now = new Date().toISOString()): string[] {
-	const known = new Set(allLabels(exec).map((l) => l.id));
+export function* markLabelsAutoQuery(ids: string[], now = new Date().toISOString()): Query<string[]> {
+	const known = new Set((yield* allLabelsQuery()).map((l) => l.id));
 	const flagged: string[] = [];
 	for (const id of new Set(ids)) {
 		if (!known.has(id)) continue;
-		const inserted = exec(`INSERT OR IGNORE INTO label_auto (label_id, applied_at) VALUES (?, ?) RETURNING label_id`, id, now);
+		const inserted = (yield sqlStep(`INSERT OR IGNORE INTO label_auto (label_id, applied_at) VALUES (?, ?) RETURNING label_id`, id, now));
 		if (inserted.length > 0) flagged.push(id);
-		else exec(`UPDATE label_auto SET applied_at = ? WHERE label_id = ?`, now, id);
+		else (yield sqlStep(`UPDATE label_auto SET applied_at = ? WHERE label_id = ?`, now, id));
 	}
 	return flagged;
 }
 
-export function findLabelByName(exec: Exec, name: string): Label | null {
-	return allLabels(exec).find((l) => l.name.toLowerCase() === name.trim().toLowerCase()) ?? null;
+export function markLabelsAuto(exec: Exec, ids: string[], now = new Date().toISOString()): string[] {
+	return runSync(markLabelsAutoQuery(ids, now), exec);
 }
 
-export function createLabel(exec: Exec, input: { name: unknown; color?: unknown; id?: string }): Label {
+export function* findLabelByNameQuery(name: string): Query<Label | null> {
+	return (yield* allLabelsQuery()).find((l) => l.name.toLowerCase() === name.trim().toLowerCase()) ?? null;
+}
+
+export function findLabelByName(exec: Exec, name: string): Label | null {
+	return runSync(findLabelByNameQuery(name), exec);
+}
+
+export function* createLabelQuery(input: { name: unknown; color?: unknown; id?: string }): Query<Label> {
 	const name = cleanName(input.name);
 	const color = cleanColor(input.color);
-	const existing = allLabels(exec);
+	const existing = (yield* allLabelsQuery());
 	if (existing.some((l) => l.name.toLowerCase() === name.toLowerCase())) throw new LabelError(`A label named "${name}" exists`);
 	const taken = new Set(existing.map((l) => l.id));
 	const id = input.id && !taken.has(input.id) ? input.id : labelSlug(name, taken);
 	const position = existing.reduce((max, l) => Math.max(max, l.position + 1), 0);
-	exec(`INSERT INTO labels (id, name, color, position) VALUES (?, ?, ?, ?)`, id, name, color, position);
+	(yield sqlStep(`INSERT INTO labels (id, name, color, position) VALUES (?, ?, ?, ?)`, id, name, color, position));
 	return { id, name, color, position };
 }
 
-export function updateLabel(exec: Exec, id: string, input: { name?: unknown; color?: unknown }): Label | null {
-	const current = allLabels(exec).find((l) => l.id === id);
+export function createLabel(exec: Exec, input: { name: unknown; color?: unknown; id?: string }): Label {
+	return runSync(createLabelQuery(input), exec);
+}
+
+export function* updateLabelQuery(id: string, input: { name?: unknown; color?: unknown }): Query<Label | null> {
+	const current = (yield* allLabelsQuery()).find((l) => l.id === id);
 	if (!current) return null;
 	const name = input.name === undefined ? current.name : cleanName(input.name);
 	const color = input.color === undefined ? current.color : cleanColor(input.color);
-	if (allLabels(exec).some((l) => l.id !== id && l.name.toLowerCase() === name.toLowerCase())) {
+	if ((yield* allLabelsQuery()).some((l) => l.id !== id && l.name.toLowerCase() === name.toLowerCase())) {
 		throw new LabelError(`A label named "${name}" exists`);
 	}
-	exec(`UPDATE labels SET name = ?, color = ? WHERE id = ?`, name, color, id);
+	(yield sqlStep(`UPDATE labels SET name = ?, color = ? WHERE id = ?`, name, color, id));
 	return { ...current, name, color };
 }
 
+export function updateLabel(exec: Exec, id: string, input: { name?: unknown; color?: unknown }): Label | null {
+	return runSync(updateLabelQuery(id, input), exec);
+}
+
 /** Thread keys holding a label in any state, for removing it before the definition goes. */
-export function labelThreadKeys(exec: Exec, id: string): string[] {
-	return exec(
+export function* labelThreadKeysQuery(id: string): Query<string[]> {
+	return (yield sqlStep(
 		`SELECT DISTINCT m.thread_key AS k FROM message_labels l JOIN messages m ON m.id = l.message
 		WHERE l.label_id = ? AND m.deleted = 0`,
 		id,
-	).map((r) => String(r.k));
+	)).map((r) => String(r.k));
+}
+
+export function labelThreadKeys(exec: Exec, id: string): string[] {
+	return runSync(labelThreadKeysQuery(id), exec);
+}
+
+export function* deleteLabelRowsQuery(id: string): Query<boolean> {
+	(yield sqlStep(`DELETE FROM message_labels WHERE label_id = ?`, id));
+	(yield sqlStep(`DELETE FROM label_auto WHERE label_id = ?`, id));
+	return (yield sqlStep(`DELETE FROM labels WHERE id = ? RETURNING id`, id)).length > 0;
 }
 
 export function deleteLabelRows(exec: Exec, id: string): boolean {
-	exec(`DELETE FROM message_labels WHERE label_id = ?`, id);
-	exec(`DELETE FROM label_auto WHERE label_id = ?`, id);
-	return exec(`DELETE FROM labels WHERE id = ? RETURNING id`, id).length > 0;
+	return runSync(deleteLabelRowsQuery(id), exec);
 }
 
 /** Load definitions from a backup. Existing labels keep their current values. */
@@ -484,7 +556,11 @@ export function restoreLabels(exec: Exec, labels: unknown): number {
 	return restored;
 }
 
-export function threadKeyOf(exec: Exec, mailboxId: string, emailId: string): string | null {
-	const row = exec(`SELECT thread_key FROM messages WHERE mailbox_id = ? AND email_id = ? AND deleted = 0`, mailboxId.toLowerCase(), emailId)[0];
+export function* threadKeyOfQuery(mailboxId: string, emailId: string): Query<string | null> {
+	const row = (yield sqlStep(`SELECT thread_key FROM messages WHERE mailbox_id = ? AND email_id = ? AND deleted = 0`, mailboxId.toLowerCase(), emailId))[0];
 	return row ? String(row.thread_key) : null;
+}
+
+export function threadKeyOf(exec: Exec, mailboxId: string, emailId: string): string | null {
+	return runSync(threadKeyOfQuery(mailboxId, emailId), exec);
 }
