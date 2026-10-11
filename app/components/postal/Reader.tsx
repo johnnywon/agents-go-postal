@@ -152,8 +152,8 @@ export function Reader(props: ReaderProps) {
 						<button type="button" className="pg-icon-btn" title="Forward (F)" aria-label="Forward" onClick={() => reply("forward")} disabled={!original}><ArrowBendUpRightIcon size={16} /></button>
 					</div>
 					<div className="pg-group">
-						<button type="button" className="pg-icon-btn" title="Archive (E)" aria-label="Archive" onClick={() => props.onAction("archive")} disabled={!row}><ArchiveIcon size={16} /></button>
-						<button type="button" className="pg-icon-btn" title="Move to trash" aria-label="Move to trash" onClick={() => props.onAction("trash")} disabled={!row || !props.canTrash}><TrashIcon size={16} /></button>
+						<button type="button" className="pg-icon-btn" title="Archive (E) · Out of the inbox, kept in Archive" aria-label="Archive" onClick={() => props.onAction("archive")} disabled={!row}><ArchiveIcon size={16} /></button>
+						<button type="button" className="pg-icon-btn" title="Move to trash · Recoverable from Trash" aria-label="Move to trash" onClick={() => props.onAction("trash")} disabled={!row || !props.canTrash}><TrashIcon size={16} /></button>
 					</div>
 					<div className="pg-group" style={{ position: "relative" }}>
 						<button type="button" className="pg-icon-btn" title={unread ? "Mark read" : "Mark unread"} aria-label={unread ? "Mark read" : "Mark unread"} onClick={() => props.onAction("read")} disabled={!row}>
@@ -162,10 +162,10 @@ export function Reader(props: ReaderProps) {
 						<button type="button" className="pg-icon-btn" title={starred ? "Unstar" : "Star"} aria-label={starred ? "Unstar" : "Star"} aria-pressed={starred} onClick={() => props.onAction("star")} disabled={!row}>
 							<StarIcon size={16} weight={starred ? "fill" : "regular"} color={starred ? "var(--pg-amber)" : undefined} />
 						</button>
-						<button ref={labelBtn} type="button" className="pg-icon-btn" title="Label" aria-label="Label" aria-expanded={pickerOpen} onClick={openPicker} disabled={!row}><TagIcon size={16} /></button>
+						<button ref={labelBtn} type="button" className="pg-icon-btn" title="Label · Labels are shared by every address" aria-label="Label" aria-expanded={pickerOpen} onClick={openPicker} disabled={!row}><TagIcon size={16} /></button>
 					</div>
 					<div style={{ flex: 1 }} />
-					<button type="button" className="pg-icon-btn" title="View source" aria-label="View source" onClick={() => head && setSource(head)} disabled={!head}><CodeIcon size={16} /></button>
+					<button type="button" className="pg-icon-btn" title="View source · The raw message with all headers" aria-label="View source" onClick={() => head && setSource(head)} disabled={!head}><CodeIcon size={16} /></button>
 				</div>
 			</div>
 			<div className="pg-reader-scroll" ref={scrollRef}>

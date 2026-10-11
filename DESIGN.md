@@ -47,6 +47,7 @@ An address always renders as **bold handle**, muted `@`, then the domain in its 
 - Active nav item: fill, bright text, weight 600. A selected address only brightens; its folder carries the fill.
 - Days are separated by a 10px dark band, not a heading.
 - Key hints (`/`, `Z`, `⌘J`) can be hidden in Settings; shortcuts keep working.
+- Tooltips: one layer (`Tooltip.tsx`) serves every button. Write a `title` as `Label (Key) · hint`; the key renders as keycaps and the hint as a muted second line. The browser's own tooltip never shows. Tooltips open after 450ms, then instantly while moving between buttons, and on keyboard focus. Touch never shows them. A button whose text already says everything gets none.
 
 ### No accent stripes or edge bars
 

@@ -41,6 +41,8 @@ html:has(.postal), html:has(.postal) body { background: var(--pg-base, #141518);
 
 @keyframes pg-drop { from { opacity: 0; transform: translateY(-6px) scaleY(.98); } to { opacity: 1; transform: none; } }
 @keyframes pg-pulse { 0%, 100% { opacity: 1; } 50% { opacity: .35; } }
+@keyframes pg-tip-up { from { opacity: 0; transform: translateY(3px) scale(.97); } to { opacity: 1; transform: none; } }
+@keyframes pg-tip-down { from { opacity: 0; transform: translateY(-3px) scale(.97); } to { opacity: 1; transform: none; } }
 @keyframes pg-sheet { from { transform: translateY(24px); opacity: 0; } to { transform: none; opacity: 1; } }
 
 .pg-body { flex: 1; display: flex; min-height: 0; position: relative; }
@@ -66,6 +68,22 @@ html:has(.postal), html:has(.postal) body { background: var(--pg-base, #141518);
 .pg-addr-at { color: var(--pg-text-8); }
 .pg-addr-domain { color: oklch(var(--pg-dt-l) var(--pg-dt-c) var(--pg-h, 250)); }
 .pg-addr-mark { display: inline-flex; align-items: center; gap: 6px; min-width: 0; }
+
+/* ── Tooltip ───────────────────────────────────────────────────────── */
+.pg-tip-layer { position: fixed; inset: 0 auto auto 0; z-index: 70; pointer-events: none; }
+.pg-tip {
+  position: fixed; max-width: 260px; padding: 6px 8px;
+  background: var(--pg-modal); border: 1px solid var(--pg-line-4); box-shadow: var(--pg-shadow-pop);
+  color: var(--pg-text-1); font: 500 12px/1.35 var(--pg-font);
+  opacity: 0;
+}
+.pg-tip[data-ready] { opacity: 1; animation: pg-tip-up .14s cubic-bezier(.2, .8, .2, 1); }
+.pg-tip[data-ready][data-side="below"] { animation-name: pg-tip-down; }
+.pg-tip-main { display: flex; align-items: center; gap: 8px; white-space: nowrap; }
+.pg-tip-label { overflow: hidden; text-overflow: ellipsis; }
+.pg-tip-keys { display: inline-flex; gap: 3px; margin-left: auto; }
+.pg-tip-keys .pg-kbd { color: var(--pg-text-4); background: var(--pg-input); min-width: 18px; text-align: center; }
+.pg-tip-hint { margin-top: 3px; font-weight: 400; font-size: 11px; color: var(--pg-text-6); text-wrap: pretty; }
 
 /* ── Shared controls ───────────────────────────────────────────────── */
 .pg-kbd {

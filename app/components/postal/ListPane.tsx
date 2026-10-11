@@ -189,7 +189,7 @@ export function ListPane(props: ListPaneProps) {
 					>
 						<EnvelopeSimpleIcon size={16} weight={unreadOnly ? "fill" : "regular"} />
 					</button>
-					<button type="button" className="pg-icon-btn" style={{ position: "relative" }} aria-pressed={nFilters > 0} aria-expanded={fltOpen} title="Filter" onClick={() => setFltOpen((v) => !v)}>
+					<button type="button" className="pg-icon-btn" style={{ position: "relative" }} aria-pressed={nFilters > 0} aria-expanded={fltOpen} title="Filter · Unread, starred, attachments, date and more" onClick={() => setFltOpen((v) => !v)}>
 						<FunnelSimpleIcon size={16} weight={nFilters ? "fill" : "regular"} />
 						{nFilters > 0 && <span className="pg-flt-badge">{nFilters}</span>}
 					</button>

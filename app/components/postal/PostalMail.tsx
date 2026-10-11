@@ -29,6 +29,7 @@ import { useLayout, usePrefs, useResolvedTheme, useWidth } from "./prefs";
 import { Reader } from "./Reader";
 import { SearchBar, type FilterSuggestion } from "./SearchBar";
 import { NavRail, Sidebar } from "./Sidebar";
+import { TooltipLayer } from "./Tooltip";
 
 const EDITABLE = "input, textarea, select, [contenteditable=''], [contenteditable='true']";
 const ICON = 15;
@@ -459,6 +460,7 @@ function PostalApp({ addresses, domains, autoDraft }: PostalProps) {
 
 	return (
 		<div className="postal" data-theme={theme} data-keys={prefs.keys ? "on" : "off"} data-pane={mobile && open ? "reader" : "list"}>
+			<TooltipLayer />
 			<div className="pg-body">
 				{/* Below 1300px the rail stays in place and the full column overlays it. */}
 				{!mobile && (!navOpen || narrow) && (
