@@ -35,9 +35,13 @@ export function capText(text: string, max = ATTACHMENT_TEXT_MAX): string {
 	return new TextDecoder().decode(bytes.slice(0, max)).replace(/�+$/, "");
 }
 
-/** Whitespace runs inside lines collapse; blank-line runs become one. */
-function tidy(text: string): string {
-	return text.replace(/\r\n?/g, "\n").replace(/[ \t\f\v]+/g, " ").replace(/\n\s*\n+/g, "\n\n").trim();
+/**
+ * Control characters become spaces (some PDFs map hyphens to NUL, and SQLite's
+ * text functions stop at a NUL); whitespace runs inside lines collapse;
+ * blank-line runs become one.
+ */
+export function tidy(text: string): string {
+	return text.replace(/\r\n?/g, "\n").replace(/[\x00-\x08\x0B-\x1F\x7F]/g, " ").replace(/[ \t\f\v]+/g, " ").replace(/\n\s*\n+/g, "\n\n").trim();
 }
 
 /**

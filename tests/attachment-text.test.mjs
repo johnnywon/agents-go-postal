@@ -178,6 +178,10 @@ test("toMarkdown's framing isn't kept", () => {
 	assert.equal(at.stripFraming("# Lease\n\nText", "lease.pdf"), "# Lease\n\nText", "a heading in the document stays");
 });
 
+test("control characters in converted text become spaces", () => {
+	assert.equal(at.tidy("Invoice PCAY\u00000002\nEIN 42\u00005227\u0007\t x"), "Invoice PCAY 0002\nEIN 42 5227 x");
+});
+
 test("text is capped at 64 KB on a character boundary", () => {
 	assert.equal(at.capText("abc", 10), "abc");
 	assert.equal(at.capText("aé", 2), "a", "a split é is dropped");
