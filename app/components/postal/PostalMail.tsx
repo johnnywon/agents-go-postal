@@ -2,7 +2,7 @@
 // Licensed under the Apache 2.0 license found in the LICENSE file or at:
 //     https://opensource.org/licenses/Apache-2.0
 
-import { ArchiveIcon, ClockIcon, EnvelopeOpenIcon, EnvelopeSimpleIcon, FileIcon, PaperPlaneTiltIcon, StarIcon, TagIcon, TrashIcon, WarningIcon } from "@phosphor-icons/react";
+import { ArchiveIcon, BookmarkSimpleIcon, ClockIcon, EnvelopeOpenIcon, EnvelopeSimpleIcon, FileIcon, PaperPlaneTiltIcon, StarIcon, TagIcon, TrashIcon, WarningIcon } from "@phosphor-icons/react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router";
@@ -13,7 +13,7 @@ import * as sel from "~/lib/selection";
 import { useBulkAction, useUndoBulk } from "~/queries/bulk";
 import { useCreateLabel, useLabels } from "~/queries/labels";
 import { useMailFacets, useMailList, useViewCounts } from "~/queries/mail";
-import api, { ApiError, type BulkResult, type Conversation, type Label } from "~/services/api";
+import api, { ApiError, type BulkResult, type Conversation, type Label, type SavedSearch } from "~/services/api";
 import type { Email } from "~/types";
 import { AgentPanel, AgentRail, useDraftWithAgent } from "./Agent";
 import {
@@ -25,7 +25,7 @@ import { buildIdentities } from "./identity";
 import { ListPane } from "./ListPane";
 import { LogoutModal, McpModal, SettingsModal, Toast, type ToastState } from "./Modals";
 import { conversations, HOME, labelOf, parsePostalFilter, scopeOf, searchErrors, searchTerms, withSearch } from "./model";
-import { localDay } from "./search-window";
+import { useDeleteSavedSearch, useSavedSearches, useSaveSearch, useSuggest } from "~/queries/search";
 import { useLayout, usePrefs, useResolvedTheme, useWidth } from "./prefs";
 import { Reader } from "./Reader";
 import { SearchBar, type FilterSuggestion } from "./SearchBar";
@@ -119,10 +119,14 @@ function PostalApp({ addresses, domains, autoDraft }: PostalProps) {
 	const [facetsWanted, setFacetsWanted] = useState(false);
 	const [searchFocus, setSearchFocus] = useState(false);
 	const listFacets = useMailFacets(filter, facetsWanted || searchFocus);
-	// The search window: counts for this search, and the people you hear from most in 90 days.
-	const searchFacets = useMailFacets(effective, searchFocus && !!debounced.trim());
-	const since90 = useMemo(() => localDay(new Date(Date.now() - 90 * 86_400_000)), []);
-	const peopleFacets = useMailFacets({ view: "all", chips: [{ kind: "after", value: since90 }], sort: "date", dir: "desc" }, searchFocus);
+	// The search window: suggestions for the box and the cursor, and saved searches.
+	const [suggestAt, setSuggestAt] = useState(-1);
+	const suggestKey = useDebounced(`${suggestAt}\u0000${search}`, 120);
+	const suggestText = suggestKey.slice(suggestKey.indexOf("\u0000") + 1);
+	const suggest = useSuggest(filter, suggestText, Number(suggestKey.slice(0, suggestKey.indexOf("\u0000"))), searchFocus);
+	const saved = useSavedSearches();
+	const saveSearch = useSaveSearch();
+	const deleteSaved = useDeleteSavedSearch();
 	const info = useAddressInfo(addresses);
 	const sender = useMailSender(info);
 	const createLabel = useCreateLabel();
@@ -440,22 +444,17 @@ function PostalApp({ addresses, domains, autoDraft }: PostalProps) {
 		...topLabels.map((l) => ({ token: `label:${/\s/.test(l.name) ? `"${l.name}"` : l.name.toLowerCase()}`, desc: l.name, icon: "label" as const, count: l.count })),
 		...topFrom.map((f) => ({ token: `from:${f.value}`, desc: `From ${f.value}`, icon: "from" as const, count: f.count })),
 	];
-	const found = searchFacets.data;
-	const narrowBy: FilterSuggestion[] = found
-		? [
-				...found.from.domains.slice(0, 3).map((f) => ({ token: `from:${f.value}`, desc: `From ${f.value}`, icon: "from" as const, count: f.count })),
-				...found.label.filter((l) => l.count > 0).sort((a, b) => b.count - a.count).slice(0, 3)
-					.map((l) => ({ token: `label:${/\s/.test(l.name ?? "") ? `"${l.name}"` : (l.name ?? l.value).toLowerCase()}`, desc: l.name ?? l.value, icon: "label" as const, count: l.count })),
-				...(found.status.unread ? [{ token: "is:unread", desc: "Unread", icon: "unread" as const, count: found.status.unread }] : []),
-				...(found.status.attachment ? [{ token: "has:attachment", desc: "Has attachment", icon: "attachment" as const, count: found.status.attachment }] : []),
-			]
-		: [];
-	const senders = found ? [...found.from.addresses, ...found.from.domains] : [];
 	const addressFacet = new Map((listFacets.data?.address ?? []).map((f) => [f.value.toLowerCase(), f.count]));
 
 	const sidebarProps = {
 		identities, filter, go, allUnread: counts.unread, unreadByAddress, labels,
 		onCreateLabel: (name: string) => newLabel(name),
+		saved: saved.data ?? [],
+		search,
+		onSavedSearch: (s: SavedSearch) => {
+			setSearchText(`${s.query} `);
+			if (mobile || narrow) setNavTemp(false);
+		},
 		onAskLabel: (label: Label) => {
 			if (!panelOpen) togglePanel();
 			setPrefill({ text: `Which conversations did you label ${label.name}, and why?`, id: Date.now() });
@@ -507,9 +506,19 @@ function PostalApp({ addresses, domains, autoDraft }: PostalProps) {
 						terms={terms}
 						error={searchError}
 						filters={suggestions}
-						narrow={narrowBy}
-						people={peopleFacets.data?.from.addresses ?? []}
-						senders={senders}
+						suggest={suggest.data}
+						suggestFor={suggestText}
+						onCursor={setSuggestAt}
+						saved={saved.data ?? []}
+						onSave={(text) =>
+							saveSearch.mutate({ query: text }, {
+								onSuccess: () => showToast({ text: "Search saved", icon: <BookmarkSimpleIcon size={ICON} /> }),
+								onError: (e) => showToast({ text: (e as Error).message, icon: <WarningIcon size={ICON} /> }),
+							})
+						}
+						onDeleteSaved={(s) =>
+							deleteSaved.mutate(s.id, { onError: (e) => showToast({ text: (e as Error).message, icon: <WarningIcon size={ICON} /> }) })
+						}
 						labels={labels.map((l) => ({ name: l.name, count: l.count }))}
 						onAsk={(text) => {
 							if (!panelOpen) togglePanel();

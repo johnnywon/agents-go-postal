@@ -16,12 +16,21 @@ import {
 	purgeMailbox,
 	queryFacets,
 	queryMail,
+	runSync,
 	saveRebuildProgress,
 	setIndexMeta,
 	startRebuildJob,
 	sweepMailbox,
 	type MailFilter,
 } from "../lib/mail-index-sql";
+import {
+	createSavedSearchQuery,
+	deleteSavedSearchQuery,
+	listSavedSearchesQuery,
+	savedResult,
+	suggestQuery,
+	updateSavedSearchQuery,
+} from "../lib/search-suggest-sql";
 import { indexedMailboxIds } from "../lib/mail-index-stub";
 import {
 	type BulkAction,
@@ -126,6 +135,29 @@ export class MailIndexDO extends DurableObject<Env> {
 
 	async folderViews() {
 		return folderViews(this.exec);
+	}
+
+	// ── Search window ────────────────────────────────────────────────
+
+	async suggest(filter: MailFilter, text: string, at: number) {
+		await this.#startIfEmpty();
+		return runSync(suggestQuery(filter, text, at), this.exec);
+	}
+
+	async listSavedSearches(counts?: { tzOffset: number }) {
+		return runSync(listSavedSearchesQuery(counts && { engine: "index", tzOffset: counts.tzOffset }), this.exec);
+	}
+
+	async createSavedSearch(input: { name?: unknown; query: unknown }) {
+		return savedResult(() => runSync(createSavedSearchQuery(input), this.exec));
+	}
+
+	async updateSavedSearch(id: string, input: { name?: unknown; query?: unknown; position?: unknown }) {
+		return savedResult(() => runSync(updateSavedSearchQuery(id, input), this.exec));
+	}
+
+	async deleteSavedSearch(id: string) {
+		return runSync(deleteSavedSearchQuery(id), this.exec);
 	}
 
 	/** Labels and saved searches, for the copy to D1. */

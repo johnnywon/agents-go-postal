@@ -262,3 +262,19 @@ test("folder import: dry run counts, conversion, rerun, and system-only moves af
 	assert.equal(folders.find((f) => f.id === "travel").can_move_to, false);
 	assert.equal(folders.find((f) => f.id === "inbox").can_move_to, true);
 });
+
+test("search window: suggest and saved searches through the index", async () => {
+	const out = await ok("index", "suggest", filter({ view: "anywhere" }), "subject from:an", 15);
+	assert.equal(out.completions[0].value, "ann@example.org");
+	assert.ok(out.count > 0);
+	assert.match((await ok("index", "suggest", filter(), "cc:x", -1)).errors[0], /works once mail is stored in D1/);
+
+	const { saved } = await ok("index", "createSavedSearch", { query: "from:ann" });
+	assert.equal(saved.name, "from:ann");
+	assert.match((await ok("index", "createSavedSearch", { query: "from:ann" })).error, /already saved/, "an input error crosses RPC as a value");
+	const [listed] = await ok("index", "listSavedSearches", { tzOffset: 0 });
+	assert.ok(listed.count > 0);
+	assert.equal((await ok("index", "updateSavedSearch", saved.id, { name: "Ann" })).saved.name, "Ann");
+	assert.equal(await ok("index", "deleteSavedSearch", saved.id), true);
+	assert.deepEqual(await ok("index", "listSavedSearches"), []);
+});

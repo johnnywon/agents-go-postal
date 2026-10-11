@@ -138,6 +138,32 @@ export interface MailFacets {
 	status: Record<"unread" | "read" | "starred" | "attachment" | "unsubscribe", number>;
 }
 
+export interface SuggestPerson {
+	value: string;
+	name?: string;
+	count: number;
+}
+
+/** GET /api/v1/search/suggest: what the search window shows beyond the list (workers/lib/search-suggest-sql.ts). */
+export interface Suggestions {
+	completions: SuggestPerson[] | null;
+	people: SuggestPerson[];
+	count: number | null;
+	narrow: { token: string; label: string; count: number }[];
+	nothing: { everywhere: number | null; removals: { text: string; start: number; end: number; count: number }[] } | null;
+	didYouMean: null;
+	interpretable: boolean;
+	errors: string[];
+}
+
+export interface SavedSearch {
+	id: string;
+	name: string;
+	query: string;
+	position: number;
+	count?: number | null;
+}
+
 export interface Label {
 	id: string;
 	name: string;
@@ -322,6 +348,16 @@ const api = {
 	// Bulk actions
 	bulk: (target: BulkTarget, action: BulkAction) => post<BulkResult | BulkJobStarted>("/api/v1/mail/bulk", { target, action }),
 	undoBulk: (undoId: string) => post<{ affected: number }>("/api/v1/mail/bulk/undo", { undoId }),
+
+	// Search window
+	suggest: (params: URLSearchParams, opts?: { signal?: AbortSignal }) =>
+		request<Suggestions>(`/api/v1/search/suggest?${params}`, { method: "GET", signal: opts?.signal }),
+	getSavedSearches: (tzOffset = new Date().getTimezoneOffset()) =>
+		get<SavedSearch[]>("/api/v1/saved-searches", { params: { counts: "1", tz: String(tzOffset) } }),
+	createSavedSearch: (input: { name?: string; query: string }) => post<SavedSearch>("/api/v1/saved-searches", input),
+	updateSavedSearch: (id: string, input: { name?: string; query?: string; position?: number }) =>
+		put<SavedSearch>(`/api/v1/saved-searches/${encodeURIComponent(id)}`, input),
+	deleteSavedSearch: (id: string) => del<{ deleted: boolean }>(`/api/v1/saved-searches/${encodeURIComponent(id)}`),
 
 	// Labels
 	getLabels: () => get<Label[]>("/api/v1/labels"),

@@ -4,6 +4,8 @@
 
 import {
 	ArrowCounterClockwiseIcon,
+	BookmarkSimpleIcon,
+	CalendarBlankIcon,
 	ClockCounterClockwiseIcon,
 	EnvelopeSimpleIcon,
 	GlobeIcon,
@@ -39,6 +41,8 @@ export type WindowRow = { id: string; choose: () => void } & (
 	| { kind: "address"; address: string; count?: number }
 	| { kind: "person"; address: string; name?: string; count: number }
 	| { kind: "recent"; text: string; remove: () => void }
+	| { kind: "saved"; name: string; query: string; count?: number | null; remove: () => void }
+	| { kind: "date"; label: string; onPick: (day: string) => void; onCancel: () => void }
 	| { kind: "action"; icon: keyof typeof ACTION_ICONS; label: string; detail?: string }
 );
 
@@ -61,6 +65,8 @@ export interface SearchWindowProps {
 	stale: boolean;
 	help: boolean;
 	onHelp: (open: boolean) => void;
+	/** Save the search in the box; null when there is nothing to save, "saved" when it already is. */
+	save: (() => void) | "saved" | null;
 	onHover: (id: string) => void;
 }
 
@@ -147,6 +153,58 @@ function RowBody({ row, terms, identities }: { row: WindowRow; terms: string[]; 
 					</button>
 				</>
 			);
+		case "saved":
+			return (
+				<>
+					<BookmarkSimpleIcon size={14} className="pg-sw-icon" />
+					<span className="pg-flex pg-ellipsis">
+						<span className="pg-sw-name">{row.name}</span>
+						{row.name !== row.query && <span className="pg-sw-mono pg-sw-detail">{row.query}</span>}
+					</span>
+					<span className="pg-count">{row.count == null ? "" : row.count.toLocaleString()}</span>
+					<button
+						type="button"
+						className="pg-sw-remove"
+						aria-label={`Delete saved search ${row.name}`}
+						onMouseDown={(e) => {
+							e.preventDefault();
+							e.stopPropagation();
+							row.remove();
+						}}
+					>
+						<XIcon size={12} />
+					</button>
+				</>
+			);
+		case "date":
+			return (
+				<>
+					<CalendarBlankIcon size={14} className="pg-sw-icon" />
+					<span className="pg-flex pg-ellipsis">{row.label}</span>
+					<input
+						type="date"
+						className="pg-sw-date-input"
+						id={`${rowDomId(row.id)}-input`}
+						aria-label={row.label}
+						onMouseDown={(e) => e.stopPropagation()}
+						onKeyDown={(e) => {
+							if (e.key === "Escape") {
+								e.preventDefault();
+								e.stopPropagation();
+								row.onCancel();
+							} else if (e.key === "Enter" && e.currentTarget.value) {
+								e.preventDefault();
+								row.onPick(e.currentTarget.value);
+							}
+						}}
+						onChange={(e) => {
+							// Typing a year digit by digit passes through years like 0202; wait for a real one.
+							const v = e.currentTarget.value;
+							if (/^\d{4}-\d{2}-\d{2}$/.test(v) && Number(v.slice(0, 4)) >= 1970) row.onPick(v);
+						}}
+					/>
+				</>
+			);
 		case "action": {
 			const Icon = ACTION_ICONS[row.icon];
 			return (
@@ -216,8 +274,14 @@ export function SearchWindow(props: SearchWindowProps) {
 				</div>
 			)}
 			<div className="pg-sw-foot">
-				<span className="pg-keyhint">↑↓ move · tab complete · ↵ open · ⌘↵ search · esc close</span>
+				<span className="pg-keyhint pg-ellipsis">↑↓ move · tab complete · ↵ open · ⌘↵ search · esc close</span>
 				<span className="pg-flex" />
+				{props.save === "saved" && <span className="pg-sw-saved">Saved</span>}
+				{typeof props.save === "function" && (
+					<button type="button" className="pg-sw-help-btn" onMouseDown={(e) => { e.preventDefault(); (props.save as () => void)(); }}>
+						Save search <span className="pg-keyhint">⌘S</span>
+					</button>
+				)}
 				<button type="button" className="pg-sw-help-btn" aria-pressed={props.help} onMouseDown={(e) => { e.preventDefault(); props.onHelp(!props.help); }}>
 					{props.help ? "Back" : "? Operators"}
 				</button>

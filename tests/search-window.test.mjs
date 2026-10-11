@@ -14,6 +14,7 @@ const DATA = {
 		{ value: "receipts@stripe.com", name: "Stripe", count: 30 },
 		{ value: "ann@example.net", name: "Ann Lee", count: 3 },
 	],
+	recipients: [{ value: "lee@example.net", count: 5 }, { value: "ANN@example.org", count: 2 }],
 	labels: [{ name: "Receipts", count: 31 }, { name: "Tax 2026", count: 4 }],
 	now: new Date(2026, 9, 11, 15, 0),
 };
@@ -36,8 +37,10 @@ test("what the cursor completes", () => {
 test("completions for each operator", () => {
 	assert.deepEqual(complete("from:st"), ["from:stripe.com", "from:receipts@stripe.com"], "prefix of the value or after @ and dots, most mail first");
 	assert.deepEqual(complete("from:ann"), ["from:ann@example.net"], "by name too");
-	assert.deepEqual(complete("-cc:stripe"), ["-cc:stripe.com", "-cc:receipts@stripe.com"], "keeps the dash");
-	assert.deepEqual(complete("to:"), ["to:billing@example.com", "to:ann@example.org"]);
+	assert.deepEqual(complete("-from:stripe"), ["-from:stripe.com", "-from:receipts@stripe.com"], "keeps the dash");
+	assert.deepEqual(complete("to:"), ["to:billing@example.com", "to:ann@example.org", "to:lee@example.net"], "your addresses, then recipients");
+	assert.deepEqual(complete("cc:ann"), ["cc:ann@example.org"], "a recipient already listed as yours appears once");
+	assert.deepEqual(complete("-cc:lee"), ["-cc:lee@example.net"]);
 	assert.deepEqual(complete("label:t"), [`label:"Tax 2026"`], "names with spaces are quoted");
 	assert.deepEqual(complete("in:s"), ["in:starred", "in:sent", "in:spam"]);
 	assert.deepEqual(complete("is:"), ["is:unread", "is:read", "is:starred", "is:scheduled", "is:replied"]);
@@ -116,4 +119,9 @@ test("keys", () => {
 	assert.deepEqual(k("Escape", s({ open: false })), { type: "clear" }, "second Esc clears the box");
 	assert.deepEqual(k("Escape", s({ open: false, hasText: false })), { type: "blur" });
 	assert.equal(k("a", s()), null);
+
+	assert.deepEqual(k("s", s(), { meta: true }), { type: "save" });
+	assert.deepEqual(k("S", s({ open: false }), { ctrl: true }), { type: "save" });
+	assert.equal(k("s", s({ hasText: false }), { meta: true }), null, "nothing to save");
+	assert.equal(k("s", s()), null);
 });

@@ -3,13 +3,13 @@
 //     https://opensource.org/licenses/Apache-2.0
 
 import {
-	ArchiveIcon, CaretDoubleLeftIcon, CaretDoubleRightIcon, CaretDownIcon, CaretRightIcon, EnvelopeSimpleIcon, FileIcon, GearSixIcon,
+	ArchiveIcon, BookmarkSimpleIcon, CaretDoubleLeftIcon, CaretDoubleRightIcon, CaretDownIcon, CaretRightIcon, EnvelopeSimpleIcon, FileIcon, GearSixIcon,
 	PaperPlaneTiltIcon, PencilSimpleIcon, PlugsConnectedIcon, PlusIcon, SignOutIcon, SparkleIcon, StarIcon, TagIcon, TrashIcon, TrayIcon,
 	WarningIcon,
 } from "@phosphor-icons/react";
 import { type FormEvent, useState } from "react";
 import type { MailFilter } from "~/lib/mail-filter";
-import type { Label } from "~/services/api";
+import type { Label, SavedSearch } from "~/services/api";
 import { AddressText, type Identities, LabelTag, Swatch } from "./identity";
 import { HOME, labelOf, scopeOf, scoped } from "./model";
 
@@ -33,6 +33,10 @@ export interface SidebarProps {
 	labels: Label[];
 	onCreateLabel: (name: string) => void;
 	onAskLabel: (label: Label) => void;
+	saved: SavedSearch[];
+	/** The search in the box, to mark the saved search it matches. */
+	search: string;
+	onSavedSearch: (saved: SavedSearch) => void;
 	mailboxesOpen: boolean;
 	labelsOpen: boolean;
 	setLayout: (patch: { mailboxesOpen?: boolean; labelsOpen?: boolean }) => void;
@@ -224,6 +228,29 @@ export function Sidebar(props: SidebarProps) {
 								/>
 							</form>
 						)}
+					</>
+				)}
+				{props.saved.length > 0 && (
+					<>
+						<div className="pg-nav-divider" />
+						<span className="pg-caption pg-nav-caption">Saved searches</span>
+						{props.saved.map((s) => {
+							const on = props.search.replace(/\s+/g, " ").trim() === s.query;
+							return (
+								<button
+									key={s.id}
+									type="button"
+									className="pg-nav-label"
+									aria-current={on || undefined}
+									title={s.name === s.query ? s.query : `${s.name} · ${s.query}`}
+									onClick={() => props.onSavedSearch(s)}
+								>
+									<BookmarkSimpleIcon size={13} color="var(--pg-text-6)" style={{ flex: "none" }} />
+									<span className="pg-flex pg-ellipsis">{s.name}</span>
+									<span className="pg-count" style={{ fontWeight: 400, minWidth: 16, textAlign: "right" }}>{count(s.count ?? undefined)}</span>
+								</button>
+							);
+						})}
 					</>
 				)}
 				<div style={{ flex: 1, minHeight: 12 }} />

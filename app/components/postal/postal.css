@@ -223,6 +223,7 @@ html:has(.postal), html:has(.postal) body { background: var(--pg-base, #141518);
   width: calc(100% - 13px); color: var(--pg-text-4); text-align: left;
 }
 .pg-nav-label:hover { background: var(--pg-hover); }
+.pg-nav-caption { display: block; padding: 2px 10px 4px; }
 .pg-nav-label[aria-current="true"] { background: var(--pg-active); color: var(--pg-text-1); font-weight: 600; }
 .pg-sparkle {
   width: 20px; height: 20px; flex: none; display: flex; align-items: center; justify-content: center;
@@ -328,6 +329,9 @@ html:has(.postal), html:has(.postal) body { background: var(--pg-base, #141518);
 }
 .pg-sw-help-btn { height: 24px; padding: 0 8px; font: 11px var(--pg-mono); color: var(--pg-text-5); }
 .pg-sw-help-btn:hover, .pg-sw-help-btn[aria-pressed="true"] { background: var(--pg-hover-raised); color: var(--pg-text-1); }
+.pg-sw-date-input { flex: none; height: 24px; padding: 0 6px; background: var(--pg-input); border: 1px solid var(--pg-line-2); color: var(--pg-text-2); font: 12px var(--pg-mono); color-scheme: dark; }
+.postal[data-theme="light"] .pg-sw-date-input { color-scheme: light; }
+.pg-sw-saved { font: 11px var(--pg-mono); color: var(--pg-text-6); }
 .pg-sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 @media (max-width: 767px) {
   .pg-sw { height: calc(100dvh - 38px); max-height: none; animation: none; }

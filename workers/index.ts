@@ -21,6 +21,7 @@ import { requireMailbox, type MailboxContext } from "./lib/mailbox";
 import { csrf } from "./lib/csrf";
 import { decodeCursor, InvalidFilterError } from "./lib/mail-index-sql";
 import { parseMailParams } from "./lib/mail-filter-params";
+import { MAX_SEARCH_LENGTH } from "../shared/search-query";
 import { indexedMailboxIds } from "./lib/mail-index-stub";
 import { d1Status, durableObjectInternals, hasD1, mailStore, searchEngine, usesD1 } from "./store";
 import { advanceCopy, copyStartError, copyStatus, mirrorInbound, startCopy } from "./store/copy-job";
@@ -342,6 +343,55 @@ app.post("/api/v1/mail/empty-trash", async (c) => {
 	if ("conflict" in result) return c.json({ error: "Trash changed. Check the count and try again.", count: result.conflict }, 409);
 	if ("job" in result) return c.json(result.job, 202);
 	return c.json(result);
+});
+
+// -- Search window --------------------------------------------------
+
+/** Suggestions for the search window. The view and chips come as for /mail; `q` is the box and `at` the cursor. */
+app.get("/api/v1/search/suggest", async (c) => {
+	const url = new URL(c.req.url);
+	const text = (url.searchParams.get("q") ?? "").slice(0, MAX_SEARCH_LENGTH);
+	url.searchParams.delete("q");
+	const at = Number(url.searchParams.get("at") ?? -1);
+	try {
+		const { filter } = parseMailRequest(c.env, url.toString());
+		return c.json(await mailStore(c.env).all().suggest(filter, text, Number.isInteger(at) ? at : -1));
+	} catch (error) {
+		if (error instanceof InvalidFilterError) return c.json({ error: error.message }, 400);
+		throw error;
+	}
+});
+
+const SavedSearchBody = z.object({
+	name: z.string().max(200).optional(),
+	query: z.string().max(MAX_SEARCH_LENGTH * 2).optional(),
+	position: z.number().int().min(0).max(10_000).optional(),
+});
+
+/** Saved searches in order. `counts=1` adds how many conversations each matches in All mail. */
+app.get("/api/v1/saved-searches", async (c) => {
+	const counts = c.req.query("counts") === "1" ? { tzOffset: Number(c.req.query("tz") ?? 0) || 0 } : undefined;
+	return c.json(await mailStore(c.env).all().listSavedSearches(counts));
+});
+
+app.post("/api/v1/saved-searches", async (c) => {
+	const parsed = SavedSearchBody.safeParse(await c.req.json().catch(() => null));
+	if (!parsed.success || parsed.data.query === undefined) return c.json({ error: "Invalid saved search" }, 400);
+	const result = await mailStore(c.env).all().createSavedSearch({ name: parsed.data.name, query: parsed.data.query });
+	return result.saved ? c.json(result.saved, 201) : c.json({ error: result.error }, 400);
+});
+
+app.put("/api/v1/saved-searches/:id", async (c) => {
+	const parsed = SavedSearchBody.safeParse(await c.req.json().catch(() => null));
+	if (!parsed.success) return c.json({ error: "Invalid saved search" }, 400);
+	const result = await mailStore(c.env).all().updateSavedSearch(c.req.param("id"), parsed.data);
+	if (result.error) return c.json({ error: result.error }, 400);
+	return result.saved ? c.json(result.saved) : c.json({ error: "Not found" }, 404);
+});
+
+app.delete("/api/v1/saved-searches/:id", async (c) => {
+	const deleted = await mailStore(c.env).all().deleteSavedSearch(c.req.param("id"));
+	return deleted ? c.json({ deleted: true }) : c.json({ error: "Not found" }, 404);
 });
 
 // -- Labels ---------------------------------------------------------

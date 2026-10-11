@@ -37,6 +37,14 @@ import {
 } from "../../lib/mail-bulk-sql";
 import { type MailFilter, type Query, facetsQuery, folderViewsQuery, mailQuery, runAsync } from "../../lib/mail-index-sql";
 import type { BulkTarget } from "../../durableObject/mail-index";
+import {
+	createSavedSearchQuery,
+	deleteSavedSearchQuery,
+	listSavedSearchesQuery,
+	savedResult,
+	suggestQuery,
+	updateSavedSearchQuery,
+} from "../../lib/search-suggest-sql";
 import type { Sql } from "../sql";
 import { applyOps } from "./ops";
 
@@ -69,6 +77,28 @@ export class D1AllMail {
 
 	async folderViews() {
 		return this.#run(folderViewsQuery());
+	}
+
+	// ── Search window ────────────────────────────────────────────────
+
+	async suggest(filter: MailFilter, text: string, at: number) {
+		return this.#run(suggestQuery(onD1(filter), text, at));
+	}
+
+	async listSavedSearches(counts?: { tzOffset: number }) {
+		return this.#run(listSavedSearchesQuery(counts && { engine: "d1", tzOffset: counts.tzOffset }));
+	}
+
+	async createSavedSearch(input: { name?: unknown; query: unknown }) {
+		return savedResult(() => this.#run(createSavedSearchQuery(input)));
+	}
+
+	async updateSavedSearch(id: string, input: { name?: unknown; query?: unknown; position?: unknown }) {
+		return savedResult(() => this.#run(updateSavedSearchQuery(id, input)));
+	}
+
+	async deleteSavedSearch(id: string) {
+		return this.#run(deleteSavedSearchQuery(id));
 	}
 
 	async threadKeysMatching(filter: MailFilter, limit: number) {

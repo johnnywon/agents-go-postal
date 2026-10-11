@@ -63,6 +63,11 @@ export type AllMailStore = Pick<
 	| "updateLabel"
 	| "markLabelsAuto"
 	| "deleteLabel"
+	| "suggest"
+	| "listSavedSearches"
+	| "createSavedSearch"
+	| "updateSavedSearch"
+	| "deleteSavedSearch"
 >;
 
 export interface MailStore {

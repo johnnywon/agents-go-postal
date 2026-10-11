@@ -7,63 +7,10 @@
  * what the cursor is completing, the completions for it, recent searches,
  * plain-words detection and the key map.
  */
-import {
-	HAS_SEARCH_VALUES,
-	IN_VALUES,
-	IS_SEARCH_VALUES,
-	OPERATOR_HELP,
-	OPERATORS,
-	type Operator,
-	parseSearch,
-	SORT_VALUES,
-} from "../../../shared/search-query";
+import { type CompletionContext } from "../../../shared/search-complete";
+import { HAS_SEARCH_VALUES, IN_VALUES, IS_SEARCH_VALUES, OPERATOR_HELP, OPERATORS, parseSearch, SORT_VALUES } from "../../../shared/search-query";
 
-/** A whitespace-separated span of the search text. A quote keeps spaces inside it, to its close or the end. */
-export interface Span {
-	start: number;
-	end: number;
-	text: string;
-}
-
-export function spans(text: string): Span[] {
-	const out: Span[] = [];
-	let i = 0;
-	while (i < text.length) {
-		if (/\s/.test(text[i])) {
-			i++;
-			continue;
-		}
-		const start = i;
-		let quoted = false;
-		while (i < text.length && (quoted || !/\s/.test(text[i]))) {
-			if (text[i] === '"') quoted = !quoted;
-			i++;
-		}
-		out.push({ start, end: i, text: text.slice(start, i) });
-	}
-	return out;
-}
-
-export type CompletionContext =
-	| { kind: "value"; op: Operator; partial: string; start: number; end: number; negate: boolean; term: string }
-	| { kind: "operator"; start: number; end: number; negate: boolean };
-
-const OPERATOR_SET: ReadonlySet<string> = new Set(OPERATORS);
-
-/** What the cursor is completing: an operator's value (`from:st|`), or an operator (`xyz:|`). */
-export function completionAt(text: string, cursor: number): CompletionContext | null {
-	const span = spans(text).find((s) => s.start <= cursor && cursor <= s.end);
-	if (!span) return null;
-	const negate = span.text.startsWith("-");
-	const m = (negate ? span.text.slice(1) : span.text).match(/^([a-z]+):(.*)$/i);
-	if (!m) return null;
-	const op = m[1].toLowerCase();
-	if (OPERATOR_SET.has(op)) {
-		const partial = m[2].replace(/^"|"$/g, "").toLowerCase();
-		return { kind: "value", op: op as Operator, partial, start: span.start, end: span.end, negate, term: span.text };
-	}
-	return m[2] === "" ? { kind: "operator", start: span.start, end: span.end, negate } : null;
-}
+export { completionAt, type CompletionContext, filterTerms, looksLikeRequest, removeRange, spans } from "../../../shared/search-complete";
 
 export interface Completion {
 	/** The text shown. */
@@ -77,8 +24,10 @@ export interface Completion {
 export interface CompletionData {
 	/** The deployment's own addresses. */
 	addresses: readonly string[];
-	/** Senders and sender domains with message counts. */
+	/** Senders and sender domains with conversation counts. */
 	senders: readonly { value: string; name?: string; count: number }[];
+	/** Addresses you've written to or that were copied, with counts. */
+	recipients?: readonly { value: string; count: number }[];
 	labels: readonly { name: string; count: number }[];
 	now: Date;
 }
@@ -108,6 +57,17 @@ const fixed = (op: string, values: readonly string[], partial: string): Completi
 /** A value matches a prefix at its start or after `@`, `.` or a space. */
 const prefixOf = (value: string, partial: string) => !partial || new RegExp(`(?:^|[@.\\s])${partial.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`).test(value.toLowerCase());
 
+/** Your addresses first, then the people you've written to. For `to:` and `cc:`. */
+function recipientList(op: "to" | "cc", data: CompletionData, partial: string): Completion[] {
+	const own = data.addresses.filter((a) => prefixOf(a, partial));
+	const mine = new Set(own.map((a) => a.toLowerCase()));
+	const others = (data.recipients ?? []).filter((r) => !mine.has(r.value.toLowerCase()) && prefixOf(r.value, partial));
+	return [
+		...own.map((a) => ({ label: a, detail: "your address", insert: `${op}:${a}` })),
+		...others.map((r) => ({ label: r.value, count: r.count, insert: `${op}:${r.value}` })),
+	];
+}
+
 export function completions(ctx: CompletionContext, data: CompletionData): Completion[] {
 	const dash = ctx.negate ? "-" : "";
 	// A value already written in full isn't offered again.
@@ -121,8 +81,9 @@ export function completions(ctx: CompletionContext, data: CompletionData): Compl
 	}
 	const { op, partial } = ctx;
 	switch (op) {
-		case "from":
 		case "cc":
+			return withDash(recipientList("cc", data, partial));
+		case "from":
 			return withDash(
 				[...data.senders]
 					.filter((s) => prefixOf(s.value, partial) || (!!s.name && prefixOf(s.name, partial)))
@@ -130,7 +91,7 @@ export function completions(ctx: CompletionContext, data: CompletionData): Compl
 					.map((s) => ({ label: s.value, detail: s.name, count: s.count, insert: `${op}:${quoteValue(s.value)}` })),
 			);
 		case "to":
-			return withDash(data.addresses.filter((a) => prefixOf(a, partial)).map((a) => ({ label: a, insert: `to:${a}` })));
+			return withDash(recipientList("to", data, partial));
 		case "label":
 			return withDash(
 				data.labels
@@ -172,18 +133,6 @@ export function appendTerm(text: string, term: string): string {
 	return `${`${text.trim()} ${term}`.trim()} `;
 }
 
-/** Remove the term covering [start, end) and tidy the spaces. */
-export function removeRange(text: string, start: number, end: number): string {
-	return `${text.slice(0, start)} ${text.slice(end)}`.replace(/\s+/g, " ").trim();
-}
-
-/** Filter terms of the search (not words), each with its place in the text, for "Remove …". */
-export function filterTerms(text: string): { text: string; start: number; end: number }[] {
-	return parseSearch(text)
-		.terms.filter((t) => t.any.every((l) => l.type !== "word" && l.type !== "phrase"))
-		.map((t) => ({ text: text.slice(t.start, t.end), start: t.start, end: t.end }));
-}
-
 // ── Recent searches ────────────────────────────────────────────────
 
 export const RECENT_KEY = "pg-recent-searches";
@@ -211,19 +160,6 @@ export function saveRecent(storage: Pick<Storage, "setItem"> | undefined, list: 
 	} catch {
 		// Storage is full or blocked; recent searches last for this page only.
 	}
-}
-
-// ── Plain-words requests ───────────────────────────────────────────
-
-const REQUEST_START = new Set(["find", "show", "where", "emails", "which", "what", "who", "when"]);
-
-/** Text that reads like a request for the agent: four or more plain words, or a request word first. */
-export function looksLikeRequest(text: string): boolean {
-	const query = parseSearch(text);
-	const leaves = query.terms.flatMap((t) => t.any);
-	if (leaves.length === 0 || query.terms.some((t) => t.negate) || leaves.some((l) => l.type !== "word")) return false;
-	const first = leaves[0].type === "word" ? leaves[0].text.toLowerCase() : "";
-	return leaves.length >= 4 || (REQUEST_START.has(first) && leaves.length >= 2);
 }
 
 // ── Keys ───────────────────────────────────────────────────────────
@@ -255,11 +191,13 @@ export type WindowAction =
 	| { type: "choose" }
 	| { type: "openFirst" }
 	| { type: "run" }
-	| { type: "reopen" };
+	| { type: "reopen" }
+	| { type: "save" };
 
 /** What a key does in the search box. Null leaves it to the input. */
 export function windowKey(e: KeyInput, s: WindowState): WindowAction | null {
 	const mod = !!(e.meta || e.ctrl);
+	if (mod && e.key.toLowerCase() === "s") return s.hasText ? { type: "save" } : null;
 	switch (e.key) {
 		case "Escape":
 			if (s.open) return { type: "close" };

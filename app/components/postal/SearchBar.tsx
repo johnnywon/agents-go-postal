@@ -4,8 +4,7 @@
 
 import { ListIcon, MagnifyingGlassIcon, SparkleIcon, XIcon } from "@phosphor-icons/react";
 import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
-import { parseSearch } from "../../../shared/search-query";
-import type { Conversation, FacetValue } from "~/services/api";
+import type { Conversation, SavedSearch, Suggestions } from "~/services/api";
 import type { Identities } from "./identity";
 import {
 	addRecent,
@@ -44,14 +43,16 @@ export interface SearchBarProps {
 	/** An operator whose value doesn't parse. It is left out of the search. */
 	error?: string;
 	filters: FilterSuggestion[];
-	/** Filters with counts for the current search. */
-	narrow: FilterSuggestion[];
 	addresses: { address: string; count?: number }[];
-	/** Frequent senders, for People and `from:` completion. */
-	people: FacetValue[];
-	/** Senders and domains of the current search, for `from:` completion. */
-	senders: FacetValue[];
 	labels: { name: string; count: number }[];
+	/** The server's suggestions, and the box text they answer. */
+	suggest?: Suggestions;
+	suggestFor: string;
+	/** The cursor when the term under it completes from the mail (`from:`, `to:`, `cc:`), else -1. */
+	onCursor: (at: number) => void;
+	saved: SavedSearch[];
+	onSave: (text: string) => void;
+	onDeleteSaved: (saved: SavedSearch) => void;
 	identities: Identities;
 	/** Open the agent panel, with the text as the request when there is one. */
 	onAsk: (text: string) => void;
@@ -102,31 +103,53 @@ export const SearchBar = forwardRef<HTMLInputElement, SearchBarProps>(function S
 	const leave = () => input.current?.blur();
 
 	const ctx = useMemo(() => completionAt(text, cursor), [text, cursor]);
+	const serverAt = ctx?.kind === "value" && SERVER_COMPLETES.has(ctx.op) ? cursor : -1;
+	useEffect(() => props.onCursor(serverAt), [serverAt]); // eslint-disable-line react-hooks/exhaustive-deps
+	const suggest = props.suggest;
+	const suggestCurrent = !!suggest && props.suggestFor.trim() === text.trim();
+	const savedText = text.replace(/\s+/g, " ").trim();
+	const isSaved = props.saved.some((s) => s.query === savedText);
+	const save = () => {
+		if (savedText && !isSaved) props.onSave(savedText);
+	};
+	const focusDate = (id: string) => document.getElementById(`${rowDomId(id)}-input`)?.focus();
+
 	const sections = useMemo<WindowSection[]>(() => {
 		const out: WindowSection[] = [];
 		const filterRow = (f: FilterSuggestion, section: string): WindowRow => ({
 			id: `${section}:${f.token}`, kind: "filter", filter: f, choose: () => setText(appendTerm(text, f.token)),
 		});
 		if (ctx) {
+			const server = suggest?.completions ?? [];
+			const op = ctx.kind === "value" ? ctx.op : null;
 			const list = completions(ctx, {
 				addresses: props.addresses.map((a) => a.address),
-				senders: dedupe([...props.senders, ...props.people]),
+				senders: op === "from" ? server : suggest?.people ?? [],
+				recipients: op === "to" || op === "cc" ? server : [],
 				labels: props.labels,
 				now: new Date(),
 			});
-			if (list.length) {
-				out.push({
-					id: "complete",
-					title: ctx.kind === "operator" ? "Operators" : "Complete",
-					rows: list.map((c) => ({
-						id: `c:${c.insert}`, kind: "completion", completion: c,
-						choose: () => {
-							const r = applyCompletion(text, ctx, c.insert);
-							setText(r.text, r.cursor);
-						},
-					})),
+			const rows: WindowRow[] = list.map((c) => ({
+				id: `c:${c.insert}`, kind: "completion", completion: c,
+				choose: () => {
+					const r = applyCompletion(text, ctx, c.insert);
+					setText(r.text, r.cursor);
+				},
+			}));
+			if (ctx.kind === "value" && (ctx.op === "before" || ctx.op === "after")) {
+				const id = "date";
+				rows.push({
+					id, kind: "date", label: "Pick a date…",
+					choose: () => focusDate(id),
+					onPick: (day) => {
+						const r = applyCompletion(text, ctx, `${ctx.negate ? "-" : ""}${ctx.op}:${day}`);
+						setText(r.text, r.cursor);
+						input.current?.focus();
+					},
+					onCancel: () => input.current?.focus(),
 				});
 			}
+			if (rows.length) out.push({ id: "complete", title: ctx.kind === "operator" ? "Operators" : "Complete", rows });
 		}
 		if (!hasQ) {
 			if (recent.length) {
@@ -135,10 +158,20 @@ export const SearchBar = forwardRef<HTMLInputElement, SearchBarProps>(function S
 					rows: recent.map((q) => ({ id: `r:${q}`, kind: "recent", text: q, remove: () => forget(q), choose: () => setText(`${q} `) })),
 				});
 			}
-			if (props.people.length) {
+			if (props.saved.length) {
+				out.push({
+					id: "saved", title: "Saved",
+					rows: props.saved.map((s) => ({
+						id: `s:${s.id}`, kind: "saved", name: s.name, query: s.query, count: s.count,
+						remove: () => props.onDeleteSaved(s), choose: () => setText(`${s.query} `),
+					})),
+				});
+			}
+			const people = suggest?.people ?? [];
+			if (people.length) {
 				out.push({
 					id: "people", title: "People",
-					rows: props.people.slice(0, 6).map((p) => ({
+					rows: people.slice(0, 6).map((p) => ({
 						id: `p:${p.value}`, kind: "person", address: p.value, name: p.name, count: p.count,
 						choose: () => setText(appendTerm(text, `from:${p.value}`)),
 					})),
@@ -173,18 +206,24 @@ export const SearchBar = forwardRef<HTMLInputElement, SearchBarProps>(function S
 				})),
 			});
 		} else if (current && !props.resultsLoading && props.resultCount === 0) {
-			const query = parseSearch(text);
 			const rows: WindowRow[] = [];
-			if (!query.terms.some((t) => t.any.some((l) => l.type === "op" && l.op === "in" && l.value === "anywhere"))) {
-				rows.push({ id: "everywhere", kind: "action", icon: "everywhere", label: "Search everywhere", detail: "in:anywhere", choose: () => setText(appendTerm(text, "in:anywhere")) });
-			}
-			for (const t of filterTerms(text).slice(0, 3)) {
-				rows.push({ id: `rm:${t.start}`, kind: "action", icon: "remove", label: `Remove ${t.text}`, choose: () => setText(`${removeRange(text, t.start, t.end)} `) });
+			const everywhere = () => setText(appendTerm(withoutScope(text), "in:anywhere"));
+			if (suggestCurrent && suggest.nothing) {
+				// The server counted what each way out would find.
+				const { nothing } = suggest;
+				if (nothing.everywhere) rows.push({ id: "everywhere", kind: "action", icon: "everywhere", label: "Search everywhere", detail: count(nothing.everywhere), choose: everywhere });
+				for (const t of nothing.removals) {
+					rows.push({ id: `rm:${t.start}`, kind: "action", icon: "remove", label: `Remove ${t.text}`, detail: count(t.count), choose: () => setText(`${removeRange(text, t.start, t.end)} `) });
+				}
+			} else if (!suggestCurrent) {
+				if (!/(^|\s)in:anywhere\b/i.test(text)) rows.push({ id: "everywhere", kind: "action", icon: "everywhere", label: "Search everywhere", detail: "in:anywhere", choose: everywhere });
+				for (const t of filterTerms(text).slice(0, 3)) {
+					rows.push({ id: `rm:${t.start}`, kind: "action", icon: "remove", label: `Remove ${t.text}`, choose: () => setText(`${removeRange(text, t.start, t.end)} `) });
+				}
 			}
 			if (rows.length) out.push({ id: "nothing", title: "No results", rows });
 		}
-		const typed = text.toLowerCase();
-		const narrow = props.narrow.filter((f) => !typed.includes(f.token.toLowerCase()));
+		const narrow = (suggest?.narrow ?? []).map(narrowRow);
 		if (narrow.length) out.push({ id: "narrow", title: "Narrow", side: true, rows: narrow.map((f) => filterRow(f, "n")) });
 		if (looksLikeRequest(text)) {
 			out.push({
@@ -200,7 +239,7 @@ export const SearchBar = forwardRef<HTMLInputElement, SearchBarProps>(function S
 			});
 		}
 		return out;
-	}, [ctx, text, hasQ, recent, props.people, props.senders, props.filters, props.addresses, props.labels, props.narrow, props.results, props.resultsFor, props.resultsLoading, props.resultCount]); // eslint-disable-line react-hooks/exhaustive-deps
+	}, [ctx, text, hasQ, recent, suggest, suggestCurrent, props.saved, props.filters, props.addresses, props.labels, props.results, props.resultsFor, props.resultsLoading, props.resultCount]); // eslint-disable-line react-hooks/exhaustive-deps
 
 	// Keyboard order: the wide column, then the side column.
 	const rows = useMemo(() => [...sections.filter((s) => !s.side), ...sections.filter((s) => s.side)].flatMap((s) => s.rows), [sections]);
@@ -239,6 +278,9 @@ export const SearchBar = forwardRef<HTMLInputElement, SearchBarProps>(function S
 				remember(text);
 				leave();
 				return;
+			case "save":
+				save();
+				return;
 			case "openFirst":
 				remember(text);
 				props.onOpenFirst();
@@ -247,10 +289,27 @@ export const SearchBar = forwardRef<HTMLInputElement, SearchBarProps>(function S
 		}
 	};
 	const syncCursor = (e: React.SyntheticEvent<HTMLInputElement>) => setCursor(e.currentTarget.selectionStart ?? e.currentTarget.value.length);
+	const error = props.error ?? (suggestCurrent ? suggest.errors[0] : undefined);
 	const announced = hasQ && props.resultCount !== null && props.resultsFor.trim() === text.trim();
 
 	return (
-		<div className="pg-search-wrap">
+		<div
+			className="pg-search-wrap"
+			onFocus={(e) => {
+				if (focused || !inWindow(e.target, input.current)) return;
+				setFocused(true);
+				setDismissed(false);
+				props.onFocusChange?.(true);
+			}}
+			onBlur={(e) => {
+				// Focus moving to the date field stays inside the window.
+				if (inWindow(e.relatedTarget, input.current)) return;
+				setFocused(false);
+				setActive(null);
+				setHelp(false);
+				props.onFocusChange?.(false);
+			}}
+		>
 			<div className="pg-search" data-suggest={show} data-active={hasQ || focused} role="search">
 				<button type="button" className="pg-icon-btn pg-mobile-only" onClick={props.onMenu} aria-label="Open menu">
 					<ListIcon size={16} />
@@ -267,17 +326,6 @@ export const SearchBar = forwardRef<HTMLInputElement, SearchBarProps>(function S
 						syncCursor(e);
 					}}
 					onSelect={syncCursor}
-					onFocus={() => {
-						setFocused(true);
-						setDismissed(false);
-						props.onFocusChange?.(true);
-					}}
-					onBlur={() => {
-						setFocused(false);
-						setActive(null);
-						setHelp(false);
-						props.onFocusChange?.(false);
-					}}
 					onKeyDown={onKeyDown}
 					placeholder="Search mail — try  from:stripe  is:unread  has:attachment"
 					spellCheck={false}
@@ -291,8 +339,8 @@ export const SearchBar = forwardRef<HTMLInputElement, SearchBarProps>(function S
 				/>
 				{hasQ && (
 					<>
-						{props.error ? (
-							<span className="pg-search-error pg-ellipsis" role="status" title={props.error}>{props.error}</span>
+						{error ? (
+							<span className="pg-search-error pg-ellipsis" role="status" title={error}>{error}</span>
 						) : props.resultCount !== null && (
 							<span className="pg-result-count">{props.resultCount.toLocaleString()} result{props.resultCount === 1 ? "" : "s"}</span>
 						)}
@@ -320,19 +368,31 @@ export const SearchBar = forwardRef<HTMLInputElement, SearchBarProps>(function S
 					help={help}
 					onHelp={setHelp}
 					onHover={setActive}
+					save={hasQ ? (isSaved ? "saved" : save) : null}
 				/>
 			)}
 		</div>
 	);
 });
 
-/** One entry per sender, keeping the higher count and any name. */
-function dedupe(list: FacetValue[]): FacetValue[] {
-	const seen = new Map<string, FacetValue>();
-	for (const f of list) {
-		const key = f.value.toLowerCase();
-		const prev = seen.get(key);
-		if (!prev || f.count > prev.count) seen.set(key, { ...f, name: f.name ?? prev?.name });
-	}
-	return [...seen.values()];
+/** The search box or something inside the window, such as the date field. The menu and agent buttons don't count. */
+function inWindow(target: EventTarget | null, box: HTMLInputElement | null): boolean {
+	return !!target && (target === box || (target instanceof Element && !!target.closest(".pg-sw")));
+}
+
+/** Operators whose values come from the mail, through the suggest API. */
+const SERVER_COMPLETES = new Set(["from", "to", "cc"]);
+
+const count = (n: number) => `${n.toLocaleString()} result${n === 1 ? "" : "s"}`;
+
+/** The search without its `in:` terms, for searching everywhere. */
+function withoutScope(text: string): string {
+	let out = text;
+	for (const t of filterTerms(text).filter((t) => /^-?in:/i.test(t.text)).reverse()) out = removeRange(out, t.start, t.end);
+	return out;
+}
+
+function narrowRow(n: Suggestions["narrow"][number]): FilterSuggestion {
+	const icon = n.token.startsWith("from:") ? "from" : n.token.startsWith("label:") ? "label" : n.token === "is:unread" ? "unread" : "attachment";
+	return { token: n.token, desc: n.label, icon, count: n.count };
 }
