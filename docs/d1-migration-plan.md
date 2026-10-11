@@ -1,6 +1,6 @@
 # Plan: move mail storage to D1 and rebuild search
 
-Status: proposal. Nothing here is built yet.
+Status: proposal. Phase 0 is done: [results](d1-phase0.md). Nothing else is built yet.
 
 ## Summary
 
@@ -112,10 +112,12 @@ CREATE INDEX messages_in_reply_to ON messages (in_reply_to);
 CREATE INDEX messages_sender ON messages (sender);
 CREATE INDEX messages_sender_domain ON messages (sender_domain);
 
--- Word search. Stores its own text (not contentless) so snippet(),
--- highlight() and bm25() work. rowid = messages.rowid.
+-- Word search. Contentless: 3.9 KB per message against 10.2 KB for a table
+-- that stores its own text (phase 0). bm25() and rank work; snippets are
+-- built in the Worker. rowid = messages.rowid.
 CREATE VIRTUAL TABLE messages_fts USING fts5(
 	subject, sender_name, sender, recipient, cc, attachment_names, body_text,
+	content='', contentless_delete=1,
 	tokenize='unicode61 remove_diacritics 2', prefix='2 3'
 );
 -- Substring search for codes and partial addresses ("INV-20", "ripe" in stripe).
@@ -196,12 +198,12 @@ Notes:
 
 - `state` in the index (`inbox`, `sent`, `folder:<id>`) becomes `folder_id` plus a computed expression. `folderToState` stays as a SQL `CASE`, or the query builder filters on `folder_id` directly.
 - `thread_key` (address + separator + conversation) becomes the pair `(mailbox_id, thread_id)`. Cursors and the UI's `open=` parameter already carry the address, so URLs keep working.
-- The FTS row is written in the same `batch()` as the message. `body_text` is the plain text of the full body, capped at 256 KB (today: 32 KB). Search text for one message is roughly the size of its plain-text body, so the word index costs about as much space as the text it covers. Phase 0 measures it.
+- The FTS row is written in the same `batch()` as the message. `body_text` is the plain text of the full body, capped at 256 KB (today: 32 KB). In phase 0 a message cost about 11 KB in total with this design (6.9 KB row, 3.9 KB word index, 0.4 KB trigram), so 10 GB holds about 900,000 messages of that size.
 - Tombstones, `generation`, `seq`, `mailbox_cursor`, `rebuild_job` and `index_outbox` have no equivalent. They exist only to keep the copy in sync.
 
-### Bodies over the row limit
+### Large bodies
 
-D1 refuses rows and strings over 2 MB. Some HTML mail is bigger than that. Bodies over `BODY_INLINE_MAX` (512 KB) go to R2 at `bodies/<message id>.html`, with `body_key` set and `body` NULL. `snippet` and the FTS row are built from the full body before it is stored, so search still covers it. `getEmail` reads R2 when `body_key` is set.
+D1 accepts single values up to about 8 MB (phase 0: 8 MB stored, 9 MB refused with `SQLITE_TOOBIG`). Large rows still slow every read that touches them, so bodies over `BODY_INLINE_MAX` (512 KB) go to R2 at `bodies/<message id>.html`, with `body_key` set and `body` NULL. `snippet` and the FTS row are built from the full body before it is stored, so search still covers it. `getEmail` reads R2 when `body_key` is set.
 
 ### Access layer
 
@@ -307,9 +309,11 @@ Unknown operators stay as plain words, so `ratio:4:3` still searches. Values tha
 ### One engine
 
 - Every surface runs the same compiled query against the D1 tables: the postal, unified and classic views, `search_all_mail`, and `search_emails`. `search_emails` becomes `search_all_mail` with an address filter. MCP gets the same two tools.
-- **Relevance.** With `sort:relevance`, rows rank by `bm25(messages_fts, 6, 4, 3, 2, 2, 2, 1)`: subject weighs most, body least. A recency term breaks near-ties. The weights get tuned against a fixture set of 200 messages and 30 queries with expected top results. That set is checked in, so ranking changes show up in review.
+- **Relevance.** The table's `rank` is set to `bm25(6, 4, 3, 2, 2, 2, 1)`: subject weighs most, body least. Ranking time grows with the number of matches: under 50 ms at the 13,000 matches measured, 0.22 to 0.46 s at 100,000 (phase 0). So every search counts its matches first (15 to 34 ms). With 20,000 or fewer it sorts by relevance; that line is an extrapolation, confirmed on real mail in phase 2. With more it sorts newest first (10 to 40 ms at any size), and the window and list offer "Sort by relevance" as an explicit action. A recency term breaks near-ties. The weights get tuned against a fixture set of 200 messages and 30 queries with expected top results. That set is checked in, so ranking changes show up in review.
 - **Conversations.** Results group by conversation. The best-ranked message in a conversation represents it, and the row says how many messages matched.
-- **Snippets.** Each result carries `snippet(messages_fts, -1, "\u0002", "\u0003", "…", 18)` built from the column that matched. The server HTML-escapes it, then turns the two markers into `<mark>` and `</mark>`. Mail text never reaches the page unescaped. A test feeds `<script>` and `&lt;` cases through it.
+- **Snippets.** The Worker builds them for the rows on screen only (6 in the window, 50 in the list). It strips the body to text, finds the query terms with the same tokenizing rules as the index (case, diacritics, prefixes), and takes about 18 words around the best cluster. FTS5's `snippet()` re-runs the match and cost 57 to 160 ms on broad words in phase 0, and it doesn't work on a contentless table. The server HTML-escapes the text and then adds `<mark>` and `</mark>`, so mail text never reaches the page unescaped. A test feeds `<script>` and `&lt;` cases through it.
+- **Facets** ("Narrow" counts) count over the newest 5,000 matches through `rowid IN (SELECT rowid FROM messages_fts WHERE … ORDER BY rowid DESC LIMIT 5000)`. That took 25 to 45 ms at 100,000 matches, against 280 ms for a join against every match.
+- **One `MATCH` per statement.** In phase 0 a statement with two `MATCH`es on the same table failed six times with D1's CPU-limit reset, and took 28 s with a smaller limit. A test fails on that pattern in `workers/store/search.ts`.
 - **Substring fallback.** Words of three or more characters that match nothing in `messages_fts` are retried against `messages_trigram`. This finds codes, order numbers and partial addresses.
 - **Did you mean.** When a search returns nothing, the Worker reads candidate terms from `messages_vocab` that share the first two letters of each word. It suggests the one with the smallest edit distance and the most documents.
 - **Attachment text.** PDFs, Word, Excel and text attachments under 10 MB are converted with Workers AI `toMarkdown` and stored in `attachment_text`, capped at 64 KB each. The job runs on the cron and doesn't hold up inbound mail. That text is added to the message's `body_text` field in the index. It's off by default (`ATTACHMENT_SEARCH=true` turns it on), because it costs Workers AI calls per attachment.
@@ -384,7 +388,7 @@ The window drops from the bar and spans its full width (`left: 0; right: 0`), up
 | Route | Returns |
 |---|---|
 | `GET /api/v1/mail?q=…&sort=relevance` | Today's list response, plus `snippetHtml` and `matchCount` per conversation |
-| `GET /api/v1/search/suggest?q=…&at=<cursor offset>` | One round trip for the window: `completions`, `results` (top 6 with snippets), `narrow` (filters with counts), `didYouMean`, `interpretable` (boolean), `errors` (operators that didn't parse). Target: under 60ms at 100,000 messages, measured in phase 0. |
+| `GET /api/v1/search/suggest?q=…&at=<cursor offset>` | One round trip for the window: `completions`, `results` (top 6 with snippets), `narrow` (filters with counts), `didYouMean`, `interpretable` (boolean), `errors` (operators that didn't parse). Target: under 60 ms of SQL. Phase 0 met it for searches with up to about 20,000 matches. Broad words meet it only through the newest-first rule and capped facets above. |
 | `POST /api/v1/search/interpret` `{ text }` | `{ query, text, explanation }`, or an error that the client turns into a plain word search |
 | `GET/POST/PUT/DELETE /api/v1/saved-searches` | Saved searches CRUD over the existing table |
 
@@ -392,7 +396,7 @@ The agent's `search_all_mail` and MCP's `search_all_mail` take a `query` string 
 
 ### Order
 
-The query language, the search window and the suggest API don't depend on storage. They can ship on the current `MailIndexDO` before D1, then move with everything else. The engine changes (FTS that stores text, trigram, ranking, snippets) go straight into the D1 schema, so they aren't built twice. See phases S1 to S6.
+The query language, the search window and the suggest API don't depend on storage. They can ship on the current `MailIndexDO` before D1, then move with everything else. The engine changes (contentless word index, trigram, ranking, snippets) go straight into the D1 schema, so they aren't built twice. See phases S1 to S6.
 
 Another session is changing `SearchBar.tsx` now. Search work starts after that lands.
 
@@ -406,7 +410,7 @@ Every deployment that already holds mail needs a one-time copy. It runs inside t
    - `MailIndexDO.exportGlobals()` returns `labels`, `label_auto` and `saved_searches`.
 2. **The copy job.** `POST /api/v1/admin/migrate-to-d1` with `{ confirm: true }` starts it. A `migration_job` row in D1 tracks progress, and the cron advances it.
    - First it pauses index sync (`INDEX_SYNC_ENABLED=false`). The combined inbox stops updating until cutover, so the copy should run in a quiet hour.
-   - Then it copies mailbox settings from R2, the global tables, and every mailbox page by page, 200 messages per batch, using `INSERT OR IGNORE`. Large bodies go to R2.
+   - Then it copies mailbox settings from R2, the global tables, and every mailbox page by page, 200 messages per batch (phase 0: 1.7 ms per message with indexes), using `INSERT OR IGNORE`. A batch stays under 24 MB of payload: one `batch()` call is capped at 32 MiB. Large bodies go to R2.
    - The job is resumable and idempotent: rerunning it skips rows already copied.
 3. **Catch-up.** After the full copy, each mailbox reads `changedIds()` and re-copies those rows with `INSERT OR REPLACE`, deleting rows that no longer exist. Then it clears the ids it handled from the outbox. This repeats until a pass finds nothing.
 4. **Check.** A parity report compares per-mailbox, per-folder counts, unread counts, label counts and scheduled-send counts between the old storage and D1. The current `/api/v1/index/status` parity page is reused for this.
@@ -426,7 +430,7 @@ The copy job is a user-facing feature of one release, so it needs its own README
 
 | # | Phase | Output | Rough size |
 |---|---|---|---|
-| 0 | Checks | Short notes on the unknowns listed below, each answered in a throwaway Worker against real D1 | 1 to 2 days |
+| 0 | Checks | Done. See [Phase 0 results](#phase-0-results). | 1 day |
 | 1 | Access layer | `Sql` interface, the D1 and node:sqlite adapters, and SQL modules moved to `workers/store/` as async functions. The Durable Objects call the async versions through an adapter, so behavior doesn't change and every test still passes. | 3 to 4 days |
 | 2 | D1 schema and store | `migrations/0001_init.sql` and a `MailStore` built on D1 with the same methods the routes, tools and agent use today. Tests run against it. | 4 to 5 days |
 | 3 | Switch callers | The 11 files call `MailStore` instead of stubs. The `STORAGE` var picks the Durable Object store or the D1 store. `MAIL_UI` modes all read through it. | 2 to 3 days |
@@ -436,7 +440,7 @@ The copy job is a user-facing feature of one release, so it needs its own README
 | S1 | One query language | `shared/search-query.ts` parser and compiler, used by the postal, unified and classic views, the agent and MCP. `search-parser.ts` deleted. Runs on the current index. | 2 to 3 days |
 | S2 | Search window | Full-width window, sections, completion, recent and saved searches, keys, mobile sheet | 3 to 4 days |
 | S3 | Suggest API | `/search/suggest`, saved-search routes, people and completion queries. On the current index first. | 2 days |
-| S4 | Engine on D1 | Within phase 2: FTS that stores text, trigram table, vocab, bm25 ranking with the fixture set, snippets, one search for every surface | 3 days |
+| S4 | Engine on D1 | Within phase 2: contentless word index, trigram table, vocab, ranking with the count-first rule and the fixture set, Worker-built snippets, capped facets, one search for every surface | 3 days |
 | S5 | Ask in plain words | `/search/interpret` with a strict schema, the Ask row, the hand-off to the agent panel | 2 days |
 | S6 | Attachment text | `toMarkdown` job on the cron, `attachment_text`, `ATTACHMENT_SEARCH` setting | 2 days |
 | 7 | Remove the old path | Delete Durable Object mail storage, the sync code, the flag and the old tests. Docs. | 1 to 2 days |
@@ -445,15 +449,23 @@ That's about four weeks of storage work plus the soak, and about three weeks of 
 
 Phase 1 ships alone with no behavior change, which makes the rest reviewable in small pieces.
 
-## Unknowns to settle in phase 0
+## Phase 0 results
 
-1. **FTS5 features on D1.** Check the `prefix` option, the `trigram` tokenizer, `fts5vocab`, and `snippet()` and `bm25()` with column weights. Measure index size per 1,000 messages of real mail. If trigram or vocab is missing, drop substring fallback or Did you mean. Neither blocks the rest.
-2. **Export with virtual tables.** `wrangler d1 export` has refused databases that contain virtual tables. If that is still true, ship our own export: `GET /api/v1/export` as JSON lines plus attachment and body keys in R2. Users need a "get my mail out" path anyway.
-3. **Write throughput.** Time the import of 100,000 messages in batches of 200, and the cost of one inbound message (message, FTS row and attachments in one batch). Write the per-message cost into the README.
-4. **Batch size limits.** Measure the largest statement count and payload one `batch()` accepts, so import and bulk chunk sizes are set from data.
-5. **Cron on the plans users run.** Check that a one-minute cron is allowed and that `scheduled()` and `email()` can live in the same Worker with the Agents SDK's Durable Objects.
-6. **Search speed.** Time `/search/suggest` (results, facets and completions in one request) and a relevance query at 100,000 messages. If it misses 60ms, split facets into a second request that the window fills in when it arrives.
-7. **Local development.** `wrangler dev` with a local D1, migrations applied by `npm run dev:local`, and the seed route writing to it. Check that the remote `send_email` binding still works alongside it.
+Done 2026-10-11. Details in [d1-phase0.md](d1-phase0.md); the bench is in `scripts/d1-bench/`.
+
+| Unknown | Answer |
+|---|---|
+| FTS5 features | Prefix indexes, weighted `bm25`, `rank`, `snippet`, `highlight`, contentless delete, trigram, `fts5vocab`, `json_each` and `ON CONFLICT … RETURNING` all work. `sqlite_version()` is blocked. |
+| Export | The full `wrangler d1 export` refuses databases with FTS5. Per-table `--table` exports work. The app ships its own export route. |
+| Write speed | 1.66 ms per message for bulk import with indexes. One inbound message: about 32 ms, 1 ms of SQL, 8 rows written. |
+| Batch limits | 20,000 statements fit in one batch. Payload is capped at 32 MiB per call. One value can be about 8 MB. |
+| Cron | A one-minute cron ran beside `email()` and a SQLite Durable Object in one Worker. The Free plan wasn't checked. |
+| Search speed | Selective searches: 0.4 to 14 ms. 10,000 matches: 21 to 44 ms. 100,000 matches: 0.22 to 0.46 s to rank, 10 to 40 ms newest first. |
+| Local development | Local D1 with FTS5 and trigram works beside the remote `send_email` binding. |
+
+What it changed in this plan: the word index stays contentless, snippets are built in the Worker, ranking counts matches first, facets are capped, statements with more than one `MATCH` are banned, the value limit is 8 MB rather than 2 MB, and batches are sized by bytes.
+
+Phase 0 used synthetic mail with a small vocabulary, so broad-word search times are worst cases. Phase 2 repeats the search timings on a copy of real mail.
 
 ## Testing
 
@@ -476,10 +488,10 @@ Phase 1 ships alone with no behavior change, which makes the rest reviewable in 
 |---|---|---|
 | A query forgets `mailbox_id` and mixes addresses | Medium | The isolation test over every store function. Queries that take a mailbox go through helpers that add the filter. |
 | Copy misses changes made during it | Low | Catch-up driven by the existing change sequence, then parity before cutover |
-| FTS option unsupported on D1 | Medium | Phase 0, item 1. External-content fallback. |
+| A query hits D1's CPU limit and resets the database | Medium | Phase 0 hit it with one query shape. One `MATCH` per statement, enforced by a test. Ranking switches to newest first above 20,000 matches. |
 | Snippet HTML lets mail content inject markup | Low | Escape on the server, then add marks from control characters. Hostile-input tests. |
 | Plain-words search makes a wrong query | Medium | The operators it produced are shown and editable before anything runs. One call per request. |
-| Text-storing FTS and trigram grow the database | Medium | Trigram covers short fields only. Body text is capped. Size is measured in phase 0 and shown on the Mail index page. |
+| The search indexes grow the database | Low | Contentless word index (3.9 KB per message) and short-field trigram (0.4 KB). Body text is capped. Database size is shown on the Mail index page. |
 | Cron delays scheduled send by up to a minute | Certain | Say so in the README. The UI already shows the time, not a countdown. |
 | A large mailbox nears 10 GB | Low for one owner | Bodies over 512 KB in R2. Show database size on the Mail index page. Document the limit. |
 | Rollback after cutover loses non-inbound changes | Low | Two-week dual inbound write. Time Travel for problems inside D1. Stated in release notes. |
@@ -491,7 +503,7 @@ Phase 1 ships alone with no behavior change, which makes the rest reviewable in 
 
 ## Files touched
 
-- **New (search):** `shared/search-query.ts`, `workers/store/search.ts` (compiler, ranking, snippets, suggest, vocab), `workers/routes/search.ts`, `app/components/postal/SearchWindow.tsx`, `tests/search-query.test.mjs`, `tests/search-ranking.test.mjs`, `tests/fixtures/search-corpus.json`
+- **New (search):** `shared/search-query.ts`, `workers/store/search.ts` (compiler, ranking, Worker-built snippets, suggest, vocab), `workers/routes/search.ts`, `app/components/postal/SearchWindow.tsx`, `tests/search-query.test.mjs`, `tests/search-ranking.test.mjs`, `tests/fixtures/search-corpus.json`
 - **Changed (search):** `app/components/postal/SearchBar.tsx`, `postal.css` (`.pg-suggest`), `app/lib/mail-filter.ts`, `workers/agent/index.ts` and `workers/mcp/index.ts` (one search tool shape)
 - **Deleted (search):** `app/lib/search-parser.ts`, `MailboxDO.searchEmails` and `countSearchResults`
 - **New:** `migrations/0001_init.sql`, `workers/store/{types,d1,mail,labels,bulk,scheduled,send-keys,search}.ts`, `workers/cron.ts`, `workers/routes/migrate.ts` (temporary), `tests/helpers/sql.mjs`, `tests/store-isolation.test.mjs`, `tests/migrate-to-d1.test.mjs`
@@ -527,3 +539,8 @@ Confirmed as written:
 - Cursors carry the conversation's address (`thread_key`).
 - Scheduled sends show their time in the list.
 - The test files the plan names exist.
+
+Second pass, after phase 0 (2026-10-11):
+
+6. The ranking threshold, the CPU-limit rule and the ranking times were corrected to match the phase 0 output. See the drift check in [d1-phase0.md](d1-phase0.md#drift-check).
+
