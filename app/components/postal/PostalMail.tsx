@@ -25,6 +25,7 @@ import { buildIdentities } from "./identity";
 import { ListPane } from "./ListPane";
 import { LogoutModal, McpModal, SettingsModal, Toast, type ToastState } from "./Modals";
 import { conversations, HOME, labelOf, parsePostalFilter, scopeOf, searchErrors, searchTerms, withSearch } from "./model";
+import { localDay } from "./search-window";
 import { useLayout, usePrefs, useResolvedTheme, useWidth } from "./prefs";
 import { Reader } from "./Reader";
 import { SearchBar, type FilterSuggestion } from "./SearchBar";
@@ -83,7 +84,7 @@ function PostalApp({ addresses, domains, autoDraft }: PostalProps) {
 	const open = useMemo(() => parseOpen(searchParams), [searchParams]);
 	const filterKey = filterToParams(filter).toString();
 	const [search, setSearchText] = useState(() => searchParams.get("search") ?? "");
-	const debounced = useDebounced(search, 250);
+	const debounced = useDebounced(search, 120);
 	const { labels, byId: labelsById } = useLabels();
 	const labelRefs = useMemo(() => labels.map((l) => ({ id: l.id, name: l.name })), [labels]);
 	const effective = useMemo(() => withSearch(filter, debounced, labelRefs), [filter, debounced, labelRefs]);
@@ -118,6 +119,10 @@ function PostalApp({ addresses, domains, autoDraft }: PostalProps) {
 	const [facetsWanted, setFacetsWanted] = useState(false);
 	const [searchFocus, setSearchFocus] = useState(false);
 	const listFacets = useMailFacets(filter, facetsWanted || searchFocus);
+	// The search window: counts for this search, and the people you hear from most in 90 days.
+	const searchFacets = useMailFacets(effective, searchFocus && !!debounced.trim());
+	const since90 = useMemo(() => localDay(new Date(Date.now() - 90 * 86_400_000)), []);
+	const peopleFacets = useMailFacets({ view: "all", chips: [{ kind: "after", value: since90 }], sort: "date", dir: "desc" }, searchFocus);
 	const info = useAddressInfo(addresses);
 	const sender = useMailSender(info);
 	const createLabel = useCreateLabel();
@@ -435,6 +440,17 @@ function PostalApp({ addresses, domains, autoDraft }: PostalProps) {
 		...topLabels.map((l) => ({ token: `label:${/\s/.test(l.name) ? `"${l.name}"` : l.name.toLowerCase()}`, desc: l.name, icon: "label" as const, count: l.count })),
 		...topFrom.map((f) => ({ token: `from:${f.value}`, desc: `From ${f.value}`, icon: "from" as const, count: f.count })),
 	];
+	const found = searchFacets.data;
+	const narrowBy: FilterSuggestion[] = found
+		? [
+				...found.from.domains.slice(0, 3).map((f) => ({ token: `from:${f.value}`, desc: `From ${f.value}`, icon: "from" as const, count: f.count })),
+				...found.label.filter((l) => l.count > 0).sort((a, b) => b.count - a.count).slice(0, 3)
+					.map((l) => ({ token: `label:${/\s/.test(l.name ?? "") ? `"${l.name}"` : (l.name ?? l.value).toLowerCase()}`, desc: l.name ?? l.value, icon: "label" as const, count: l.count })),
+				...(found.status.unread ? [{ token: "is:unread", desc: "Unread", icon: "unread" as const, count: found.status.unread }] : []),
+				...(found.status.attachment ? [{ token: "has:attachment", desc: "Has attachment", icon: "attachment" as const, count: found.status.attachment }] : []),
+			]
+		: [];
+	const senders = found ? [...found.from.addresses, ...found.from.domains] : [];
 	const addressFacet = new Map((listFacets.data?.address ?? []).map((f) => [f.value.toLowerCase(), f.count]));
 
 	const sidebarProps = {
@@ -482,10 +498,23 @@ function PostalApp({ addresses, domains, autoDraft }: PostalProps) {
 						value={search}
 						onChange={setSearchText}
 						onOpenFirst={() => rows[0] && openConversation(rows[0])}
+						onOpenResult={(row) => openConversation(row)}
 						onMove={move}
-						resultCount={searching ? total : null}
+						resultCount={searching && !list.isPending ? total : null}
+						results={searching ? serverRows : []}
+						resultsFor={debounced}
+						resultsLoading={list.isFetching}
+						terms={terms}
 						error={searchError}
 						filters={suggestions}
+						narrow={narrowBy}
+						people={peopleFacets.data?.from.addresses ?? []}
+						senders={senders}
+						labels={labels.map((l) => ({ name: l.name, count: l.count }))}
+						onAsk={(text) => {
+							if (!panelOpen) togglePanel();
+							if (text) setPrefill({ text, id: Date.now() });
+						}}
 						addresses={addresses.map((a) => ({ address: a, count: addressFacet.get(a) }))}
 						identities={identities}
 						onMenu={() => setNavTemp(true)}
