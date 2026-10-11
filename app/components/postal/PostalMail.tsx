@@ -436,7 +436,6 @@ function PostalApp({ addresses, domains, autoDraft }: PostalProps) {
 		...topFrom.map((f) => ({ token: `from:${f.value}`, desc: `From ${f.value}`, icon: "from" as const, count: f.count })),
 	];
 	const addressFacet = new Map((listFacets.data?.address ?? []).map((f) => [f.value.toLowerCase(), f.count]));
-	const agentMailbox = open?.mailboxId ?? (scope?.includes("@") ? scope : addresses[0] ?? "");
 
 	const sidebarProps = {
 		identities, filter, go, allUnread: counts.unread, unreadByAddress, labels,
@@ -582,8 +581,7 @@ function PostalApp({ addresses, domains, autoDraft }: PostalProps) {
 					<>
 						{mobile && <div className="pg-drawer-scrim" onClick={() => setPanelTemp(false)} aria-hidden />}
 						<AgentPanel
-							mailboxId={agentMailbox}
-							identities={identities}
+							open={open}
 							onCollapse={togglePanel}
 							overlay={!mobile && narrow}
 							prefill={prefill}

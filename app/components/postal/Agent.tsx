@@ -9,7 +9,7 @@ import type { ComposeState } from "./compose";
 import { useEffect, useMemo, useRef, useState } from "react";
 import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { AddressMark, type Identities } from "./identity";
+import { SHARED_AGENT, type AgentContext } from "../../../shared/agent";
 
 type Hooks = {
 	useAgent: typeof import("agents/react").useAgent;
@@ -86,8 +86,8 @@ export interface DraftResult {
 // ── Panel ────────────────────────────────────────────────────────────
 
 export interface AgentPanelProps {
-	mailboxId: string;
-	identities: Identities;
+	/** The conversation on screen, so "this email" means something to the agent. */
+	open: AgentContext["open"];
 	onCollapse: () => void;
 	overlay: boolean;
 	prefill: { text: string; id: number } | null;
@@ -105,7 +105,7 @@ export function AgentPanel(props: AgentPanelProps) {
 				<RobotIcon size={14} weight="fill" color="var(--pg-green)" />
 			</button>
 			{hooks ? (
-				<AgentChat key={props.mailboxId} hooks={hooks} {...props} />
+				<AgentChat hooks={hooks} {...props} />
 			) : (
 				<>
 					<div className="pg-agent-sub">
@@ -121,9 +121,12 @@ export function AgentPanel(props: AgentPanelProps) {
 
 const SUGGESTIONS = ["What came in today that needs a reply?", "Summarize unread mail", "Draft a reply to the open conversation"];
 
-function AgentChat({ hooks, mailboxId, identities, prefill, onOpenDraft, onBusy }: AgentPanelProps & { hooks: Hooks }) {
-	const agent = hooks.useAgent({ agent: "EmailAgent", name: mailboxId });
-	const { messages, sendMessage, status, setMessages, stop } = hooks.useAgentChat({ agent });
+function AgentChat({ hooks, open, prefill, onOpenDraft, onBusy }: AgentPanelProps & { hooks: Hooks }) {
+	// One agent for every address; each tool call names the address it acts on.
+	const agent = hooks.useAgent({ agent: "EmailAgent", name: SHARED_AGENT });
+	const context = useRef<AgentContext>({ open });
+	context.current = { open };
+	const { messages, sendMessage, status, setMessages, stop } = hooks.useAgentChat({ agent, body: () => context.current });
 	const busy = status === "streaming" || status === "submitted";
 	const [input, setInput] = useState("");
 	// Up and Down walk through what you asked before, like a shell.
@@ -167,7 +170,7 @@ function AgentChat({ hooks, mailboxId, identities, prefill, onOpenDraft, onBusy 
 			<div className="pg-agent-sub">
 				<span className="pg-bot"><RobotIcon size={13} weight="fill" /></span>
 				<span className="pg-name">Agent</span>
-				<AddressMark address={mailboxId} identities={identities} bold={false} />
+				<span className="pg-flex" />
 				{messages.length > 0 && !busy && (
 					<button type="button" className="pg-head-btn" title="Clear chat" aria-label="Clear chat" onClick={() => window.confirm("Clear this chat?") && setMessages([])}>
 						<TrashIcon size={13} />
@@ -184,7 +187,7 @@ function AgentChat({ hooks, mailboxId, identities, prefill, onOpenDraft, onBusy 
 					</div>
 				) : (
 					<div className="pg-agent-thread">
-						{messages.map((m) => <ChatMessage key={m.id} message={m} onOpenDraft={(id) => onOpenDraft(mailboxId, id)} />)}
+						{messages.map((m) => <ChatMessage key={m.id} message={m} onOpenDraft={onOpenDraft} />)}
 						{busy && (
 							<div className="pg-agent-tool" data-running="true"><span className="pg-tri">▸</span><span>working…</span></div>
 						)}
@@ -228,12 +231,12 @@ function AgentChat({ hooks, mailboxId, identities, prefill, onOpenDraft, onBusy 
 	);
 }
 
-function ChatMessage({ message, onOpenDraft }: { message: UIMessage; onOpenDraft: (draftId: string) => void }) {
+function ChatMessage({ message, onOpenDraft }: { message: UIMessage; onOpenDraft: (mailboxId: string, draftId: string) => void }) {
 	if (message.role === "user") {
 		const text = message.parts.map((p) => (p.type === "text" ? p.text : "")).join("");
 		return <div className="pg-agent-q">{text}</div>;
 	}
-	const drafts: string[] = [];
+	const drafts: { mailboxId: string; draftId: string }[] = [];
 	const out: React.ReactNode[] = [];
 	message.parts.forEach((part, i) => {
 		const name = toolName(part);
@@ -246,7 +249,8 @@ function ChatMessage({ message, onOpenDraft }: { message: UIMessage; onOpenDraft
 				</div>,
 			);
 			const result = toolOutput(part) as { draftId?: string } | undefined;
-			if ((name === "draft_reply" || name === "draft_email") && result?.draftId) drafts.push(result.draftId);
+			const mailboxId = (part as { input?: { mailboxId?: string } }).input?.mailboxId;
+			if ((name === "draft_reply" || name === "draft_email") && result?.draftId && mailboxId) drafts.push({ mailboxId: mailboxId.toLowerCase(), draftId: result.draftId });
 			return;
 		}
 		if (part.type === "text" && part.text.trim()) {
@@ -265,8 +269,8 @@ function ChatMessage({ message, onOpenDraft }: { message: UIMessage; onOpenDraft
 	if (drafts.length) {
 		out.push(
 			<div key="actions" className="pg-agent-actions" style={{ paddingLeft: 28 }}>
-				{drafts.map((id) => (
-					<button key={id} type="button" className="pg-btn" onClick={() => onOpenDraft(id)}>Open draft</button>
+				{drafts.map((d) => (
+					<button key={d.draftId} type="button" className="pg-btn" onClick={() => onOpenDraft(d.mailboxId, d.draftId)}>Open draft</button>
 				))}
 			</div>,
 		);

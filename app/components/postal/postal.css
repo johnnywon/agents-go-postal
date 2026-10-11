@@ -580,7 +580,6 @@ html:has(.postal), html:has(.postal) body { background: var(--pg-base, #141518);
 .pg-agent .pg-rail-head .pg-head-label { flex: 1; text-align: right; line-height: 1; }
 .pg-agent-sub { height: 44px; flex: none; display: flex; align-items: center; gap: 8px; padding: 0 12px; border-bottom: 1px solid var(--pg-line); min-width: 0; }
 .pg-agent-sub .pg-name { font-weight: 600; font-size: 13px; color: var(--pg-text-2); }
-.pg-agent-sub .pg-addr-mark { margin-left: auto; font-size: 11px; color: var(--pg-text-6); }
 .pg-bot { width: 22px; height: 22px; flex: none; display: flex; align-items: center; justify-content: center; background: oklch(0.78 0.14 150 / .14); color: var(--pg-green); }
 .pg-bot.is-small { width: 20px; height: 20px; }
 .pg-agent-scroll { flex: 1; overflow-y: auto; display: flex; flex-direction: column; }
@@ -612,11 +611,8 @@ html:has(.postal), html:has(.postal) body { background: var(--pg-base, #141518);
 .pg-return {
   width: 32px; height: 26px; flex: none; display: flex; align-items: center; justify-content: center;
   background: var(--pg-segment); color: var(--pg-text-3);
-  box-shadow: 0 1px 3px rgba(0, 0, 0, .45), inset 0 1px 0 rgba(255, 255, 255, .08); transform: translateY(-1px);
-  transition: transform .08s, box-shadow .08s;
 }
 .pg-return:hover:not(:disabled) { background: var(--pg-line-3); color: var(--pg-text-1); }
-.pg-return:active:not(:disabled) { transform: translateY(1px); box-shadow: 0 0 1px rgba(0, 0, 0, .45), inset 0 1px 0 rgba(255, 255, 255, .08); }
 .pg-agentrail { width: 44px; flex: none; display: flex; flex-direction: column; align-items: center; border-left: 1px solid var(--pg-line); background: var(--pg-rail); min-height: 0; color: var(--pg-text-8); }
 .pg-agentrail:hover { background: var(--pg-modal); color: var(--pg-text-4); }
 .pg-agentrail .pg-rail-head { justify-content: center; }

@@ -1,0 +1,38 @@
+// Copyright (c) 2026 Cloudflare, Inc.
+// Licensed under the Apache 2.0 license found in the LICENSE file or at:
+//     https://opensource.org/licenses/Apache-2.0
+
+/**
+ * The chat agent is one instance shared by every address. Per-address agent
+ * instances (named by the address) still run auto-draft and "Draft with agent".
+ */
+export const SHARED_AGENT = "all";
+
+/** What the chat panel tells the agent about the conversation on screen. */
+export type AgentContext = {
+	open?: { mailboxId: string; emailId: string } | null;
+};
+
+/**
+ * The address a tool call acts on: the one the call names, else the agent's
+ * own. Unknown addresses are refused so a tool never opens a new mailbox.
+ */
+export function resolveMailbox(named: string | undefined, bound: string | null, known: string[]): { mailboxId: string } | { error: string } {
+	const id = (named ?? bound ?? "").trim().toLowerCase();
+	if (!id) return { error: "Say which address: pass mailboxId." };
+	if (!known.includes(id)) return { error: `Unknown address ${id}. Use one of: ${known.join(", ")}.` };
+	return { mailboxId: id };
+}
+
+/** System prompt lines that tell the shared agent which addresses exist and what is open. */
+export function sharedAgentNote(addresses: string[], context: AgentContext | undefined): string {
+	const lines = [
+		"## Addresses",
+		`You work across all of the operator's addresses: ${addresses.join(", ")}. Every mail tool takes mailboxId, the address the mail is in. search_all_mail results include it. For draft_email, mailboxId is the address to send from; ask if it is unclear.`,
+	];
+	const open = context?.open;
+	if (open?.mailboxId && open.emailId) {
+		lines.push(`The operator is reading email ${open.emailId} in ${open.mailboxId}. "This email", "this thread" or "the open conversation" means that one.`);
+	}
+	return lines.join("\n");
+}
