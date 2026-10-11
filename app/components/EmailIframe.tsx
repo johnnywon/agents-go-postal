@@ -163,6 +163,8 @@ body {
 	background: #ffffff;
 	padding: ${padding};
 	margin: 0;
+	/* Keeps the first and last children's margins inside body, so scrollHeight counts them. */
+	display: flow-root;
 	word-wrap: break-word;
 	overflow-wrap: break-word;
 	${autoSize ? "overflow: hidden;" : ""}
