@@ -1,4 +1,4 @@
-# Plan: move mail storage to D1
+# Plan: move mail storage to D1 and rebuild search
 
 Status: proposal. Nothing here is built yet.
 
@@ -11,6 +11,7 @@ Why:
 - **One copy of the data.** The per-address objects are the source of truth and the index is a derived copy kept in sync by an outbox, retries, a rebuild job and a parity page. With D1 every query reads the same tables, and that sync layer is deleted.
 - **Users can see and keep their data.** D1 has a SQL console in the dashboard, `wrangler d1 execute`, and Time Travel restore to any minute in the last 30 days. Durable Object storage has none of these for a self-hoster.
 - **Contributors know it.** Plain SQL migration files instead of migrations that run inside each object, and no permanent class names to protect.
+- **Search gets rebuilt once, properly.** One query language and one engine for every view, the agent and MCP, with relevance ranking and highlighted snippets. The search window becomes a full-width command surface (see Search).
 - **Nothing is lost on scale for this audience.** Each deployment serves one owner. Every combined-inbox query already goes through a single index object, which has the same one-writer limit as a D1 database.
 
 What we give up:
@@ -111,11 +112,20 @@ CREATE INDEX messages_in_reply_to ON messages (in_reply_to);
 CREATE INDEX messages_sender ON messages (sender);
 CREATE INDEX messages_sender_domain ON messages (sender_domain);
 
+-- Word search. Stores its own text (not contentless) so snippet(),
+-- highlight() and bm25() work. rowid = messages.rowid.
 CREATE VIRTUAL TABLE messages_fts USING fts5(
-	subject, sender_name, sender, recipient, body_text,
-	content='', contentless_delete=1,
+	subject, sender_name, sender, recipient, cc, attachment_names, body_text,
 	tokenize='unicode61 remove_diacritics 2', prefix='2 3'
 );
+-- Substring search for codes and partial addresses ("INV-20", "ripe" in stripe).
+-- Short fields only; bodies stay out to keep it small.
+CREATE VIRTUAL TABLE messages_trigram USING fts5(
+	subject, sender, recipient, attachment_names,
+	tokenize='trigram'
+);
+-- Terms and counts, for "Did you mean" and completion.
+CREATE VIRTUAL TABLE messages_vocab USING fts5vocab(messages_fts, 'row');
 
 CREATE TABLE attachments (
 	id TEXT PRIMARY KEY,
@@ -167,6 +177,13 @@ CREATE TABLE send_keys (
 );
 CREATE INDEX send_keys_created ON send_keys (created_at);
 
+CREATE TABLE attachment_text (
+	attachment_id TEXT PRIMARY KEY REFERENCES attachments(id) ON DELETE CASCADE,
+	state TEXT NOT NULL,                 -- pending | done | skipped | failed
+	text TEXT,                           -- capped at 64 KB
+	updated_at TEXT NOT NULL
+);
+
 CREATE TABLE undo (id TEXT PRIMARY KEY, created_at TEXT NOT NULL, payload TEXT NOT NULL);
 CREATE TABLE bulk_jobs (
 	id TEXT PRIMARY KEY, created_at TEXT NOT NULL, action TEXT NOT NULL, ops TEXT NOT NULL,
@@ -179,6 +196,7 @@ Notes:
 
 - `state` in the index (`inbox`, `sent`, `folder:<id>`) becomes `folder_id` plus a computed expression. `folderToState` stays as a SQL `CASE`, or the query builder filters on `folder_id` directly.
 - `thread_key` (address + separator + conversation) becomes the pair `(mailbox_id, thread_id)`. Cursors and the UI's `open=` parameter already carry the address, so URLs keep working.
+- The FTS row is written in the same `batch()` as the message. `body_text` is the plain text of the full body, capped at 256 KB (today: 32 KB). Search text for one message is roughly the size of its plain-text body, so the word index costs about as much space as the text it covers. Phase 0 measures it.
 - Tombstones, `generation`, `seq`, `mailbox_cursor`, `rebuild_job` and `index_outbox` have no equivalent. They exist only to keep the copy in sync.
 
 ### Bodies over the row limit
@@ -214,7 +232,7 @@ The modules that hold SQL (`mail-index-sql.ts`, `mail-bulk-sql.ts`, `mailbox-bul
 | Create a message | `batch([INSERT messages, INSERT messages_fts, INSERT attachments...])`. The FTS insert uses `last_insert_rowid()`, or `RETURNING rowid` followed by a second batch. |
 | Bulk step | One `UPDATE ... WHERE id IN (SELECT value FROM json_each(?))` per chunk |
 
-Drizzle (`drizzle-orm/durable-sqlite` in `MailboxDO`) is replaced by `drizzle-orm/d1` or dropped. Only the basic email CRUD uses it; the rest is raw SQL. Dropping it removes a dependency and keeps one style. Recommendation: drop it.
+Drizzle (`drizzle-orm/durable-sqlite`) builds most of `MailboxDO`'s queries: about 96 references to `this.db` and the schema tables. Moving to `drizzle-orm/d1` keeps those queries and changes the driver and the awaits. Dropping Drizzle would mean rewriting them as raw SQL. Recommendation: keep Drizzle on D1 for the mailbox queries, and leave the index and bulk SQL raw as it is today.
 
 ### Jobs that used alarms
 
@@ -223,7 +241,7 @@ Drizzle (`drizzle-orm/durable-sqlite` in `MailboxDO`) is replaced by `drizzle-or
 | Scheduled send | `MailboxDO` alarm at the exact time | Cron Trigger `* * * * *` runs `runDueScheduled`. A row is claimed with `UPDATE scheduled_sends SET claimed_at = ? WHERE message_id = ? AND claimed_at IS NULL RETURNING ...`, so two overlapping cron runs can't both send it. The `draft:<id>` send key is the second guard. Claims older than 10 minutes are released. |
 | Index push retries | `MailboxDO` alarm | Deleted |
 | Index rebuild | `MailIndexDO` alarm | Deleted. A "Reindex search" admin action replaces it: it rebuilds `messages_fts` from `messages` in chunks. |
-| Large bulk actions (over `BULK_INLINE_LIMIT`) | `MailIndexDO` alarm | The request runs the first chunk. The same cron runs the rest of `bulk_jobs` in chunks of 1,000. The UI already polls `bulkJob(id)`. |
+| Large bulk actions (over `BULK_INLINE_LIMIT`, 500) | `MailIndexDO` alarm | The request runs the first chunk. The same cron runs the rest of `bulk_jobs` in chunks of 1,000. With a cron, a large action can take minutes, so the UI gains progress polling on `bulkJob(id)`. Nothing in `app/` calls it today. |
 | Old send keys, undo rows | Pruned on use | Same, plus a daily sweep in the cron |
 
 This adds no new Cloudflare product: one D1 binding and one cron.
@@ -247,19 +265,150 @@ Each address keeps its own folders, threads, rate limit (now `WHERE mailbox_id =
 - During the transition, a `STORAGE` var takes `do` or `d1` (see Rollout). It is removed in the last phase.
 - Durable Object migrations are append-only. Removing the classes is a new tag with `deleted_classes: ["MailboxDO", "MailIndexDO"]`, applied only after the data is copied and the rollback window has passed. It permanently deletes their storage.
 
+## Search
+
+### What is wrong today
+
+| Problem | Where |
+|---|---|
+| Two engines. The postal and unified views search the FTS index. The classic view, the agent's per-address `search_emails`, and MCP `search_emails` scan with `LIKE`. The same words give different results. | `MailIndexDO`, `MailboxDO.searchEmails` |
+| Two query parsers with different operators | `app/lib/mail-filter.ts` (`parseSearchText`) and `app/lib/search-parser.ts` (`parseSearchQuery`) |
+| Every word is an AND prefix match. No exact phrase, no exclusion, no OR, no `cc:`, no `filename:`, no typed relative dates. | `buildMatch` in `mail-index-sql.ts` |
+| Results sort by date, sender or subject (`SORTS`). There is no relevance order, so a strong match from last year sits under a weak one from today. | `SORTS` in `mail-index-sql.ts` |
+| The FTS table is contentless, so it can't return snippets or highlights. Rows show the first lines of the message, and the client highlights only the first term it finds. | `messages_fts`, `highlight()` in `model.ts` |
+| Body text is cut at 32 KB. Attachment names and contents aren't searched. | `BODY_TEXT_LIMIT` |
+| The search window shows only when the box is empty and closes on the first keystroke. It's capped at 720px instead of spanning the bar. It offers static filters and addresses only: no live results, no completion, no recent or saved searches, no people. `saved_searches` has a table but no API or UI. | `SearchBar.tsx`, `.pg-suggest` in `postal.css` |
+
+### One query language
+
+One parser, `shared/search-query.ts`, is used by the search bar, the API, the agent's tools and MCP. It turns text into a typed `SearchQuery`, and one compiler turns that into SQL. `app/lib/search-parser.ts` is deleted.
+
+| Operator | Meaning | Example |
+|---|---|---|
+| words | Every word, any field, prefix match | `quarterly report` |
+| `"..."` | Exact phrase | `"wire transfer"` |
+| `-word`, `-op:value` | Exclude | `invoice -from:stripe` |
+| `OR` | Either side | `from:stripe OR from:paddle` |
+| `from:` `to:` `cc:` | Person, address or domain. `to:` also picks one of your addresses. | `from:example.org` |
+| `subject:` | Words in the subject | `subject:"renewal notice"` |
+| `label:` | Label by name | `label:Receipts` |
+| `in:` | View or folder: `inbox`, `unread`, `starred`, `drafts`, `sent`, `archive`, `spam`, `trash`, `all` (every folder except spam and trash, as today), `anywhere` (new: all of them), or a folder name | `in:anywhere invoice` |
+| `is:` | `unread`, `read`, `starred` (today), plus `scheduled`, `replied` (new) | `is:unread` |
+| `has:` | `attachment` and `unsubscribe` (today), plus `pdf`, `image`, `link`, `draft` (new) | `has:pdf` |
+| `filename:` | Attachment name or type | `filename:contract.pdf` |
+| `before:` `after:` | Date, or relative: `7d`, `3w`, `2m`, `1y` | `after:2026-01-01`, `after:30d` |
+| `newer:` `older:` | Relative age | `older:1y` |
+| `larger:` `smaller:` | Message size including attachments | `larger:5mb` |
+| `list:` | Mailing list id | `list:news.example.org` |
+| `sort:` | `relevance` (default with words) or `date` | `sort:date` |
+
+Unknown operators stay as plain words, so `ratio:4:3` still searches. Values that don't parse (`before:soon`) show an inline error in the search window instead of being dropped without a word.
+
+### One engine
+
+- Every surface runs the same compiled query against the D1 tables: the postal, unified and classic views, `search_all_mail`, and `search_emails`. `search_emails` becomes `search_all_mail` with an address filter. MCP gets the same two tools.
+- **Relevance.** With `sort:relevance`, rows rank by `bm25(messages_fts, 6, 4, 3, 2, 2, 2, 1)`: subject weighs most, body least. A recency term breaks near-ties. The weights get tuned against a fixture set of 200 messages and 30 queries with expected top results. That set is checked in, so ranking changes show up in review.
+- **Conversations.** Results group by conversation. The best-ranked message in a conversation represents it, and the row says how many messages matched.
+- **Snippets.** Each result carries `snippet(messages_fts, -1, "\u0002", "\u0003", "…", 18)` built from the column that matched. The server HTML-escapes it, then turns the two markers into `<mark>` and `</mark>`. Mail text never reaches the page unescaped. A test feeds `<script>` and `&lt;` cases through it.
+- **Substring fallback.** Words of three or more characters that match nothing in `messages_fts` are retried against `messages_trigram`. This finds codes, order numbers and partial addresses.
+- **Did you mean.** When a search returns nothing, the Worker reads candidate terms from `messages_vocab` that share the first two letters of each word. It suggests the one with the smallest edit distance and the most documents.
+- **Attachment text.** PDFs, Word, Excel and text attachments under 10 MB are converted with Workers AI `toMarkdown` and stored in `attachment_text`, capped at 64 KB each. The job runs on the cron and doesn't hold up inbound mail. That text is added to the message's `body_text` field in the index. It's off by default (`ATTACHMENT_SEARCH=true` turns it on), because it costs Workers AI calls per attachment.
+
+### Asking in plain words
+
+If the text reads like a request rather than keywords, the search window offers **Ask: "receipts from stripe last month over $100"**. Plain-words requests are:
+- four or more words with no operators, or
+- text starting with words like "find", "show", "where" or "emails".
+
+Choosing it sends the text once to `POST /api/v1/search/interpret`. The agent model (Workers AI by default, or the OpenRouter model from Settings) returns a `SearchQuery` under a strict schema, plus a one-line explanation. The bar then shows the operators it produced, for example `from:stripe.com label:Receipts after:2026-09-01 before:2026-10-01 receipt`, so you can see and edit what will run. It never runs a hidden query. It costs one model call per request and nothing per keystroke. If the call fails, the text runs as a word search.
+
+Questions that need reading the mail ("what did Ann say about the contract?") go to the agent panel with the search as context, using the panel's existing `search_all_mail`.
+
+Meaning-based search, which finds "the email where they offered a discount" without the word "discount", would need Vectorize and embeddings for every message. It's left out of this plan. It can come later as an opt-in setting that merges vector results with FTS results.
+
+### The search window
+
+The window drops from the bar and spans its full width (`left: 0; right: 0`), up to `min(600px, 72vh)` tall. Below 768px it fills the screen under the bar, with one column and the key hints hidden. It stays open while you type, and its sections follow what you type.
+
+**Empty box**
+
+| Section | Content |
+|---|---|
+| Recent | Last 8 searches run in this browser (localStorage). Each can be removed. |
+| Saved | Saved searches from D1, with live counts. `⌘S` or a Save button in the window saves the current search. Saved searches also appear in the sidebar. |
+| People | The 6 senders you get the most mail from in the last 90 days, by name and address |
+| Filters | Today's filters (unread, starred, attachments, labels) with counts |
+| Addresses | Today's address list with counts |
+| Ask | "Ask the agent…" opens the panel |
+
+**Typing words**
+
+| Section | Content |
+|---|---|
+| Top results | Up to 6 live results, debounced 120ms. Each row shows sender, subject, the highlighted snippet, the address swatch and the date. `↵` on a row opens that message. |
+| Narrow | Filters inferred from the words, with counts for this search: typing `stripe` offers `from:stripe.com (42)` and `label:Receipts (31)`. Counts come from the same facet query the list uses. |
+| Ask | Shown when the text reads like a request (see Asking in plain words) |
+| Did you mean | Shown when nothing matched: the suggested spelling, "Search everywhere" if the current view hides matches in spam or trash, and "Remove `is:unread` (12 results)" for the filter that excludes the most |
+
+**Typing an operator.** With the cursor inside `from:st`, the window completes the value:
+
+| Operator | Completes with |
+|---|---|
+| `from:`, `cc:` | Senders and domains by prefix of name or address, most frequent first |
+| `to:` | Your addresses, then recipients |
+| `label:` | Labels, with counts |
+| `in:` | Views and folders |
+| `is:`, `has:`, `sort:` | The fixed values |
+| `before:`, `after:` | Today, Yesterday, 7 days ago, Start of this month, Start of last month, and a date field |
+| a bare word ending in `:` | Every operator, with a one-line description |
+
+`Tab` accepts the highlighted completion and keeps typing. An operator cheat sheet opens from a `?` in the window footer.
+
+**Keys**
+
+| Key | Does |
+|---|---|
+| `↑` `↓` | Move through every row, across sections |
+| `Tab` | Accept the completion |
+| `↵` | On a result: open it. On a suggestion: apply it. With nothing highlighted: run the search and open the first result (today's behavior). |
+| `⌘↵` | Run the search and keep the list in focus without opening anything |
+| `⌘S` | Save the search |
+| `Esc` | Close the window. A second `Esc` clears the box. |
+
+**Accessibility.** The input is a combobox. Each section is a `role="group"` with a label inside one `listbox`. `aria-activedescendant` moves across groups, and a polite live region announces the result count.
+
+**Design rules.** `DESIGN.md` applies: one 6px radius, no accent bars, and selected rows shown with fill. Snippet `<mark>` uses a fill, not an underline or a bar. `tests/design-rules.test.mjs` covers the new classes.
+
+### API
+
+| Route | Returns |
+|---|---|
+| `GET /api/v1/mail?q=…&sort=relevance` | Today's list response, plus `snippetHtml` and `matchCount` per conversation |
+| `GET /api/v1/search/suggest?q=…&at=<cursor offset>` | One round trip for the window: `completions`, `results` (top 6 with snippets), `narrow` (filters with counts), `didYouMean`, `interpretable` (boolean), `errors` (operators that didn't parse). Target: under 60ms at 100,000 messages, measured in phase 0. |
+| `POST /api/v1/search/interpret` `{ text }` | `{ query, text, explanation }`, or an error that the client turns into a plain word search |
+| `GET/POST/PUT/DELETE /api/v1/saved-searches` | Saved searches CRUD over the existing table |
+
+The agent's `search_all_mail` and MCP's `search_all_mail` take a `query` string in the same language, next to the structured fields they have today, and return snippets.
+
+### Order
+
+The query language, the search window and the suggest API don't depend on storage. They can ship on the current `MailIndexDO` before D1, then move with everything else. The engine changes (FTS that stores text, trigram, ranking, snippets) go straight into the D1 schema, so they aren't built twice. See phases S1 to S6.
+
+Another session is changing `SearchBar.tsx` now. Search work starts after that lands.
+
 ## Moving existing deployments
 
 Every deployment that already holds mail needs a one-time copy. It runs inside the Worker, so it reads Durable Object storage directly and writes D1 through the binding.
 
 1. **Export methods on the old classes.**
    - `MailboxDO.exportPage({ afterId, limit })` returns full rows: emails with bodies, attachments metadata, `email_labels`, folders, `scheduled_sends` and `send_keys`.
-   - `MailboxDO.changedSince(seq)` returns ids changed after a sequence number. It reuses the existing `index_outbox` sequence, which already records every change in order.
+   - `MailboxDO.changedIds()` returns the ids in `index_outbox`. Outbox rows are deleted after each push to the index (`workers/lib/index-rows.ts`), so the copy job first sets `INDEX_SYNC_ENABLED=false`. Mutations still record to the outbox while sync is paused (`workers/lib/mail-index-stub.ts`), so from that moment the outbox holds every message changed during the copy.
    - `MailIndexDO.exportGlobals()` returns `labels`, `label_auto` and `saved_searches`.
 2. **The copy job.** `POST /api/v1/admin/migrate-to-d1` with `{ confirm: true }` starts it. A `migration_job` row in D1 tracks progress, and the cron advances it.
-   - First it records each mailbox's current `seq`.
+   - First it pauses index sync (`INDEX_SYNC_ENABLED=false`). The combined inbox stops updating until cutover, so the copy should run in a quiet hour.
    - Then it copies mailbox settings from R2, the global tables, and every mailbox page by page, 200 messages per batch, using `INSERT OR IGNORE`. Large bodies go to R2.
    - The job is resumable and idempotent: rerunning it skips rows already copied.
-3. **Catch-up.** After the full copy, each mailbox replays `changedSince(recorded seq)`, re-copying those rows with `INSERT OR REPLACE` and deleting rows that no longer exist. This repeats until a pass finds nothing.
+3. **Catch-up.** After the full copy, each mailbox reads `changedIds()` and re-copies those rows with `INSERT OR REPLACE`, deleting rows that no longer exist. Then it clears the ids it handled from the outbox. This repeats until a pass finds nothing.
 4. **Check.** A parity report compares per-mailbox, per-folder counts, unread counts, label counts and scheduled-send counts between the old storage and D1. The current `/api/v1/index/status` parity page is reused for this.
 5. **Cut over.**
    - Set `STORAGE=d1` and deploy. All reads and writes go to D1 from that point.
@@ -284,20 +433,27 @@ The copy job is a user-facing feature of one release, so it needs its own README
 | 4 | Jobs | The cron handler: scheduled send with claims, bulk job chunks, sweeps. Large bodies in R2. Reindex search. | 2 days |
 | 5 | Copy job | Export methods, the copy and catch-up job, the parity report, the settings page button, dual inbound writes | 3 to 4 days |
 | 6 | Move your own deployment | Copy, check, cut over, two-week soak. Fix what it turns up. | 2 weeks elapsed, about 1 day of work |
+| S1 | One query language | `shared/search-query.ts` parser and compiler, used by the postal, unified and classic views, the agent and MCP. `search-parser.ts` deleted. Runs on the current index. | 2 to 3 days |
+| S2 | Search window | Full-width window, sections, completion, recent and saved searches, keys, mobile sheet | 3 to 4 days |
+| S3 | Suggest API | `/search/suggest`, saved-search routes, people and completion queries. On the current index first. | 2 days |
+| S4 | Engine on D1 | Within phase 2: FTS that stores text, trigram table, vocab, bm25 ranking with the fixture set, snippets, one search for every surface | 3 days |
+| S5 | Ask in plain words | `/search/interpret` with a strict schema, the Ask row, the hand-off to the agent panel | 2 days |
+| S6 | Attachment text | `toMarkdown` job on the cron, `attachment_text`, `ATTACHMENT_SEARCH` setting | 2 days |
 | 7 | Remove the old path | Delete Durable Object mail storage, the sync code, the flag and the old tests. Docs. | 1 to 2 days |
 
-That's about four weeks of work plus the soak. The estimates are rough. Phase 0 can move them in either direction.
+That's about four weeks of storage work plus the soak, and about three weeks of search work. S1 to S3 can run before or alongside phases 1 and 2. S4 is part of phase 2. S5 and S6 come after cutover. The estimates are rough. Phase 0 can move them in either direction.
 
 Phase 1 ships alone with no behavior change, which makes the rest reviewable in small pieces.
 
 ## Unknowns to settle in phase 0
 
-1. **FTS5 options.** Check that D1 accepts `contentless_delete=1` (needs SQLite 3.43 or later) and the `prefix` option. If not, use an external-content table (`content='messages'` with a stored `body_text` column) and accept the extra storage.
+1. **FTS5 features on D1.** Check the `prefix` option, the `trigram` tokenizer, `fts5vocab`, and `snippet()` and `bm25()` with column weights. Measure index size per 1,000 messages of real mail. If trigram or vocab is missing, drop substring fallback or Did you mean. Neither blocks the rest.
 2. **Export with virtual tables.** `wrangler d1 export` has refused databases that contain virtual tables. If that is still true, ship our own export: `GET /api/v1/export` as JSON lines plus attachment and body keys in R2. Users need a "get my mail out" path anyway.
 3. **Write throughput.** Time the import of 100,000 messages in batches of 200, and the cost of one inbound message (message, FTS row and attachments in one batch). Write the per-message cost into the README.
 4. **Batch size limits.** Measure the largest statement count and payload one `batch()` accepts, so import and bulk chunk sizes are set from data.
 5. **Cron on the plans users run.** Check that a one-minute cron is allowed and that `scheduled()` and `email()` can live in the same Worker with the Agents SDK's Durable Objects.
-6. **Local development.** `wrangler dev` with a local D1, migrations applied by `npm run dev:local`, and the seed route writing to it. Check that the remote `send_email` binding still works alongside it.
+6. **Search speed.** Time `/search/suggest` (results, facets and completions in one request) and a relevance query at 100,000 messages. If it misses 60ms, split facets into a second request that the window fills in when it arrives.
+7. **Local development.** `wrangler dev` with a local D1, migrations applied by `npm run dev:local`, and the seed route writing to it. Check that the remote `send_email` binding still works alongside it.
 
 ## Testing
 
@@ -305,7 +461,14 @@ Phase 1 ships alone with no behavior change, which makes the rest reviewable in 
 - **Isolation test.** Every exported store function that takes a `mailboxId` is called with two mailboxes holding the same ids and subjects. It must never read or change the other mailbox's rows.
 - **Miniflare end to end.** Replace the Durable Object fixture (`tests/fixtures/index-worker.ts`) with a D1 binding. Cover: inbound mail lands and is searchable; reply threading; scheduled send through `scheduled()`, including two overlapping runs sending once; a bulk job over `BULK_INLINE_LIMIT` finishing across cron runs; and a large body stored in R2 and read back.
 - **Migration test.** Seed old-style Durable Objects (the current fixture), run the copy job, change mail during the copy, run catch-up, and check parity. Run the job twice to prove it is idempotent.
-- **Design rules and UI tests** don't change.
+- **Search.**
+  - A table test of the parser covers every operator, quoting, exclusion, OR, bad values and unknown operators.
+  - The ranking fixture (200 messages, 30 queries with expected top results) must pass.
+  - Snippet escaping is tested with hostile input.
+  - The same query must give the same result from the postal view, `search_all_mail` and MCP.
+  - The window's keyboard map is tested.
+  - `/search/interpret` is tested with a stubbed model, including an invalid response that falls back to a word search.
+- **Design rules** gain checks for the search window classes. Other UI tests don't change.
 
 ## Risks
 
@@ -314,6 +477,9 @@ Phase 1 ships alone with no behavior change, which makes the rest reviewable in 
 | A query forgets `mailbox_id` and mixes addresses | Medium | The isolation test over every store function. Queries that take a mailbox go through helpers that add the filter. |
 | Copy misses changes made during it | Low | Catch-up driven by the existing change sequence, then parity before cutover |
 | FTS option unsupported on D1 | Medium | Phase 0, item 1. External-content fallback. |
+| Snippet HTML lets mail content inject markup | Low | Escape on the server, then add marks from control characters. Hostile-input tests. |
+| Plain-words search makes a wrong query | Medium | The operators it produced are shown and editable before anything runs. One call per request. |
+| Text-storing FTS and trigram grow the database | Medium | Trigram covers short fields only. Body text is capped. Size is measured in phase 0 and shown on the Mail index page. |
 | Cron delays scheduled send by up to a minute | Certain | Say so in the README. The UI already shows the time, not a countdown. |
 | A large mailbox nears 10 GB | Low for one owner | Bodies over 512 KB in R2. Show database size on the Mail index page. Document the limit. |
 | Rollback after cutover loses non-inbound changes | Low | Two-week dual inbound write. Time Travel for problems inside D1. Stated in release notes. |
@@ -325,6 +491,39 @@ Phase 1 ships alone with no behavior change, which makes the rest reviewable in 
 
 ## Files touched
 
+- **New (search):** `shared/search-query.ts`, `workers/store/search.ts` (compiler, ranking, snippets, suggest, vocab), `workers/routes/search.ts`, `app/components/postal/SearchWindow.tsx`, `tests/search-query.test.mjs`, `tests/search-ranking.test.mjs`, `tests/fixtures/search-corpus.json`
+- **Changed (search):** `app/components/postal/SearchBar.tsx`, `postal.css` (`.pg-suggest`), `app/lib/mail-filter.ts`, `workers/agent/index.ts` and `workers/mcp/index.ts` (one search tool shape)
+- **Deleted (search):** `app/lib/search-parser.ts`, `MailboxDO.searchEmails` and `countSearchResults`
 - **New:** `migrations/0001_init.sql`, `workers/store/{types,d1,mail,labels,bulk,scheduled,send-keys,search}.ts`, `workers/cron.ts`, `workers/routes/migrate.ts` (temporary), `tests/helpers/sql.mjs`, `tests/store-isolation.test.mjs`, `tests/migrate-to-d1.test.mjs`
-- **Changed:** `wrangler.jsonc`, `workers/app.ts` (cron export), `workers/index.ts`, `workers/agent/index.ts`, `workers/mcp/index.ts`, `workers/lib/{tools,email-helpers,mailbox,combined-inbox,folder-import,send,agent-model}.ts`, `workers/routes/reply-forward.ts`, `package.json` (deploy runs migrations; Drizzle removed), `README.md`, `tests/fixtures/index-worker.ts`
+- **Changed:** `wrangler.jsonc`, `workers/app.ts` (cron export), `workers/index.ts`, `workers/agent/index.ts`, `workers/mcp/index.ts`, `workers/lib/{tools,email-helpers,mailbox,combined-inbox,folder-import,send,agent-model}.ts`, `workers/routes/reply-forward.ts`, `package.json` (deploy runs migrations; Drizzle driver switched to D1), `README.md`, `tests/fixtures/index-worker.ts`
 - **Deleted at the end:** `workers/durableObject/index.ts`, `workers/durableObject/mail-index.ts`, `workers/durableObject/migrations.ts`, `workers/lib/{index-rows,mail-index-stub,sql-exec}.ts`, `workers/db/schema.ts`
+
+## Drift check
+
+2026-10-11. One pass over every claim this plan makes about the current code, at commit `ecf9412`.
+
+Corrected:
+
+1. **Catch-up during the copy.** The plan said the copy could replay changes from the `index_outbox` sequence. Outbox rows are deleted after each push (`workers/lib/index-rows.ts:98`), so there's nothing to replay. Fixed: the copy pauses index sync first, and the outbox then holds every change (`workers/lib/mail-index-stub.ts:14`).
+2. **Drizzle use.** The plan said only basic email CRUD uses Drizzle and recommended dropping it. `MailboxDO` has about 96 Drizzle references. Fixed: keep Drizzle and switch its driver to D1.
+3. **Bulk job progress.** The plan said the UI already polls `bulkJob(id)`. Nothing in `app/` calls it. Fixed: polling is added in phase 4.
+4. **Sort options.** The plan said results sort by date only. `SORTS` is date, sender and subject. The point stands: there's no relevance order. Fixed the wording.
+5. **Operator values.** The `in:` example used `anywhere`, which the value list didn't name. Today's `has:unsubscribe` and the views `unread` and `starred` were missing. Fixed: each operator row marks today's values and the new ones.
+
+Confirmed as written:
+- Durable Object tables per class.
+- R2 keys.
+- The 11 files that call storage.
+- `transactionSync` call sites.
+- `/api/v1/index/status`.
+- `BULK_INLINE_LIMIT` (500).
+- The two search engines: the classic view uses `parseSearchQuery` and per-mailbox `searchEmails`. The agent's and MCP's `search_emails` use `searchEmails` with `LIKE`.
+- The two parsers.
+- `buildMatch` AND-prefix matching.
+- Contentless `messages_fts` and its columns.
+- `BODY_TEXT_LIMIT` (32 KB).
+- The search window's empty-only display and the 720px cap.
+- `saved_searches` with no API or UI.
+- Cursors carry the conversation's address (`thread_key`).
+- Scheduled sends show their time in the list.
+- The test files the plan names exist.
