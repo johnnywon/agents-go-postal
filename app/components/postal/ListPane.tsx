@@ -3,7 +3,7 @@
 //     https://opensource.org/licenses/Apache-2.0
 
 import {
-	ArchiveIcon, ArrowsClockwiseIcon, CaretDownIcon, ChatsCircleIcon, CheckIcon, ClockIcon, EnvelopeOpenIcon, EnvelopeSimpleIcon,
+	ArchiveIcon, ArrowsClockwiseIcon, CaretDownIcon, CheckIcon, ClockIcon, EnvelopeOpenIcon, EnvelopeSimpleIcon,
 	FileIcon, FunnelSimpleIcon, MagnifyingGlassIcon, PaperclipIcon, PaperPlaneTiltIcon, PencilSimpleLineIcon, SortAscendingIcon,
 	SortDescendingIcon, StarIcon, TagIcon, TrashIcon, TrayIcon, WarningIcon, XIcon,
 } from "@phosphor-icons/react";
@@ -324,11 +324,6 @@ export function ListPane(props: ListPaneProps) {
 									<div className="pg-row-glyphs">
 										{row.starred && <StarIcon size={12} weight="fill" className="pg-star" aria-label="Starred" />}
 										{row.has_attachment && <PaperclipIcon size={12} aria-label="Attachment" />}
-										{row.thread_count > 1 && (
-											<span className="pg-thread" title="Messages in thread">
-												<ChatsCircleIcon size={12} />{row.thread_count}
-											</span>
-										)}
 									</div>
 								</div>
 								<div className="pg-row-main">
