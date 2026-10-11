@@ -97,7 +97,7 @@ To move a deployment that already holds mail:
 
 1. Create a D1 database, bind it as `DB` in your wrangler config with `"migrations_dir": "migrations"`, and run `npx wrangler d1 migrations apply <database> --remote`. Deploy. Nothing changes yet.
 2. Open Settings, then Mail index, and press Copy to D1. The copy runs a slice every minute from the cron. Mail stays where it is and the app keeps working. Changes made during the copy are copied again.
-3. When the page says the counts match, set `"STORAGE": "d1"` in `vars` and deploy. The first cron run after that makes a last pass, then D1 is the only store.
+3. When the page says the counts match, set `"STORAGE": "d1"` in `vars` and deploy. The first cron run after that makes a last pass, then D1 is the only store. The page says when it's done. A new cron trigger can take half an hour to start firing, so add the D1 binding and deploy (step 1) well before you switch.
 
 Pick a quiet hour for step 3. A change made on the old store in the minute before the deploy can overwrite the same message's change on D1 in the minute after it.
 
