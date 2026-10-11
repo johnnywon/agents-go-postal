@@ -45,6 +45,7 @@ import {
 	sendModeOf,
 	type ScheduleMode,
 } from "../lib/scheduled-send";
+import { claimSendKey, finishSendKey, releaseSendKey, type SendKeyClaim } from "../lib/send-keys";
 
 /** Folders whose mail may be hard-deleted. Everywhere else, Delete moves mail to Trash. */
 const HARD_DELETE_FOLDERS: readonly string[] = [Folders.TRASH, Folders.DRAFT];
@@ -306,6 +307,20 @@ export class MailboxDO extends DurableObject<Env> {
 		return deleteScheduledRow(this.exec, emailId);
 	}
 
+	// ── Send idempotency keys ──────────────────────────────────────
+
+	async claimSendKey(key: string): Promise<SendKeyClaim> {
+		return claimSendKey(this.exec, key);
+	}
+
+	async finishSendKey(key: string, emailId: string): Promise<void> {
+		finishSendKey(this.exec, key, emailId);
+	}
+
+	async releaseSendKey(key: string): Promise<void> {
+		releaseSendKey(this.exec, key);
+	}
+
 	async #sendDueScheduled() {
 		const mailboxId = this.#mailboxId();
 		try {
@@ -313,9 +328,11 @@ export class MailboxDO extends DurableObject<Env> {
 				exec: this.exec,
 				draftFolder: async (emailId) => (await this.getEmail(emailId))?.folder_id ?? null,
 				deleteDraft: (emailId) => this.deleteEmail(emailId),
-				send: async (payload) => {
+				send: async (payload, emailId) => {
 					if (!mailboxId) return "Mailbox address unknown";
-					const sent = await sendMail(this.env, mailboxId, this, payload.email, sendModeOf(payload));
+					const sent = await sendMail(this.env, mailboxId, this, payload.email, sendModeOf(payload), {
+						idempotencyKey: `draft:${emailId}`,
+					});
 					return sent.ok ? null : sent.error;
 				},
 			}, Folders.DRAFT);

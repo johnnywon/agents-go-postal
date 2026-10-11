@@ -55,10 +55,12 @@ export interface ComposeState {
 	signature?: boolean;
 	/** Ask the agent for a draft as soon as the composer opens. */
 	askAgent?: boolean;
+	/** Idempotency key for this compose, so a retried Send never sends twice. */
+	sendKey?: string;
 }
 
 export function emptyCompose(from: string): ComposeState {
-	return { mode: "new", from, to: [], cc: [], bcc: [], showCc: false, showBcc: false, subject: "", html: "", files: [] };
+	return { mode: "new", from, to: [], cc: [], bcc: [], showCc: false, showBcc: false, subject: "", html: "", files: [], sendKey: crypto.randomUUID() };
 }
 
 export function isValidAddress(addr: string): boolean {
@@ -147,10 +149,15 @@ export function composeFor(mode: Exclude<ComposeMode, "new">, original: Email, m
 		quoteHtml,
 		quoteHead,
 		quoteBody: body,
+		sendKey: crypto.randomUUID(),
 	};
 }
 
-/** Open a saved draft for editing. Its body already holds any quote. */
+/**
+ * Open a saved draft for editing. Its body already holds any quote. No
+ * sendKey: sending falls back to `draft:<id>`, the key every sender of a
+ * saved draft uses, so the draft goes out once.
+ */
 export function composeFromDraft(draft: Email, mailboxId: string): ComposeState {
 	const to = recipientsFromText(draft.recipient || "");
 	const cc = recipientsFromText(draft.cc || "");
@@ -272,9 +279,10 @@ export function useMailSender(info: ReadonlyMap<string, AddressInfo>) {
 		async (state: ComposeState) => {
 			const email = payload(state);
 			const replying = (state.mode === "reply" || state.mode === "reply-all") && state.originalId;
-			if (replying) await api.replyToEmail(state.from, state.originalId!, email);
-			else if (state.mode === "forward" && state.originalId) await api.forwardEmail(state.from, state.originalId, email);
-			else await api.sendEmail(state.from, email);
+			const key = state.sendKey ?? (state.draftId ? `draft:${state.draftId}` : undefined);
+			if (replying) await api.replyToEmail(state.from, state.originalId!, email, key);
+			else if (state.mode === "forward" && state.originalId) await api.forwardEmail(state.from, state.originalId, email, key);
+			else await api.sendEmail(state.from, email, key);
 			if (state.draftId) await api.deleteEmail(state.from, state.draftId).catch(() => {});
 			refresh(state.from);
 		},

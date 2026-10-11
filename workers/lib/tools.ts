@@ -27,9 +27,13 @@ import {
 	listMailboxes,
 } from "./email-helpers";
 import { verifyDraft } from "./ai";
+import { sendMail } from "./send";
 import { Folders } from "../../shared/folders";
 import { LABEL_COLORS } from "../../shared/label-colors";
 import type { Env } from "../types";
+
+const splitList = (value: string | null | undefined) =>
+	(value ?? "").split(",").map((a) => a.trim()).filter(Boolean);
 
 // ── Type casts for DO methods not on the base stub type ────────────
 type MailboxSearchStub = {
@@ -611,4 +615,39 @@ export async function toolDeleteEmail(
 	}
 	await stub.moveEmail(emailId, Folders.TRASH);
 	return { status: "moved_to_trash", emailId };
+}
+
+// ── send_draft ─────────────────────────────────────────────────────
+
+/**
+ * Send a saved draft and remove it from Drafts. A draft with in_reply_to is
+ * sent as a reply in that thread. The key is `draft:<id>`, the same one the
+ * UI uses, so a draft goes out once however many times it is sent.
+ */
+export async function toolSendDraft(env: Env, mailboxId: string, draftId: string) {
+	const stub = getMailboxStub(env, mailboxId);
+	const draft = (await stub.getEmail(draftId)) as EmailFull | null;
+	if (!draft) return { error: "Draft not found" };
+	if (draft.folder_id !== Folders.DRAFT) return { error: "Cannot send: email is not a draft" };
+	const to = splitList(draft.recipient);
+	if (to.length === 0) return { error: "Cannot send: the draft has no recipient" };
+
+	const settings = (await (await env.BUCKET.get(`mailboxes/${mailboxId}.json`))?.json<{ fromName?: string }>()) ?? {};
+	const name = settings.fromName?.trim();
+	const cc = splitList(draft.cc);
+	const bcc = splitList(draft.bcc);
+	const html = draft.body || "";
+	const original = draft.in_reply_to ? await stub.getEmail(draft.in_reply_to) : null;
+	const result = await sendMail(env, mailboxId, stub, {
+		to,
+		...(cc.length ? { cc } : {}),
+		...(bcc.length ? { bcc } : {}),
+		from: name && name.toLowerCase() !== mailboxId.toLowerCase() ? { email: mailboxId, name } : mailboxId,
+		subject: draft.subject || "(no subject)",
+		html,
+		text: html.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim(),
+	}, original ? { kind: "reply", originalId: original.id } : { kind: "new" }, { idempotencyKey: `draft:${draftId}` });
+	if (!result.ok) return { error: result.error };
+	await stub.deleteEmail(draftId);
+	return { status: result.duplicate ? "already_sent" : "sent", sentId: result.id, to: to.join(", "), subject: draft.subject || "" };
 }

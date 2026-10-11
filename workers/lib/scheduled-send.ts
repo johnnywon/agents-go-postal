@@ -122,7 +122,7 @@ export interface RunScheduledDeps {
 	draftFolder: (emailId: string) => Promise<string | null>;
 	deleteDraft: (emailId: string) => Promise<unknown>;
 	/** Send; resolves with an error string on a refused send, throws on delivery failure. */
-	send: (payload: ScheduledPayload) => Promise<string | null>;
+	send: (payload: ScheduledPayload, emailId: string) => Promise<string | null>;
 	now?: () => number;
 }
 
@@ -141,7 +141,7 @@ export async function runDueScheduled(deps: RunScheduledDeps, draftFolderId: str
 		}
 		let error: string | null;
 		try {
-			error = await deps.send(JSON.parse(row.payload) as ScheduledPayload);
+			error = await deps.send(JSON.parse(row.payload) as ScheduledPayload, row.emailId);
 		} catch (e) {
 			error = (e as Error).message || "Delivery failed";
 		}

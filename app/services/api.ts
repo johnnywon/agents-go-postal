@@ -67,13 +67,17 @@ function get<T>(url: string, opts?: { params?: Record<string, string>; responseT
 	});
 }
 
-function post<T>(url: string, body?: unknown, opts?: { signal?: AbortSignal }) {
+function post<T>(url: string, body?: unknown, opts?: { signal?: AbortSignal; headers?: Record<string, string> }) {
 	return request<T>(url, {
 		method: "POST",
 		signal: opts?.signal,
+		headers: opts?.headers,
 		body: body != null ? JSON.stringify(body) : undefined,
 	});
 }
+
+/** The same key on a retried send makes the server return the first send instead of sending again. */
+const sendKey = (key?: string) => (key ? { headers: { "Idempotency-Key": key } } : undefined);
 
 function put<T>(url: string, body?: unknown) {
 	return request<T>(url, {
@@ -280,8 +284,8 @@ const api = {
 		}),
 	listEmails: (mailboxId: string, params: Record<string, string>, opts?: { signal?: AbortSignal }) =>
 		get<EmailListResponse | Email[]>(`/api/v1/mailboxes/${mailboxId}/emails`, { params, signal: opts?.signal }),
-	sendEmail: (mailboxId: string, email: unknown) =>
-		post<void>(`/api/v1/mailboxes/${mailboxId}/emails`, email),
+	sendEmail: (mailboxId: string, email: unknown, key?: string) =>
+		post<void>(`/api/v1/mailboxes/${mailboxId}/emails`, email, sendKey(key)),
 	getEmail: (mailboxId: string, id: string, opts?: { signal?: AbortSignal }) =>
 		get<Email>(`/api/v1/mailboxes/${mailboxId}/emails/${id}`, { signal: opts?.signal }),
 	updateEmail: (mailboxId: string, id: string, data: unknown) =>
@@ -309,10 +313,10 @@ const api = {
 			draft_id?: string;
 		},
 	) => post<{ draft_id: string }>(`/api/v1/mailboxes/${mailboxId}/drafts`, draft),
-	replyToEmail: (mailboxId: string, emailId: string, email: unknown) =>
-		post<void>(`/api/v1/mailboxes/${mailboxId}/emails/${emailId}/reply`, email),
-	forwardEmail: (mailboxId: string, emailId: string, email: unknown) =>
-		post<void>(`/api/v1/mailboxes/${mailboxId}/emails/${emailId}/forward`, email),
+	replyToEmail: (mailboxId: string, emailId: string, email: unknown, key?: string) =>
+		post<void>(`/api/v1/mailboxes/${mailboxId}/emails/${emailId}/reply`, email, sendKey(key)),
+	forwardEmail: (mailboxId: string, emailId: string, email: unknown, key?: string) =>
+		post<void>(`/api/v1/mailboxes/${mailboxId}/emails/${emailId}/forward`, email, sendKey(key)),
 
 	// Scheduled send
 	scheduleSend: (mailboxId: string, request: ScheduleRequest) =>

@@ -2,7 +2,7 @@
 
 Self-hosted email for several addresses and domains, with an AI agent, running on your own Cloudflare account.
 
-Mail arrives through Cloudflare Email Routing. Each address gets its own Durable Object with SQLite storage, and attachments go to R2. A mail index combines every address into one list, so the address is a filter rather than a separate inbox. The agent reads, searches and drafts replies. It never sends without a click.
+Mail arrives through Cloudflare Email Routing. Each address gets its own Durable Object with SQLite storage, and attachments go to R2. A mail index combines every address into one list, so the address is a filter rather than a separate inbox. The agent reads, searches, drafts and sends.
 
 Derived from [cloudflare/agentic-inbox](https://github.com/cloudflare/agentic-inbox). See `NOTICE`.
 
@@ -16,8 +16,9 @@ Derived from [cloudflare/agentic-inbox](https://github.com/cloudflare/agentic-in
 - **Labels and bulk actions.** Select many conversations to archive, delete, mark read, star, label or move. Undo is available after each action.
 - **Keyboard shortcuts** for navigation and actions.
 - **Per-address isolation.** Every address has its own Durable Object, database and prompt settings.
-- **AI agent.** A side panel that can read, search, label and draft using Workers AI, or any OpenRouter model with your own key. It searches and labels across every address at once (`search_all_mail`, `label_matching`, up to 500 conversations per call). "Draft with agent" in either composer asks it for a first draft. Labels the agent has applied are marked with a sparkle. Automatic drafting of new mail is off by default (`AUTO_DRAFT_ENABLED`).
-- **MCP server** for connecting outside agents.
+- **AI agent.** A side panel that can read, search, label and draft using Workers AI, or any OpenRouter model with your own key. It searches and labels across every address at once (`search_all_mail`, `label_matching`, up to 500 conversations per call). "Draft with agent" in either composer asks it for a first draft. Labels the agent has applied are marked with a sparkle. It sends a draft with `send_draft` when you ask it to. Automatic drafting of new mail is off by default (`AUTO_DRAFT_ENABLED`); it only drafts, and skips mailing lists, bulk mail, auto-replies and no-reply senders.
+- **MCP server** for connecting outside agents, including `send_draft`.
+- **Sends go out once.** Each send can carry an `Idempotency-Key` header. A retry with the same key returns the first send instead of sending again. The composer sets one per message, and every way of sending a saved draft uses `draft:<id>`, so a draft is sent once whether you, the agent or the schedule sends it.
 - **Cloudflare Access required.** Outside local development the Worker refuses every request until Access is configured.
 
 ## Stack
@@ -70,7 +71,7 @@ Requirements: a domain on Cloudflare, R2, and Workers Paid for outbound email. T
 | `EMAIL_ADDRESSES` | `vars` | Addresses that get a mailbox. Mail to other addresses is rejected. |
 | `MAIL_UI` | `vars` | `postal` (default) for the current view, `unified` for the earlier one-list view, `classic` for the per-mailbox routes. Unset means `classic`. |
 | `INDEX_SYNC_ENABLED` | `vars` | `false` pauses updates to the combined index; changes queue in each mailbox |
-| `AUTO_DRAFT_ENABLED` | `vars` | `true` drafts a reply to each new message |
+| `AUTO_DRAFT_ENABLED` | `vars` | `true` drafts a reply to each new message, except list, bulk and automated mail |
 | `POLICY_AUD`, `TEAM_DOMAIN` | secrets | Cloudflare Access verification |
 
 To rebrand a deployment, set `APP_NAME` and replace the files listed in `public/brand/README.md`.

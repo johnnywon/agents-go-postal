@@ -80,6 +80,8 @@ test("the alarm sends a due scheduled message and deletes its draft", async () =
 	const sent = await ok(MAILBOX, "getEmails", { folder: "sent" });
 	assert.deepEqual(sent.map((e) => e.subject), ["Later"]);
 	assert.equal(sent[0].recipient, "bob@example.org");
+	// The alarm sends under the draft's key, so the UI or agent sending the same draft gets the first send back.
+	assert.deepEqual(await ok(MAILBOX, "claimSendKey", `draft:${due.id}`), { state: "sent", id: sent[0].id });
 
 	const pending = await ok(MAILBOX, "listScheduled");
 	assert.deepEqual(pending.map((row) => row.emailId), [later.id]);

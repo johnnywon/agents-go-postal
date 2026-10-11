@@ -188,7 +188,7 @@ function AgentChat({ hooks, open, prefill, onOpenDraft, onBusy }: AgentPanelProp
 			<div className="pg-agent-scroll" ref={scrollRef} aria-live="polite">
 				{messages.length === 0 ? (
 					<div className="pg-agent-empty">
-						<p>Ask about your mail. The agent reads, searches, labels and drafts. It never sends.</p>
+						<p>Ask about your mail. The agent reads, searches, labels, drafts and sends.</p>
 						{SUGGESTIONS.map((s) => (
 							<button key={s} type="button" className="pg-btn" onClick={() => submit(s)}>{s}</button>
 						))}

@@ -72,6 +72,28 @@ export function listHeaders(rawHeaders: string | null | undefined) {
 	};
 }
 
+const NO_REPLY_SENDER = /^(mailer-daemon|postmaster|no-?reply|do-?not-?reply|bounces?)([+.-][^@]*)?@/i;
+
+/**
+ * Why a message should get no automatic reply, or null for mail a person
+ * sent. Covers RFC 3834 Auto-Submitted, Precedence bulk/list/junk, mailing
+ * list headers, auto-responder markers and no-reply senders. Replying to these
+ * wastes a model call at best and starts a reply loop at worst.
+ */
+export function automatedMailReason(rawHeaders: string | null | undefined, sender: string | null | undefined): string | null {
+	const autoSubmitted = headerValue(rawHeaders, "auto-submitted")?.trim().toLowerCase();
+	if (autoSubmitted && autoSubmitted !== "no") return `Auto-Submitted: ${autoSubmitted}`;
+	const precedence = headerValue(rawHeaders, "precedence")?.trim().toLowerCase();
+	if (precedence && ["bulk", "list", "junk", "auto_reply"].includes(precedence)) return `Precedence: ${precedence}`;
+	if (headerValue(rawHeaders, "list-id")) return "List-Id";
+	if (headerValue(rawHeaders, "list-unsubscribe")) return "List-Unsubscribe";
+	for (const key of ["x-autoreply", "x-autorespond", "x-auto-response-suppress"]) {
+		if (headerValue(rawHeaders, key)) return key;
+	}
+	if (sender && NO_REPLY_SENDER.test(sender.trim())) return `sender ${sender.trim().toLowerCase()}`;
+	return null;
+}
+
 const SYSTEM_STATES = new Set<string>(Object.values(Folders));
 
 /** Index state for a mailbox folder: system folders keep their id, custom folders become `folder:<id>`. */

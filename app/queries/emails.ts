@@ -110,8 +110,9 @@ export function useSendEmail() {
 		mutationFn: ({
 			mailboxId,
 			email,
-		}: { mailboxId: string; email: unknown }) =>
-			api.sendEmail(mailboxId, email),
+			key,
+		}: { mailboxId: string; email: unknown; key?: string }) =>
+			api.sendEmail(mailboxId, email, key),
 		onSuccess: (_data, { mailboxId }) => invalidate(mailboxId),
 	});
 }
@@ -259,8 +260,9 @@ export function useReplyToEmail() {
 			mailboxId,
 			emailId,
 			email,
-		}: { mailboxId: string; emailId: string; email: unknown }) =>
-			api.replyToEmail(mailboxId, emailId, email),
+			key,
+		}: { mailboxId: string; emailId: string; email: unknown; key?: string }) =>
+			api.replyToEmail(mailboxId, emailId, email, key),
 		onSuccess: (_data, { mailboxId }) => invalidate(mailboxId),
 	});
 }

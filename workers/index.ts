@@ -26,6 +26,7 @@ import { parseMailParams } from "./lib/mail-filter-params";
 import { getMailboxStub } from "./lib/email-helpers";
 import { getMailIndexStub, indexedMailboxIds } from "./lib/mail-index-stub";
 import { MOVE_FOLDERS } from "./lib/mail-bulk-sql";
+import { automatedMailReason } from "./lib/message-meta";
 import { dryRunFolderImport, importDeps, runFolderImport } from "./lib/folder-import";
 
 type AppContext = Context<MailboxContext>;
@@ -660,7 +661,10 @@ async function receiveEmail(event: { to: string; raw: ReadableStream; rawSize: n
 		thread_id: threadId, message_id: originalMessageId, raw_headers: JSON.stringify(parsedEmail.headers),
 	}, attachmentData);
 
-	if (String(env.AUTO_DRAFT_ENABLED) === "true") {
+	const automated = automatedMailReason(JSON.stringify(parsedEmail.headers), parsedEmail.from?.address);
+	if (String(env.AUTO_DRAFT_ENABLED) === "true" && automated) {
+		console.log(`Auto-draft skipped for ${messageId}: ${automated}`);
+	} else if (String(env.AUTO_DRAFT_ENABLED) === "true") {
 		const agentStub = env.EMAIL_AGENT.get(env.EMAIL_AGENT.idFromName(mailboxId));
 		ctx.waitUntil(agentStub.handleNewEmail({
 			mailboxId,

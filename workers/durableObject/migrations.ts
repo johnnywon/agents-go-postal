@@ -207,4 +207,18 @@ export const mailboxMigrations: Migration[] = [
             CREATE INDEX IF NOT EXISTS idx_scheduled_sends_send_at ON scheduled_sends(send_at);
         `,
 	},
+	{
+		// Idempotency keys for sends (lib/send-keys.ts). state is 'pending'
+		// until the Sent copy is stored, then 'sent' with that copy's email_id.
+		name: "11_send_keys",
+		sql: `
+            CREATE TABLE IF NOT EXISTS send_keys (
+                key TEXT PRIMARY KEY,
+                state TEXT NOT NULL,
+                email_id TEXT,
+                created_at TEXT NOT NULL
+            );
+            CREATE INDEX IF NOT EXISTS idx_send_keys_created_at ON send_keys(created_at);
+        `,
+	},
 ];

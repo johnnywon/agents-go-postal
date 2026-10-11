@@ -18,6 +18,7 @@ import {
 	toolDraftEmail,
 	toolUpdateDraft,
 	toolDeleteEmail,
+	toolSendDraft,
 	toolMarkEmailRead,
 	toolMoveEmail,
 	toolListLabels,
@@ -192,7 +193,7 @@ export class EmailMCP extends McpAgent<Env> {
 		// ── draft_reply ────────────────────────────────────────────
 		this.server.tool(
 			"draft_reply",
-			"Draft a reply to an email and save it to the Drafts folder. Does NOT send — saves a draft for review.",
+			"Draft a reply to an email and save it to the Drafts folder. Use send_draft to send it.",
 			{
 				mailboxId: z.string().describe("The mailbox email address"),
 				originalEmailId: z
@@ -298,6 +299,21 @@ export class EmailMCP extends McpAgent<Env> {
 					return mcpResult(result);
 				}
 				return mcpText(result);
+			},
+		);
+
+		// ── send_draft ─────────────────────────────────────────────
+		this.server.tool(
+			"send_draft",
+			"Send a saved draft now and remove it from Drafts. A reply draft is sent in its thread. Sending the same draft twice sends it once.",
+			{
+				mailboxId: z.string().describe("The mailbox the draft is in. It is sent from that address."),
+				draftId: z.string().describe("The ID of the draft to send"),
+			},
+			async ({ mailboxId, draftId }) => {
+				const denied = await verifyMailbox(mailboxId);
+				if (denied) return denied;
+				return mcpResult(await toolSendDraft(env, mailboxId, draftId));
 			},
 		);
 

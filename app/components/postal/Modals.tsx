@@ -409,11 +409,11 @@ export function SettingsModal({ initialTab, prefs, setPrefs, addresses, identiti
 							<Setting title="Model" sub={agentModel.stored?.provider === "openrouter" ? `OpenRouter, ${agentModel.stored.model}` : "Workers AI (default)"}>
 								<button type="button" className="pg-btn pg-btn-sm" onClick={() => setTab("model")}>Change</button>
 							</Setting>
-							<Setting title="Auto-draft new mail" sub={<>Drafts a reply to every new message. Set <span className="pg-mono">AUTO_DRAFT_ENABLED</span> in your Worker config to change.</>}>
+							<Setting title="Auto-draft new mail" sub={<>Drafts a reply to each new message. Mailing lists and automated mail are skipped. Set <span className="pg-mono">AUTO_DRAFT_ENABLED</span> in your Worker config to change.</>}>
 								<span className="pg-tag">{autoDraft ? "on" : "off"} · config</span>
 							</Setting>
-							<Setting title="Never send without a click" sub="The agent only drafts. Sending always needs you.">
-								<span className="pg-tag">always on</span>
+							<Setting title="Sending" sub="The agent sends a draft when you ask it to. Auto-draft only drafts.">
+								<span className="pg-tag">send_draft</span>
 							</Setting>
 							{/* TODO(roadmap): rules (Inquiry, Receipts, DMARC, Triage) and per-rule autonomy settings. */}
 						</>
@@ -479,6 +479,7 @@ const MCP_TOOLS = [
 	["get_thread", "Load a conversation thread"],
 	["search_emails", "Search emails by query"],
 	["draft_reply", "Draft a reply to an email"],
+	["send_draft", "Send a saved draft"],
 	["mark_email_read", "Mark email as read/unread"],
 	["move_email", "Move email to a system folder"],
 	["list_labels", "List labels with counts"],
@@ -499,7 +500,7 @@ export function McpModal({ onClose }: { onClose: () => void }) {
 			<Head icon={<PlugsConnectedIcon size={16} />} title="Connect via MCP" sub="Model Context Protocol server" onClose={onClose} />
 			<div style={{ flex: 1, minHeight: 0, overflowY: "auto", padding: "16px 18px", display: "flex", flexDirection: "column", gap: 16 }}>
 				<span style={{ fontSize: 13, color: "var(--pg-text-5)", textWrap: "pretty" }}>
-					Point Claude Code, Cursor or any MCP client at this server to read, search, draft and organize mail across every address. Requests go through Cloudflare Access like the app.
+					Point Claude Code, Cursor or any MCP client at this server to read, search, draft, send and organize mail across every address. Requests go through Cloudflare Access like the app.
 				</span>
 				<div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
 					<span className="pg-caption">SERVER URL</span>
@@ -537,7 +538,7 @@ export function McpModal({ onClose }: { onClose: () => void }) {
 				</div>
 			</div>
 			<div className="pg-modal-foot">
-				<span className="pg-note">The agent never sends without a click.</span>
+				<span className="pg-note">send_draft sends each draft once.</span>
 				<div className="pg-flex" />
 				<button type="button" className="pg-btn pg-btn-primary" onClick={onClose}>Done</button>
 			</div>

@@ -18,6 +18,7 @@ import {
 	validateSender,
 } from "./email-helpers";
 import type { EmailFull, SendEmailRequestSchema } from "./schemas";
+import { SEND_KEY_PENDING_ERROR, type SendKeyClaim } from "./send-keys";
 import { Folders } from "../../shared/folders";
 import type { Env } from "../types";
 
@@ -34,11 +35,14 @@ export interface SendStub {
 	createEmail(folder: string, email: any, attachments: any[]): Promise<unknown>;
 	checkSendRateLimit(): Promise<string | null>;
 	markThreadRead(threadId: string): Promise<unknown>;
+	claimSendKey(key: string): Promise<SendKeyClaim>;
+	finishSendKey(key: string, emailId: string): Promise<void>;
+	releaseSendKey(key: string): Promise<void>;
 }
 
 export type SendResult =
-	| { ok: true; id: string }
-	| { ok: false; status: 400 | 404 | 429; error: string };
+	| { ok: true; id: string; duplicate?: true }
+	| { ok: false; status: 400 | 404 | 409 | 429; error: string };
 
 export interface SendOptions {
 	/**
@@ -47,6 +51,11 @@ export interface SendOptions {
 	 * anything is stored, so the caller can retry.
 	 */
 	defer?: (delivery: Promise<unknown>) => void;
+	/**
+	 * Send at most once per key (see send-keys.ts). A repeat with a key that
+	 * already sent returns the first send's id with `duplicate: true`.
+	 */
+	idempotencyKey?: string;
 }
 
 const DEFERRED_LABEL: Record<SendMode["kind"], string> = { new: "email", reply: "reply", forward: "forward" };
@@ -60,6 +69,35 @@ export async function sendMail(
 	body: SendEmailRequest,
 	mode: SendMode,
 	options: SendOptions = {},
+): Promise<SendResult> {
+	const key = options.idempotencyKey;
+	if (!key) return sendOnce(env, mailboxId, stub, body, mode, options, () => {});
+
+	const claim = await stub.claimSendKey(key);
+	if (claim.state === "sent") return { ok: true, id: claim.id, duplicate: true };
+	if (claim.state === "pending") return { ok: false, status: 409, error: SEND_KEY_PENDING_ERROR };
+
+	// Once delivery may have happened the key stays claimed, even if storing the Sent copy fails.
+	let delivered = false;
+	try {
+		const result = await sendOnce(env, mailboxId, stub, body, mode, options, () => { delivered = true; });
+		if (result.ok) await stub.finishSendKey(key, result.id);
+		else await stub.releaseSendKey(key);
+		return result;
+	} catch (e) {
+		if (!delivered) await stub.releaseSendKey(key);
+		throw e;
+	}
+}
+
+async function sendOnce(
+	env: Env,
+	mailboxId: string,
+	stub: SendStub,
+	body: SendEmailRequest,
+	mode: SendMode,
+	options: SendOptions,
+	onDelivered: () => void,
 ): Promise<SendResult> {
 	const { to, cc, bcc, from, subject, html, text, attachments } = body;
 
@@ -107,7 +145,10 @@ export async function sendMail(
 			...(inReplyTo ? { headers: buildThreadingHeaders(inReplyTo, references) } : {}),
 		});
 
-	if (!options.defer) await deliver();
+	if (!options.defer) {
+		await deliver();
+		onDelivered();
+	}
 
 	const attachmentData = await storeAttachments(env.BUCKET, messageId, attachments);
 	const now = new Date().toISOString();
@@ -140,6 +181,7 @@ export async function sendMail(
 	if (markRead) await stub.markThreadRead(markRead);
 
 	if (options.defer) {
+		onDelivered();
 		const label = DEFERRED_LABEL[mode.kind];
 		options.defer(deliver().catch((e) => {
 			console.error(`Deferred ${label} delivery failed:`, (e as Error).message);

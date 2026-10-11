@@ -149,7 +149,8 @@ export default function EmailPanel({ emailId, mailboxId: mailboxProp, folder: fo
 				html: target.body || "",
 				text: target.body ? target.body.replace(/<[^>]*>/g, "").trim() : "",
 			};
-			if (originalEmail) await replyMut.mutateAsync({ mailboxId, emailId: originalEmail.id, email: emailData }); else await sendEmailMut.mutateAsync({ mailboxId, email: emailData });
+			const key = `draft:${target.id}`;
+			if (originalEmail) await replyMut.mutateAsync({ mailboxId, emailId: originalEmail.id, email: emailData, key }); else await sendEmailMut.mutateAsync({ mailboxId, email: emailData, key });
 			await deleteEmailMut.mutateAsync({ mailboxId, id: target.id });
 			toastManager.add({ title: "Email sent!" });
 			if (isDraftFolder) closePanel();

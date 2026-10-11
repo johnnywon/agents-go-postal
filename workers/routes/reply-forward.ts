@@ -5,6 +5,7 @@
 import type { Context } from "hono";
 import { SendEmailRequestSchema } from "../lib/schemas";
 import { sendMail, type SendMode } from "../lib/send";
+import { checkSendKey } from "../lib/send-keys";
 import type { MailboxContext } from "../lib/mailbox";
 
 type AppContext = Context<MailboxContext>;
@@ -14,8 +15,12 @@ async function handleSend(c: AppContext, kind: SendMode["kind"]) {
 	const id = c.req.param("id") ?? "";
 	const body = SendEmailRequestSchema.parse(await c.req.json());
 	const mode: SendMode = kind === "new" ? { kind } : { kind, originalId: id };
+	const idempotencyKey = c.req.header("idempotency-key") || undefined;
+	const keyError = idempotencyKey ? checkSendKey(idempotencyKey) : null;
+	if (keyError) return c.json({ error: keyError }, 400);
 	const result = await sendMail(c.env, mailboxId, c.var.mailboxStub, body, mode, {
 		defer: (delivery) => c.executionCtx.waitUntil(delivery),
+		idempotencyKey,
 	});
 	if (!result.ok) return c.json({ error: result.error }, result.status);
 	return c.json({ id: result.id, status: "sent" }, 202);
