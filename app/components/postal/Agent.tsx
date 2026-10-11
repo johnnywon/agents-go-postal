@@ -2,7 +2,8 @@
 // Licensed under the Apache 2.0 license found in the LICENSE file or at:
 //     https://opensource.org/licenses/Apache-2.0
 
-import { ArrowElbowDownLeftIcon, CaretDoubleLeftIcon, CaretDoubleRightIcon, SparkleIcon, StopIcon, TrashIcon } from "@phosphor-icons/react";
+import { ArrowElbowDownLeftIcon, CaretDoubleLeftIcon, CaretDoubleRightIcon, StopIcon, TrashIcon } from "@phosphor-icons/react";
+import { AgentIcon } from "./AgentIcon";
 import { useQueryClient } from "@tanstack/react-query";
 import type { UIMessage } from "ai";
 import type { ComposeState } from "./compose";
@@ -113,7 +114,7 @@ export function AgentPanel(props: AgentPanelProps) {
 			<button type="button" className="pg-rail-head" onClick={props.onCollapse} title="Collapse agent panel">
 				<CaretDoubleRightIcon size={14} weight="bold" />
 				<span className="pg-head-label">AGENT</span>
-				<SparkleIcon size={14} weight="fill" color="var(--pg-green)" />
+				<AgentIcon size={14} weight="fill" color="var(--pg-green)" />
 			</button>
 			{hooks ? (
 				<AgentChat hooks={hooks} {...props} />
@@ -284,7 +285,7 @@ function ChatMessage({ message, onOpenDraft }: { message: UIMessage; onOpenDraft
 		if (part.type === "text" && part.text.trim()) {
 			out.push(
 				<div key={i} className="pg-agent-a">
-					<span className="pg-bot is-small"><SparkleIcon size={12} weight="fill" /></span>
+					<span className="pg-bot is-small"><AgentIcon size={14} weight="fill" /></span>
 					<div className="pg-answer">
 						<Markdown remarkPlugins={[remarkGfm]} components={{ a: ({ href, children }) => <a href={href} target="_blank" rel="noopener noreferrer">{children}</a> }}>
 							{part.text}
@@ -330,7 +331,7 @@ export function AgentRail({ onOpen, busy }: { onOpen: () => void; busy: boolean 
 		<button type="button" className="pg-agentrail" onClick={onOpen} title="Open agent chat (⌘J)" aria-label="Open agent chat">
 			<span className="pg-rail-head"><CaretDoubleLeftIcon size={12} weight="bold" /></span>
 			<span className="pg-vert">
-				<SparkleIcon size={16} weight="fill" />
+				<AgentIcon size={16} weight="fill" />
 				<span className="pg-vert-label">AGENT</span>
 				{busy && <span className="pg-dot pg-round" title="Agent working" />}
 			</span>

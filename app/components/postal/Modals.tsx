@@ -4,8 +4,9 @@
 
 import {
 	ArrowCounterClockwiseIcon, ArrowsClockwiseIcon, AtIcon, CheckIcon, CopyIcon, DatabaseIcon, DesktopIcon, GearSixIcon, MoonIcon,
-	KeyIcon, PlugsConnectedIcon, SignatureIcon, SignOutIcon, SparkleIcon, SlidersHorizontalIcon, SunIcon, WrenchIcon, XIcon,
+	KeyIcon, PlugsConnectedIcon, SignatureIcon, SignOutIcon, SlidersHorizontalIcon, SunIcon, WrenchIcon, XIcon,
 } from "@phosphor-icons/react";
+import { AgentIcon } from "./AgentIcon";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 import { queryKeys } from "~/queries/keys";
@@ -290,7 +291,7 @@ export function SettingsModal({ initialTab, prefs, setPrefs, addresses, identiti
 		{ id: "general", label: "General", icon: <SlidersHorizontalIcon size={16} /> },
 		{ id: "addresses", label: "Addresses", icon: <AtIcon size={16} /> },
 		{ id: "signatures", label: "Signatures", icon: <SignatureIcon size={16} /> },
-		{ id: "agent", label: "Agent", icon: <SparkleIcon size={16} /> },
+		{ id: "agent", label: "Agent", icon: <AgentIcon size={16} /> },
 		{ id: "model", label: "Model & key", icon: <KeyIcon size={16} /> },
 		{ id: "index", label: "Mail index", icon: <DatabaseIcon size={16} /> },
 	];

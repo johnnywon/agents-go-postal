@@ -5,8 +5,9 @@
 import {
 	ArrowBendDoubleUpLeftIcon, ArrowBendUpLeftIcon, ArrowBendUpRightIcon, ArrowSquareOutIcon, ArrowsInSimpleIcon, ArrowsOutSimpleIcon,
 	CalendarBlankIcon, CaretDownIcon, CaretUpIcon, CheckIcon, ClockIcon, FileIcon, FloppyDiskIcon, MinusIcon, PaperclipIcon, PaperPlaneRightIcon,
-	PencilSimpleLineIcon, SignatureIcon, SparkleIcon, TrashIcon, WarningIcon, XIcon,
+	PencilSimpleLineIcon, SignatureIcon, TrashIcon, WarningIcon, XIcon,
 } from "@phosphor-icons/react";
+import { AgentIcon } from "./AgentIcon";
 import type { Editor as TipTap } from "@tiptap/react";
 import { useEffect, useRef, useState } from "react";
 import EmailIframe from "~/components/EmailIframe";
@@ -566,7 +567,7 @@ export function Composer(props: ComposerProps) {
 							<SignatureIcon size={16} />
 						</button>
 						<button type="button" className="pg-btn pg-btn-agent" data-busy={agentBusy} title={`${reply ? "Draft reply" : "Draft"} · The agent writes a first draft here. Nothing is sent.`} onMouseDown={(e) => { e.preventDefault(); askAgent(); }}>
-							<SparkleIcon size={13} weight="fill" /><span className="pg-agent-label">{agentBusy ? "Drafting…" : reply ? "Draft reply" : "Draft"}</span>
+							<AgentIcon size={14} weight="fill" /><span className="pg-agent-label">{agentBusy ? "Drafting…" : reply ? "Draft reply" : "Draft"}</span>
 						</button>
 						<div className="pg-flex" />
 						<button type="button" className="pg-btn pg-btn-outline" title="Save as draft" onMouseDown={(e) => { e.preventDefault(); saveNow().then(() => finish("Draft saved")); }}>

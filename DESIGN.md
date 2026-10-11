@@ -11,10 +11,11 @@ A dark, quiet workspace for many addresses on many domains. Mail content comes f
 - Tokens live on `.postal` in `app/index.css`, for a dark theme (default) and a real light theme (`data-theme="light"`), not a CSS invert. Components in `app/components/postal/postal.css` read only these variables.
 - Dark neutrals: base `#141518`, sidebar and rails `#121316`, raised `#1c1d21`, modal `#16171a`, input `#17181b`, hover `#1f2025` on base and `#24262b` on raised, dividers `#26282d` and `#2a2c31`.
 - Text, brightest to faintest: `#f0f0ed`, `#e4e4e1`, `#d5d5d2`, `#c9c9c5`, `#a3a4a0`, `#8b8d93`, `#7f8187`, `#6f7177`. `#7f8187` is the faintest colour allowed for body text (4.5:1). Fainter values are for glyphs, separators and placeholders.
-- Accents, each with one job: mailbox blue `oklch(0.8 0.11 250)` (selection, focus, the tray icon), agent green `oklch(0.78 0.14 150)` (anything the agent does), amber `oklch(0.82 0.13 75)` (stars, warnings, search highlights), danger `oklch(0.62 0.17 25)` (log out).
+- Accents, each with one job, taken from the logo (orange threads are mail, green cursors are the agent): mail orange `oklch(0.76 0.16 58)` (selection, focus, the tray icon), agent green `oklch(0.82 0.17 152)` (anything the agent does, the robot's eyes), yellow `oklch(0.87 0.15 95)` (stars, warnings, search highlights), danger rose `oklch(0.64 0.19 15)` (log out). Blue is not an accent; it stays only as the cool cast in the neutrals and for links.
 - Type: Space Grotesk for the interface, JetBrains Mono for metadata: dates, addresses, counts, captions and key hints. Sizes 10, 11, 12, 13, 15 and 22px. Oxanium is not used in this view.
 - Icons: Phosphor at 10, 12, 14 and 16px, 20px in empty states.
-- Scrollbars are 7px and square: `oklch(0.4 0.035 250)`, brighter on hover, mailbox blue while dragged. The sidebar reserves a stable gutter.
+- The agent is always the robot (`AgentIcon`): a rounded head, green cursor eyes, an @ on the antenna. The shell takes the surrounding colour; the eyes stay green. Use it at 14px or larger so the @ reads.
+- Scrollbars are 7px and square: `oklch(0.4 0.035 250)`, brighter on hover, mail orange while dragged. The sidebar reserves a stable gutter.
 
 ### Radius
 
@@ -43,7 +44,7 @@ An address always renders as **bold handle**, muted `@`, then the domain in its 
 ### State
 
 - Unread: a lifted row fill (`#191a1e`) plus bright, bold text. Read rows are dimmed.
-- Current row: fill plus a full 1px ring. Checked rows: a blue tint plus a full 1px blue ring.
+- Current row: fill plus a full 1px ring. Checked rows: an orange tint plus a full 1px orange ring.
 - Active nav item: fill, bright text, weight 600. A selected address only brightens; its folder carries the fill.
 - Days are separated by a 10px dark band, not a heading.
 - Key hints (`/`, `Z`, `⌘J`) can be hidden in Settings; shortcuts keep working.

@@ -3,8 +3,9 @@
 //     https://opensource.org/licenses/Apache-2.0
 
 import {
-	ArchiveIcon, ArrowBendDoubleUpLeftIcon, ArrowBendUpLeftIcon, ArrowBendUpRightIcon, CalendarBlankIcon, CaretLeftIcon, CheckIcon, CodeIcon, DownloadSimpleIcon, EnvelopeOpenIcon, EnvelopeSimpleIcon, FileAudioIcon, FileCodeIcon, FileDocIcon, FileIcon, FileImageIcon, FilePdfIcon, FilePptIcon, FileTextIcon, FileVideoIcon, FileXlsIcon, FileZipIcon, ImageIcon, PaperclipIcon, PencilSimpleLineIcon, PlusIcon, SparkleIcon, StarIcon, TagIcon, TrashIcon, WarningIcon, XIcon,
+	ArchiveIcon, ArrowBendDoubleUpLeftIcon, ArrowBendUpLeftIcon, ArrowBendUpRightIcon, CalendarBlankIcon, CaretLeftIcon, CheckIcon, CodeIcon, DownloadSimpleIcon, EnvelopeOpenIcon, EnvelopeSimpleIcon, FileAudioIcon, FileCodeIcon, FileDocIcon, FileIcon, FileImageIcon, FilePdfIcon, FilePptIcon, FileTextIcon, FileVideoIcon, FileXlsIcon, FileZipIcon, ImageIcon, PaperclipIcon, PencilSimpleLineIcon, PlusIcon, StarIcon, TagIcon, TrashIcon, WarningIcon, XIcon,
 } from "@phosphor-icons/react";
+import { AgentIcon } from "./AgentIcon";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Folders } from "shared/folders";
 import EmailIframe, { type EmailPalette, hasRemoteImages, isPlainHtml } from "~/components/EmailIframe";
@@ -159,7 +160,7 @@ export function Reader(props: ReaderProps) {
 							{unread ? <EnvelopeOpenIcon size={16} /> : <EnvelopeSimpleIcon size={16} />}
 						</button>
 						<button type="button" className="pg-icon-btn" title={starred ? "Unstar" : "Star"} aria-label={starred ? "Unstar" : "Star"} aria-pressed={starred} onClick={() => props.onAction("star")} disabled={!row}>
-							<StarIcon size={16} weight={starred ? "fill" : "regular"} color={starred ? "var(--pg-amber)" : undefined} />
+							<StarIcon size={16} weight={starred ? "fill" : "regular"} color={starred ? "var(--pg-yellow)" : undefined} />
 						</button>
 						<button ref={labelBtn} type="button" className="pg-icon-btn" title="Label · Labels are shared by every address" aria-label="Label" aria-expanded={pickerOpen} onClick={openPicker} disabled={!row}><TagIcon size={16} /></button>
 					</div>
@@ -249,7 +250,7 @@ export function Reader(props: ReaderProps) {
 										props.startReply("reply", original, undefined, true);
 									}}
 								>
-									<SparkleIcon size={13} weight="fill" />Draft reply
+									<AgentIcon size={14} weight="fill" />Draft reply
 								</button>
 							</div>
 						)

@@ -2,7 +2,8 @@
 // Licensed under the Apache 2.0 license found in the LICENSE file or at:
 //     https://opensource.org/licenses/Apache-2.0
 
-import { ListIcon, MagnifyingGlassIcon, SparkleIcon, XIcon } from "@phosphor-icons/react";
+import { ListIcon, MagnifyingGlassIcon, XIcon } from "@phosphor-icons/react";
+import { AgentIcon } from "./AgentIcon";
 import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
 import type { Conversation, SavedSearch, Suggestions } from "~/services/api";
 import type { Identities } from "./identity";
@@ -352,7 +353,7 @@ export const SearchBar = forwardRef<HTMLInputElement, SearchBarProps>(function S
 				<img className="deck-brand-logo pg-watermark" src="/brand/logo.svg" alt="" aria-hidden="true" />
 				<span className="pg-kbd pg-desktop-only">/</span>
 				<button type="button" className="pg-icon-btn pg-mobile-only" onClick={props.onAgent} aria-label="Open agent">
-					<SparkleIcon size={16} weight="fill" />
+					<AgentIcon size={16} weight="fill" />
 				</button>
 			</div>
 			<span className="pg-sr-only" aria-live="polite">

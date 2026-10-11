@@ -11,12 +11,12 @@ import {
 	GlobeIcon,
 	MagnifyingGlassIcon,
 	PaperclipIcon,
-	SparkleIcon,
 	StarIcon,
 	TagIcon,
 	UserIcon,
 	XIcon,
 } from "@phosphor-icons/react";
+import { AgentIcon } from "./AgentIcon";
 import { OPERATOR_HELP, OPERATORS } from "../../../shared/search-query";
 import type { Conversation } from "~/services/api";
 import { AddressText, type Identities, Swatch } from "./identity";
@@ -31,7 +31,7 @@ export interface FilterSuggestion {
 }
 
 const FILTER_ICONS = { unread: EnvelopeSimpleIcon, starred: StarIcon, attachment: PaperclipIcon, label: TagIcon, from: UserIcon };
-const ACTION_ICONS = { ask: SparkleIcon, everywhere: GlobeIcon, remove: ArrowCounterClockwiseIcon, search: MagnifyingGlassIcon };
+const ACTION_ICONS = { ask: AgentIcon, everywhere: GlobeIcon, remove: ArrowCounterClockwiseIcon, search: MagnifyingGlassIcon };
 
 /** One row of the window. `choose` runs on ↵ or a click. */
 export type WindowRow = { id: string; choose: () => void } & (

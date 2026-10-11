@@ -4,9 +4,10 @@
 
 import {
 	ArchiveIcon, BookmarkSimpleIcon, CaretDoubleLeftIcon, CaretDoubleRightIcon, CaretDownIcon, CaretRightIcon, EnvelopeSimpleIcon, FileIcon, GearSixIcon,
-	PaperPlaneTiltIcon, PencilSimpleIcon, PlugsConnectedIcon, PlusIcon, SignOutIcon, SparkleIcon, StarIcon, TagIcon, TrashIcon, TrayIcon,
+	PaperPlaneTiltIcon, PencilSimpleIcon, PlugsConnectedIcon, PlusIcon, SignOutIcon, StarIcon, TagIcon, TrashIcon, TrayIcon,
 	WarningIcon,
 } from "@phosphor-icons/react";
+import { AgentIcon } from "./AgentIcon";
 import { type FormEvent, useState } from "react";
 import type { MailFilter } from "~/lib/mail-filter";
 import type { Label, SavedSearch } from "~/services/api";
@@ -195,7 +196,7 @@ export function Sidebar(props: SidebarProps) {
 												props.onAskLabel(label);
 											}}
 										>
-											<SparkleIcon size={12} weight="fill" />
+											<AgentIcon size={14} weight="fill" />
 										</button>
 									)}
 									<span className="pg-count" style={{ fontWeight: 400, minWidth: 16, textAlign: "right" }}>{count(label.count)}</span>

@@ -290,13 +290,13 @@ h1, h2, h3 { font-family: var(--font-display); }
   --pg-text-8: #6f7177;
   --pg-text-9: #55575e;
   /* Accents */
-  --pg-blue: oklch(0.8 0.11 250);
-  --pg-green: oklch(0.78 0.14 150);
-  --pg-green-text: oklch(0.8 0.14 150);
-  --pg-amber: oklch(0.82 0.13 75);
-  --pg-amber-text: oklch(0.86 0.13 75);
-  --pg-danger: oklch(0.62 0.17 25);
-  --pg-danger-text: oklch(0.72 0.15 25);
+  --pg-mail: oklch(0.76 0.16 58);
+  --pg-green: oklch(0.82 0.17 152);
+  --pg-green-text: oklch(0.84 0.16 152);
+  --pg-yellow: oklch(0.87 0.15 95);
+  --pg-yellow-text: oklch(0.9 0.14 95);
+  --pg-danger: oklch(0.64 0.19 15);
+  --pg-danger-text: oklch(0.74 0.16 15);
   --pg-link: oklch(0.78 0.11 240);
   /* Primary action: light on dark */
   --pg-primary: #e4e4e1;
@@ -343,13 +343,13 @@ h1, h2, h3 { font-family: var(--font-display); }
   --pg-text-7: #63656b;
   --pg-text-8: #74767c;
   --pg-text-9: #9a9ca1;
-  --pg-blue: oklch(0.5 0.14 250);
-  --pg-green: oklch(0.55 0.14 150);
-  --pg-green-text: oklch(0.47 0.13 150);
-  --pg-amber: oklch(0.66 0.14 75);
-  --pg-amber-text: oklch(0.5 0.12 70);
-  --pg-danger: oklch(0.55 0.19 25);
-  --pg-danger-text: oklch(0.5 0.18 25);
+  --pg-mail: oklch(0.6 0.17 50);
+  --pg-green: oklch(0.56 0.15 152);
+  --pg-green-text: oklch(0.47 0.13 152);
+  --pg-yellow: oklch(0.68 0.15 88);
+  --pg-yellow-text: oklch(0.5 0.12 85);
+  --pg-danger: oklch(0.55 0.2 15);
+  --pg-danger-text: oklch(0.5 0.19 15);
   --pg-link: oklch(0.5 0.14 250);
   --pg-primary: #1b1c20;
   --pg-primary-hover: #2a2c31;
