@@ -1,0 +1,70 @@
+// Copyright (c) 2026 Cloudflare, Inc.
+// Licensed under the Apache 2.0 license found in the LICENSE file or at:
+//     https://opensource.org/licenses/Apache-2.0
+
+/**
+ * Scheduled send on D1, run by the one-minute cron. MailboxDO does this with
+ * an alarm at the exact time; on D1 a message goes out up to a minute late.
+ *
+ * Each run claims due rows before sending (claimed_at), so two overlapping
+ * runs can't both send one; the `draft:<id>` send key is the second guard.
+ * A claim older than CLAIM_STALE_MS is taken over, in case a run died.
+ * Deleting or editing the draft drops its row by foreign key.
+ */
+import { Folders } from "../../../shared/folders";
+import { SCHEDULE_MAX_ATTEMPTS, SCHEDULE_RETRY_MS, type ScheduledPayload, sendModeOf } from "../../lib/scheduled-send";
+import { sendMail } from "../../lib/send";
+import type { Env } from "../../types";
+import type { Sql } from "../sql";
+import { D1Mailbox } from "./mailbox";
+
+export const CLAIM_STALE_MS = 10 * 60_000;
+const BATCH = 25;
+
+export async function sendDueScheduled(env: Env, sql: Sql, now = Date.now()) {
+	const at = new Date(now).toISOString();
+	const claimed = await sql.all(
+		`UPDATE scheduled_sends SET claimed_at = ?
+		WHERE email_id IN (
+			SELECT email_id FROM scheduled_sends
+			WHERE send_at <= ? AND attempts < ? AND (claimed_at IS NULL OR claimed_at < ?)
+			ORDER BY send_at LIMIT ?
+		)
+		RETURNING email_id, mailbox_id, payload`,
+		at, at, SCHEDULE_MAX_ATTEMPTS, new Date(now - CLAIM_STALE_MS).toISOString(), BATCH,
+	);
+	const sent: string[] = [];
+	const failed: string[] = [];
+	for (const row of claimed) {
+		const emailId = String(row.email_id);
+		const mailboxId = String(row.mailbox_id);
+		const mailbox = new D1Mailbox(sql, env.BUCKET, mailboxId);
+		let error: string | null;
+		try {
+			const draft = await mailbox.getEmail(emailId);
+			if (!draft || draft.folder_id !== Folders.DRAFT) {
+				await sql.run(`DELETE FROM scheduled_sends WHERE email_id = ?`, emailId);
+				continue;
+			}
+			const payload = JSON.parse(String(row.payload)) as ScheduledPayload;
+			const result = await sendMail(env, mailboxId, mailbox, payload.email, sendModeOf(payload), { idempotencyKey: `draft:${emailId}` });
+			error = result.ok ? null : result.error;
+		} catch (e) {
+			error = (e as Error).message || "Delivery failed";
+		}
+		if (error) {
+			// Count the attempt. With attempts left it retries in 15 minutes; after the last, it keeps its error.
+			await sql.run(
+				`UPDATE scheduled_sends SET attempts = attempts + 1, error = ?, claimed_at = NULL,
+					send_at = CASE WHEN attempts + 1 < ? THEN ? ELSE send_at END
+				WHERE email_id = ?`,
+				error.slice(0, 1000), SCHEDULE_MAX_ATTEMPTS, new Date(now + SCHEDULE_RETRY_MS).toISOString(), emailId,
+			);
+			failed.push(emailId);
+			continue;
+		}
+		await mailbox.deleteEmail(emailId);
+		sent.push(emailId);
+	}
+	return { sent, failed };
+}

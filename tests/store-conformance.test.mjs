@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { after, before, test } from "node:test";
 import { build } from "esbuild";
 import { Miniflare } from "miniflare";
+import { statements } from "./helpers/schema.mjs";
 
 // One script of store calls against the Durable Object store and the D1 store.
 // Both must return the same results, so callers can't tell them apart.
@@ -11,23 +12,6 @@ const A = "a@example.com";
 const B = "b@example.org";
 const SCHEMA = readFileSync("migrations/0001_init.sql", "utf8");
 let mf;
-
-function statements(text) {
-	const out = [];
-	let current = [];
-	let inTrigger = false;
-	for (const line of text.split("\n")) {
-		if (!current.length && (!line.trim() || line.trim().startsWith("--"))) continue;
-		current.push(line);
-		if (/^\s*CREATE TRIGGER/i.test(line)) inTrigger = true;
-		if (inTrigger ? /^\s*END;\s*$/i.test(line) : /;\s*(--.*)?$/.test(line)) {
-			out.push(current.join("\n"));
-			current = [];
-			inTrigger = false;
-		}
-	}
-	return out;
-}
 
 before(async () => {
 	const bundle = await build({

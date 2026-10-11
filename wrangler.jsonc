@@ -23,6 +23,10 @@
 		"INDEX_SYNC_ENABLED": "true",
 		"EMAIL_ADDRESSES": ["hello@example.com"]
 	},
+	// Sends scheduled mail when STORAGE is "d1". On the Durable Object store each run returns at once.
+	"triggers": {
+		"crons": ["* * * * *"]
+	},
 	"routes": [
 		{
 			"pattern": "mail.example.com",

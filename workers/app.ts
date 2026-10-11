@@ -6,6 +6,7 @@ import { routeAgentRequest } from "agents";
 import { Hono } from "hono";
 import { jwtVerify, createRemoteJWKSet } from "jose";
 import { createRequestHandler } from "react-router";
+import { runCron } from "./cron";
 import { app as apiApp, receiveEmail } from "./index";
 import { EmailMCP } from "./mcp";
 import type { Env } from "./types";
@@ -124,5 +125,8 @@ export default {
 			// Swallowing the error would silently drop the email.
 			throw e;
 		}
+	},
+	async scheduled(_controller: ScheduledController, env: Env, ctx: ExecutionContext) {
+		ctx.waitUntil(runCron(env).catch((e) => console.error("cron failed:", (e as Error).message)));
 	},
 };

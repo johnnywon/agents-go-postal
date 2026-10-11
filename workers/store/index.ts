@@ -13,6 +13,7 @@ import type { Env } from "../types";
 import { D1AllMail } from "./d1/all-mail";
 import { D1Mailbox } from "./d1/mailbox";
 import { d1Registry } from "./d1/registry";
+import { sendDueScheduled } from "./d1/scheduled";
 import { d1IndexStatus } from "./d1/status";
 import { d1Sql } from "./sql";
 import type { AllMailStore, MailboxRegistry, MailboxStore, MailStore } from "./types";
@@ -91,4 +92,9 @@ export function durableObjectInternals(env: Env) {
 /** The mail index status page when mail is on D1 (see d1/status.ts). */
 export function d1Status(env: Env, mailboxIds: string[]) {
 	return d1IndexStatus(d1Sql(env.DB!), mailboxIds);
+}
+
+/** Due scheduled mail on D1, sent by the cron (see d1/scheduled.ts). */
+export function sendDueScheduledMail(env: Env, now = Date.now()) {
+	return sendDueScheduled(env, d1Sql(env.DB!), now);
 }
