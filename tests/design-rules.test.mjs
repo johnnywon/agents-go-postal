@@ -1032,7 +1032,7 @@ test("the logo image is never clipped", () => {
 });
 
 // ---------------------------------------------------------------------------------------------------------
-// Postal view (MAIL_UI=postal): one 6px radius with named exceptions, shapes from clip-path only
+// Postal view: one 6px radius with named exceptions, shapes from clip-path only
 // ---------------------------------------------------------------------------------------------------------
 
 const POSTAL_CSS = "app/components/postal/postal.css";

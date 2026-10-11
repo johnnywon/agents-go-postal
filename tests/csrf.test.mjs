@@ -74,13 +74,6 @@ test("Delete moves to Trash, and deletes attachments only on a permanent delete"
 	assert.equal(response.status, 404);
 });
 
-test("deleting a folder that holds mail returns 409", async () => {
-	const del = (id) => app.request(`http://localhost/api/v1/mailboxes/a@wayne.org/folders/${id}`, { method: "DELETE", headers: same }, environment());
-	assert.equal((await del("full")).status, 409);
-	assert.equal((await del("empty")).status, 204);
-	assert.equal((await del("inbox")).status, 400);
-});
-
 test("mail params are validated before reaching the index", async () => {
 	const get = (query) => app.request(`http://localhost/api/v1/mail?${query}`, {}, environment());
 	assert.equal((await get("view=bogus")).status, 400);

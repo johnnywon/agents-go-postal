@@ -19,7 +19,6 @@ import { Folders } from "../shared/folders";
 import type { Env } from "./types";
 import { mergeAgentModelConfig, OPENROUTER_BASE, openRouterModel, readAgentModelConfig, viewOf, writeAgentModelConfig } from "./lib/agent-model";
 import { requireMailbox, type MailboxContext } from "./lib/mailbox";
-import { getCombinedInbox, InvalidInboxCursorError } from "./lib/combined-inbox";
 import { csrf } from "./lib/csrf";
 import { decodeCursor, InvalidFilterError } from "./lib/mail-index-sql";
 import { parseMailParams } from "./lib/mail-filter-params";
@@ -66,25 +65,6 @@ const LabelBody = z.object({ name: z.string().max(200).optional(), color: z.stri
 
 // -- Helpers --------------------------------------------------------
 
-function slugify(text: string) { // can return "" for non-alphanumeric input
-	return text.toString().toLowerCase()
-		.replace(/\s+/g, "-").replace(/[^\w-]+/g, "")
-		.replace(/--+/g, "-").replace(/^-+/, "").replace(/-+$/, "");
-}
-
-function intQuery(c: AppContext, key: string): number | undefined {
-	const v = c.req.query(key);
-	if (!v) return undefined;
-	const n = Number(v);
-	return Number.isNaN(n) ? undefined : n;
-}
-
-function boolQuery(c: AppContext, key: string): boolean | undefined {
-	const v = c.req.query(key);
-	if (v === undefined || v === "") return undefined;
-	return v === "true" || v === "1";
-}
-
 // -- App & middleware -----------------------------------------------
 
 const app = new Hono<MailboxContext>();
@@ -112,10 +92,8 @@ app.get("/api/v1/config", (c) => {
 	const domainsRaw = c.env.DOMAINS || "";
 	const domains = domainsRaw.split(",").map((d) => d.trim()).filter(Boolean);
 	const emailAddresses = c.env.EMAIL_ADDRESSES ?? [];
-	const mailUiRaw = String(c.env.MAIL_UI ?? "");
-	const mailUi = mailUiRaw === "postal" || mailUiRaw === "unified" ? mailUiRaw : "classic";
 	const autoDraft = String(c.env.AUTO_DRAFT_ENABLED ?? "") === "true";
-	return c.json({ domains, emailAddresses, mailUi, autoDraft });
+	return c.json({ domains, emailAddresses, autoDraft });
 });
 
 // Local QA only: fill each configured mailbox with sample inbox mail.
@@ -394,38 +372,6 @@ app.post("/api/v1/labels/import-folders", async (c) => {
 
 // -- Emails ---------------------------------------------------------
 
-app.get("/api/v1/inbox", async (c) => {
-	try {
-		return c.json(await getCombinedInbox(c.env, c.req.query("cursor")));
-	} catch (error) {
-		if (error instanceof InvalidInboxCursorError) return c.json({ error: error.message }, 400);
-		throw error;
-	}
-});
-
-app.get("/api/v1/mailboxes/:mailboxId/emails", async (c: AppContext) => {
-	const folder = c.req.query("folder");
-	const thread_id = c.req.query("thread_id");
-	const threaded = boolQuery(c, "threaded");
-	const page = intQuery(c, "page");
-	const limit = intQuery(c, "limit");
-	const sortColumn = c.req.query("sortColumn") as any;
-	const sortDirection = c.req.query("sortDirection") as "ASC" | "DESC" | undefined;
-	const stub = c.var.mailbox;
-
-	if (threaded && folder) {
-		const emails = await (stub as any).getThreadedEmails({ folder, page, limit });
-		const totalCount = await (stub as any).countThreadedEmails(folder);
-		return c.json({ emails, totalCount });
-	}
-	const emails = await stub.getEmails({ folder, thread_id, page, limit, sortColumn, sortDirection });
-	if (folder) {
-		const totalCount = await stub.countEmails({ folder, thread_id });
-		return c.json({ emails, totalCount });
-	}
-	return c.json(emails);
-});
-
 app.post("/api/v1/mailboxes/:mailboxId/emails", handleSendEmail);
 
 app.post("/api/v1/mailboxes/:mailboxId/drafts", async (c: AppContext) => {
@@ -490,12 +436,6 @@ app.get("/api/v1/mailboxes/:mailboxId/emails/:id", async (c: AppContext) => {
 	});
 });
 
-app.put("/api/v1/mailboxes/:mailboxId/emails/:id", async (c: AppContext) => {
-	const { read, starred } = (await c.req.json()) as { read?: boolean; starred?: boolean };
-	const email = await c.var.mailbox.updateEmail(c.req.param("id")!, { read, starred });
-	return email ? c.json(email) : c.json({ error: "Email not found" }, 404);
-});
-
 // Delete moves mail to Trash. Only mail already in Trash, and drafts, are deleted permanently.
 app.delete("/api/v1/mailboxes/:mailboxId/emails/:id", async (c: AppContext) => {
 	const id = c.req.param("id")!;
@@ -503,12 +443,6 @@ app.delete("/api/v1/mailboxes/:mailboxId/emails/:id", async (c: AppContext) => {
 	if (result === null) return c.json({ error: "Not found" }, 404);
 	if (result.attachments.length > 0) await c.env.BUCKET.delete(result.attachments.map((att) => `attachments/${id}/${att.id}/${att.filename}`));
 	return c.json({ status: result.action });
-});
-
-app.post("/api/v1/mailboxes/:mailboxId/emails/:id/move", async (c: AppContext) => {
-	const { folderId } = (await c.req.json()) as { folderId: string };
-	const success = await c.var.mailbox.moveEmail(c.req.param("id")!, folderId);
-	return success ? c.json({ status: "moved" }) : c.json({ error: "Folder not found" }, 400);
 });
 
 // -- Threads --------------------------------------------------------
@@ -526,46 +460,6 @@ app.post("/api/v1/mailboxes/:mailboxId/threads/:threadId/read", async (c: AppCon
 
 app.post("/api/v1/mailboxes/:mailboxId/emails/:id/reply", handleReplyEmail);
 app.post("/api/v1/mailboxes/:mailboxId/emails/:id/forward", handleForwardEmail);
-
-// -- Folders --------------------------------------------------------
-
-app.get("/api/v1/mailboxes/:mailboxId/folders", async (c: AppContext) => c.json(await c.var.mailbox.getFolders()));
-
-app.post("/api/v1/mailboxes/:mailboxId/folders", async (c: AppContext) => {
-	const { name } = (await c.req.json()) as { name: string };
-	const slug = slugify(name);
-	if (!slug) return c.json({ error: "Folder name must contain alphanumeric characters" }, 400);
-	const f = await c.var.mailbox.createFolder(slug, name);
-	return f ? c.json(f, 201) : c.json({ error: "Folder with this name already exists" }, 409);
-});
-
-app.put("/api/v1/mailboxes/:mailboxId/folders/:id", async (c: AppContext) => {
-	const { name } = (await c.req.json()) as { name: string };
-	const f = await c.var.mailbox.updateFolder(c.req.param("id")!, name);
-	return f ? c.json(f) : c.json({ error: "Folder not found" }, 404);
-});
-
-app.delete("/api/v1/mailboxes/:mailboxId/folders/:id", async (c: AppContext) => {
-	const result = await c.var.mailbox.deleteFolder(c.req.param("id")!);
-	if (result === "deleted") return c.body(null, 204);
-	if (result === "not_empty") return c.json({ error: "Folder still holds mail. Move it out first." }, 409);
-	return c.json({ error: "Folder not found or cannot be deleted" }, 400);
-});
-
-// -- Search ---------------------------------------------------------
-
-app.get("/api/v1/mailboxes/:mailboxId/search", async (c: AppContext) => {
-	const searchOpts: Record<string, unknown> = {
-		query: c.req.query("query") || "", folder: c.req.query("folder"), from: c.req.query("from"),
-		to: c.req.query("to"), subject: c.req.query("subject"), date_start: c.req.query("date_start"),
-		date_end: c.req.query("date_end"), is_read: boolQuery(c, "is_read"),
-		is_starred: boolQuery(c, "is_starred"), has_attachment: boolQuery(c, "has_attachment"),
-	};
-	const stub = c.var.mailbox as any;
-	const emails = await stub.searchEmails({ ...searchOpts, page: intQuery(c, "page"), limit: intQuery(c, "limit") });
-	const totalCount = await stub.countSearchResults(searchOpts);
-	return c.json({ emails, totalCount });
-});
 
 // -- Attachments ----------------------------------------------------
 

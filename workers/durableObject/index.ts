@@ -428,218 +428,10 @@ export class MailboxDO extends DurableObject<Env> {
 		}));
 	}
 
-	/**
-	 * Count total emails matching the given filters (for pagination).
-	 */
-	async countEmails(options: { folder?: string; thread_id?: string } = {}) {
-		const { folder, thread_id } = options;
-		const conditions: string[] = [];
-		const params: (string | number)[] = [];
-
-		if (folder) {
-			conditions.push(
-				"folder_id = (SELECT id FROM folders WHERE name = ?1 OR id = ?1 LIMIT 1)",
-			);
-			params.push(folder);
-		}
-
-		if (thread_id) {
-			conditions.push(`thread_id = ?${params.length + 1}`);
-			params.push(thread_id);
-		}
-
-		const where =
-			conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
-		const row = [
-			...this.ctx.storage.sql.exec(
-				`SELECT COUNT(*) as total FROM emails ${where}`,
-				...params,
-			),
-		][0] as { total: number } | undefined;
-
-		return row?.total ?? 0;
-	}
-
-	// ── Threaded queries (raw SQL — too complex for Drizzle's builder) ──
-
-	async getThreadedEmails(options: GetEmailsOptions = {}) {
-		const {
-			folder,
-			page = 1,
-			offset: requestedOffset,
-			limit: rawLimit = 25,
-		} = options;
-		const limit = Math.min(Math.max(rawLimit, 1), 100);
-
-		if (!folder) {
-			// Fallback to regular getEmails if no folder specified
-			return this.getEmails(options);
-		}
-
-		const offset = requestedOffset ?? (page - 1) * limit;
-
-		// Thread grouping strategy:
-		// For DRAFT folder: group by in_reply_to (the email being replied to).
-		//   This ensures reply-drafts to different emails stay separate, even if
-		//   they share a thread_id or subject. New drafts (no in_reply_to) each
-		//   get their own group via their unique id.
-		// For other folders:
-		//   1. Primary: group by thread_id (from email threading headers)
-		//   2. Fallback: group by normalized subject (strips Re:/Fwd:/FW: prefixes)
-		//      for legacy emails that lack threading headers (thread_id IS NULL).
-		const isDraftFolder = folder === Folders.DRAFT;
-
-		if (isDraftFolder) {
-			const result = this.ctx.storage.sql.exec(
-				`WITH
-				folder_emails AS (
-					SELECT *,
-						COALESCE(in_reply_to, id) as draft_group_key
-					FROM emails
-					WHERE folder_id = (SELECT id FROM folders WHERE name = ?1 OR id = ?1 LIMIT 1)
-				),
-				draft_stats AS (
-					SELECT
-						draft_group_key,
-						COUNT(*) as thread_count,
-						SUM(CASE WHEN read = 0 THEN 1 ELSE 0 END) as thread_unread_count,
-						GROUP_CONCAT(DISTINCT sender) as participants
-					FROM folder_emails
-					GROUP BY draft_group_key
-				),
-				latest_per_group AS (
-					SELECT
-						fe.*,
-						ROW_NUMBER() OVER (
-							PARTITION BY fe.draft_group_key
-							ORDER BY fe.date DESC
-						) as rn
-					FROM folder_emails fe
-				)
-				SELECT
-					lp.id, lp.subject, lp.sender, lp.recipient, lp.date,
-					lp.read, lp.starred, lp.thread_id, lp.folder_id,
-					lp.in_reply_to, lp.email_references,
-					SUBSTR(lp.body, 1, 300) as snippet,
-					ds.thread_count, ds.thread_unread_count, ds.participants
-				FROM latest_per_group lp
-				JOIN draft_stats ds ON lp.draft_group_key = ds.draft_group_key
-				WHERE lp.rn = 1
-				ORDER BY lp.date DESC
-				LIMIT ?2 OFFSET ?3`,
-				folder, limit, offset
-			);
-
-			const rows = [...result];
-			return rows.map((row: any) => ({
-				...row,
-				read: !!row.read,
-				starred: !!row.starred,
-				thread_count: row.thread_count || 1,
-				thread_unread_count: row.thread_unread_count || 0,
-				participants: row.participants || row.sender,
-			}));
-		}
-
-		// Non-draft folders: full threading logic
-		const result = this.ctx.storage.sql.exec(
-			`WITH
-			folder_emails AS (
-				SELECT *,
-					COALESCE(thread_id, id) as raw_thread_id,
-					${NORMALIZED_SUBJECT_SQL} as normalized_subject
-				FROM emails
-				WHERE folder_id = (SELECT id FROM folders WHERE name = ?1 OR id = ?1 LIMIT 1)
-			),
-			thread_to_conversation AS (
-				SELECT
-					raw_thread_id,
-					normalized_subject,
-					CASE
-						WHEN thread_id IS NOT NULL THEN raw_thread_id
-						ELSE MIN(raw_thread_id) OVER (PARTITION BY normalized_subject)
-					END as conversation_id
-				FROM folder_emails
-				GROUP BY raw_thread_id, normalized_subject, thread_id
-			),
-			all_emails_with_conversation AS (
-				SELECT
-					e.*,
-					COALESCE(tc.conversation_id, COALESCE(e.thread_id, e.id)) as conversation_id
-				FROM emails e
-				LEFT JOIN thread_to_conversation tc
-					ON COALESCE(e.thread_id, e.id) = tc.raw_thread_id
-			),
-			conversation_stats AS (
-				SELECT
-					conversation_id,
-					COUNT(*) as thread_count,
-					SUM(CASE WHEN read = 0 THEN 1 ELSE 0 END) as thread_unread_count,
-					SUM(CASE WHEN read = 1 THEN 1 ELSE 0 END) as thread_read_count,
-					GROUP_CONCAT(DISTINCT sender) as participants,
-					SUM(CASE WHEN folder_id = (SELECT id FROM folders WHERE name = 'draft' LIMIT 1) THEN 1 ELSE 0 END) as has_draft
-				FROM all_emails_with_conversation
-				WHERE conversation_id IN (
-					SELECT DISTINCT conversation_id FROM all_emails_with_conversation
-					WHERE folder_id = (SELECT id FROM folders WHERE name = ?1 OR id = ?1 LIMIT 1)
-				)
-				GROUP BY conversation_id
-			),
-			latest_message_per_conversation AS (
-				SELECT
-					conversation_id,
-					folder_id,
-					ROW_NUMBER() OVER (PARTITION BY conversation_id ORDER BY date DESC) as rn
-				FROM all_emails_with_conversation
-			),
-			latest_in_folder AS (
-				SELECT
-					fe.*,
-					COALESCE(tc.conversation_id, fe.raw_thread_id) as conversation_id,
-					ROW_NUMBER() OVER (
-						PARTITION BY COALESCE(tc.conversation_id, fe.raw_thread_id)
-						ORDER BY fe.date DESC
-					) as rn
-				FROM folder_emails fe
-				LEFT JOIN thread_to_conversation tc
-					ON fe.raw_thread_id = tc.raw_thread_id
-			)
-			SELECT
-				lif.id, lif.subject, lif.sender, lif.recipient, lif.date,
-				lif.read, lif.starred, lif.thread_id, lif.folder_id,
-				lif.in_reply_to, lif.email_references,
-				SUBSTR(lif.body, 1, 300) as snippet,
-				cs.thread_count, cs.thread_unread_count, cs.participants,
-				CASE WHEN lmc.folder_id != (SELECT id FROM folders WHERE name = 'sent' LIMIT 1)
-					AND lmc.folder_id != (SELECT id FROM folders WHERE name = 'draft' LIMIT 1)
-					AND cs.thread_read_count > 0
-					THEN 1 ELSE 0 END as needs_reply,
-				CASE WHEN cs.has_draft > 0 THEN 1 ELSE 0 END as has_draft
-			FROM latest_in_folder lif
-			JOIN conversation_stats cs ON lif.conversation_id = cs.conversation_id
-			LEFT JOIN latest_message_per_conversation lmc
-				ON lmc.conversation_id = lif.conversation_id AND lmc.rn = 1
-			WHERE lif.rn = 1
-			ORDER BY lif.date DESC
-			LIMIT ?2 OFFSET ?3`,
-			folder, limit, offset
-		);
-
-		const rows = [...result];
-		return rows.map((row: any) => ({
-			...row,
-			read: !!row.read,
-			starred: !!row.starred,
-			thread_count: row.thread_count || 1,
-			thread_unread_count: row.thread_unread_count || 0,
-			participants: row.participants || row.sender,
-			needs_reply: !!row.needs_reply,
-			has_draft: !!row.has_draft,
-		}));
-	}
+	// ── Threaded count (raw SQL) ───────────────────────────────────
 
 	/**
-	 * Count threaded conversations in a folder (for pagination).
+	 * Count conversations in a folder, for the index status page.
 	 * Returns the number of conversation groups, not individual emails.
 	 */
 	async countThreadedEmails(folder: string) {
@@ -1035,8 +827,7 @@ export class MailboxDO extends DurableObject<Env> {
 	// ── Search (raw SQL — dynamic condition builder) ───────────────
 
 	/**
-	 * Build WHERE conditions and params for search queries.
-	 * Shared between searchEmails and countSearchResults.
+	 * Build WHERE conditions and params for searchEmails.
 	 */
 	#buildSearchConditions(
 		options: SearchFilterOptions,
@@ -1103,21 +894,6 @@ export class MailboxDO extends DurableObject<Env> {
 			read: !!row.read,
 			starred: !!row.starred,
 		}));
-	}
-
-	/**
-	 * Count total search results matching the given filters (for pagination).
-	 */
-	async countSearchResults(options: SearchFilterOptions) {
-		const { conditions, params } = this.#buildSearchConditions(options);
-
-		const where = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
-		const query = `SELECT COUNT(*) as total FROM emails ${where}`;
-
-		const row = [...this.ctx.storage.sql.exec(query, ...params)][0] as
-			| { total: number }
-			| undefined;
-		return row?.total ?? 0;
 	}
 
 	// ── Threading helpers (raw SQL) ────────────────────────────────

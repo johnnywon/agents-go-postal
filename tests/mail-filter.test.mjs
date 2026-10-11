@@ -71,16 +71,7 @@ test("applySearch adds chips and replaces the text chip", () => {
 	assert.equal(f.filterToParams(filter).toString(), "view=inbox&q=new+text&from=a.com");
 });
 
-test("drill path: each step keeps only the steps before it", () => {
-	const filter = f.parseFilter(P("view=all&address=globex.dev&is=unread&sort=from"));
-	assert.deepEqual(f.drillPath(filter), [
-		{ label: "All mail", search: "?view=all&sort=from", current: false },
-		{ label: "To globex.dev", search: "?view=all&address=globex.dev&sort=from", current: false },
-		{ label: "Unread", search: "?view=all&address=globex.dev&is=unread&sort=from", current: true },
-	]);
-});
-
-test("legacy URLs redirect to the unified view", () => {
+test("old per-mailbox URLs redirect to the mail view", () => {
 	assert.equal(f.legacyRedirect("/mailbox/Billing%40globex.dev", ""), "/?address=billing%40globex.dev");
 	assert.equal(f.legacyRedirect("/mailbox/a@x.org/emails/inbox", ""), "/?view=inbox&address=a%40x.org");
 	assert.equal(f.legacyRedirect("/mailbox/a@x.org/emails/draft", "?email=e1"), "/?view=drafts&address=a%40x.org&open=a%40x.org%3Ae1");
@@ -88,7 +79,7 @@ test("legacy URLs redirect to the unified view", () => {
 	assert.equal(f.legacyRedirect("/mailbox/a@x.org/emails/receipts", ""), "/?view=folder%3Areceipts&address=a%40x.org");
 	assert.equal(f.legacyRedirect("/mailbox/a@x.org", "?compose=new"), "/?address=a%40x.org&compose=new");
 	assert.equal(f.legacyRedirect("/mailbox/a@x.org/search", "?q=from:ann@b.com invoice"), "/?view=inbox&address=a%40x.org&from=ann%40b.com&q=invoice");
-	assert.equal(f.legacyRedirect("/mailbox/a@x.org/settings", ""), "/settings?address=a%40x.org");
+	assert.equal(f.legacyRedirect("/mailbox/a@x.org/settings", ""), "/?address=a%40x.org");
 	assert.equal(f.legacyRedirect("/settings/index", ""), null);
 	assert.equal(f.legacyRedirect("/", ""), null);
 });
@@ -121,14 +112,6 @@ test("label: resolves a name or id to the label's id; unknown labels stay text",
 	assert.deepEqual(f.parseSearchText("label:receipts").chips, [], "without a label list nothing resolves");
 	const next = f.applySearch({ view: "inbox", chips: [], sort: "date", dir: "desc" }, "label:Receipts label:tax-2026", LABELS);
 	assert.deepEqual(next.chips, [{ kind: "label", value: "receipts" }, { kind: "label", value: "tax-2026" }]);
-});
-
-test("chip labels and the drill path show label names", () => {
-	const names = new Map(LABELS.map((l) => [l.id, l.name]));
-	assert.equal(f.chipLabel({ kind: "label", value: "tax-2026" }, names), "Tax 2026");
-	assert.equal(f.chipLabel({ kind: "label", value: "gone" }, names), "gone");
-	const filter = f.parseFilter(P("view=all&label=receipts"));
-	assert.deepEqual(f.drillPath(filter, names).map((s) => s.label), ["All mail", "Receipts"]);
 });
 
 test("after the folder conversion, a custom folder link opens its label in All mail", () => {

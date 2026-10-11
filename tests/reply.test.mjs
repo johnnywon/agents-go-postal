@@ -17,20 +17,22 @@ async function load(entry, options = {}) {
 
 const { parseAddressList, getReplyToAddresses, getReplyAddresses, extractReplyQuote } = await load("app/lib/reply.ts");
 
-// The compose form's React hooks and UI kit are stubbed; only the pure field builder runs.
+// The postal composer's hooks, API client and sanitizer are stubbed; only composeFor runs.
 const stubs = {
-	"@cloudflare/kumo": "export const useKumoToastManager = () => ({ add() {} });",
-	"~/queries/emails":
-		"const h = () => ({}); export const useDeleteEmail = h, useForwardEmail = h, useReplyToEmail = h, useSaveDraft = h, useSendEmail = h;",
-	"~/queries/mailboxes": "export const useMailbox = () => ({});",
+	"@tanstack/react-query": "export const useQueries = () => []; export const useQueryClient = () => ({});",
+	react: "export const useCallback = (f) => f; export const useMemo = (f) => f();",
+	dompurify: "export default { sanitize: (html) => html };",
+	"~/services/api": "export default {};",
+	"~/queries/keys": "export const queryKeys = {};",
+	"./identity": "export const handleOf = (a) => a;",
 };
-const { buildInitialComposeFields } = await load("app/hooks/useComposeForm.ts", {
+const { composeFor } = await load("app/components/postal/compose.ts", {
 	jsx: "automatic",
 	plugins: [
 		{
 			name: "stub-ui",
 			setup(b) {
-				b.onResolve({ filter: /^(@cloudflare\/kumo|~\/queries\/(emails|mailboxes))$/ }, (args) => ({
+				b.onResolve({ filter: /^(@tanstack\/react-query|react|dompurify|~\/services\/api|~\/queries\/keys|\.\/identity)$/ }, (args) => ({
 					path: args.path,
 					namespace: "stub",
 				}));
@@ -39,6 +41,7 @@ const { buildInitialComposeFields } = await load("app/hooks/useComposeForm.ts", 
 		},
 	],
 });
+const addrs = (list) => list.map((r) => r.addr).join(", ");
 
 const postalHeaders = (value) =>
 	JSON.stringify([
@@ -90,32 +93,31 @@ const inquiry = {
 };
 
 test("Reply on an inquiry addresses the visitor and quotes only their message", () => {
-	const fields = buildInitialComposeFields({ mode: "reply", originalEmail: inquiry }, "hello@globex.dev", "");
-	assert.equal(fields.to, "alex@example.com");
-	assert.equal(fields.subject, "Re: Globex.dev inquiry: Media");
-	assert.match(fields.body, /alex@example\.com wrote:/);
-	assert.match(fields.body, /How do I filter\?<br>Line two &amp; more/);
-	assert.doesNotMatch(fields.body, /CONTACT-1|Ray ID|news@updates/);
+	const state = composeFor("reply", inquiry, "hello@globex.dev", "hello@globex.dev");
+	assert.equal(addrs(state.to), "alex@example.com");
+	assert.equal(state.subject, "Re: Globex.dev inquiry: Media");
+	assert.match(state.quoteBody, /How do I filter\?<br>Line two &amp; more/);
+	assert.doesNotMatch(state.quoteBody, /CONTACT-1|Ray ID|news@updates/);
 });
 
 test("Reply All on an inquiry leaves out the mailbox itself", () => {
-	const fields = buildInitialComposeFields({ mode: "reply-all", originalEmail: inquiry }, "hello@globex.dev", "");
-	assert.equal(fields.to, "alex@example.com");
-	assert.equal(fields.cc, "");
+	const state = composeFor("reply-all", inquiry, "hello@globex.dev", "hello@globex.dev");
+	assert.equal(addrs(state.to), "alex@example.com");
+	assert.equal(addrs(state.cc), "");
 });
 
 test("Reply without Reply-To or a marker behaves as before", () => {
 	const plain = { ...inquiry, raw_headers: null, sender: "sam@example.net", body: "<p>Hello there</p>" };
-	const fields = buildInitialComposeFields({ mode: "reply", originalEmail: plain }, "hello@globex.dev", "");
-	assert.equal(fields.to, "sam@example.net");
-	assert.match(fields.body, /sam@example\.net wrote:/);
-	assert.match(fields.body, /Hello there/);
+	const state = composeFor("reply", plain, "hello@globex.dev", "hello@globex.dev");
+	assert.equal(addrs(state.to), "sam@example.net");
+	assert.match(state.quoteHead, /sam@example\.net wrote:/);
+	assert.match(state.quoteBody, /Hello there/);
 });
 
 test("Reply with Reply-To but no marker still quotes the whole message, attributed to the sender", () => {
 	const unmarked = { ...inquiry, body: "<p>Name: Alex Topic: Media</p>" };
-	const fields = buildInitialComposeFields({ mode: "reply", originalEmail: unmarked }, "hello@globex.dev", "");
-	assert.equal(fields.to, "alex@example.com");
-	assert.match(fields.body, /news@updates\.globex\.dev wrote:/);
-	assert.match(fields.body, /Name: Alex Topic: Media/);
+	const state = composeFor("reply", unmarked, "hello@globex.dev", "hello@globex.dev");
+	assert.equal(addrs(state.to), "alex@example.com");
+	assert.match(state.quoteHead, /news@updates\.globex\.dev wrote:/);
+	assert.match(state.quoteBody, /Name: Alex Topic: Media/);
 });

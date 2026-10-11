@@ -15,15 +15,3 @@ export default function DeckBrand() {
     </Link>
   );
 }
-
-export function DeckStatus({ children }: { children?: React.ReactNode }) {
-  const appName = useAppName();
-  return (
-    <footer className="deck-status">
-      <span>
-        <i className="status-led" />
-        {children || appName}
-      </span>
-    </footer>
-  );
-}

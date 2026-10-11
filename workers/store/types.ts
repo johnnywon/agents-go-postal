@@ -20,9 +20,6 @@ export type MailboxStore = Pick<
 	DurableObjectStub<MailboxDO>,
 	// Messages and threads
 	| "getEmails"
-	| "countEmails"
-	| "getThreadedEmails"
-	| "countThreadedEmails"
 	| "getEmail"
 	| "getThreadEmails"
 	| "createEmail"
@@ -37,18 +34,13 @@ export type MailboxStore = Pick<
 	| "setLabels"
 	| "getAttachment"
 	| "findThreadBySubject"
-	// Folders
-	| "getFolders"
-	| "createFolder"
-	| "updateFolder"
-	| "deleteFolder"
+	// Folder import (folders to labels)
 	| "folderImportCounts"
 	| "folderEmailIds"
 	| "importFolder"
 	| "markFoldersImported"
-	// Per-address search (the classic view and search_emails)
+	// Per-address search (the agent's and MCP's search_emails)
 	| "searchEmails"
-	| "countSearchResults"
 	// Sending
 	| "checkSendRateLimit"
 	| "claimSendKey"

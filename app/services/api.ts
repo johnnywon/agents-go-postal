@@ -3,7 +3,7 @@
 //     https://opensource.org/licenses/Apache-2.0
 
 import type { BulkAction } from "~/lib/bulk-optimistic";
-import type { CombinedInboxResponse, Email, Folder, Mailbox } from "~/types";
+import type { Email, Mailbox } from "~/types";
 
 const REQUEST_TIMEOUT_MS = 30_000;
 
@@ -92,10 +92,6 @@ function del<T>(url: string) {
 
 // ---------- Typed response shapes ----------
 
-interface EmailListResponse {
-	emails: Email[];
-	totalCount: number;
-}
 
 export interface Conversation {
 	thread_key: string;
@@ -183,25 +179,8 @@ export interface BulkJobStarted {
 	undoId: string;
 }
 
-export interface BulkJob {
-	id: string;
-	total: number;
-	done: number;
-	affected: number;
-	failed: { mailboxId: string; error: string }[];
-	undoId: string;
-	finishedAt: string | null;
-}
 
-export interface TrashCount {
-	messages: number;
-	conversations: number;
-}
 
-export interface EmptyTrashResult {
-	deleted: number;
-	failed: { mailboxId: string; error: string }[];
-}
 
 export interface FolderImportPlan {
 	labels: { id: string; name: string; exists: boolean; folders: number; messages: number }[];
@@ -255,7 +234,7 @@ export interface AgentModelView {
 const api = {
 	// Config
 	getConfig: () =>
-		get<{ domains: string[]; emailAddresses: string[]; mailUi: "postal" | "unified" | "classic"; autoDraft?: boolean }>("/api/v1/config"),
+		get<{ domains: string[]; emailAddresses: string[]; autoDraft?: boolean }>("/api/v1/config"),
 
 	// Agent model
 	getAgentModel: () => get<AgentModelView>("/api/v1/agent-model"),
@@ -273,33 +252,18 @@ const api = {
 		get<Mailbox>(`/api/v1/mailboxes/${mailboxId}`),
 	updateMailbox: (mailboxId: string, settings: unknown) =>
 		put<Mailbox>(`/api/v1/mailboxes/${mailboxId}`, { settings }),
-	deleteMailbox: (mailboxId: string) =>
-		del<void>(`/api/v1/mailboxes/${mailboxId}`),
 
 	// Emails
-	getCombinedInbox: (cursor?: string, opts?: { signal?: AbortSignal }) =>
-		get<CombinedInboxResponse>("/api/v1/inbox", {
-			params: cursor ? { cursor } : undefined,
-			signal: opts?.signal,
-		}),
-	listEmails: (mailboxId: string, params: Record<string, string>, opts?: { signal?: AbortSignal }) =>
-		get<EmailListResponse | Email[]>(`/api/v1/mailboxes/${mailboxId}/emails`, { params, signal: opts?.signal }),
 	sendEmail: (mailboxId: string, email: unknown, key?: string) =>
 		post<void>(`/api/v1/mailboxes/${mailboxId}/emails`, email, sendKey(key)),
 	getEmail: (mailboxId: string, id: string, opts?: { signal?: AbortSignal }) =>
 		get<Email>(`/api/v1/mailboxes/${mailboxId}/emails/${id}`, { signal: opts?.signal }),
-	updateEmail: (mailboxId: string, id: string, data: unknown) =>
-		put<Email>(`/api/v1/mailboxes/${mailboxId}/emails/${id}`, data),
 	deleteEmail: (mailboxId: string, id: string) =>
 		del<void>(`/api/v1/mailboxes/${mailboxId}/emails/${id}`),
-	moveEmail: (mailboxId: string, id: string, folderId: string) =>
-		post<void>(`/api/v1/mailboxes/${mailboxId}/emails/${id}/move`, { folderId }),
 	getThread: (mailboxId: string, threadId: string, opts?: { signal?: AbortSignal }) =>
 		get<Email[]>(`/api/v1/mailboxes/${mailboxId}/threads/${threadId}`, { signal: opts?.signal }),
 	markThreadRead: (mailboxId: string, threadId: string) =>
 		post<void>(`/api/v1/mailboxes/${mailboxId}/threads/${threadId}/read`),
-	getAttachment: (mailboxId: string, emailId: string, attachmentId: string) =>
-		get<Blob>(`/api/v1/mailboxes/${mailboxId}/emails/${emailId}/attachments/${attachmentId}`, { responseType: "blob" }),
 	saveDraft: (
 		mailboxId: string,
 		draft: {
@@ -325,29 +289,15 @@ const api = {
 	cancelScheduled: (mailboxId: string, emailId: string) =>
 		del<{ status: string }>(`/api/v1/mailboxes/${mailboxId}/scheduled/${encodeURIComponent(emailId)}`),
 
-	// Folders
-	listFolders: (mailboxId: string) =>
-		get<Folder[]>(`/api/v1/mailboxes/${mailboxId}/folders`),
-	createFolder: (mailboxId: string, name: string) =>
-		post<Folder>(`/api/v1/mailboxes/${mailboxId}/folders`, { name }),
-	updateFolder: (mailboxId: string, id: string, name: string) =>
-		put<Folder>(`/api/v1/mailboxes/${mailboxId}/folders/${id}`, { name }),
-	deleteFolder: (mailboxId: string, id: string) =>
-		del<void>(`/api/v1/mailboxes/${mailboxId}/folders/${id}`),
-
-	// Unified mail
+	// Mail across every address
 	getMail: (params: URLSearchParams, opts?: { signal?: AbortSignal }) =>
 		request<MailPage>(`/api/v1/mail?${params}`, { method: "GET", signal: opts?.signal }),
 	getMailFacets: (params: URLSearchParams, opts?: { signal?: AbortSignal }) =>
 		request<MailFacets>(`/api/v1/mail/facets?${params}`, { method: "GET", signal: opts?.signal }),
-	getMailFolders: () => get<{ view: string; count: number }[]>("/api/v1/mail/folders"),
 
 	// Bulk actions
 	bulk: (target: BulkTarget, action: BulkAction) => post<BulkResult | BulkJobStarted>("/api/v1/mail/bulk", { target, action }),
 	undoBulk: (undoId: string) => post<{ affected: number }>("/api/v1/mail/bulk/undo", { undoId }),
-	getBulkJob: (jobId: string) => get<BulkJob>(`/api/v1/mail/bulk/jobs/${encodeURIComponent(jobId)}`),
-	getTrashCount: () => get<TrashCount>("/api/v1/mail/trash"),
-	emptyTrash: (expectedCount: number) => post<EmptyTrashResult | BulkJobStarted>("/api/v1/mail/empty-trash", { expectedCount }),
 
 	// Labels
 	getLabels: () => get<Label[]>("/api/v1/labels"),
@@ -361,9 +311,6 @@ const api = {
 	getIndexStatus: () => get<IndexStatusResponse>("/api/v1/index/status"),
 	rebuildIndex: () => post<unknown>("/api/v1/index/rebuild"),
 
-	// Search
-	searchEmails: (mailboxId: string, params: Record<string, string>) =>
-		get<EmailListResponse | Email[]>(`/api/v1/mailboxes/${mailboxId}/search`, { params }),
 };
 
 export default api;

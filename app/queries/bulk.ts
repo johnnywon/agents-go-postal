@@ -66,23 +66,3 @@ export function useUndoBulk() {
 		},
 	});
 }
-
-/** Messages and conversations in Trash, for Empty Trash. */
-export function useTrashCount(enabled: boolean) {
-	return useQuery({ queryKey: ["mail-trash"], queryFn: () => api.getTrashCount(), enabled });
-}
-
-/** Permanently delete everything in Trash. No optimistic patch: nothing changes until the server says so. */
-export function useEmptyTrash() {
-	const queryClient = useQueryClient();
-	return useMutation({
-		mutationFn: (expectedCount: number) => api.emptyTrash(expectedCount),
-		// The caller shows a toast for a changed count.
-		meta: { handledStatuses: [409] },
-		onSettled: () => {
-			queryClient.invalidateQueries({ queryKey: ["mail"] });
-			queryClient.invalidateQueries({ queryKey: ["mail-facets"] });
-			queryClient.invalidateQueries({ queryKey: ["mail-trash"] });
-		},
-	});
-}

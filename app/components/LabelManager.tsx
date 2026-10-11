@@ -4,7 +4,7 @@
 
 import { type FormEvent, useState } from "react";
 import { LABEL_COLORS } from "shared/label-colors";
-import { LabelChip, LabelSwatch } from "~/components/unified/LabelChip";
+import { LabelChip, LabelSwatch } from "~/components/LabelChip";
 import { type Label, useCreateLabel, useDeleteLabel, useLabels, useUpdateLabel } from "~/queries/labels";
 
 function ColorPicker({ value, onChange, name }: { value: string; onChange: (color: string) => void; name: string }) {

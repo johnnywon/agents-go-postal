@@ -50,11 +50,6 @@ export interface Email {
 	has_draft?: boolean;
 }
 
-export interface CombinedInboxResponse {
-	emails: (Email & { mailboxId: string })[];
-	totalCount: number;
-	nextCursor: string | null;
-}
 
 export interface Attachment {
 	id: string;
@@ -65,10 +60,3 @@ export interface Attachment {
 	disposition?: string;
 }
 
-export interface Folder {
-	id: string;
-	name: string;
-	unreadCount: number;
-	/** False for custom folders once they were converted to labels. */
-	can_move_to?: boolean;
-}

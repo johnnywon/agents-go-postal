@@ -63,7 +63,3 @@ export function useViewCounts() {
 		number | undefined
 	>;
 }
-
-export function useMailFolders() {
-	return useQuery({ queryKey: ["mail", "folders"], queryFn: () => api.getMailFolders(), refetchInterval: 60_000 });
-}

@@ -4,7 +4,7 @@
 
 import {
 	ArchiveIcon, CaretDoubleLeftIcon, CaretDoubleRightIcon, CaretDownIcon, CaretRightIcon, EnvelopeSimpleIcon, FileIcon, GearSixIcon,
-	PaperPlaneTiltIcon, PlugsConnectedIcon, PlusIcon, SignOutIcon, SparkleIcon, StarIcon, TagIcon, TrashIcon, TrayIcon,
+	PaperPlaneTiltIcon, PencilSimpleIcon, PlugsConnectedIcon, PlusIcon, SignOutIcon, SparkleIcon, StarIcon, TagIcon, TrashIcon, TrayIcon,
 	WarningIcon,
 } from "@phosphor-icons/react";
 import { type FormEvent, useState } from "react";
@@ -199,10 +199,16 @@ export function Sidebar(props: SidebarProps) {
 							);
 						})}
 						{newLabel === null ? (
-							<button type="button" className="pg-nav-new" onClick={() => setNewLabel("")}>
-								<PlusIcon size={12} />
-								<span>New label</span>
-							</button>
+							<>
+								<button type="button" className="pg-nav-new" onClick={() => setNewLabel("")}>
+									<PlusIcon size={12} />
+									<span>New label</span>
+								</button>
+								<a className="pg-nav-new" href="/settings" title="Rename, recolour or delete labels">
+									<PencilSimpleIcon size={12} />
+									<span>Manage labels</span>
+								</a>
+							</>
 						) : (
 							<form onSubmit={submitLabel}>
 								<input

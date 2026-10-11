@@ -21,8 +21,6 @@
 		"AUTO_DRAFT_ENABLED": "false",
 		// Kill switch for mailbox pushes to MailIndexDO. "false" stops pushes; changes queue in each mailbox outbox.
 		"INDEX_SYNC_ENABLED": "true",
-		// "postal" serves the redesigned view on /; "unified" the earlier one-list view; "classic" the per-mailbox routes.
-		"MAIL_UI": "postal",
 		"EMAIL_ADDRESSES": ["hello@example.com"]
 	},
 	"routes": [

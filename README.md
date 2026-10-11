@@ -69,7 +69,6 @@ Requirements: a domain on Cloudflare, R2, and Workers Paid for outbound email. T
 | `APP_NAME` | `vars` | Name in the header, status bar and page titles |
 | `DOMAINS` | `vars` | Comma-separated domains that receive mail |
 | `EMAIL_ADDRESSES` | `vars` | Addresses that get a mailbox. Mail to other addresses is rejected. |
-| `MAIL_UI` | `vars` | `postal` (default) for the current view, `unified` for the earlier one-list view, `classic` for the per-mailbox routes. Unset means `classic`. |
 | `INDEX_SYNC_ENABLED` | `vars` | `false` pauses updates to the combined index; changes queue in each mailbox |
 | `AUTO_DRAFT_ENABLED` | `vars` | `true` drafts a reply to each new message, except list, bulk and automated mail |
 | `POLICY_AUD`, `TEAM_DOMAIN` | secrets | Cloudflare Access verification |
@@ -78,7 +77,7 @@ To rebrand a deployment, set `APP_NAME` and replace the files listed in `public/
 
 ### The postal view
 
-`MAIL_UI=postal` is a three-column workspace: mailboxes on the left, the list and reader in the middle, the agent on the right. Both side columns collapse to rails. Below 1300px the agent overlays the reader; at phone widths the app shows one pane at a time.
+The mail view is a three-column workspace: mailboxes on the left, the list and reader in the middle, the agent on the right. Both side columns collapse to rails. Below 1300px the agent overlays the reader; at phone widths the app shows one pane at a time.
 
 Preferences such as theme (dark, light or system), key hints, mark-as-read, remote images and reply-from-receiving-address are stored per browser. Display names and the agent prompt are stored with each mailbox.
 

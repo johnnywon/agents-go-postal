@@ -37,10 +37,6 @@ export const VIEW_LABELS: Record<string, string> = {
 	archive: "Archive", spam: "Spam", trash: "Trash", all: "All mail",
 };
 
-export const DATE_LABELS: Record<(typeof DATE_TOKENS)[number], string> = {
-	today: "Today", yesterday: "Yesterday", "7d": "Last 7 days", "30d": "Last 30 days", older: "Older",
-};
-
 const CHIP_KINDS: readonly ChipKind[] = ["address", "from", "label", "is", "has", "subject", "date", "before", "after", "q"];
 /** Kinds that hold one value; a later chip of the same kind replaces the earlier one. */
 const SINGLE: ReadonlySet<ChipKind> = new Set(["date", "before", "after", "q"]);
@@ -156,42 +152,9 @@ export function apiParams(filter: MailFilter, tzOffset = new Date().getTimezoneO
 	return params;
 }
 
-/** Label names by id, so chips and the drill path show names instead of ids. */
-export type LabelNames = ReadonlyMap<string, string>;
-
 export interface LabelRef {
 	id: string;
 	name: string;
-}
-
-export function chipLabel(chip: Chip, labelNames?: LabelNames): string {
-	switch (chip.kind) {
-		case "address": return `To ${chip.value}`;
-		case "from": return `From ${chip.value}`;
-		case "label": return labelNames?.get(chip.value) ?? chip.value;
-		case "is": return chip.value === "unread" ? "Unread" : chip.value === "read" ? "Read" : "Starred";
-		case "has": return chip.value === "attachment" ? "Attachment" : "Can unsubscribe";
-		case "subject": return `Subject ${chip.value}`;
-		case "date": return DATE_LABELS[chip.value as keyof typeof DATE_LABELS] ?? chip.value;
-		case "before": return `Before ${chip.value}`;
-		case "after": return `After ${chip.value}`;
-		case "q": return `“${chip.value}”`;
-	}
-}
-
-export function viewLabel(view: string): string {
-	return VIEW_LABELS[view] ?? (view.startsWith("folder:") ? view.slice(7) : view);
-}
-
-/** Drill path: the view, then each chip. Each step's search keeps only the steps before it. */
-export function drillPath(filter: MailFilter, labelNames?: LabelNames): { label: string; search: string; current: boolean }[] {
-	const steps = [{ label: viewLabel(filter.view), chips: [] as Chip[] }];
-	filter.chips.forEach((chip, i) => steps.push({ label: chipLabel(chip, labelNames), chips: filter.chips.slice(0, i + 1) }));
-	return steps.map((step, i) => ({
-		label: step.label,
-		search: toSearch({ ...filter, chips: step.chips }),
-		current: i === steps.length - 1,
-	}));
 }
 
 const OPERATOR_RE = /(^|\s)(from|to|subject|in|is|has|before|after|label):(?:"([^"]*)"|(\S+))/gi;
@@ -251,17 +214,13 @@ export function chipValues(filter: MailFilter, kind: ChipKind): string[] {
 	return filter.chips.filter((c) => c.kind === kind).map((c) => c.value);
 }
 
-export function sameFilter(a: MailFilter, b: MailFilter): boolean {
-	return filterToParams(a).toString() === filterToParams(b).toString();
-}
-
 // ── Legacy redirects ───────────────────────────────────────────────
 
 const FOLDER_VIEWS: Record<string, string> = { inbox: "inbox", sent: "sent", draft: "drafts", archive: "archive", trash: "trash", spam: "spam" };
 
 /**
- * Map a classic `/mailbox/...` URL to its unified equivalent, or null if it is
- * not one. A custom folder converted to a label (same id) opens that label in
+ * Map an old per-mailbox `/mailbox/...` URL to the mail view, or null if it
+ * is not one. A custom folder converted to a label (same id) opens that label in
  * All mail.
  */
 export function legacyRedirect(pathname: string, search: string, labelIds: ReadonlySet<string> = new Set()): string | null {
@@ -269,7 +228,7 @@ export function legacyRedirect(pathname: string, search: string, labelIds: Reado
 	if (!match) return null;
 	const mailboxId = decodeURIComponent(match[1]).toLowerCase();
 	const old = new URLSearchParams(search);
-	if (match[4] === "settings") return `/settings?address=${encodeURIComponent(mailboxId)}`;
+	if (match[4] === "settings") return `/?address=${encodeURIComponent(mailboxId)}`;
 	const params = new URLSearchParams();
 	const folder = match[2] ? decodeURIComponent(match[3]) : null;
 	const asLabel = folder !== null && !FOLDER_VIEWS[folder] && labelIds.has(folder);

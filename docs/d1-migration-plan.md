@@ -1,6 +1,6 @@
 # Plan: move mail storage to D1 and rebuild search
 
-Status: in progress. Phase 0 is done ([results](d1-phase0.md)). Phase 1 is done: every caller goes through `mailStore(env)`. Phase 2 has started: `migrations/0001_init.sql` is tested on node:sqlite, local D1 and production D1 (`tests/d1-schema.test.mjs`).
+Status: in progress. Phase 0 is done ([results](d1-phase0.md)). Phase 1 is done: every caller goes through `mailStore(env)`. The classic and unified views were retired on 2026-10-11, so the store serves the mail view, the agent, MCP and inbound mail only. Phase 2 has started: `migrations/0001_init.sql` is tested on node:sqlite, local D1 and production D1 (`tests/d1-schema.test.mjs`).
 
 ## Summary
 
@@ -151,8 +151,7 @@ Each address keeps its own folders, threads, rate limit (now `WHERE mailbox_id =
 
 | Problem | Where |
 |---|---|
-| Two engines. The postal and unified views search the FTS index. The classic view, the agent's per-address `search_emails`, and MCP `search_emails` scan with `LIKE`. The same words give different results. | `MailIndexDO`, `MailboxDO.searchEmails` |
-| Two query parsers with different operators | `app/lib/mail-filter.ts` (`parseSearchText`) and `app/lib/search-parser.ts` (`parseSearchQuery`) |
+| Two engines. The mail view searches the FTS index. The agent's per-address `search_emails` and MCP `search_emails` scan with `LIKE`. The same words give different results. | `MailIndexDO`, `MailboxDO.searchEmails` |
 | Every word is an AND prefix match. No exact phrase, no exclusion, no OR, no `cc:`, no `filename:`, no typed relative dates. | `buildMatch` in `mail-index-sql.ts` |
 | Results sort by date, sender or subject (`SORTS`). There is no relevance order, so a strong match from last year sits under a weak one from today. | `SORTS` in `mail-index-sql.ts` |
 | The FTS table is contentless, so it can't return snippets or highlights. Rows show the first lines of the message, and the client highlights only the first term it finds. | `messages_fts`, `highlight()` in `model.ts` |
@@ -161,7 +160,7 @@ Each address keeps its own folders, threads, rate limit (now `WHERE mailbox_id =
 
 ### One query language
 
-One parser, `shared/search-query.ts`, is used by the search bar, the API, the agent's tools and MCP. It turns text into a typed `SearchQuery`, and one compiler turns that into SQL. `app/lib/search-parser.ts` is deleted.
+One parser, `shared/search-query.ts`, is used by the search bar, the API, the agent's tools and MCP. It turns text into a typed `SearchQuery`, and one compiler turns that into SQL.
 
 | Operator | Meaning | Example |
 |---|---|---|
@@ -186,7 +185,7 @@ Unknown operators stay as plain words, so `ratio:4:3` still searches. Values tha
 
 ### One engine
 
-- Every surface runs the same compiled query against the D1 tables: the postal, unified and classic views, `search_all_mail`, and `search_emails`. `search_emails` becomes `search_all_mail` with an address filter. MCP gets the same two tools.
+- Every surface runs the same compiled query against the D1 tables: the mail view, `search_all_mail`, and `search_emails`. `search_emails` becomes `search_all_mail` with an address filter. MCP gets the same two tools.
 - **Relevance.** The table's `rank` is set to `bm25(6, 4, 3, 2, 2, 2, 1)`: subject weighs most, body least. Ranking time grows with the number of matches: under 50 ms at the 13,000 matches measured, 0.22 to 0.46 s at 100,000 (phase 0). So every search counts its matches first (15 to 34 ms). With 20,000 or fewer it sorts by relevance; that line is an extrapolation, confirmed on real mail in phase 2. With more it sorts newest first (10 to 40 ms at any size), and the window and list offer "Sort by relevance" as an explicit action. A recency term breaks near-ties. The weights get tuned against a fixture set of 200 messages and 30 queries with expected top results. That set is checked in, so ranking changes show up in review.
 - **Conversations.** Results group by conversation. The best-ranked message in a conversation represents it, and the row says how many messages matched.
 - **Snippets.** The Worker builds them for the rows on screen only (6 in the window, 50 in the list). It strips the body to text, finds the query terms with the same tokenizing rules as the index (case, diacritics, prefixes), and takes about 18 words around the best cluster. FTS5's `snippet()` re-runs the match and cost 57 to 160 ms on broad words in phase 0, and it doesn't work on a contentless table. The server HTML-escapes the text and then adds `<mark>` and `</mark>`, so mail text never reaches the page unescaped. A test feeds `<script>` and `&lt;` cases through it.
@@ -315,7 +314,7 @@ The copy job is a user-facing feature of one release, so it needs its own README
 | 4 | Jobs | The cron handler: scheduled send with claims, bulk job chunks, sweeps. Large bodies in R2. Reindex search. | 2 days |
 | 5 | Copy job | Export methods, the copy and catch-up job, the parity report, the settings page button, dual inbound writes | 3 to 4 days |
 | 6 | Move your own deployment | Copy, check, cut over, two-week soak. Fix what it turns up. | 2 weeks elapsed, about 1 day of work |
-| S1 | One query language | `shared/search-query.ts` parser and compiler, used by the postal, unified and classic views, the agent and MCP. `search-parser.ts` deleted. Runs on the current index. | 2 to 3 days |
+| S1 | One query language | `shared/search-query.ts` parser and compiler, used by the mail view, the agent and MCP. Runs on the current index. | 2 to 3 days |
 | S2 | Search window | Full-width window, sections, completion, recent and saved searches, keys, mobile sheet | 3 to 4 days |
 | S3 | Suggest API | `/search/suggest`, saved-search routes, people and completion queries. On the current index first. | 2 days |
 | S4 | Engine on D1 | Within phase 2: contentless word index, trigram table, vocab, ranking with the count-first rule and the fixture set, Worker-built snippets, capped facets, one search for every surface | 3 days |
@@ -383,7 +382,7 @@ Phase 0 used synthetic mail with a small vocabulary, so broad-word search times 
 
 - **New (search):** `shared/search-query.ts`, `workers/store/search.ts` (compiler, ranking, Worker-built snippets, suggest, vocab), `workers/routes/search.ts`, `app/components/postal/SearchWindow.tsx`, `tests/search-query.test.mjs`, `tests/search-ranking.test.mjs`, `tests/fixtures/search-corpus.json`
 - **Changed (search):** `app/components/postal/SearchBar.tsx`, `postal.css` (`.pg-suggest`), `app/lib/mail-filter.ts`, `workers/agent/index.ts` and `workers/mcp/index.ts` (one search tool shape)
-- **Deleted (search):** `app/lib/search-parser.ts`, `MailboxDO.searchEmails` and `countSearchResults`
+- **Deleted (search):** `MailboxDO.searchEmails`
 - **New:** `migrations/0001_init.sql`, `workers/store/{types,d1,mail,labels,bulk,scheduled,send-keys,search}.ts`, `workers/cron.ts`, `workers/routes/migrate.ts` (temporary), `tests/helpers/sql.mjs`, `tests/store-isolation.test.mjs`, `tests/migrate-to-d1.test.mjs`
 - **Changed:** `wrangler.jsonc`, `workers/app.ts` (cron export), `workers/index.ts`, `workers/agent/index.ts`, `workers/mcp/index.ts`, `workers/lib/{tools,email-helpers,mailbox,combined-inbox,folder-import,send,agent-model}.ts`, `workers/routes/reply-forward.ts`, `package.json` (deploy runs migrations; Drizzle driver switched to D1), `README.md`, `tests/fixtures/index-worker.ts`
 - **Deleted at the end:** `workers/durableObject/index.ts`, `workers/durableObject/mail-index.ts`, `workers/durableObject/migrations.ts`, `workers/lib/{index-rows,mail-index-stub,sql-exec}.ts`, `workers/db/schema.ts`

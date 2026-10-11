@@ -1,8 +1,8 @@
 # Agents Go Postal design
 
-Agents Go Postal has three mail views, chosen with `MAIL_UI`. `postal` is the default and the one this document describes. `unified` (one list, brushed-metal chassis) and `classic` (per-mailbox routes) still work; their rules are at the end.
+Agents Go Postal has one mail view, the postal view, described here. The settings pages (`/settings` for labels, `/settings/index` for the mail index) keep the older brushed-metal look; their rules are at the end.
 
-## Postal (`MAIL_UI=postal`)
+## Postal
 
 A dark, quiet workspace for many addresses on many domains. Mail content comes first; colour is spent on identity (which address and domain), state (unread, selected) and the agent.
 
@@ -59,15 +59,13 @@ The reader reads like a mail client: subject, then a sender row with a 36px squa
 
 Mail renders in the sandboxed iframe. Plain mail (no tables, images, colours or backgrounds of its own, see `isPlainHtml`) takes the reader's text colours on the reader surface, indented under the sender's name. Designed HTML mail keeps its white page inside a 1px-bordered card; on mobile the card runs edge to edge. Text-only bodies keep their line breaks. Remote images are blocked until the reader allows them (Settings: Ask, Always, Never).
 
-## Unified and classic
+## Settings pages
 
-These views keep their brushed titanium and graphite look.
+`/settings` and `/settings/index` keep the brushed titanium and graphite look.
 
 - Use `/brand/logo.svg` in the upper left, including the mobile top bar. Keep its proportions intact. It may be smaller, never clipped.
 - Use Oxanium for headings and Space Grotesk for interface text.
 - Use `--chassis-surface`, `--silver-surface`, and `--titanium-surface` for metal. Graphite panels anchor navigation and folder headings.
 - The single global radius rule is 6px; the logo image is exempt (`.deck-brand-logo`).
-- Keep the frame within 6px of the viewport, the desktop header near 54px, and the source list 194px wide.
-- One list serves every address (`MAIL_UI=unified`). The address is a filter: the Address popover has type-ahead, a Pinned group, domain groups and conversation counts. Filters are chips in a drill path. Never use Kumo `Collapsible` in navigation: it draws a left bar. The classic per-mailbox directory remains under `MAIL_UI=classic`.
 
 Validation: `npm test`, `npm run typecheck`, and `npm run build`.
