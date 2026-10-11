@@ -65,3 +65,35 @@ test("toolLabelConversation flags every label it adds, not the ones it removes",
 	assert.match(unknown.error, /Unknown label/);
 	assert.deepEqual(calls.auto, []);
 });
+
+test("toolCreateLabel creates a label once and returns the existing one after", async () => {
+	const labels = [{ id: "travel", name: "Travel", color: "#000", count: 0, auto: false }];
+	const created = [];
+	const indexStub = {
+		listLabels: async () => labels,
+		createLabel: async (input) => {
+			created.push(input);
+			const label = { id: input.name.toLowerCase(), name: input.name, color: input.color };
+			labels.push({ ...label, count: 0, auto: false });
+			return { label };
+		},
+	};
+	const env = { MAIL_INDEX: { idFromName: () => "global", get: () => indexStub } };
+
+	const first = await tools.toolCreateLabel(env, { name: " Receipts " });
+	assert.equal(first.status, "created");
+	assert.equal(first.label.name, "Receipts");
+	assert.equal(created.length, 1);
+	assert.match(created[0].color, /^#/, "a palette colour is picked");
+
+	const again = await tools.toolCreateLabel(env, { name: "receipts" });
+	assert.equal(again.status, "exists");
+	assert.equal(again.label.id, "receipts");
+	assert.equal(created.length, 1, "no duplicate");
+});
+
+test("toolCreateLabel passes on the index's refusal", async () => {
+	const indexStub = { listLabels: async () => [], createLabel: async () => ({ error: "Label name is required" }) };
+	const env = { MAIL_INDEX: { idFromName: () => "global", get: () => indexStub } };
+	assert.deepEqual(await tools.toolCreateLabel(env, { name: "x" }), { error: "Label name is required" });
+});

@@ -19,6 +19,7 @@ import {
 	textToHtml,
 } from "../lib/email-helpers";
 import {
+	toolCreateLabel,
 	toolListEmails,
 	toolGetEmail,
 	toolGetThread,
@@ -85,6 +86,9 @@ You can ONLY draft emails. You do NOT have the ability to send emails directly.
 **CRITICAL: The draft body must contain ONLY the email text.** Never include agent commentary, status messages, meta-notes, markdown formatting, or anything that isn't part of the actual email in the draft body. No "Draft created.", no "---", no "**bold**", no "Here's the draft:", no separators. The body field is the literal email the recipient will read. Everything else goes in your chat message, not in the draft body.
 
 **Don't paste draft contents into the chat.** The drafts are saved via tools - the operator can see them in the Drafts folder. In your chat message, just briefly say what you drafted (e.g. "Drafted a reply to Tim"). Don't duplicate the full email body in the chat.
+
+## Labels
+Labels are tags shared by every mailbox. Use list_labels to see them. When the operator asks to label mail and no fitting label exists, create one with create_label, then apply it with label_conversation. Prefer an existing label over a near-duplicate.
 
 ## Draft Management
 Use discard_draft to delete drafts that the operator rejects or that are no longer needed.`;
@@ -264,6 +268,17 @@ function createEmailTools(env: Env, mailboxId: string) {
 			parameters: z.object({}),
 			execute: async (): Promise<unknown> => {
 				return toolListLabels(env);
+			},
+		}),
+
+		create_label: defineTool({
+			description:
+				"Create a label shared by every mailbox. If a label with that name exists, it is returned instead. Then apply it with label_conversation.",
+			parameters: z.object({
+				name: z.string().min(1).max(60).describe("Label name, short and in title case, e.g. Receipts"),
+			}),
+			execute: async ({ name }): Promise<unknown> => {
+				return toolCreateLabel(env, { name });
 			},
 		}),
 

@@ -6,6 +6,7 @@ import { McpAgent } from "agents/mcp";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import {
+	toolCreateLabel,
 	toolListMailboxes,
 	toolListEmails,
 	toolGetEmail,
@@ -316,6 +317,16 @@ export class EmailMCP extends McpAgent<Env> {
 			"List labels with their ids, colours and conversation counts. Labels are tags shared by every mailbox.",
 			{},
 			async () => mcpText(await toolListLabels(env)),
+		);
+
+		// ── create_label ───────────────────────────────────────────
+		this.server.tool(
+			"create_label",
+			"Create a label shared by every mailbox. If a label with that name exists, it is returned instead. Then apply it with label_conversation.",
+			{
+				name: z.string().min(1).max(60).describe("Label name, e.g. Receipts"),
+			},
+			async ({ name }) => mcpResult(await toolCreateLabel(env, { name })),
 		);
 
 		// ── label_conversation ─────────────────────────────────────

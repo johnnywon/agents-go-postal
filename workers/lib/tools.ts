@@ -27,6 +27,7 @@ import {
 } from "./email-helpers";
 import { verifyDraft } from "./ai";
 import { Folders } from "../../shared/folders";
+import { LABEL_COLORS } from "../../shared/label-colors";
 import type { Env } from "../types";
 
 // ── Type casts for DO methods not on the base stub type ────────────
@@ -358,6 +359,25 @@ export async function toolListLabels(env: Env) {
 	return { labels: labels.map(({ id, name, color, count }) => ({ id, name, color, conversations: count })) };
 }
 
+// ── create_label ───────────────────────────────────────────────────
+
+/**
+ * Create a label shared by every mailbox. A label with the same name (any
+ * case) is returned as it is, so the call is safe to repeat.
+ */
+export async function toolCreateLabel(env: Env, params: { name: string; color?: string }) {
+	const index = getMailIndexStub(env);
+	const labels = await index.listLabels();
+	const name = params.name.trim();
+	const existing = labels.find((l) => l.name.toLowerCase() === name.toLowerCase());
+	if (existing) return { status: "exists", label: { id: existing.id, name: existing.name, color: existing.color } };
+	const color = params.color ?? LABEL_COLORS[labels.length % LABEL_COLORS.length].bg;
+	const result = await index.createLabel({ name, color });
+	if ("error" in result && result.error) return { error: result.error };
+	const label = (result as { label: { id: string; name: string; color: string } }).label;
+	return { status: "created", label: { id: label.id, name: label.name, color: label.color } };
+}
+
 // ── label_conversation ─────────────────────────────────────────────
 
 /**
@@ -376,7 +396,7 @@ export async function toolLabelConversation(
 		labels.find((l) => l.id === ref || l.name.toLowerCase() === ref.trim().toLowerCase());
 	const unknown = [...(params.add ?? []), ...(params.remove ?? [])].filter((ref) => !resolve(ref));
 	if (unknown.length > 0) {
-		return { error: `Unknown label: ${unknown.join(", ")}. Use list_labels to see labels.` };
+		return { error: `Unknown label: ${unknown.join(", ")}. Use list_labels to see labels, or create_label to make one.` };
 	}
 	const threadKey = await index.threadKeyOf(mailboxId, emailId);
 	if (!threadKey) return { error: "Email not found in the mail index", emailId };

@@ -55,6 +55,7 @@ const TOOLS = [
 	{ name: "mark_email_read", desc: "Mark email as read/unread" },
 	{ name: "move_email", desc: "Move email to a system folder" },
 	{ name: "list_labels", desc: "List labels with counts" },
+	{ name: "create_label", desc: "Create a label" },
 	{ name: "label_conversation", desc: "Add or remove labels on a conversation" },
 	{ name: "delete_email", desc: "Move email to Trash" },
 ];
