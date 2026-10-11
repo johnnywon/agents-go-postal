@@ -20,7 +20,7 @@ import {
 	type ComposeMode, type ComposeState, composeFor, composeFromDraft, emptyCompose, handOff, HANDOFF_KEY, useAddressInfo,
 	useMailSender,
 } from "./compose";
-import { ComposePopout, ComposeWindow } from "./ComposeWindow";
+import { ComposePopout, Composer } from "./ComposeWindow";
 import { buildIdentities } from "./identity";
 import { ListPane } from "./ListPane";
 import { LogoutModal, McpModal, SettingsModal, Toast, type ToastState } from "./Modals";
@@ -160,7 +160,8 @@ function PostalApp({ addresses, domains, autoDraft }: PostalProps) {
 	const [modal, setModal] = useState<"settings" | "mcp" | "logout" | null>(null);
 	const [toast, setToast] = useState<ToastState | null>(null);
 	const [cw, setCw] = useState<{ key: number; initial: ComposeState; max?: boolean } | null>(null);
-	const [inline, setInline] = useState<ComposeState | null>(null);
+	const [inline, setInline] = useState<{ key: number; initial: ComposeState } | null>(null);
+	const [settingsTab, setSettingsTab] = useState<"general" | "signatures" | undefined>(undefined);
 	const [prefill, setPrefill] = useState<{ text: string; id: number } | null>(null);
 	const [agentBusy, setAgentBusy] = useState(false);
 	const [replyRequest, setReplyRequest] = useState<{ mode: Exclude<ComposeMode, "new">; id: number } | null>(null);
@@ -311,10 +312,13 @@ function PostalApp({ addresses, domains, autoDraft }: PostalProps) {
 		setCw({ key: Date.now(), initial: initial ?? emptyCompose(defaultFrom()), max });
 	};
 
-	const startReply = (mode: Exclude<ComposeMode, "new">, original: Email, keepHtml?: string, askAgent?: boolean) => {
+	const startReply = (mode: Exclude<ComposeMode, "new">, original: Email, keep?: ComposeState, askAgent?: boolean) => {
 		if (!open) return;
 		const from = open.mailboxId;
-		setInline({ ...composeFor(mode, original, open.mailboxId, from), html: keepHtml ?? "", askAgent });
+		const next = composeFor(mode, original, open.mailboxId, from);
+		// Switching mode keeps what was written, attached and saved.
+		const carried = keep ? { html: keep.html, files: keep.files, draftId: keep.draftId, from: keep.from, signature: keep.signature } : {};
+		setInline({ key: Date.now(), initial: { ...next, ...carried, askAgent } });
 	};
 
 	const editDraft = async (mailboxId: string, draftId: string, cached?: Email) => {
@@ -364,8 +368,7 @@ function PostalApp({ addresses, domains, autoDraft }: PostalProps) {
 			case "j": case "ArrowDown": move(1); return true;
 			case "k": case "ArrowUp": move(-1); return true;
 			case "Escape":
-				if (inline) setInline(null);
-				else if (checked.keys.size) setSelection(sel.EMPTY_SELECTION);
+				if (checked.keys.size) setSelection(sel.EMPTY_SELECTION);
 				else if (mobile && navTemp) setNavTemp(false);
 				else if ((mobile || narrow) && panelTemp) setPanelTemp(false);
 				else if (mobile && open) closeConversation();
@@ -447,7 +450,10 @@ function PostalApp({ addresses, domains, autoDraft }: PostalProps) {
 		setLayout,
 		onCollapse: toggleNav,
 		onMcp: () => setModal("mcp"),
-		onSettings: () => setModal("settings"),
+		onSettings: () => {
+			setSettingsTab(undefined);
+			setModal("settings");
+		},
 		onLogout: () => setModal("logout"),
 	};
 
@@ -550,13 +556,19 @@ function PostalApp({ addresses, domains, autoDraft }: PostalProps) {
 							onLabel={(label, add) => toggleLabel(label, add)}
 							onCreateLabel={(name) => newLabel(name, openRow ? [openRow] : undefined)}
 							inline={inline}
-							setInline={setInline}
+							onInlineClosed={(message) => {
+								setInline(null);
+								if (message) showToast({ text: message, icon: message.startsWith("Draft") ? <FileIcon size={ICON} /> : message.startsWith("Scheduled") ? <ClockIcon size={ICON} /> : <PaperPlaneTiltIcon size={ICON} /> });
+							}}
 							startReply={startReply}
 							sender={sender}
-							onToast={(text) => showToast({ text, icon: <PaperPlaneTiltIcon size={ICON} /> })}
 							onPopOut={(state) => {
-								if (popOut(state, () => openCompose(state))) setInline(null);
-								else setInline(null);
+								popOut(state, () => openCompose(state));
+								setInline(null);
+							}}
+							onEditSignatures={() => {
+								setSettingsTab("signatures");
+								setModal("settings");
 							}}
 							onEditDraft={(draft) => open && editDraft(open.mailboxId, draft.id, draft)}
 							draftWithAgent={draftWithAgent}
@@ -582,10 +594,16 @@ function PostalApp({ addresses, domains, autoDraft }: PostalProps) {
 				)}
 			</div>
 			{cw && (
-				<ComposeWindow
+				<Composer
 					key={cw.key}
+					variant="floating"
 					initial={cw.initial}
 					maximised={cw.max}
+					lockFrom={prefs.replyFrom}
+					onEditSignatures={() => {
+						setSettingsTab("signatures");
+						setModal("settings");
+					}}
 					addresses={addresses}
 					identities={identities}
 					info={info}
@@ -606,6 +624,7 @@ function PostalApp({ addresses, domains, autoDraft }: PostalProps) {
 			<Toast toast={toast} onClose={closeToast} />
 			{modal === "settings" && (
 				<SettingsModal
+					initialTab={settingsTab}
 					prefs={prefs}
 					setPrefs={setPrefs}
 					addresses={addresses}

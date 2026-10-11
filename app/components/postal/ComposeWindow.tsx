@@ -3,15 +3,17 @@
 //     https://opensource.org/licenses/Apache-2.0
 
 import {
-	ArrowSquareOutIcon, ArrowsInSimpleIcon, ArrowsOutSimpleIcon, CalendarBlankIcon, CaretDownIcon, CaretUpIcon, CheckIcon, ClockIcon,
-	FileIcon, FloppyDiskIcon, MinusIcon, PaperclipIcon, PaperPlaneRightIcon, PencilSimpleLineIcon, SparkleIcon, TrashIcon, WarningIcon, XIcon,
+	ArrowBendDoubleUpLeftIcon, ArrowBendUpLeftIcon, ArrowBendUpRightIcon, ArrowSquareOutIcon, ArrowsInSimpleIcon, ArrowsOutSimpleIcon,
+	CalendarBlankIcon, CaretDownIcon, CaretUpIcon, CheckIcon, ClockIcon, FileIcon, FloppyDiskIcon, MinusIcon, PaperclipIcon, PaperPlaneRightIcon,
+	PencilSimpleLineIcon, SignatureIcon, SparkleIcon, TrashIcon, WarningIcon, XIcon,
 } from "@phosphor-icons/react";
 import type { Editor as TipTap } from "@tiptap/react";
 import { useEffect, useRef, useState } from "react";
+import EmailIframe from "~/components/EmailIframe";
 import { type DraftResult, useDraftWithAgent } from "./Agent";
 import {
-	type AddressInfo, type ComposeState, emptyCompose, isValidAddress, parseRecipient, readFiles, type Recipient, takeHandoff, textToParagraphs,
-	useAddressInfo, useMailSender,
+	type AddressInfo, type ComposeMode, type ComposeState, emptyCompose, isValidAddress, parseRecipient, readFiles, type Recipient, takeHandoff,
+	textToParagraphs, useAddressInfo, useMailSender, usesSignature,
 } from "./compose";
 import { Editor, FormatBar } from "./Editor";
 import { AddressText, buildIdentities, type Identities, Swatch } from "./identity";
@@ -19,21 +21,30 @@ import { formatSize, sendTimeLabel } from "./model";
 import { usePrefs, useResolvedTheme } from "./prefs";
 
 type Sender = ReturnType<typeof useMailSender>;
-type Field = "to" | "cc" | "bcc";
+type ReplyMode = Exclude<ComposeMode, "new">;
 
-export interface ComposeWindowProps {
+export interface ComposerProps {
 	initial: ComposeState;
-	/** Opened maximised. */
+	/**
+	 * floating: the window over the app, docked bottom right. inline: a reply at
+	 * the foot of the open conversation. standalone: the whole popped-out window.
+	 */
+	variant: "floating" | "inline" | "standalone";
+	/** Floating only: open maximised. */
 	maximised?: boolean;
-	/** The only thing in its own browser window: fills it, with no pop-out, minimise or full-screen. */
-	standalone?: boolean;
 	addresses: string[];
 	identities: Identities;
 	info: ReadonlyMap<string, AddressInfo>;
 	sender: Sender;
+	/** Replies leave from the address the mail reached. */
+	lockFrom?: boolean;
 	onClosed: (message: string | null) => void;
 	onPopOut: (state: ComposeState) => void;
+	/** Inline replies switch between reply, reply all and forward. */
+	onMode?: (mode: ReplyMode, state: ComposeState) => void;
 	draftWithAgent: (state: ComposeState) => Promise<DraftResult>;
+	/** Opens the signature settings; absent where there are none to open. */
+	onEditSignatures?: () => void;
 }
 
 /** Recipient chips: Enter, Tab, comma or space adds; Backspace removes; invalid addresses get an amber outline. */
@@ -121,10 +132,47 @@ function nextMonday() {
 const pad = (n: number) => String(n).padStart(2, "0");
 const isoDay = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 
-export function ComposeWindow(props: ComposeWindowProps) {
-	const { identities, info, sender } = props;
+const MODES = [
+	{ mode: "reply", label: "Reply", Icon: ArrowBendUpLeftIcon },
+	{ mode: "reply-all", label: "Reply all", Icon: ArrowBendDoubleUpLeftIcon },
+	{ mode: "forward", label: "Forward", Icon: ArrowBendUpRightIcon },
+] as const;
+
+/** The original message under a reply or forward, rendered as HTML in the mail sandbox. */
+function QuotePreview({ head, body }: { head: string; body: string }) {
+	const [open, setOpen] = useState(false);
+	const [clipped, setClipped] = useState(false);
+	const frameRef = useRef<HTMLDivElement>(null);
+	// Offer "Show the whole message" only when the quote is taller than its box.
+	useEffect(() => {
+		const iframe = frameRef.current?.querySelector("iframe");
+		if (!iframe) return;
+		const check = () => setClipped(iframe.getBoundingClientRect().height > 182);
+		check();
+		const ro = new ResizeObserver(check);
+		ro.observe(iframe);
+		return () => ro.disconnect();
+	}, [body]);
+	return (
+		<div className="pg-quote" data-open={open || undefined}>
+			<div className="pg-quote-head">{head}</div>
+			<div className="pg-quote-frame" ref={frameRef}>
+				<EmailIframe autoSize body={body} remoteImages={false} padding={12} />
+			</div>
+			{clipped && (
+				<button type="button" className="pg-quote-toggle" onClick={() => setOpen((v) => !v)} aria-expanded={open}>
+					{open ? "Show less" : "Show the whole message"}
+				</button>
+			)}
+		</div>
+	);
+}
+
+/** One composer for new mail, replies and forwards, wherever it appears. */
+export function Composer(props: ComposerProps) {
+	const { identities, info, sender, variant } = props;
 	const [state, setState] = useState<ComposeState>(props.initial);
-	const [mode, setMode] = useState<"normal" | "min" | "max" | "window">(props.standalone ? "window" : props.maximised ? "max" : "normal");
+	const [mode, setMode] = useState<"normal" | "min" | "max">(props.maximised ? "max" : "normal");
 	const [fromOpen, setFromOpen] = useState(false);
 	const [schedOpen, setSchedOpen] = useState(false);
 	const [custom, setCustom] = useState(false);
@@ -136,6 +184,7 @@ export function ComposeWindow(props: ComposeWindowProps) {
 	const [busy, setBusy] = useState(false);
 	const [agentBusy, setAgentBusy] = useState(false);
 	const [editor, setEditor] = useState<TipTap | null>(null);
+	const rootRef = useRef<HTMLDivElement>(null);
 	const toRef = useRef<HTMLInputElement>(null);
 	const fileRef = useRef<HTMLInputElement>(null);
 	const saving = useRef<Promise<void>>(Promise.resolve());
@@ -143,6 +192,9 @@ export function ComposeWindow(props: ComposeWindowProps) {
 	stateRef.current = state;
 	const dirty = useRef(false);
 	const done = useRef(false);
+	const asked = useRef(false);
+	const inline = variant === "inline";
+	const reply = state.mode !== "new";
 
 	const patch = (p: Partial<ComposeState>, quiet = false) => {
 		setState((s) => ({ ...s, ...p }));
@@ -154,7 +206,7 @@ export function ComposeWindow(props: ComposeWindowProps) {
 		}
 	};
 
-	const hasContent = (s: ComposeState) => !!(s.to.length || s.cc.length || s.bcc.length || s.subject.trim() || s.html.replace(/<[^>]+>/g, "").trim());
+	const hasContent = (s: ComposeState) => !!(s.to.length || s.cc.length || s.bcc.length || s.html.replace(/<[^>]+>/g, "").trim() || (s.mode === "new" && s.subject.trim()));
 
 	const saveNow = () => {
 		saving.current = saving.current.then(async () => {
@@ -175,6 +227,16 @@ export function ComposeWindow(props: ComposeWindowProps) {
 		const t = setTimeout(saveNow, 1500);
 		return () => clearTimeout(t);
 	}, [state]); // eslint-disable-line react-hooks/exhaustive-deps
+
+	// An inline reply scrolls into view; a forward starts in To, everything else in the body.
+	useEffect(() => {
+		if (inline) rootRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+		if (!state.to.length || state.mode === "forward") toRef.current?.focus();
+	}, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+	useEffect(() => {
+		if (variant === "standalone") document.title = state.subject.trim() || "New message";
+	}, [variant, state.subject]);
 
 	const finish = (message: string | null) => {
 		done.current = true;
@@ -197,7 +259,8 @@ export function ComposeWindow(props: ComposeWindowProps) {
 			await saving.current;
 			done.current = true;
 			await sender.send(stateRef.current);
-			props.onClosed(`Message sent from ${state.from}`);
+			const what = { new: "Message sent", reply: "Reply sent", "reply-all": "Reply sent to all", forward: "Forwarded" }[state.mode];
+			props.onClosed(`${what} from ${state.from}`);
 		} catch (e) {
 			done.current = false;
 			setError((e as Error).message || "Could not send.");
@@ -256,19 +319,34 @@ export function ComposeWindow(props: ComposeWindowProps) {
 		}
 	};
 
+	// "Draft with agent" on the collapsed reply bar asks as soon as the composer opens.
+	useEffect(() => {
+		if (!props.initial.askAgent || asked.current) return;
+		asked.current = true;
+		setState((s) => ({ ...s, askAgent: false }));
+		askAgent();
+	}, []); // eslint-disable-line react-hooks/exhaustive-deps
+
 	const customAt = new Date(`${customDate}T${customTime}`);
 	const customOk = !Number.isNaN(customAt.getTime()) && customAt.getTime() > Date.now() + 60_000;
 	const fromInfo = info.get(state.from);
 	const fromId = identities.of(state.from);
+	const signed = usesSignature(state, info);
+	const hasSignature = !!fromInfo?.signatureHtml;
+	const replyMode = MODES.find((m) => m.mode === state.mode);
+	const title = inline ? replyMode?.label ?? "Reply" : state.subject.trim() || "New message";
+	const dataState = variant === "standalone" ? "window" : inline ? "inline" : mode;
+	const lockFrom = !!props.lockFrom && reply;
 
 	return (
 		<>
-			{mode === "max" && <div className="pg-cw-scrim" onMouseDown={() => setMode("normal")} />}
+			{variant === "floating" && mode === "max" && <div className="pg-cw-scrim" onMouseDown={() => setMode("normal")} />}
 			<div
+				ref={rootRef}
 				className="pg-cw"
-				role="dialog"
-				aria-label="New message"
-				data-state={mode}
+				role={inline ? "group" : "dialog"}
+				aria-label={inline ? title : "New message"}
+				data-state={dataState}
 				onKeyDown={(e) => {
 					if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
 						e.preventDefault();
@@ -279,19 +357,32 @@ export function ComposeWindow(props: ComposeWindowProps) {
 						if (fromOpen || schedOpen) {
 							setFromOpen(false);
 							setSchedOpen(false);
-						} else if (mode !== "window") setMode("min");
+						} else if (variant === "floating") setMode("min");
+						else if (inline) close();
 					}
 				}}
 			>
 				<div className="pg-cw-head" onClick={(e) => mode === "min" && !(e.target as Element).closest("button") && setMode("normal")}>
-					<PencilSimpleLineIcon size={14} color="var(--pg-text-5)" />
-					<span className="pg-title">{state.subject.trim() || "New message"}</span>
+					{inline && replyMode ? <replyMode.Icon size={14} color="var(--pg-text-4)" /> : <PencilSimpleLineIcon size={14} color="var(--pg-text-5)" />}
+					<span className={inline ? "pg-title is-inline" : "pg-title"}>{title}</span>
+					{inline && props.onMode && (
+						<div className="pg-modes" role="group" aria-label="Reply mode">
+							{MODES.map(({ mode: m, label, Icon }) => (
+								<button key={m} type="button" title={label} aria-label={label} aria-pressed={m === state.mode} onClick={() => m !== state.mode && props.onMode?.(m, stateRef.current)}>
+									<Icon size={13} />
+								</button>
+							))}
+						</div>
+					)}
+					{inline && <span className="pg-flex" />}
 					<span className="pg-saved" aria-live="polite">{saved ? "Draft saved" : ""}</span>
-					{mode !== "window" && (
+					{variant !== "standalone" && (
+						<button type="button" className="pg-cw-btn" title="Open in new window" aria-label="Open in new window" onMouseDown={(e) => { e.preventDefault(); done.current = true; props.onPopOut(stateRef.current); }}>
+							<ArrowSquareOutIcon size={15} />
+						</button>
+					)}
+					{variant === "floating" && (
 						<>
-							<button type="button" className="pg-cw-btn" title="Open in new window" aria-label="Open in new window" onMouseDown={(e) => { e.preventDefault(); done.current = true; props.onPopOut(stateRef.current); }}>
-								<ArrowSquareOutIcon size={15} />
-							</button>
 							<button type="button" className="pg-cw-btn" title={mode === "min" ? "Restore" : "Minimize"} aria-label={mode === "min" ? "Restore" : "Minimize"} onMouseDown={(e) => { e.preventDefault(); setMode(mode === "min" ? "normal" : "min"); }}>
 								{mode === "min" ? <CaretUpIcon size={15} /> : <MinusIcon size={15} />}
 							</button>
@@ -307,11 +398,19 @@ export function ComposeWindow(props: ComposeWindowProps) {
 				<div className="pg-cw-body">
 					<div className="pg-cw-row">
 						<span className="pg-field-label">From</span>
-						<button type="button" className="pg-cw-from" aria-haspopup="listbox" aria-expanded={fromOpen} onClick={() => setFromOpen((v) => !v)}>
+						<button
+							type="button"
+							className="pg-cw-from"
+							aria-haspopup="listbox"
+							aria-expanded={fromOpen}
+							disabled={lockFrom}
+							title={lockFrom ? "Replies go out from the address the mail was delivered to. Change this in Settings." : "Send from"}
+							onClick={() => setFromOpen((v) => !v)}
+						>
 							<Swatch identity={fromId} />
 							<span className="pg-name">{fromInfo?.name}</span>
 							<AddressText address={state.from} identity={fromId} bold={false} />
-							<CaretDownIcon size={10} color="var(--pg-text-6)" />
+							{!lockFrom && <CaretDownIcon size={10} color="var(--pg-text-6)" />}
 						</button>
 						{fromOpen && (
 							<>
@@ -337,7 +436,6 @@ export function ComposeWindow(props: ComposeWindowProps) {
 						list={state.to}
 						onChange={(to) => patch({ to })}
 						inputRef={toRef}
-						autoFocus={!state.to.length}
 						extra={
 							<div className="pg-cc-toggles">
 								{!state.showCc && <button type="button" onMouseDown={(e) => { e.preventDefault(); patch({ showCc: true }, true); }}>Cc</button>}
@@ -345,21 +443,23 @@ export function ComposeWindow(props: ComposeWindowProps) {
 							</div>
 						}
 					/>
-					{state.showCc && <RecipientField label="Cc" list={state.cc} onChange={(cc) => patch({ cc })} autoFocus={!state.cc.length} />}
+					{state.showCc && <RecipientField label="Cc" list={state.cc} onChange={(cc) => patch({ cc })} autoFocus={!state.cc.length && !reply} />}
 					{state.showBcc && <RecipientField label="Bcc" list={state.bcc} onChange={(bcc) => patch({ bcc })} autoFocus={!state.bcc.length && !state.showCc} />}
 					<div className="pg-cw-row">
 						<span className="pg-field-label">Subject</span>
 						<input className="pg-cw-subject" value={state.subject} aria-label="Subject" onChange={(e) => patch({ subject: e.target.value })} />
 					</div>
 					<div className="pg-cw-scroll">
-						<Editor value={state.html} onChange={(html) => patch({ html })} placeholder="Write your message…" size="window" onReady={setEditor} autoFocus={state.to.length > 0} />
-						<div className="pg-signature">{fromInfo?.signatureText}</div>
-						{state.quoteHead && (
-							<div className="pg-quote" style={{ marginBottom: 12 }}>
-								<div className="pg-quote-head">{state.quoteHead}</div>
-								<div className="pg-quote-text">{state.quoteText}</div>
-							</div>
-						)}
+						<Editor
+							value={state.html}
+							onChange={(html) => patch({ html })}
+							placeholder={state.mode === "forward" ? "Add a note…" : reply ? "Write your reply…" : "Write your message…"}
+							size={inline ? "inline" : "window"}
+							onReady={setEditor}
+							autoFocus={state.to.length > 0 && state.mode !== "forward"}
+						/>
+						{signed && <div className="pg-signature" dangerouslySetInnerHTML={{ __html: fromInfo!.signatureHtml }} />}
+						{state.quoteHead && state.quoteBody && <QuotePreview head={state.quoteHead} body={state.quoteBody} />}
 					</div>
 					{state.files.length > 0 && (
 						<div className="pg-files">
@@ -449,6 +549,21 @@ export function ComposeWindow(props: ComposeWindowProps) {
 								e.target.value = "";
 							}}
 						/>
+						<button
+							type="button"
+							className="pg-tool-btn"
+							aria-pressed={signed}
+							disabled={!hasSignature && !props.onEditSignatures}
+							title={hasSignature ? (signed ? "Remove signature" : "Add signature") : `No signature for ${state.from}${props.onEditSignatures ? ". Set one up" : ""}`}
+							aria-label={hasSignature ? (signed ? "Remove signature" : "Add signature") : "Set up a signature"}
+							onMouseDown={(e) => {
+								e.preventDefault();
+								if (hasSignature) patch({ signature: !signed });
+								else props.onEditSignatures?.();
+							}}
+						>
+							<SignatureIcon size={16} />
+						</button>
 						<button type="button" className="pg-btn pg-btn-agent" data-busy={agentBusy} title="Draft with agent" onMouseDown={(e) => { e.preventDefault(); askAgent(); }}>
 							<SparkleIcon size={13} weight="fill" /><span className="pg-agent-label">{agentBusy ? "Drafting…" : "Draft with agent"}</span>
 						</button>
@@ -484,9 +599,6 @@ export function ComposePopout({ addresses, domains }: { addresses: string[]; dom
 	useEffect(() => {
 		history.replaceState(null, "", `${window.location.pathname}${window.location.search}#compose`);
 	}, []);
-	useEffect(() => {
-		document.title = initial.subject.trim() || "New message";
-	}, [initial]);
 
 	const done = (message: string | null) => {
 		window.close();
@@ -500,13 +612,14 @@ export function ComposePopout({ addresses, domains }: { addresses: string[]; dom
 			{note ? (
 				<div className="pg-idle"><p>{note}</p></div>
 			) : (
-				<ComposeWindow
+				<Composer
 					initial={initial}
-					standalone
+					variant="standalone"
 					addresses={addresses}
 					identities={identities}
 					info={info}
 					sender={sender}
+					lockFrom={prefs.replyFrom}
 					draftWithAgent={draftWithAgent}
 					onClosed={done}
 					onPopOut={() => {}}

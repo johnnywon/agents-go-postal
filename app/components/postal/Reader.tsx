@@ -3,11 +3,8 @@
 //     https://opensource.org/licenses/Apache-2.0
 
 import {
-	ArchiveIcon, ArrowBendDoubleUpLeftIcon, ArrowBendUpLeftIcon, ArrowBendUpRightIcon, ArrowSquareOutIcon, CaretDownIcon, CaretLeftIcon,
-	CheckIcon, CodeIcon, DownloadSimpleIcon, EnvelopeOpenIcon, EnvelopeSimpleIcon, FileIcon, FloppyDiskIcon, ImageIcon, PaperclipIcon,
-	PaperPlaneRightIcon, PencilSimpleLineIcon, PlusIcon, SparkleIcon, StarIcon, TagIcon, TrashIcon, WarningIcon, XIcon,
+	ArchiveIcon, ArrowBendDoubleUpLeftIcon, ArrowBendUpLeftIcon, ArrowBendUpRightIcon, CaretLeftIcon, CheckIcon, CodeIcon, DownloadSimpleIcon, EnvelopeOpenIcon, EnvelopeSimpleIcon, FileIcon, ImageIcon, PaperclipIcon, PencilSimpleLineIcon, PlusIcon, SparkleIcon, StarIcon, TagIcon, TrashIcon, XIcon,
 } from "@phosphor-icons/react";
-import type { Editor as TipTap } from "@tiptap/react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Folders } from "shared/folders";
 import EmailIframe, { hasRemoteImages } from "~/components/EmailIframe";
@@ -17,10 +14,8 @@ import { useMailFacets } from "~/queries/mail";
 import type { Conversation, Label } from "~/services/api";
 import type { Email } from "~/types";
 import type { DraftResult } from "./Agent";
-import {
-	type AddressInfo, type ComposeMode, type ComposeState, readFiles, recipientsFromText, recipientsToText, textToParagraphs, type useMailSender,
-} from "./compose";
-import { Editor } from "./Editor";
+import type { AddressInfo, ComposeMode, ComposeState, useMailSender } from "./compose";
+import { Composer } from "./ComposeWindow";
 import { AddressText, type Identities, Swatch } from "./identity";
 import { formatSize, fullDate, nameFromHeaders } from "./model";
 import type { Prefs } from "./prefs";
@@ -44,13 +39,14 @@ export interface ReaderProps {
 	onAction: (action: "archive" | "trash" | "read" | "star") => void;
 	onLabel: (label: Label, add: boolean) => void;
 	onCreateLabel: (name: string) => void;
-	inline: ComposeState | null;
-	setInline: (state: ComposeState | null) => void;
-	startReply: (mode: Exclude<ComposeMode, "new">, original: Email, keepHtml?: string, askAgent?: boolean) => void;
+	/** The open reply composer, keyed so a mode switch starts it afresh. */
+	inline: { key: number; initial: ComposeState } | null;
+	onInlineClosed: (message: string | null) => void;
+	startReply: (mode: Exclude<ComposeMode, "new">, original: Email, keep?: ComposeState, askAgent?: boolean) => void;
 	sender: Sender;
-	onToast: (message: string) => void;
 	onPopOut: (state: ComposeState) => void;
 	onEditDraft: (draft: Email) => void;
+	onEditSignatures: () => void;
 	draftWithAgent: (state: ComposeState) => Promise<DraftResult>;
 	replyRequest: { mode: Exclude<ComposeMode, "new">; id: number } | null;
 }
@@ -222,20 +218,20 @@ export function Reader(props: ReaderProps) {
 							<span className="pg-flex pg-ellipsis">Edit draft</span>
 						</button>
 					) : props.inline ? (
-						<InlineComposer
-							key={`${props.inline.originalId}-${open.emailId}`}
-							state={props.inline}
-							setState={props.setInline}
-							original={original}
+						<Composer
+							key={props.inline.key}
+							variant="inline"
+							initial={props.inline.initial}
+							addresses={props.addresses}
 							identities={identities}
 							info={props.info}
-							addresses={props.addresses}
-							lockFrom={props.prefs.replyFrom}
 							sender={props.sender}
-							onMode={(mode, keep) => original && props.startReply(mode, original, keep)}
-							onToast={props.onToast}
+							lockFrom={props.prefs.replyFrom}
+							onClosed={props.onInlineClosed}
 							onPopOut={props.onPopOut}
+							onMode={(mode, keep) => original && props.startReply(mode, original, keep)}
 							draftWithAgent={props.draftWithAgent}
+							onEditSignatures={props.onEditSignatures}
 						/>
 					) : (
 						original && (
@@ -462,235 +458,6 @@ function SourceModal({ email, onClose }: { email: Email; onClose: () => void }) 
 					<button type="button" className="pg-modal-x" title="Close (Esc)" aria-label="Close" onClick={onClose} autoFocus><XIcon size={16} /></button>
 				</div>
 				<pre className="pg-source">{`${headers}\n\n${email.body || ""}`}</pre>
-			</div>
-		</div>
-	);
-}
-
-// ── Inline composer ──────────────────────────────────────────────────
-
-const MODES = [
-	{ mode: "reply", label: "Reply", Icon: ArrowBendUpLeftIcon },
-	{ mode: "reply-all", label: "Reply all", Icon: ArrowBendDoubleUpLeftIcon },
-	{ mode: "forward", label: "Forward", Icon: ArrowBendUpRightIcon },
-] as const;
-
-function InlineComposer({ state, setState, original, identities, info, addresses, lockFrom, sender, onMode, onToast, onPopOut, draftWithAgent }: {
-	state: ComposeState;
-	setState: (s: ComposeState | null) => void;
-	original?: Email;
-	identities: Identities;
-	info: ReadonlyMap<string, AddressInfo>;
-	addresses: string[];
-	lockFrom: boolean;
-	sender: Sender;
-	onMode: (mode: Exclude<ComposeMode, "new">, keepHtml: string) => void;
-	onToast: (message: string) => void;
-	onPopOut: (state: ComposeState) => void;
-	draftWithAgent: (state: ComposeState) => Promise<DraftResult>;
-}) {
-	const [toText, setToText] = useState(recipientsToText(state.to));
-	const [ccText, setCcText] = useState(recipientsToText(state.cc));
-	const [fromOpen, setFromOpen] = useState(false);
-	const [busy, setBusy] = useState(false);
-	const [agentBusy, setAgentBusy] = useState(false);
-	const [error, setError] = useState<string | null>(null);
-	const [, setEditor] = useState<TipTap | null>(null);
-	const ref = useRef<HTMLDivElement>(null);
-	const toRef = useRef<HTMLInputElement>(null);
-	const fileRef = useRef<HTMLInputElement>(null);
-
-	const current = (): ComposeState => ({ ...state, to: recipientsFromText(toText), cc: recipientsFromText(ccText) });
-	const mode = state.mode as Exclude<ComposeMode, "new">;
-	const title = { reply: "Reply", "reply-all": "Reply all", forward: "Forward" }[mode];
-	const Icon = MODES.find((m) => m.mode === mode)?.Icon ?? ArrowBendUpLeftIcon;
-
-	useEffect(() => {
-		ref.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
-		if (mode === "forward") toRef.current?.focus();
-	}, [mode]);
-
-	const askAgent = async () => {
-		if (agentBusy) return;
-		setAgentBusy(true);
-		setError(null);
-		try {
-			const r = await draftWithAgent(current());
-			const html = r.text ? textToParagraphs(r.text) : r.html ?? "";
-			if (html) setState({ ...current(), html, ...(r.draftId ? { draftId: r.draftId } : {}) });
-		} catch (e) {
-			setError((e as Error).message);
-		} finally {
-			setAgentBusy(false);
-		}
-	};
-
-	// "Draft with agent" pressed on the collapsed bar asks once the composer is open.
-	const asked = useRef(false);
-	useEffect(() => {
-		if (!state.askAgent || asked.current) return;
-		asked.current = true;
-		setState({ ...state, askAgent: false });
-		askAgent();
-	}, []); // eslint-disable-line react-hooks/exhaustive-deps
-
-	const send = async () => {
-		const s = current();
-		if (!s.to.length) {
-			toRef.current?.focus();
-			setError("Add at least one recipient.");
-			return;
-		}
-		setBusy(true);
-		setError(null);
-		try {
-			await sender.send(s);
-			setState(null);
-			onToast(`${{ reply: "Reply sent", "reply-all": "Reply sent to all", forward: "Forwarded" }[mode]} from ${s.from}`);
-		} catch (e) {
-			setError((e as Error).message || "Could not send.");
-		} finally {
-			setBusy(false);
-		}
-	};
-
-	const save = async () => {
-		setBusy(true);
-		try {
-			await sender.save(current());
-			setState(null);
-			onToast("Draft saved to Drafts");
-		} catch (e) {
-			setError((e as Error).message || "Could not save.");
-		} finally {
-			setBusy(false);
-		}
-	};
-
-	// Closing drops a draft the agent saved for this reply.
-	const close = () => {
-		if (state.draftId) sender.discard(state);
-		setState(null);
-	};
-
-	const fromId = identities.of(state.from);
-	const canSend = toText.trim().length > 0;
-
-	return (
-		<div
-			className="pg-inline"
-			ref={ref}
-			onKeyDown={(e) => {
-				if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
-					e.preventDefault();
-					send();
-				} else if (e.key === "Escape" && !fromOpen) {
-					e.stopPropagation();
-					close();
-				}
-			}}
-		>
-			<div className="pg-inline-head">
-				<Icon size={14} color="var(--pg-text-4)" />
-				<span className="pg-title">{title}</span>
-				<div className="pg-modes" role="group" aria-label="Reply mode">
-					{MODES.map(({ mode: m, label, Icon: MI }) => (
-						<button key={m} type="button" title={label} aria-label={label} aria-pressed={m === mode} onClick={() => m !== mode && onMode(m, state.html)}>
-							<MI size={13} />
-						</button>
-					))}
-				</div>
-				<div className="pg-flex" />
-				<button type="button" className="pg-head-btn" title="Pop out into its own window" aria-label="Pop out into its own window" onClick={() => onPopOut(current())}><ArrowSquareOutIcon size={14} /></button>
-				<button type="button" className="pg-head-btn" title="Close" aria-label="Close" onClick={close}><XIcon size={13} /></button>
-			</div>
-			<div className="pg-field">
-				<span className="pg-field-label">To</span>
-				<input ref={toRef} value={toText} onChange={(e) => setToText(e.target.value)} placeholder="name@example.com" spellCheck={false} aria-label="To" />
-			</div>
-			{(state.showCc || mode === "reply-all") && (
-				<div className="pg-field">
-					<span className="pg-field-label">Cc</span>
-					<input value={ccText} onChange={(e) => setCcText(e.target.value)} placeholder="Add people" spellCheck={false} aria-label="Cc" />
-				</div>
-			)}
-			<div className="pg-field">
-				<span className="pg-field-label">From</span>
-				<button type="button" className="pg-from-btn" disabled={lockFrom} title={lockFrom ? "Replies go out from the address the mail was delivered to" : "Send from"} onClick={() => setFromOpen((v) => !v)} aria-expanded={fromOpen}>
-					<Swatch identity={fromId} />
-					<AddressText address={state.from} identity={fromId} bold={false} />
-					{!lockFrom && <CaretDownIcon size={10} color="var(--pg-text-6)" />}
-				</button>
-				{fromOpen && (
-					<>
-						<div className="pg-scrim-click" onClick={() => setFromOpen(false)} />
-						<div className="pg-popover pg-from-menu" style={{ left: 56, top: 32 }} role="listbox" aria-label="Send from">
-							{addresses.map((a) => {
-								const id = identities.of(a);
-								return (
-									<button key={a} type="button" role="option" aria-selected={a === state.from} className="pg-menu-item" data-active={a === state.from} onClick={() => { setState({ ...current(), from: a }); setFromOpen(false); }}>
-										<Swatch identity={id} />
-										<span className="pg-flex pg-ellipsis" style={{ fontSize: 12 }}><AddressText address={a} identity={id} bold={false} /></span>
-										<span className="pg-name">{info.get(a)?.name}</span>
-									</button>
-								);
-							})}
-						</div>
-					</>
-				)}
-			</div>
-			<div className="pg-field">
-				<span className="pg-field-label">Subj</span>
-				<input className="pg-sans" value={state.subject} onChange={(e) => setState({ ...current(), subject: e.target.value })} aria-label="Subject" />
-			</div>
-			<Editor
-				value={state.html}
-				onChange={(html) => setState({ ...current(), html })}
-				placeholder={mode === "forward" ? "Add a note…" : "Write your reply…"}
-				autoFocus={mode !== "forward"}
-				onReady={setEditor}
-			/>
-			{state.quoteHead && (
-				<div className="pg-quote">
-					<div className="pg-quote-head">{state.quoteHead}</div>
-					<div className="pg-quote-text">{state.quoteText}</div>
-				</div>
-			)}
-			{state.files.length > 0 && (
-				<div className="pg-files" style={{ borderTop: 0 }}>
-					{state.files.map((f, i) => (
-						<span key={`${f.name}-${i}`} className="pg-file">
-							<FileIcon size={14} color="var(--pg-text-5)" />
-							<span className="pg-file-name">{f.name}</span>
-							<span className="pg-file-size">{formatSize(f.size)}</span>
-							<button type="button" aria-label={`Remove ${f.name}`} onClick={() => setState({ ...current(), files: state.files.filter((_, j) => j !== i) })}><XIcon size={11} /></button>
-						</span>
-					))}
-				</div>
-			)}
-			{error && <div className="pg-error" role="alert"><WarningIcon size={14} /><span className="pg-flex">{error}</span></div>}
-			<div className="pg-inline-foot">
-				<button type="button" className="pg-btn pg-btn-agent" data-busy={agentBusy} onClick={askAgent}>
-					<SparkleIcon size={13} weight="fill" /><span className="pg-agent-label">{agentBusy ? "Drafting…" : "Draft with agent"}</span>
-				</button>
-				<button type="button" className="pg-tool-btn" style={{ width: 30, height: 30 }} title="Attach" aria-label="Attach files" onClick={() => fileRef.current?.click()}><PaperclipIcon size={15} /></button>
-				<input
-					ref={fileRef}
-					type="file"
-					multiple
-					hidden
-					onChange={async (e) => {
-						const list = e.target.files;
-						if (list?.length) setState({ ...current(), files: [...state.files, ...(await readFiles(list))] });
-						e.target.value = "";
-					}}
-				/>
-				<div className="pg-flex" />
-				<button type="button" className="pg-btn pg-btn-outline" title="Save as draft" onClick={save} disabled={busy}><FloppyDiskIcon size={14} />Save draft</button>
-				<button type="button" className="pg-btn pg-btn-quiet" onClick={close}>Discard</button>
-				<button type="button" className="pg-btn pg-btn-primary" onClick={send} disabled={!canSend || busy} title="Send (⌘↵)">
-					Send<PaperPlaneRightIcon size={12} weight="bold" />
-				</button>
 			</div>
 		</div>
 	);

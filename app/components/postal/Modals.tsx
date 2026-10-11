@@ -4,13 +4,15 @@
 
 import {
 	ArrowCounterClockwiseIcon, ArrowsClockwiseIcon, AtIcon, CheckIcon, CopyIcon, DatabaseIcon, DesktopIcon, GearSixIcon, MoonIcon,
-	PlugsConnectedIcon, RobotIcon, SignOutIcon, SlidersHorizontalIcon, SunIcon, WrenchIcon, XIcon,
+	PlugsConnectedIcon, RobotIcon, SignatureIcon, SignOutIcon, SlidersHorizontalIcon, SunIcon, WrenchIcon, XIcon,
 } from "@phosphor-icons/react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 import { queryKeys } from "~/queries/keys";
 import api, { type IndexStatusResponse } from "~/services/api";
-import type { AddressInfo } from "./compose";
+import { type AddressInfo, textToParagraphs } from "./compose";
+import { Editor } from "./Editor";
+import { htmlToPlainText } from "~/lib/utils";
 import { AddressText, type Identities, Swatch } from "./identity";
 import type { Prefs } from "./prefs";
 
@@ -94,7 +96,7 @@ function Setting({ title, sub, children }: { title: string; sub: React.ReactNode
 	);
 }
 
-type Tab = "general" | "addresses" | "agent" | "index";
+type Tab = "general" | "addresses" | "signatures" | "agent" | "index";
 
 function indexRowMatches(row: IndexStatusResponse["mailboxes"][number]) {
 	const s = row.source;
@@ -105,7 +107,8 @@ function indexRowMatches(row: IndexStatusResponse["mailboxes"][number]) {
 		&& s.counts.unread === i.unread && s.counts.starred === i.starred && s.inboxConversations === i.inboxConversations;
 }
 
-export function SettingsModal({ prefs, setPrefs, addresses, identities, info, autoDraft, onClose, onSaved }: {
+export function SettingsModal({ initialTab, prefs, setPrefs, addresses, identities, info, autoDraft, onClose, onSaved }: {
+	initialTab?: Tab;
 	prefs: Prefs;
 	setPrefs: (p: Partial<Prefs>) => void;
 	addresses: string[];
@@ -115,7 +118,14 @@ export function SettingsModal({ prefs, setPrefs, addresses, identities, info, au
 	onClose: () => void;
 	onSaved: (message: string) => void;
 }) {
-	const [tab, setTab] = useState<Tab>("general");
+	const [tab, setTab] = useState<Tab>(initialTab ?? "general");
+	const initialSigs = Object.fromEntries(addresses.map((a) => {
+		const sig = info.get(a)?.mailbox?.settings?.signature;
+		const html = sig?.html || (sig?.text ? textToParagraphs(sig.text) : "");
+		return [a, { html, enabled: !!sig?.enabled && !!html }];
+	}));
+	const [sigs, setSigs] = useState<Record<string, { html: string; enabled: boolean }>>(initialSigs);
+	const sigChanged = (a: string) => (sigs[a]?.html ?? "") !== (initialSigs[a]?.html ?? "") || !!sigs[a]?.enabled !== !!initialSigs[a]?.enabled;
 	const [draft, setDraft] = useState<Prefs>(prefs);
 	const initialNames = Object.fromEntries(addresses.map((a) => [a, info.get(a)?.mailbox?.settings?.fromName ?? info.get(a)?.name ?? ""]));
 	const [names, setNames] = useState<Record<string, string>>(initialNames);
@@ -127,7 +137,8 @@ export function SettingsModal({ prefs, setPrefs, addresses, identities, info, au
 
 	const dirty = JSON.stringify(draft) !== JSON.stringify(prefs)
 		|| addresses.some((a) => (names[a] ?? "") !== (initialNames[a] ?? ""))
-		|| prompt.trim() !== initialPrompt.trim();
+		|| prompt.trim() !== initialPrompt.trim()
+		|| addresses.some(sigChanged);
 
 	const save = async () => {
 		setSaving(true);
@@ -140,8 +151,16 @@ export function SettingsModal({ prefs, setPrefs, addresses, identities, info, au
 				const name = (names[a] ?? "").trim();
 				const nameChanged = name !== (initialNames[a] ?? "").trim() && name.length > 0;
 				const promptChanged = (mailbox.settings?.agentSystemPrompt ?? "").trim() !== prompt.trim();
-				if (!nameChanged && !promptChanged) return [];
-				const settings = { ...mailbox.settings, ...(nameChanged ? { fromName: name } : {}), agentSystemPrompt: prompt.trim() || undefined };
+				const signatureChanged = sigChanged(a);
+				if (!nameChanged && !promptChanged && !signatureChanged) return [];
+				const sig = sigs[a];
+				const empty = !sig?.html.replace(/<[^>]+>/g, "").trim();
+				const settings = {
+					...mailbox.settings,
+					...(nameChanged ? { fromName: name } : {}),
+					agentSystemPrompt: prompt.trim() || undefined,
+					...(signatureChanged ? { signature: empty ? { enabled: false, text: "" } : { enabled: sig.enabled, text: htmlToPlainText(sig.html), html: sig.html } } : {}),
+				};
 				return [api.updateMailbox(a, settings)];
 			});
 			await Promise.all(writes);
@@ -158,6 +177,7 @@ export function SettingsModal({ prefs, setPrefs, addresses, identities, info, au
 	const tabs: { id: Tab; label: string; icon: React.ReactNode }[] = [
 		{ id: "general", label: "General", icon: <SlidersHorizontalIcon size={16} /> },
 		{ id: "addresses", label: "Addresses", icon: <AtIcon size={16} /> },
+		{ id: "signatures", label: "Signatures", icon: <SignatureIcon size={16} /> },
 		{ id: "agent", label: "Agent", icon: <RobotIcon size={16} /> },
 		{ id: "index", label: "Mail index", icon: <DatabaseIcon size={16} /> },
 	];
@@ -215,6 +235,38 @@ export function SettingsModal({ prefs, setPrefs, addresses, identities, info, au
 										<Swatch identity={id} />
 										<AddressText address={a} identity={id} bold={false} />
 										<input className="pg-input" value={names[a] ?? ""} placeholder="Display name" aria-label={`Display name for ${a}`} onChange={(e) => setNames({ ...names, [a]: e.target.value })} disabled={!info.get(a)?.mailbox} />
+									</div>
+								);
+							})}
+						</>
+					)}
+					{tab === "signatures" && (
+						<>
+							<div className="pg-tab-intro">One signature per address. Nothing is added unless you turn it on; the signature button in the composer adds or removes it on any message.</div>
+							{addresses.map((a) => {
+								const id = identities.of(a);
+								const sig = sigs[a] ?? { html: "", enabled: false };
+								const has = !!sig.html.replace(/<[^>]+>/g, "").trim();
+								return (
+									<div key={a} className="pg-sig-row">
+										<div className="pg-sig-head">
+											<Swatch identity={id} />
+											<span className="pg-flex pg-ellipsis" style={{ fontSize: 12 }}><AddressText address={a} identity={id} bold={false} /></span>
+											<span className="pg-sig-default">Add by default</span>
+											<Switch
+												label={`Add the signature for ${a} by default`}
+												on={sig.enabled && has}
+												onChange={(enabled) => setSigs({ ...sigs, [a]: { ...sig, enabled: enabled && has } })}
+											/>
+										</div>
+										<div className="pg-sig-editor">
+											<Editor
+												value={sig.html}
+												onChange={(html) => setSigs((cur) => ({ ...cur, [a]: { html, enabled: cur[a]?.enabled ?? false } }))}
+												placeholder="No signature"
+												label={`Signature for ${a}`}
+											/>
+										</div>
 									</div>
 								);
 							})}

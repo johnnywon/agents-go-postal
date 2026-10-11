@@ -3,9 +3,10 @@
 //     https://opensource.org/licenses/Apache-2.0
 
 import { useQueries, useQueryClient } from "@tanstack/react-query";
+import DOMPurify from "dompurify";
 import { useCallback, useMemo } from "react";
-import { getReplyAddresses } from "~/lib/reply";
-import { buildQuotedReplyBlock, escapeHtml, getSignatureBlock, htmlToPlainText, splitEmailList, stripHtml } from "~/lib/utils";
+import { extractReplyQuote, getReplyAddresses } from "~/lib/reply";
+import { escapeHtml, getSignatureBlock, htmlToPlainText, splitEmailList } from "~/lib/utils";
 import { queryKeys } from "~/queries/keys";
 import api from "~/services/api";
 import type { Email, Mailbox } from "~/types";
@@ -45,10 +46,13 @@ export interface ComposeState {
 	originalId?: string;
 	/** The address that received the original, where the agent finds it. */
 	originalMailbox?: string;
-	/** Quoted original, appended when sending; shown as a box in the inline composer. */
+	/** Quoted original, appended when sending. */
 	quoteHtml?: string;
+	/** Header line and sanitized HTML of the original, for the preview under the editor. */
 	quoteHead?: string;
-	quoteText?: string;
+	quoteBody?: string;
+	/** Include the From address's signature. Undefined follows that address's default. */
+	signature?: boolean;
 	/** Ask the agent for a draft as soon as the composer opens. */
 	askAgent?: boolean;
 }
@@ -83,6 +87,21 @@ function prefixed(subject: string, prefix: "Re" | "Fwd") {
 	return `${prefix}: ${base}`;
 }
 
+/**
+ * The original message as HTML that is safe to quote: no styles, scripts or
+ * document chrome. Plain-text mail becomes paragraphs.
+ */
+export function quotableHtml(body: string): string {
+	if (!/<[a-z][\s\S]*>/i.test(body)) return `<p>${escapeHtml(body).replace(/\r?\n/g, "<br>")}</p>`;
+	return String(
+		DOMPurify.sanitize(body, {
+			USE_PROFILES: { html: true },
+			FORBID_TAGS: ["style", "script", "title", "head", "meta", "link", "form", "input", "button"],
+			FORBID_ATTR: ["class", "id"],
+		}),
+	);
+}
+
 /** Reply, reply all or forward of a message, From set to the address it was delivered to. */
 export function composeFor(mode: Exclude<ComposeMode, "new">, original: Email, mailboxId: string, from: string): ComposeState {
 	const self = mailboxId.toLowerCase();
@@ -104,9 +123,14 @@ export function composeFor(mode: Exclude<ComposeMode, "new">, original: Email, m
 	}
 	const forward = mode === "forward";
 	const when = original.date ? fullDate(original.date).replace(" · ", ", ") : "";
+	const sender = escapeHtml(original.sender);
+	// A notification can mark the part a reply should quote (data-reply-quote); quote only that.
+	const marked = forward ? null : extractReplyQuote(original.body);
+	const body = marked !== null ? `<p>${escapeHtml(marked).replace(/\r?\n/g, "<br>")}</p>` : quotableHtml(original.body || "");
+	const quoteHead = forward ? `Forwarded message · ${when} · ${original.sender}` : `On ${when}, ${original.sender} wrote:`;
 	const quoteHtml = forward
-		? `<p><br></p><blockquote>— Forwarded message —<br>From: ${escapeHtml(original.sender)}<br>Date: ${escapeHtml(when)}<br>Subject: ${escapeHtml(original.subject)}<br><br>${escapeHtml(stripHtml(original.body || "")).replace(/\n/g, "<br>")}</blockquote>`
-		: buildQuotedReplyBlock(original.date, original.sender, original.body || "");
+		? `<p><br></p><div>---------- Forwarded message ----------<br>From: ${sender}<br>Date: ${escapeHtml(when)}<br>Subject: ${escapeHtml(original.subject || "")}<br>To: ${escapeHtml(original.recipient || "")}</div><br>${body}`
+		: `<p><br></p><div>On ${escapeHtml(when)}, ${sender} wrote:</div><blockquote style="margin: 8px 0 0; padding: 8px 12px; border: 1px solid #dddddd; background-color: #fafafa;">${body}</blockquote>`;
 	return {
 		mode,
 		from,
@@ -121,8 +145,8 @@ export function composeFor(mode: Exclude<ComposeMode, "new">, original: Email, m
 		originalId: original.id,
 		originalMailbox: self,
 		quoteHtml,
-		quoteHead: forward ? `— Forwarded message — ${when}, ${original.sender}` : `On ${when}, ${original.sender} wrote:`,
-		quoteText: stripHtml(original.body || "").replace(/\s+/g, " ").trim(),
+		quoteHead,
+		quoteBody: body,
 	};
 }
 
@@ -154,9 +178,11 @@ export interface AddressInfo {
 	address: string;
 	name: string;
 	mailbox?: Mailbox;
-	/** Signature shown under the editor and appended on send. */
+	/** The address's signature, empty when none is set. */
 	signatureText: string;
 	signatureHtml: string;
+	/** Add the signature to new mail and replies unless the writer removes it. */
+	signatureDefault: boolean;
 }
 
 /** Display names and signatures for every address, from each mailbox's settings. */
@@ -175,14 +201,15 @@ export function useAddressInfo(addresses: string[]) {
 		addresses.forEach((address, i) => {
 			const mailbox = data[i];
 			const name = mailbox?.settings?.fromName?.trim() || handleOf(address);
-			const custom = getSignatureBlock(mailbox?.settings);
 			const sig = mailbox?.settings?.signature;
+			const hasSignature = !!(sig?.html?.replace(/<[^>]+>/g, "").trim() || sig?.text?.trim());
 			map.set(address, {
 				address,
 				name,
 				mailbox,
-				signatureText: custom ? (sig?.text || stripHtml(sig?.html || "")) : `— ${name}\n${address}`,
-				signatureHtml: custom || `<p>— ${escapeHtml(name)}<br>${escapeHtml(address)}</p>`,
+				signatureText: hasSignature ? sig?.text || "" : "",
+				signatureHtml: hasSignature ? getSignatureBlock({ signature: { ...sig!, enabled: true } }) : "",
+				signatureDefault: hasSignature && !!sig?.enabled,
 			});
 		});
 		return map;
@@ -198,6 +225,13 @@ function listValue(list: Recipient[]): string | string[] | undefined {
 }
 
 export class ComposeError extends Error {}
+
+/** Whether this message carries its From address's signature. */
+export function usesSignature(state: ComposeState, info: ReadonlyMap<string, AddressInfo>): boolean {
+	const sig = info.get(state.from);
+	if (!sig?.signatureHtml) return false;
+	return state.signature ?? sig.signatureDefault;
+}
 
 export function useMailSender(info: ReadonlyMap<string, AddressInfo>) {
 	const queryClient = useQueryClient();
@@ -217,7 +251,7 @@ export function useMailSender(info: ReadonlyMap<string, AddressInfo>) {
 			if (!to) throw new ComposeError("Add at least one recipient.");
 			const sender = info.get(state.from);
 			const name = sender?.name;
-			const html = `${state.html || "<p></p>"}${sender?.signatureHtml ?? ""}${state.quoteHtml ?? ""}`;
+			const html = `${state.html || "<p></p>"}${usesSignature(state, info) ? sender?.signatureHtml ?? "" : ""}${state.quoteHtml ?? ""}`;
 			return {
 				to,
 				cc: listValue(state.cc),
