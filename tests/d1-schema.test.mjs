@@ -34,21 +34,33 @@ async function scenario(sql) {
 	const now = "2026-10-11T12:00:00.000Z";
 	await sql.batch([
 		{ sql: "INSERT INTO mailboxes (id, created_at) VALUES (?, ?), (?, ?)", params: ["a@example.com", now, "b@example.com", now] },
-		...["a@example.com", "b@example.com"].flatMap((m) => SYSTEM_FOLDERS.map((f) => ({ sql: "INSERT INTO folders (mailbox_id, id, name, is_deletable) VALUES (?, ?, ?, 0)", params: [m, f, f] }))),
+		...["a@example.com", "b@example.com"].flatMap((m) => [...SYSTEM_FOLDERS, "receipts"].map((f) => ({ sql: "INSERT INTO folders (mailbox_id, id, name, is_deletable) VALUES (?, ?, ?, ?)", params: [m, f, f, f === "receipts" ? 1 : 0] }))),
 	]);
-	const message = (rowid, mailbox, subject, body) => [
-		{ sql: "INSERT INTO messages (rowid, id, mailbox_id, folder_id, thread_id, date, subject, sender, recipient) VALUES (?, ?, ?, 'inbox', ?, ?, ?, 'ann@example.org', ?)", params: [rowid, `m${rowid}`, mailbox, `t${rowid}`, now, subject, mailbox] },
-		{ sql: "INSERT INTO messages_fts (rowid, subject, sender, recipient, body_text) VALUES (?, ?, 'ann@example.org', ?, ?)", params: [rowid, subject, mailbox, body] },
-		{ sql: "INSERT INTO messages_trigram (rowid, subject, sender, recipient) VALUES (?, ?, 'ann@example.org', ?)", params: [rowid, subject, mailbox] },
+	const message = (id, mailbox, subject, body, folder = "inbox") => [
+		{ sql: "INSERT INTO messages (id, email_id, mailbox_id, folder_id, conversation_id, date, subject, sender_addr, recipients) VALUES (?, ?, ?, ?, ?, ?, ?, 'ann@example.org', ?)", params: [id, `m${id}`, mailbox, folder, `t${id}`, now, subject, mailbox] },
+		{ sql: "INSERT INTO messages_fts (rowid, subject, sender_addr, recipients, body_text) VALUES (?, ?, 'ann@example.org', ?, ?)", params: [id, subject, mailbox, body] },
+		{ sql: "INSERT INTO messages_trigram (rowid, subject, sender_addr, recipients) VALUES (?, ?, 'ann@example.org', ?)", params: [id, subject, mailbox] },
 	];
 	await sql.batch([
 		...message(1, "a@example.com", "Invoice INV-20417", "Your invoice for October"),
-		...message(2, "a@example.com", "Lunch", "Lunch on Friday?"),
+		...message(2, "a@example.com", "Lunch", "Lunch on Friday?", "receipts"),
 		...message(3, "b@example.com", "Invoice INV-30001", "Another invoice"),
-		{ sql: "INSERT INTO attachments (id, message_id, filename, mimetype, size) VALUES ('att1', 'm1', 'invoice.pdf', 'application/pdf', 10)" },
+		{ sql: "INSERT INTO attachments (id, email_id, filename, mimetype, size) VALUES ('att1', 'm1', 'invoice.pdf', 'application/pdf', 10)" },
 		{ sql: "INSERT INTO labels (id, name, color) VALUES ('l1', 'Receipts', 'green')" },
-		{ sql: "INSERT INTO message_labels (message_id, label_id) VALUES ('m1', 'l1'), ('m3', 'l1')" },
+		{ sql: "INSERT INTO message_labels (message, label_id) VALUES (1, 'l1'), (3, 'l1')" },
 	]);
+
+	// Generated columns speak the index's language.
+	assert.deepEqual(
+		await sql.all("SELECT email_id, state, thread_key, unread, deleted FROM messages ORDER BY id"),
+		[
+			{ email_id: "m1", state: "inbox", thread_key: "a@example.com\u001ft1", unread: 1, deleted: 0 },
+			{ email_id: "m2", state: "folder:receipts", thread_key: "a@example.com\u001ft2", unread: 1, deleted: 0 },
+			{ email_id: "m3", state: "inbox", thread_key: "b@example.com\u001ft3", unread: 1, deleted: 0 },
+		],
+	);
+	await sql.run("UPDATE messages SET read = 1 WHERE id = 1");
+	assert.deepEqual(await sql.first("SELECT unread FROM messages WHERE id = 1"), { unread: 0 });
 
 	const matches = async (q) => (await sql.all("SELECT rowid FROM messages_fts WHERE messages_fts MATCH ? ORDER BY rank", q)).map((r) => r.rowid);
 	assert.deepEqual((await matches('"invoice"*')).sort(), [1, 3]);
@@ -56,21 +68,21 @@ async function scenario(sql) {
 	assert.ok((await sql.all("SELECT term FROM messages_vocab WHERE term = 'invoice'")).length === 1);
 
 	// A message must sit in one of its own mailbox's folders.
-	await assert.rejects(sql.run("INSERT INTO messages (id, mailbox_id, folder_id, thread_id, date) VALUES ('bad', 'a@example.com', 'nowhere', 't', ?)", now));
+	await assert.rejects(sql.run("INSERT INTO messages (email_id, mailbox_id, folder_id, conversation_id, date) VALUES ('bad', 'a@example.com', 'nowhere', 't', ?)", now));
 
-	// Deleting a message removes its search rows and attachments.
-	await sql.run("DELETE FROM messages WHERE id = 'm1'");
+	// Deleting a message removes its search rows, attachments and labels.
+	await sql.run("DELETE FROM messages WHERE email_id = 'm1'");
 	assert.deepEqual(await matches('"invoice"*'), [3]);
 	assert.deepEqual(await sql.all("SELECT rowid FROM messages_trigram WHERE messages_trigram MATCH ?", '"V-204"'), []);
 	assert.deepEqual(await sql.all("SELECT id FROM attachments"), []);
-	assert.deepEqual(await sql.all("SELECT message_id FROM message_labels"), [{ message_id: "m3" }]);
+	assert.deepEqual(await sql.all("SELECT message FROM message_labels"), [{ message: 3 }]);
 
 	// Deleting a mailbox cascades to its folders, messages and their search rows.
 	await sql.run("DELETE FROM mailboxes WHERE id = 'b@example.com'");
-	assert.deepEqual(await sql.all("SELECT id FROM messages"), [{ id: "m2" }]);
+	assert.deepEqual(await sql.all("SELECT email_id FROM messages"), [{ email_id: "m2" }]);
 	assert.deepEqual(await matches('"invoice"*'), []);
 	assert.deepEqual(await sql.all("SELECT count(*) AS n FROM folders WHERE mailbox_id = 'b@example.com'"), [{ n: 0 }]);
-	assert.deepEqual(await sql.all("SELECT message_id FROM message_labels"), []);
+	assert.deepEqual(await sql.all("SELECT message FROM message_labels"), []);
 }
 
 test("the schema loads and behaves on node:sqlite", async () => {

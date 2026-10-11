@@ -62,13 +62,15 @@ The schema is [`migrations/0001_init.sql`](../migrations/0001_init.sql). It's te
 |---|---|
 | `mailboxes` | One row per address, with its settings as JSON (was `mailboxes/<address>.json` in R2) |
 | `folders` | System and custom folders per address |
-| `messages` | Every message from every address, with `mailbox_id`. Text `id` keeps today's ids; integer `rowid` keys the search indexes. Bodies over 512 KB live in R2 (`body_key`). |
+| `messages` | Every message from every address, with `mailbox_id`. Integer `id` keys the search indexes; text `email_id` keeps today's ids. Column names match the combined index (`state`, `thread_key`, `sender_addr`, `recipients`, `unread`, `deleted`), with `state`, `thread_key`, `unread` and `deleted` as generated columns. Bodies over 512 KB live in R2 (`body_key`). |
 | `messages_fts` | Contentless word index with a weighted `bm25` rank |
 | `messages_trigram` | Contentless substring index over subject, sender, recipient and attachment names |
 | `messages_vocab` | Terms and counts from the word index |
 | `attachments`, `attachment_text` | Attachment metadata, and extracted text for search |
-| `labels`, `message_labels` | Labels across every address. `auto_applied_at` replaces `label_auto`. |
-| `saved_searches`, `scheduled_sends`, `send_keys`, `undo`, `bulk_jobs` | As today, with `mailbox_id` where they belong to one address |
+| `labels`, `message_labels`, `label_auto` | Labels across every address, the same tables as the index |
+| `saved_searches`, `scheduled_sends`, `send_keys`, `undo`, `bulk_job` | As today, with `mailbox_id` where they belong to one address |
+
+Matching the index's column names means the combined list, facet and folder queries in `workers/lib/mail-index-sql.ts` run on D1 unchanged. They are generators that yield SQL steps: `runSync` drives them over the Durable Object's synchronous `Exec`, and `runAsync` drives them over D1. `tests/d1-query.test.mjs` runs the same queries on both and requires identical results. Production D1 computes the generated columns and uses the `(state, date)` index for the list.
 
 A trigger removes a message's search rows when it is deleted, including when a mailbox delete cascades to its messages. The Worker writes search rows itself, in the same `batch()` as the message, because `body_text` is derived from the HTML body. A message's folder must be one of its own mailbox's folders, enforced by a composite foreign key. Production D1 enforces foreign keys by default.
 

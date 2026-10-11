@@ -384,6 +384,34 @@ export function filterWhere(filter: MailFilter, now = Date.now()): { sql: string
 	return where(clauses(filter, now));
 }
 
+// ── Running a query ────────────────────────────────────────────────
+//
+// The list, facet and folder queries are generators that yield SQL steps and
+// receive rows back. `runSync` drives them over the Durable Object's (and
+// node:sqlite's) synchronous `Exec`; `runAsync` drives them over D1. One
+// source for both stores.
+
+type Row = Record<string, unknown>;
+export interface SqlStep {
+	sql: string;
+	params: unknown[];
+}
+export type Query<T> = Generator<SqlStep, T, Row[]>;
+
+export function runSync<T>(query: Query<T>, exec: Exec): T {
+	let step = query.next();
+	while (!step.done) step = query.next(exec(step.value.sql, ...step.value.params));
+	return step.value;
+}
+
+export async function runAsync<T>(query: Query<T>, read: (sql: string, ...params: unknown[]) => Promise<Row[]>): Promise<T> {
+	let step = query.next();
+	while (!step.done) step = query.next(await read(step.value.sql, ...step.value.params));
+	return step.value;
+}
+
+const sqlStep = (sql: string, ...params: unknown[]): SqlStep => ({ sql, params });
+
 // ── Conversation list ──────────────────────────────────────────────
 
 export interface Conversation {
@@ -437,11 +465,25 @@ const SORT_SQL: Record<MailFilter["sort"], string> = {
  * matches; the row shows the latest matching message, and the thread counts
  * cover the whole thread.
  */
+export interface MailPage {
+	conversations: Conversation[];
+	nextCursor: string | null;
+	total?: number;
+	unread?: number;
+}
+
 export function queryMail(
 	exec: Exec,
 	filter: MailFilter,
 	options: { cursor?: string | null; limit?: number; now?: number } = {},
-): { conversations: Conversation[]; nextCursor: string | null; total?: number; unread?: number } {
+): MailPage {
+	return runSync(mailQuery(filter, options), exec);
+}
+
+export function* mailQuery(
+	filter: MailFilter,
+	options: { cursor?: string | null; limit?: number; now?: number } = {},
+): Query<MailPage> {
 	const now = options.now ?? Date.now();
 	const limit = Math.min(Math.max(options.limit ?? 50, 1), 100);
 	const w = where(clauses(filter, now));
@@ -467,7 +509,7 @@ export function queryMail(
 		})()
 		: { sql: "", params: [] };
 
-	const page = exec(
+	const page: Row[] = yield sqlStep(
 		`${matched},
 		sorted AS (
 			SELECT c.thread_key, c.latest_id, c.latest_date, ${sortSql} AS sort_value
@@ -483,7 +525,7 @@ export function queryMail(
 
 	const hasMore = page.length > limit;
 	const pageRows = page.slice(0, limit);
-	const conversations = pageRows.length === 0 ? [] : exec(
+	const conversations = pageRows.length === 0 ? [] : (yield sqlStep(
 		`SELECT m.*,
 			(SELECT COUNT(*) FROM messages t WHERE t.thread_key = m.thread_key AND t.deleted = 0) AS thread_count,
 			(SELECT COUNT(*) FROM messages t WHERE t.thread_key = m.thread_key AND t.deleted = 0 AND t.unread = 1) AS thread_unread_count,
@@ -496,10 +538,10 @@ export function queryMail(
 		JOIN messages m ON m.id = p.value
 		ORDER BY p.key`,
 		JSON.stringify(pageRows.map((r) => Number(r.latest_id))),
-	).map(toConversation);
+	)).map(toConversation);
 
 	const last = pageRows[pageRows.length - 1];
-	const result: ReturnType<typeof queryMail> = {
+	const result: MailPage = {
 		conversations,
 		nextCursor: hasMore && last
 			? encodeCursor([String(last.sort_value ?? ""), String(last.latest_date), String(last.thread_key)])
@@ -507,13 +549,13 @@ export function queryMail(
 	};
 
 	if (!options.cursor) {
-		const totals = exec(
+		const totals = (yield sqlStep(
 			`${matched}
 			SELECT COUNT(*) AS total,
 				SUM(EXISTS (SELECT 1 FROM messages t WHERE t.thread_key = convs.thread_key AND t.deleted = 0 AND t.unread = 1)) AS unread
 			FROM convs`,
 			...w.params,
-		)[0];
+		))[0];
 		result.total = Number(totals.total);
 		result.unread = Number(totals.unread ?? 0);
 	}
@@ -569,50 +611,54 @@ const FROM_LIMIT = 50;
 
 /** Every facet in one call. Each facet ignores its own dimension and counts distinct conversations. */
 export function queryFacets(exec: Exec, filter: MailFilter, now = Date.now()): Facets {
+	return runSync(facetsQuery(filter, now), exec);
+}
+
+export function* facetsQuery(filter: MailFilter, now = Date.now()): Query<Facets> {
 	const forDim = (dim: Dimension) => where(clauses(filter, now, dim));
 
 	const a = forDim("address");
-	const address = exec(
+	const address = (yield sqlStep(
 		`SELECT m.mailbox_id AS value, COUNT(DISTINCT m.thread_key) AS count FROM messages m WHERE ${a.sql}
 		GROUP BY m.mailbox_id ORDER BY count DESC, value ASC`,
 		...a.params,
-	).map((r) => ({ value: String(r.value), count: Number(r.count) }));
+	)).map((r) => ({ value: String(r.value), count: Number(r.count) }));
 
 	const f = forDim("from");
-	const domains = exec(
+	const domains = (yield sqlStep(
 		`SELECT m.sender_domain AS value, COUNT(DISTINCT m.thread_key) AS count FROM messages m
 		WHERE ${f.sql} AND m.sender_domain != '' GROUP BY m.sender_domain ORDER BY count DESC, value ASC LIMIT ?`,
 		...f.params, FROM_LIMIT + 1,
-	).map((r) => ({ value: String(r.value), count: Number(r.count) }));
-	const addresses = exec(
+	)).map((r) => ({ value: String(r.value), count: Number(r.count) }));
+	const addresses = (yield sqlStep(
 		`SELECT m.sender_addr AS value, MAX(m.sender_name) AS name, COUNT(DISTINCT m.thread_key) AS count FROM messages m
 		WHERE ${f.sql} AND m.sender_addr != '' GROUP BY m.sender_addr ORDER BY count DESC, value ASC LIMIT ?`,
 		...f.params, FROM_LIMIT + 1,
-	).map((r) => ({ value: String(r.value), name: String(r.name ?? ""), count: Number(r.count) }));
+	)).map((r) => ({ value: String(r.value), name: String(r.name ?? ""), count: Number(r.count) }));
 
 	const l = forDim("label");
-	const label = exec(
+	const label = (yield sqlStep(
 		`SELECT lb.id AS value, lb.name AS name, COUNT(DISTINCT m.thread_key) AS count
 		FROM labels lb
 		LEFT JOIN message_labels ml ON ml.label_id = lb.id
 		LEFT JOIN messages m ON m.id = ml.message AND ${l.sql}
 		GROUP BY lb.id ORDER BY lb.position, lb.name`,
 		...l.params,
-	).map((r) => ({ value: String(r.value), name: String(r.name), count: Number(r.count) }));
+	)).map((r) => ({ value: String(r.value), name: String(r.name), count: Number(r.count) }));
 
 	const d = forDim("date");
 	const ranges = DATE_TOKENS.map((token) => dateRange(token, now, filter.tzOffset));
-	const dateRow = exec(
+	const dateRow = (yield sqlStep(
 		`SELECT ${ranges.map((r, i) =>
 			`COUNT(DISTINCT CASE WHEN ${r.from ? "m.date >= ?" : "1"} AND ${r.to ? "m.date < ?" : "1"} THEN m.thread_key END) AS d${i}`,
 		).join(", ")} FROM messages m WHERE ${d.sql}`,
 		...ranges.flatMap((r) => [r.from, r.to].filter(Boolean)),
 		...d.params,
-	)[0];
+	))[0];
 	const date = Object.fromEntries(DATE_TOKENS.map((token, i) => [token, Number(dateRow[`d${i}`])])) as Facets["date"];
 
 	const s = forDim("status");
-	const statusRow = exec(
+	const statusRow = (yield sqlStep(
 		`SELECT
 			COUNT(DISTINCT CASE WHEN m.unread = 1 THEN m.thread_key END) AS unread,
 			COUNT(DISTINCT CASE WHEN m.unread = 0 THEN m.thread_key END) AS read,
@@ -621,7 +667,7 @@ export function queryFacets(exec: Exec, filter: MailFilter, now = Date.now()): F
 			COUNT(DISTINCT CASE WHEN m.unsubscribe IS NOT NULL THEN m.thread_key END) AS unsubscribe
 		FROM messages m WHERE ${s.sql}`,
 		...s.params,
-	)[0];
+	))[0];
 	const status = Object.fromEntries(
 		["unread", "read", "starred", "attachment", "unsubscribe"].map((k) => [k, Number(statusRow[k])]),
 	) as Facets["status"];
@@ -669,10 +715,14 @@ export function indexCounts(exec: Exec) {
 
 /** Custom folder views (`folder:<id>`) with conversation counts, for the source list. */
 export function folderViews(exec: Exec): { view: string; count: number }[] {
-	return exec(
+	return runSync(folderViewsQuery(), exec);
+}
+
+export function* folderViewsQuery(): Query<{ view: string; count: number }[]> {
+	return (yield sqlStep(
 		`SELECT state AS view, COUNT(DISTINCT thread_key) AS count FROM messages
 		WHERE deleted = 0 AND state LIKE 'folder:%' GROUP BY state ORDER BY state`,
-	).map((r) => ({ view: String(r.view), count: Number(r.count) }));
+	)).map((r) => ({ view: String(r.view), count: Number(r.count) }));
 }
 
 export function messageCount(exec: Exec): number {
