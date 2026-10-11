@@ -23,7 +23,7 @@ import {
 
 const FILTER_KEYS = ["view", "sort", "dir", "address", "from", "label", "is", "has", "subject", "date", "before", "after", "q"];
 
-/** The postal view lands on All inboxes, not unread Inbox. */
+/** The postal view lands on Inbox across all addresses, not the Unread view. */
 export const HOME: MailFilter = { view: "inbox", chips: [], sort: "date", dir: "desc" };
 
 export function parsePostalFilter(params: URLSearchParams): MailFilter {

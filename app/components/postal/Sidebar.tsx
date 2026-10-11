@@ -3,7 +3,7 @@
 //     https://opensource.org/licenses/Apache-2.0
 
 import {
-	ArchiveIcon, CaretDoubleLeftIcon, CaretDoubleRightIcon, CaretDownIcon, CaretRightIcon, FileIcon, GearSixIcon,
+	ArchiveIcon, CaretDoubleLeftIcon, CaretDoubleRightIcon, CaretDownIcon, CaretRightIcon, EnvelopeSimpleIcon, FileIcon, GearSixIcon,
 	PaperPlaneTiltIcon, PlugsConnectedIcon, PlusIcon, SignOutIcon, SparkleIcon, StarIcon, TagIcon, TrashIcon, TrayIcon,
 	WarningIcon,
 } from "@phosphor-icons/react";
@@ -66,16 +66,20 @@ export function Sidebar(props: SidebarProps) {
 	};
 
 	return (
-		<nav className="pg-nav" aria-label="Mailboxes" data-overlay={props.overlay || undefined} data-drawer={props.drawer}>
+		<nav className="pg-nav" aria-label="Mail" data-overlay={props.overlay || undefined} data-drawer={props.drawer}>
 			<button type="button" className="pg-rail-head" onClick={props.onCollapse} title="Collapse sidebar">
 				<TrayIcon size={14} weight="fill" className="pg-tray" />
-				<span className="pg-flex" style={{ lineHeight: 1, textAlign: "left" }}>MAILBOXES</span>
+				<span className="pg-flex" style={{ lineHeight: 1, textAlign: "left" }}>ALL ADDRESSES</span>
 				<CaretDoubleLeftIcon size={14} weight="bold" />
 			</button>
 			<div className="pg-nav-scroll">
 				<button type="button" className="pg-nav-item" aria-current={globalView === "inbox" || undefined} onClick={() => go({ ...HOME, chips: [] })}>
 					<TrayIcon size={16} weight="fill" className="pg-tray" />
-					<span className="pg-flex">All inboxes</span>
+					<span className="pg-flex">Inbox</span>
+				</button>
+				<button type="button" className="pg-nav-item" aria-current={globalView === "unread" || undefined} onClick={() => go({ ...HOME, view: "unread", chips: [] })}>
+					<EnvelopeSimpleIcon size={16} weight="fill" className="pg-tray" />
+					<span className="pg-flex">Unread</span>
 					<span className="pg-count" style={{ color: "var(--pg-text-6)" }}>{count(props.allUnread)}</span>
 				</button>
 				{/* TODO(roadmap): "Needs you" and "Agent handled" views, with their counts, return when the agent can hand work back. */}
@@ -91,7 +95,7 @@ export function Sidebar(props: SidebarProps) {
 				<div className="pg-nav-divider" />
 				<button type="button" className="pg-nav-item" aria-expanded={props.mailboxesOpen} onClick={() => props.setLayout({ mailboxesOpen: !props.mailboxesOpen })}>
 					<TrayIcon size={16} weight="fill" className="pg-tray" />
-					<span className="pg-flex">Mailboxes</span>
+					<span className="pg-flex">By address</span>
 					<span style={{ display: "flex", gap: 3 }}>
 						{identities.groups.map((g) => <Swatch key={g.identity.domain} identity={g.identity} />)}
 					</span>
@@ -247,7 +251,7 @@ export function NavRail({
 	const domainUnread = (domain: string) =>
 		[...unreadByAddress.entries()].reduce((sum, [address, n]) => (address.endsWith(`@${domain}`) ? sum + n : sum), 0);
 	return (
-		<nav className="pg-navrail" aria-label="Mailboxes">
+		<nav className="pg-navrail" aria-label="Mail">
 			<button type="button" className="pg-rail-head" onClick={onExpand} title="Expand sidebar" aria-label="Expand sidebar">
 				<TrayIcon size={14} weight="fill" className="pg-tray" />
 				<CaretDoubleRightIcon size={10} weight="bold" />
@@ -257,8 +261,8 @@ export function NavRail({
 					type="button"
 					className="pg-rail-tile"
 					aria-current={globalView === "inbox" || undefined}
-					title={`All inboxes · ${allUnread ?? 0} unread`}
-					aria-label={`All inboxes, ${allUnread ?? 0} unread`}
+					title={`Inbox, all addresses · ${allUnread ?? 0} unread`}
+					aria-label={`Inbox, all addresses, ${allUnread ?? 0} unread`}
 					onClick={() => go({ ...HOME, chips: [] })}
 				>
 					<TrayIcon size={16} weight="fill" className="pg-tray" />

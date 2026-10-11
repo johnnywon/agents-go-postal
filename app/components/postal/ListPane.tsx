@@ -138,7 +138,7 @@ export function ListPane(props: ListPaneProps) {
 	return (
 		<section className="pg-list-col" aria-label="Conversations">
 			<div className="pg-list-head">
-				<button type="button" className="pg-scope-btn" onClick={() => setScopeOpen((v) => !v)} title="Switch mailbox" aria-expanded={scopeOpen} aria-haspopup="listbox">
+				<button type="button" className="pg-scope-btn" onClick={() => setScopeOpen((v) => !v)} title="Switch address" aria-expanded={scopeOpen} aria-haspopup="listbox">
 					<span className="pg-scope-icon">{scopeIcon}</span>
 					<span className="pg-title">{props.title}</span>
 					<CaretDownIcon size={10} weight="bold" color="var(--pg-text-6)" style={{ flex: "none" }} />
@@ -146,10 +146,10 @@ export function ListPane(props: ListPaneProps) {
 				{scopeOpen && (
 					<>
 						<div className="pg-scrim-click" onClick={() => setScopeOpen(false)} />
-						<div className="pg-popover pg-scope-menu" role="listbox" aria-label="Mailbox">
+						<div className="pg-popover pg-scope-menu" role="listbox" aria-label="Address">
 							<button type="button" role="option" aria-selected={!scope} className="pg-menu-item" aria-current={!scope || undefined} onClick={() => pickScope(null)}>
 								<TrayIcon size={14} weight="fill" className="pg-tray" style={{ flex: "none" }} />
-								<span className="pg-flex pg-ellipsis" style={{ fontWeight: 500, color: "var(--pg-text-2)" }}>All inboxes</span>
+								<span className="pg-flex pg-ellipsis" style={{ fontWeight: 500, color: "var(--pg-text-2)" }}>All addresses</span>
 								<span className="pg-count" style={{ fontWeight: 400 }}>{props.allUnread || ""}</span>
 								{!scope && <CheckIcon size={12} weight="bold" />}
 							</button>
@@ -283,7 +283,7 @@ export function ListPane(props: ListPaneProps) {
 						<h2>{empty.title}</h2>
 						<p>{empty.body}</p>
 						<button type="button" className="pg-btn" onClick={props.searching ? props.onClearSearch : props.onHome}>
-							{props.searching ? "Clear search" : "Back to All inboxes"}
+							{props.searching ? "Clear search" : "Back to Inbox"}
 							<span className="pg-keyhint pg-mono" style={{ fontSize: 10, color: "var(--pg-text-8)" }}>G I</span>
 						</button>
 					</div>

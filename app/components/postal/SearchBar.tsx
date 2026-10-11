@@ -74,7 +74,7 @@ export const SearchBar = forwardRef<HTMLInputElement, SearchBarProps>(function S
 	return (
 		<div className="pg-search-wrap">
 			<div className="pg-search" data-suggest={suggest} data-active={hasQ || focused} role="search">
-				<button type="button" className="pg-icon-btn pg-mobile-only" onClick={props.onMenu} aria-label="Open mailboxes">
+				<button type="button" className="pg-icon-btn pg-mobile-only" onClick={props.onMenu} aria-label="Open menu">
 					<ListIcon size={16} />
 				</button>
 				<MagnifyingGlassIcon size={14} className="pg-search-icon" aria-hidden />
