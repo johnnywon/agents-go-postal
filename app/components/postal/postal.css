@@ -404,23 +404,27 @@ html:has(.postal), html:has(.postal) body { background: var(--pg-base, #141518);
 .pg-reader-bar { display: flex; align-items: center; gap: 8px; height: 44px; padding: 0 8px; border-bottom: 1px solid var(--pg-line); color: var(--pg-text-5); overflow: hidden; flex: none; }
 .pg-reader-scroll { flex: 1; overflow-y: auto; padding: 22px 26px 28px; display: flex; gap: 28px; align-items: flex-start; }
 .pg-reader-main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
-.pg-reader-meta { display: flex; align-items: center; gap: 12px; font: 11px var(--pg-mono); color: var(--pg-text-6); min-width: 0; }
-.pg-reader-to {
-  flex: 1; min-width: 0; display: flex; align-items: center; gap: 7px; overflow: hidden; white-space: nowrap; padding-right: 24px;
-  -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 24px), transparent);
-  mask-image: linear-gradient(to right, #000 calc(100% - 24px), transparent);
+.pg-reader h1.pg-subject { margin: 2px 0 0; font: 600 22px/1.3 var(--pg-font); letter-spacing: -.015em; text-wrap: pretty; color: var(--pg-text-1); overflow-wrap: anywhere; }
+.pg-sender { display: flex; align-items: flex-start; gap: 12px; margin-top: 18px; min-width: 0; }
+.pg-avatar {
+  flex: none; width: 36px; height: 36px; display: grid; place-items: center;
+  background: oklch(0.58 0.1 var(--pg-h)); color: #fff; font: 600 15px var(--pg-font);
 }
-.pg-reader-to .pg-addr { font-size: 12px; overflow: visible; }
-.pg-reader h1.pg-subject { margin: 14px 0 0; font: 600 22px/1.3 var(--pg-font); letter-spacing: -.015em; text-wrap: pretty; color: var(--pg-text-1); overflow-wrap: anywhere; }
-.pg-reader-from { display: flex; align-items: baseline; gap: 8px; margin-top: 8px; flex-wrap: wrap; row-gap: 2px; }
-.pg-reader-from .pg-to-word { font-size: 12px; color: var(--pg-text-7); }
-.pg-reader-from .pg-name { font-weight: 600; font-size: 15px; color: var(--pg-text-2); }
-.pg-reader-from .pg-email { font: 12px var(--pg-mono); color: var(--pg-text-6); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pg-sender-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.pg-sender-line { display: flex; align-items: baseline; gap: 6px; min-width: 0; }
+.pg-sender-line .pg-to-word { font-size: 13px; color: var(--pg-text-6); flex: none; }
+.pg-sender-line .pg-name { font-weight: 600; font-size: 14px; color: var(--pg-text-1); flex: none; max-width: 60%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pg-sender-line .pg-email { font-size: 12px; color: var(--pg-text-6); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pg-sender-line .pg-date { margin-left: auto; padding-left: 12px; flex: none; font: 11px var(--pg-mono); color: var(--pg-text-6); white-space: nowrap; }
+.pg-sender-to { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--pg-text-6); min-width: 0; overflow: hidden; white-space: nowrap; }
+.pg-sender-to .pg-addr { font-size: 12px; }
 .pg-reader-content { margin-top: 20px; display: flex; flex-direction: column; gap: 10px; }
 .pg-images-note { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--pg-text-6); }
 .pg-images-note .pg-btn { height: 24px; padding: 0 9px; font-size: 12px; border-color: var(--pg-line-2); color: var(--pg-text-3); }
-/* HTML mail runs edge to edge in the reader column. */
-.pg-mail-frame { margin: 0 -26px; background: #fff; }
+/* Plain mail sits under the sender, on the reader surface. Designed HTML mail is a white page. */
+.pg-mail-frame[data-kind="plain"] { padding: 4px 0 8px; min-height: 24px; }
+.pg-mail-frame[data-kind="plain"][data-indent] { padding-left: 48px; }
+.pg-mail-frame[data-kind="html"] { background: #fff; border: 1px solid var(--pg-line-2); }
 .pg-mail-frame iframe { display: block; width: 100%; border: 0; }
 .pg-earlier { display: flex; flex-direction: column; border: 1px solid var(--pg-line-2); }
 .pg-earlier button { display: flex; align-items: center; gap: 10px; height: 34px; padding: 0 10px; text-align: left; border-bottom: 1px solid var(--pg-line-soft); color: var(--pg-text-5); font-size: 12px; min-width: 0; }
@@ -733,7 +737,10 @@ html:has(.postal), html:has(.postal) body { background: var(--pg-base, #141518);
   .pg-reader { min-width: 0; }
   .pg-back { display: flex !important; }
   .pg-reader-scroll { padding: 18px 16px 24px; }
-  .pg-mail-frame { margin: 0 -16px; }
+  .pg-mail-frame[data-kind="html"] { margin: 0 -16px; border-width: 1px 0; }
+  .pg-mail-frame[data-kind="plain"][data-indent] { padding-left: 0; }
+  .pg-sender-line { flex-wrap: wrap; row-gap: 0; }
+  .pg-sender-line .pg-date { margin-left: 0; padding-left: 0; flex-basis: 100%; }
   .pg-aside { display: none; }
   .pg-agent { position: fixed; left: 0; right: 0; bottom: 0; top: auto; width: 100%; height: min(78dvh, 640px); z-index: 37; border-left: 0; border-top: 1px solid var(--pg-line-2); box-shadow: 0 -16px 40px rgba(0, 0, 0, .5); animation: pg-sheet .2s ease-out; }
   .pg-cw, .pg-cw[data-state="max"] { left: 0; right: 0; top: 0; bottom: 0; width: 100%; height: 100dvh; transform: none; }

@@ -57,6 +57,8 @@ export function parseTip(text: string, extraHint?: string | null): TipContent | 
 
 /** Move a title to data-tip so the browser's own tooltip never shows. */
 function adoptTitle(el: Element) {
+	// A frame's title is its accessible name, not a tooltip.
+	if (el.tagName === "IFRAME") return;
 	const title = el.getAttribute("title");
 	if (title === null) return;
 	el.removeAttribute("title");

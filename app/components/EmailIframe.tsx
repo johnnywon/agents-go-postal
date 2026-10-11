@@ -13,6 +13,26 @@ interface EmailIframeProps {
 	remoteImages?: boolean;
 	/** Body padding inside the frame, in px. Defaults to 0 when auto-sizing, else 24. */
 	padding?: number;
+	/** Render on the page's own surface with these colours instead of a white page. For plain mail. */
+	palette?: EmailPalette;
+}
+
+export interface EmailPalette {
+	scheme: "dark" | "light";
+	text: string;
+	muted: string;
+	link: string;
+	quote: string;
+	line: string;
+}
+
+/**
+ * Mail that is just text and simple formatting: no tables, images, colours
+ * or backgrounds of its own. It can take the reader's colours; designed
+ * HTML mail keeps its white page.
+ */
+export function isPlainHtml(html: string): boolean {
+	return !/<(table|img|center|font|svg|video|iframe)\b|\bbgcolor\s*=|\bbackground(-color|-image)?\s*:|\bcolor\s*:|\bbackground\s*=/i.test(html);
 }
 
 /** Whether HTML loads anything from a remote server: images, backgrounds or CSS urls. */
@@ -36,7 +56,7 @@ export function hasRemoteImages(html: string): boolean {
  * - A strict CSP meta tag blocks external resource loads inside the
  *   iframe as a defense-in-depth layer.
  */
-export default function EmailIframe({ body, autoSize, remoteImages = true, padding: paddingProp }: EmailIframeProps) {
+export default function EmailIframe({ body, autoSize, remoteImages = true, padding: paddingProp, palette }: EmailIframeProps) {
 	const iframeRef = useRef<HTMLIFrameElement>(null);
 	const [height, setHeight] = useState(autoSize ? 100 : 0);
 
@@ -172,16 +192,24 @@ p { margin: 4px 0; }
 h1, h2, h3 { margin: 8px 0 4px; }
 ul, ol { padding-left: 20px; margin: 4px 0; }
 </style>
+${palette ? `<style>
+html, body { background: transparent; color-scheme: ${palette.scheme}; }
+body { color: ${palette.text}; font-size: 14px; line-height: 1.6; }
+a { color: ${palette.link}; }
+blockquote { background: ${palette.quote}; color: ${palette.muted}; }
+pre { background: ${palette.quote}; }
+hr { border: 0; border-top: 1px solid ${palette.line}; }
+</style>` : ""}
 </head>
 <body>${cleanBody.innerHTML}${heightScript}${keyScript}</body>
 </html>`;
-	}, [body, autoSize, remoteImages, paddingProp]);
+	}, [body, autoSize, remoteImages, paddingProp, palette?.scheme, palette?.text, palette?.muted, palette?.link, palette?.quote, palette?.line]);
 
 	return (
 		<iframe
 			ref={iframeRef}
 			className="block w-full border-0"
-			style={autoSize ? { height: `${height}px` } : { height: "100%" }}
+			style={{ ...(autoSize ? { height: `${height}px` } : { height: "100%" }), ...(palette ? { colorScheme: palette.scheme, background: "transparent" } : {}) }}
 			// Destinations need normal browser capabilities (e.g. sign-in storage),
 			// while the email itself must remain isolated in the sandbox.
 			sandbox="allow-scripts allow-popups allow-popups-to-escape-sandbox"

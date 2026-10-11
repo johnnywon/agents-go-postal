@@ -5,9 +5,9 @@
 import {
 	ArchiveIcon, ArrowBendDoubleUpLeftIcon, ArrowBendUpLeftIcon, ArrowBendUpRightIcon, CaretLeftIcon, CheckIcon, CodeIcon, DownloadSimpleIcon, EnvelopeOpenIcon, EnvelopeSimpleIcon, FileIcon, ImageIcon, PaperclipIcon, PencilSimpleLineIcon, PlusIcon, SparkleIcon, StarIcon, TagIcon, TrashIcon, XIcon,
 } from "@phosphor-icons/react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Folders } from "shared/folders";
-import EmailIframe, { hasRemoteImages } from "~/components/EmailIframe";
+import EmailIframe, { type EmailPalette, hasRemoteImages, isPlainHtml } from "~/components/EmailIframe";
 import { getAttachmentUrl, getNonInlineAttachments, rewriteInlineImages } from "~/lib/utils";
 import { useEmail, useMarkThreadRead, useThreadReplies } from "~/queries/emails";
 import { useMailFacets } from "~/queries/mail";
@@ -170,18 +170,22 @@ export function Reader(props: ReaderProps) {
 			</div>
 			<div className="pg-reader-scroll" ref={scrollRef}>
 				<div className="pg-reader-main">
-					<div className="pg-reader-meta">
-						<span className="pg-reader-to" title={`Delivered to ${mailbox} — replies send from here`}>
-							<Swatch identity={identity} />
-							<AddressText address={mailbox} identity={identity} />
-						</span>
-						<span style={{ flex: "none", whiteSpace: "nowrap" }}>{head ? fullDate(head.date) : row ? fullDate(row.date) : ""}</span>
-					</div>
 					<h1 className="pg-subject">{row?.subject || email?.subject || "(no subject)"}</h1>
-					<div className="pg-reader-from">
-						{sent && <span className="pg-to-word">To</span>}
-						<span className="pg-name">{senderName}</span>
-						{senderAddr && senderAddr !== senderName && <span className="pg-email">{senderAddr}</span>}
+					<div className="pg-sender">
+						<Avatar name={senderName || senderAddr} seed={senderAddr || senderName} />
+						<div className="pg-sender-text">
+							<div className="pg-sender-line">
+								{sent && <span className="pg-to-word">To</span>}
+								<span className="pg-name">{senderName}</span>
+								{senderAddr && senderAddr.toLowerCase() !== senderName.toLowerCase() && <span className="pg-email">&lt;{senderAddr}&gt;</span>}
+								<span className="pg-date">{head ? fullDate(head.date) : row ? fullDate(row.date) : ""}</span>
+							</div>
+							<div className="pg-sender-to" title={sent ? `Sent from ${mailbox}` : `Delivered to ${mailbox} · Replies send from here`}>
+								<span>{sent ? "from" : "to"}</span>
+								<Swatch identity={identity} />
+								<AddressText address={mailbox} identity={identity} bold={false} />
+							</div>
+						</div>
 					</div>
 					{/* TODO(roadmap): per-email agent card (what the agent did, its steps and one-click actions) returns with rules. */}
 					<div className="pg-reader-content">
@@ -270,6 +274,48 @@ export function Reader(props: ReaderProps) {
 	);
 }
 
+/** A square with the sender's initial, coloured from their address. Round is kept for the agent. */
+function Avatar({ name, seed }: { name: string; seed: string }) {
+	let hash = 0;
+	for (const ch of seed.toLowerCase()) hash = (hash * 31 + ch.charCodeAt(0)) >>> 0;
+	const letter = (name.replace(/^["'\s]+/, "")[0] ?? "?").toUpperCase();
+	return <span className="pg-avatar" aria-hidden style={{ "--pg-h": String(hash % 360) } as React.CSSProperties}>{letter}</span>;
+}
+
+const PALETTE_VARS = { text: "--pg-text-2", muted: "--pg-text-6", link: "--pg-link", quote: "--pg-well", line: "--pg-line-2" } as const;
+
+/** The reader's colours, for plain mail rendered on the reader surface. Follows theme changes. */
+function useReaderPalette(ref: React.RefObject<HTMLElement | null>): EmailPalette | undefined {
+	const [palette, setPalette] = useState<EmailPalette>();
+	useLayoutEffect(() => {
+		const root = ref.current?.closest<HTMLElement>(".postal");
+		if (!root) return;
+		const read = () => {
+			const css = getComputedStyle(root);
+			const get = (v: string) => css.getPropertyValue(v).trim();
+			const next = {
+				scheme: get("color-scheme") === "light" ? "light" : "dark",
+				...Object.fromEntries(Object.entries(PALETTE_VARS).map(([k, v]) => [k, get(v)])),
+			} as EmailPalette;
+			setPalette((p) => (JSON.stringify(p) === JSON.stringify(next) ? p : next));
+		};
+		read();
+		const observer = new MutationObserver(read);
+		observer.observe(root, { attributes: true, attributeFilter: ["data-theme"] });
+		const media = window.matchMedia("(prefers-color-scheme: dark)");
+		media.addEventListener("change", read);
+		return () => {
+			observer.disconnect();
+			media.removeEventListener("change", read);
+		};
+	}, [ref]);
+	return palette;
+}
+
+function escapeText(text: string): string {
+	return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
 function Message({ email, mailboxId, showHead, images, onShowImages }: {
 	email: Email;
 	mailboxId: string;
@@ -277,8 +323,14 @@ function Message({ email, mailboxId, showHead, images, onShowImages }: {
 	images: boolean;
 	onShowImages: () => void;
 }) {
-	const body = rewriteInlineImages(email.body || "", mailboxId, email.id, email.attachments);
+	const raw = email.body || "";
+	// Text-only mail keeps its line breaks.
+	const html = /<[a-z][\s\S]*>/i.test(raw) ? raw : `<div style="white-space: pre-wrap">${escapeText(raw)}</div>`;
+	const body = rewriteInlineImages(html, mailboxId, email.id, email.attachments);
 	const remote = hasRemoteImages(body);
+	const frameRef = useRef<HTMLDivElement>(null);
+	const palette = useReaderPalette(frameRef);
+	const plain = isPlainHtml(body);
 	const attachments = getNonInlineAttachments(email.attachments);
 	return (
 		<>
@@ -296,8 +348,11 @@ function Message({ email, mailboxId, showHead, images, onShowImages }: {
 					<button type="button" className="pg-btn" onClick={onShowImages}>Show images</button>
 				</div>
 			)}
-			<div className="pg-mail-frame">
-				<EmailIframe autoSize body={body} remoteImages={images} padding={24} />
+			{/* Plain mail reads on the reader surface; designed HTML mail keeps its white page. */}
+			<div className="pg-mail-frame" data-kind={plain ? "plain" : "html"} data-indent={!showHead || undefined} ref={frameRef}>
+				{(!plain || palette) && (
+					<EmailIframe autoSize body={body} remoteImages={images} padding={plain ? 0 : 24} palette={plain ? palette : undefined} />
+				)}
 			</div>
 			{attachments.length > 0 && (
 				<div className="pg-attachments">

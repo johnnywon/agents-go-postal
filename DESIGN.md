@@ -55,7 +55,9 @@ This rule applies to every view. Rows, cards, nav items, callouts and panels nev
 
 ### Message HTML
 
-HTML mail renders in the existing sandboxed iframe, edge to edge in the reader column on a white page. Remote images are blocked until the reader allows them (Settings: Ask, Always, Never).
+The reader reads like a mail client: subject, then a sender row with a 36px square initial avatar (coloured from the address; round stays reserved for the agent), name, address and date, and a "to" line naming the receiving address with its domain swatch.
+
+Mail renders in the sandboxed iframe. Plain mail (no tables, images, colours or backgrounds of its own, see `isPlainHtml`) takes the reader's text colours on the reader surface, indented under the sender's name. Designed HTML mail keeps its white page inside a 1px-bordered card; on mobile the card runs edge to edge. Text-only bodies keep their line breaks. Remote images are blocked until the reader allows them (Settings: Ask, Always, Never).
 
 ## Unified and classic
 
