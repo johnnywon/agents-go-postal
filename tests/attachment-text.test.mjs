@@ -182,6 +182,37 @@ test("control characters in converted text become spaces", () => {
 	assert.equal(at.tidy("Invoice PCAY\u00000002\nEIN 42\u00005227\u0007\t x"), "Invoice PCAY 0002\nEIN 42 5227 x");
 });
 
+test("a code inside attachment text is found as a substring", async () => {
+	const { sql } = await store([
+		{ id: "m1", subject: "Receipt", files: [{ id: "f1", filename: "r.pdf" }] },
+		{ id: "m2", subject: "Other", body: "<p>nothing here</p>" },
+	]);
+	const src = sources({ "attachments/m1/f1/r.pdf": "x" }, () => ({ text: "Invoice number PCAYUMC40002, EIN 425227248" }));
+	assert.deepEqual(ids(await search(sql, "UMC4")), [], "not before conversion");
+	await at.extractAttachmentText(sql, src, NOW);
+	assert.deepEqual(ids(await search(sql, "UMC4")), ["m1"], "inside PCAYUMC40002");
+	assert.deepEqual(ids(await search(sql, "5227248")), ["m1"]);
+	assert.deepEqual(ids(await search(sql, "zzq")), []);
+	await sql.run(`DELETE FROM messages WHERE email_id = 'm1'`);
+	assert.equal((await sql.all(`SELECT rowid FROM attachment_trigram WHERE attachment_trigram MATCH '"UMC4"'`)).length, 0, "the row leaves with its message");
+});
+
+test("migration 0004 indexes text converted before it", async () => {
+	const { sql } = openSql();
+	const files = readdirMigrations();
+	for (const s of statements(files.filter((f) => !f.name.startsWith("0004")).map((f) => f.text).join("\n"))) await sql.run(s);
+	await sql.run(`INSERT INTO mailboxes (id, created_at) VALUES (?, 'x')`, A);
+	await sql.run(`INSERT INTO folders (mailbox_id, id, name) VALUES (?, 'inbox', 'inbox')`, A);
+	await sql.run(`INSERT INTO messages (email_id, mailbox_id, folder_id, conversation_id, date) VALUES ('e1', ?, 'inbox', 'e1', 'd')`, A);
+	for (const [id, text, state] of [["a1", "order XK7731Q", "done"], ["a2", "ref 99ZT", "done"], ["a3", null, "failed"]]) {
+		await sql.run(`INSERT INTO attachments (id, email_id, filename, mimetype, size) VALUES (?, 'e1', 'f.pdf', 'application/pdf', 1)`, id);
+		await sql.run(`INSERT INTO attachment_text (attachment_id, state, text, updated_at) VALUES (?, ?, ?, 'x')`, id, state, text);
+	}
+	for (const s of statements(files.find((f) => f.name.startsWith("0004")).text)) await sql.run(s);
+	const id = (await sql.first(`SELECT id FROM messages WHERE email_id = 'e1'`)).id;
+	for (const q of ['"7731"', '"9ZT"']) assert.deepEqual(await sql.all(`SELECT rowid FROM attachment_trigram WHERE attachment_trigram MATCH ?`, q), [{ rowid: id }], q);
+});
+
 test("text is capped at 64 KB on a character boundary", () => {
 	assert.equal(at.capText("abc", 10), "abc");
 	assert.equal(at.capText("aé", 2), "a", "a split é is dropped");

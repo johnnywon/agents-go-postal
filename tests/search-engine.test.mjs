@@ -44,7 +44,7 @@ function db() {
 const D = db();
 /** Run SQL, refusing a statement with more than one MATCH on the same table. */
 const exec = (sql, ...params) => {
-	for (const table of ["messages_fts", "messages_trigram"]) {
+	for (const table of ["messages_fts", "messages_trigram", "attachment_trigram"]) {
 		const n = sql.match(new RegExp(`${table} MATCH`, "g"))?.length ?? 0;
 		assert.ok(n <= 1, `${n} MATCHes on ${table}:\n${sql}`);
 	}

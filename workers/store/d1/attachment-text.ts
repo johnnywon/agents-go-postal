@@ -7,7 +7,7 @@
  * "true" (docs/d1-migration-plan.md, Attachment text). Each run claims a few
  * queued attachments, reads each file from R2, converts it, stores the text
  * (capped at 64 KB) and rewrites the message's word-index row with the text
- * after the body. Inbound mail never waits for it.
+ * after the body, and its attachment_trigram row for substring search. Inbound mail never waits for it.
  *
  * States: pending, working (claimed by a run), done, skipped (the file is
  * gone from R2), failed. A claim older than CLAIM_STALE_MS means the run
@@ -105,6 +105,10 @@ export async function reindexMessage(sql: Sql, bucket: TextSources["bucket"], em
 	const texts = attachments.map((a) => (a.text == null ? "" : String(a.text))).filter((t) => t.length > 0);
 	await sql.batch([
 		{ sql: `DELETE FROM messages_fts WHERE rowid = ?`, params: [message.id] },
+		{ sql: `DELETE FROM attachment_trigram WHERE rowid = ?`, params: [message.id] },
+		...(texts.length > 0
+			? [{ sql: `INSERT INTO attachment_trigram (rowid, text) SELECT id, ? FROM messages WHERE email_id = ?`, params: [texts.join("\n\n"), emailId] }]
+			: []),
 		ftsInsert(emailId, {
 			subject: String(message.subject ?? ""),
 			senderName: String(message.sender_name ?? ""),

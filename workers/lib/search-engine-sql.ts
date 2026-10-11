@@ -4,7 +4,7 @@
 
 /**
  * The parts of search only D1's tables support: substring matches through
- * messages_trigram, "Did you mean" through messages_vocab, and snippets for
+ * messages_trigram and attachment_trigram, "Did you mean" through messages_vocab, and snippets for
  * the rows on a page. Generators, like mail-index-sql.ts; each statement
  * holds at most one MATCH.
  */
@@ -39,19 +39,22 @@ function* hasWord(word: string): Query<boolean> {
 
 /**
  * Words of three or more characters that match nothing in the word index,
- * with the messages whose subject, addresses or attachment names contain
- * them. Finds codes, order numbers and partial addresses.
+ * with the messages whose subject, addresses, attachment names or attachment
+ * text contain them. Finds codes, order numbers and partial addresses.
  */
 export function* substringsQuery(filter: MailFilter): Query<Record<string, number[]> | undefined> {
 	const out: Record<string, number[]> = {};
 	for (const { text } of loneWords(filter.q)) {
 		if ([...text].length < MIN_SUBSTRING || out[text]) continue;
 		if (yield* hasWord(text)) continue;
-		const rows = yield sqlStep(
-			`SELECT rowid FROM messages_trigram WHERE messages_trigram MATCH ? LIMIT ?`,
-			quoted(text), MAX_SUBSTRING_MATCHES,
-		);
-		if (rows.length > 0) out[text] = rows.map((r) => Number(r.rowid));
+		const ids = new Set<number>();
+		// One statement per table: a statement with two MATCHes is what D1 can't run.
+		for (const table of ["messages_trigram", "attachment_trigram"]) {
+			if (ids.size >= MAX_SUBSTRING_MATCHES) break;
+			const rows = yield sqlStep(`SELECT rowid FROM ${table} WHERE ${table} MATCH ? LIMIT ?`, quoted(text), MAX_SUBSTRING_MATCHES - ids.size);
+			for (const r of rows) ids.add(Number(r.rowid));
+		}
+		if (ids.size > 0) out[text] = [...ids];
 	}
 	return Object.keys(out).length > 0 ? out : undefined;
 }
