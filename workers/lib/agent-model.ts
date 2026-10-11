@@ -96,6 +96,22 @@ export function openRouterModel(apiKey: string, model: string): LanguageModel {
 	return openrouter.chatModel(model);
 }
 
+/**
+ * Turning plain words into a search is one short structured answer. The
+ * default agent model reasons first and took 10 to 27 s for it, so on
+ * Workers AI this smaller model that answers directly does it instead.
+ */
+export const WORKERS_AI_FAST_MODEL = "@cf/meta/llama-3.3-70b-instruct-fp8-fast";
+
+/** The model for short structured answers: OpenRouter's model when chosen, else the fast Workers AI model. */
+export async function quickModel(env: Env): Promise<LanguageModel> {
+	const config = await readAgentModelConfig(env);
+	if (config.provider === "openrouter" && config.apiKey && config.model) {
+		return openRouterModel(config.apiKey, config.model);
+	}
+	return createWorkersAI({ binding: env.AI })(WORKERS_AI_FAST_MODEL);
+}
+
 /** The model the agent should use right now. */
 export async function agentModel(env: Env): Promise<LanguageModel> {
 	const config = await readAgentModelConfig(env);

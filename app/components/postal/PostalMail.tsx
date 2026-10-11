@@ -523,6 +523,7 @@ function PostalApp({ addresses, domains, autoDraft }: PostalProps) {
 							deleteSaved.mutate(s.id, { onError: (e) => showToast({ text: (e as Error).message, icon: <WarningIcon size={ICON} /> }) })
 						}
 						labels={labels.map((l) => ({ name: l.name, count: l.count }))}
+						onInterpret={(text) => api.interpretSearch(text)}
 						onAsk={(text) => {
 							if (!panelOpen) togglePanel();
 							if (text) setPrefill({ text, id: Date.now() });

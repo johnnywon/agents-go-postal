@@ -365,6 +365,15 @@ const api = {
 	updateSavedSearch: (id: string, input: { name?: string; query?: string; position?: number }) =>
 		put<SavedSearch>(`/api/v1/saved-searches/${encodeURIComponent(id)}`, input),
 	deleteSavedSearch: (id: string) => del<{ deleted: boolean }>(`/api/v1/saved-searches/${encodeURIComponent(id)}`),
+	/** Plain words to search text. A failure still answers, with the words themselves as the query. */
+	interpretSearch: async (text: string, tz = new Date().getTimezoneOffset()): Promise<{ query: string; explanation?: string; error?: string }> => {
+		try {
+			return await post<{ query: string; explanation: string }>("/api/v1/search/interpret", { text, tz });
+		} catch (e) {
+			const body = e instanceof ApiError ? e.body : {};
+			return { query: typeof body.query === "string" ? body.query : text, error: typeof body.error === "string" ? body.error : "The model didn't answer. Searching for the words instead." };
+		}
+	},
 
 	// Labels
 	getLabels: () => get<Label[]>("/api/v1/labels"),

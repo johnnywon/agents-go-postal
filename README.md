@@ -107,6 +107,8 @@ On D1, a search with words lists the best match first: subject matches count mos
 
 The window under the search box shows recent searches (kept in this browser), the people you get the most mail from, filters and addresses. While you type it shows the top six results and filters that narrow them, and with the cursor in an operator it completes the value. `↑` `↓` move, `Tab` completes, `↵` opens the highlighted row or the first result, `⌘↵` runs the search without opening anything, and `Esc` closes the window, then clears the box. `? Operators` in its footer lists every operator.
 
+When the text reads like a request ("unread newsletters from this week"), the window offers Turn into a search. That sends the text, today's date, your label names and your addresses, never mail, to the model once, and puts the search it makes in the box with a one-line explanation and Undo: `is:unread has:unsubscribe after:7d`. Nothing runs that you can't see. On Workers AI it uses `@cf/meta/llama-3.3-70b-instruct-fp8-fast`, because the default agent model took 10 to 27 seconds; with OpenRouter chosen in Settings it uses that model. If the call fails, the words are searched as typed. Ask the agent about it opens the agent panel with the text instead.
+
 `⌘S` or Save search in the window saves the search in the box. Saved searches appear in the window and the sidebar with the number of conversations each matches in All mail. The window's server side is `GET /api/v1/search/suggest` and `/api/v1/saved-searches`.
 
 ### Scheduled send

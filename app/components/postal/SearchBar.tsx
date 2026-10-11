@@ -57,6 +57,8 @@ export interface SearchBarProps {
 	identities: Identities;
 	/** Open the agent panel, with the text as the request when there is one. */
 	onAsk: (text: string) => void;
+	/** Turn plain words into search text with the agent model (POST /api/v1/search/interpret). */
+	onInterpret: (text: string) => Promise<{ query: string; explanation?: string; error?: string }>;
 	onMenu: () => void;
 	onAgent: () => void;
 	onFocusChange?: (focused: boolean) => void;
@@ -79,6 +81,9 @@ export const SearchBar = forwardRef<HTMLInputElement, SearchBarProps>(function S
 	const [cursor, setCursor] = useState(0);
 	const [help, setHelp] = useState(false);
 	const [recent, setRecent] = useState<string[]>([]);
+	// The last plain-words request: what was typed, what came back, and why.
+	const [interpreting, setInterpreting] = useState<string | null>(null);
+	const [interpreted, setInterpreted] = useState<{ from: string; to: string; note: string; failed: boolean } | null>(null);
 	useEffect(() => setRecent(loadRecent(storage())), []);
 
 	const text = props.value;
@@ -115,8 +120,31 @@ export const SearchBar = forwardRef<HTMLInputElement, SearchBarProps>(function S
 	};
 	const focusDate = (id: string) => document.getElementById(`${rowDomId(id)}-input`)?.focus();
 
+	const interpret = async (request: string) => {
+		setInterpreting(request);
+		const result = await props.onInterpret(request);
+		setInterpreting(null);
+		const to = `${result.query.trim()} `;
+		setInterpreted({ from: request, to: to.trim(), note: result.error ?? result.explanation ?? "", failed: !!result.error });
+		setText(to);
+		input.current?.focus();
+	};
+
 	const sections = useMemo<WindowSection[]>(() => {
 		const out: WindowSection[] = [];
+		if (interpreted && interpreted.to === text.trim()) {
+			const rows: WindowRow[] = [{
+				id: "interpreted", kind: "action", icon: interpreted.failed ? "remove" : "ask", label: interpreted.note || "Search made from your words", detail: "Undo",
+				choose: () => {
+					setInterpreted(null);
+					setText(`${interpreted.from} `);
+				},
+			}];
+			if (interpreted.failed) {
+				rows.push({ id: "interpreted-ask", kind: "action", icon: "ask", label: "Ask the agent instead", choose: () => { leave(); props.onAsk(interpreted.from); } });
+			}
+			out.push({ id: "interpreted", title: "From your words", rows });
+		}
 		const filterRow = (f: FilterSuggestion, section: string): WindowRow => ({
 			id: `${section}:${f.token}`, kind: "filter", filter: f, choose: () => setText(appendTerm(text, f.token)),
 		});
@@ -230,21 +258,31 @@ export const SearchBar = forwardRef<HTMLInputElement, SearchBarProps>(function S
 		}
 		const narrow = (suggest?.narrow ?? []).map(narrowRow);
 		if (narrow.length) out.push({ id: "narrow", title: "Narrow", side: true, rows: narrow.map((f) => filterRow(f, "n")) });
-		if (looksLikeRequest(text)) {
+		if (looksLikeRequest(text) && interpreted?.to !== text.trim()) {
+			const request = text.trim();
+			const busy = interpreting === request;
 			out.push({
 				id: "ask", title: "Ask", side: true,
-				rows: [{
-					id: "ask", kind: "action", icon: "ask", label: `Ask: "${text.trim()}"`,
-					choose: () => {
-						remember(text);
-						leave();
-						props.onAsk(text.trim());
+				rows: [
+					{
+						id: "interpret", kind: "action", icon: "ask", label: busy ? "Making a search…" : "Turn into a search", detail: busy ? undefined : "agent model",
+						choose: () => {
+							if (!interpreting) void interpret(request);
+						},
 					},
-				}],
+					{
+						id: "ask", kind: "action", icon: "ask", label: "Ask the agent about it",
+						choose: () => {
+							remember(text);
+							leave();
+							props.onAsk(request);
+						},
+					},
+				],
 			});
 		}
 		return out;
-	}, [ctx, text, hasQ, recent, suggest, suggestCurrent, props.saved, props.filters, props.addresses, props.labels, props.results, props.resultsFor, props.resultsLoading, props.resultCount]); // eslint-disable-line react-hooks/exhaustive-deps
+	}, [ctx, text, hasQ, recent, suggest, suggestCurrent, interpreting, interpreted, props.saved, props.filters, props.addresses, props.labels, props.results, props.resultsFor, props.resultsLoading, props.resultCount]); // eslint-disable-line react-hooks/exhaustive-deps
 
 	// Keyboard order: the wide column, then the side column.
 	const rows = useMemo(() => [...sections.filter((s) => !s.side), ...sections.filter((s) => s.side)].flatMap((s) => s.rows), [sections]);

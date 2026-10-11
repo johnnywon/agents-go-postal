@@ -16,7 +16,8 @@ import { checkSendAt, ScheduleBody, SCHEDULE_MAX_PAYLOAD_BYTES } from "./lib/sch
 import { handleReplyEmail, handleForwardEmail, handleSendEmail } from "./routes/reply-forward";
 import { Folders } from "../shared/folders";
 import type { Env } from "./types";
-import { mergeAgentModelConfig, OPENROUTER_BASE, openRouterModel, readAgentModelConfig, viewOf, writeAgentModelConfig } from "./lib/agent-model";
+import { interpretSearch, MAX_REQUEST_LENGTH } from "./lib/search-interpret";
+import { mergeAgentModelConfig, quickModel, OPENROUTER_BASE, openRouterModel, readAgentModelConfig, viewOf, writeAgentModelConfig } from "./lib/agent-model";
 import { requireMailbox, type MailboxContext } from "./lib/mailbox";
 import { csrf } from "./lib/csrf";
 import { decodeCursor, InvalidFilterError } from "./lib/mail-index-sql";
@@ -360,6 +361,24 @@ app.get("/api/v1/search/suggest", async (c) => {
 		if (error instanceof InvalidFilterError) return c.json({ error: error.message }, 400);
 		throw error;
 	}
+});
+
+/**
+ * "Ask in plain words": one model call turns the request into search text.
+ * The text comes back for the box; nothing runs here. A failure returns the
+ * request itself as the query, for a word search.
+ */
+app.post("/api/v1/search/interpret", async (c) => {
+	const body = z.object({ text: z.string().max(MAX_REQUEST_LENGTH * 2), tz: z.number().int().min(-900).max(900).optional() })
+		.safeParse(await c.req.json().catch(() => null));
+	if (!body.success) return c.json({ error: "Invalid request" }, 400);
+	const [labels, addresses, model] = await Promise.all([mailStore(c.env).all().listLabels(), indexedMailboxIds(c.env), quickModel(c.env)]);
+	const result = await interpretSearch(
+		body.data.text,
+		{ now: new Date(), engine: searchEngine(c.env), tzOffset: body.data.tz ?? 0, labels: labels.map((l) => l.name), addresses },
+		async (prompt) => (await generateText({ model, prompt, maxOutputTokens: 1500, temperature: 0 })).text,
+	);
+	return c.json(result, "error" in result ? 502 : 200);
 });
 
 const SavedSearchBody = z.object({
