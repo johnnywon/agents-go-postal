@@ -16,6 +16,7 @@
 
 import { isSystemFolder } from "./mailbox-bulk";
 import { getMailIndexStub } from "./mail-index-stub";
+import { DATE_TOKENS, emptyFilter, type MailFilter, VIEWS } from "./mail-index-sql";
 import type { EmailFull } from "./schemas";
 import {
 	getMailboxStub,
@@ -451,6 +452,126 @@ export async function toolLabelConversation(
 		done.push("archived");
 	}
 	return { status: "updated", emailId, changes: done };
+}
+
+// ── search_all_mail / label_matching ───────────────────────────────
+
+/** A search across every address, as the agent tools describe it. */
+export interface MailSearch {
+	query?: string;
+	from?: string[];
+	to?: string[];
+	label?: string[];
+	folder?: string;
+	unread?: boolean;
+	starred?: boolean;
+	hasAttachment?: boolean;
+	date?: string;
+}
+
+export const LABEL_MATCHING_MAX = 500;
+
+/** Build an index filter. Labels are named by id or name; unknown ones are an error. */
+export function mailSearchFilter(
+	search: MailSearch,
+	labels: { id: string; name: string }[],
+): { filter: MailFilter } | { error: string } {
+	const folder = (search.folder ?? "all").trim().toLowerCase();
+	if (!(VIEWS as readonly string[]).includes(folder)) return { error: `Unknown folder: ${search.folder}. Use one of ${VIEWS.join(", ")}.` };
+	if (search.date && !(DATE_TOKENS as readonly string[]).includes(search.date)) {
+		return { error: `Unknown date: ${search.date}. Use one of ${DATE_TOKENS.join(", ")}.` };
+	}
+	const labelIds: string[] = [];
+	for (const ref of search.label ?? []) {
+		const label = findLabel(labels, ref);
+		if (!label) return { error: `Unknown label: ${ref}. Use list_labels to see labels.` };
+		labelIds.push(label.id);
+	}
+	const is: MailFilter["is"] = [];
+	if (search.unread === true) is.push("unread");
+	if (search.unread === false) is.push("read");
+	if (search.starred) is.push("starred");
+	const clean = (list?: string[]) => (list ?? []).map((v) => v.trim()).filter(Boolean).slice(0, 20);
+	const filter = emptyFilter({
+		view: folder,
+		q: (search.query ?? "").trim().slice(0, 200),
+		from: clean(search.from),
+		address: clean(search.to),
+		label: labelIds,
+		is,
+		has: search.hasAttachment ? ["attachment"] : [],
+		date: search.date as MailFilter["date"],
+	});
+	const empty = !filter.q && !filter.from.length && !filter.address.length && !filter.label.length && !filter.is.length && !filter.has.length && !filter.date;
+	if (empty && folder === "all") return { error: "Give at least one search term, sender, address, label, folder or date." };
+	return { filter };
+}
+
+/** Search every address at once. Each result names the address it is in. */
+export async function toolSearchAllMail(env: Env, search: MailSearch & { limit?: number }) {
+	const index = getMailIndexStub(env);
+	const built = mailSearchFilter(search, await index.listLabels());
+	if ("error" in built) return built;
+	const limit = Math.min(Math.max(search.limit ?? 25, 1), 50);
+	const result = await index.queryMail(built.filter, { limit });
+	return {
+		total: result.total,
+		more: !!result.nextCursor,
+		conversations: result.conversations.map((c) => ({
+			mailboxId: c.mailbox_id,
+			emailId: c.email_id,
+			date: c.date,
+			from: c.sender_name ? `${c.sender_name} <${c.sender_addr}>` : c.sender_addr,
+			subject: c.subject,
+			snippet: c.snippet,
+			unread: c.unread,
+			labels: c.labels,
+			messages: c.thread_count,
+		})),
+	};
+}
+
+/**
+ * Add or remove labels on every conversation matching a search, across all
+ * addresses, in one call. Refuses more than LABEL_MATCHING_MAX conversations.
+ */
+export async function toolLabelMatching(
+	env: Env,
+	search: MailSearch,
+	params: { add?: string[]; remove?: string[]; archive?: boolean },
+) {
+	const index = getMailIndexStub(env);
+	const labels = await index.listLabels();
+	const unknown = [...(params.add ?? []), ...(params.remove ?? [])].filter((ref) => !findLabel(labels, ref));
+	if (unknown.length > 0) {
+		return { error: `Unknown label: ${unknown.join(", ")}. Use list_labels to see labels, or create_label to make one.` };
+	}
+	if (!params.add?.length && !params.remove?.length && !params.archive) return { error: "Say which labels to add or remove." };
+	const built = mailSearchFilter(search, labels);
+	if ("error" in built) return built;
+	const threadKeys = await index.threadKeysMatching(built.filter, LABEL_MATCHING_MAX + 1);
+	if (threadKeys.length === 0) return { status: "no matches", conversations: 0 };
+	if (threadKeys.length > LABEL_MATCHING_MAX) {
+		return { error: `More than ${LABEL_MATCHING_MAX} conversations match. Narrow the search (sender, address, date or folder) and run it in parts.` };
+	}
+	const done: string[] = [];
+	for (const [refs, type] of [[params.add ?? [], "label_add"], [params.remove ?? [], "label_remove"]] as const) {
+		for (const ref of refs) {
+			const label = findLabel(labels, ref)!;
+			const result = await index.bulk({ threadKeys, view: "all" }, { type, labelId: label.id });
+			if ("conflict" in result) return { error: "The mail changed while labelling. Try again." };
+			const failure = "failed" in result ? result.failed?.[0] : undefined;
+			if (failure) return { error: failure.error, done };
+			done.push(`${type === "label_add" ? "added" : "removed"} ${label.name}`);
+		}
+	}
+	const added = (params.add ?? []).map((ref) => findLabel(labels, ref)!.id);
+	if (added.length > 0) await index.markLabelsAuto(added);
+	if (params.archive) {
+		await index.bulk({ threadKeys, view: "inbox" }, { type: "archive" });
+		done.push("archived");
+	}
+	return { status: "updated", conversations: threadKeys.length, changes: done };
 }
 
 // ── discard_draft ──────────────────────────────────────────────────

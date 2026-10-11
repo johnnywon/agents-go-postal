@@ -33,7 +33,11 @@ import {
 	toolDiscardDraft,
 	toolListLabels,
 	toolLabelConversation,
+	toolLabelMatching,
+	toolSearchAllMail,
+	LABEL_MATCHING_MAX,
 } from "../lib/tools";
+import { DATE_TOKENS, VIEWS } from "../lib/mail-index-sql";
 import { Folders, FOLDER_TOOL_DESCRIPTION, MOVE_FOLDER_TOOL_DESCRIPTION } from "../../shared/folders";
 import type { Env } from "../types";
 
@@ -90,7 +94,7 @@ You can ONLY draft emails. You do NOT have the ability to send emails directly.
 **Don't paste draft contents into the chat.** The drafts are saved via tools - the operator can see them in the Drafts folder. In your chat message, just briefly say what you drafted (e.g. "Drafted a reply to Tim"). Don't duplicate the full email body in the chat.
 
 ## Labels
-Labels are tags shared by every mailbox. Use list_labels to see them. When the operator asks to label mail and no fitting label exists, create one with create_label, then apply it with label_conversation. Prefer an existing label over a near-duplicate. Use rename_label to rename one. Use delete_label only when the operator asks to delete that specific label: it comes off every conversation and cannot be undone. Before deleting, say which label and how many conversations carry it.
+Labels are tags shared by every mailbox. Use list_labels to see them. When the operator asks to label mail and no fitting label exists, create one with create_label. The operator's mail spans several addresses: unless they name one, a request like "label my receipts" means every address. Use search_all_mail to find the mail, then label_matching with the same search to label all of it in one call. Use label_conversation (with the result's mailboxId) for a single conversation. Prefer an existing label over a near-duplicate. Use rename_label to rename one. Use delete_label only when the operator asks to delete that specific label: it comes off every conversation and cannot be undone. Before deleting, say which label and how many conversations carry it.
 
 ## Draft Management
 Use discard_draft to delete drafts that the operator rejects or that are no longer needed.`;
@@ -115,7 +119,11 @@ async function getSystemPrompt(env: Env, mailboxId: string): Promise<string> {
 	return DEFAULT_SYSTEM_PROMPT;
 }
 
-function createEmailTools(env: Env, mailboxId: string) {
+/**
+ * crossAddress adds tools that search and label across every address. The
+ * chat agent gets them; auto-draft, which reads untrusted incoming mail, does not.
+ */
+function createEmailTools(env: Env, mailboxId: string, { crossAddress = false } = {}) {
 	return {
 		list_emails: defineTool({
 			description:
@@ -311,14 +319,18 @@ function createEmailTools(env: Env, mailboxId: string) {
 				"Add or remove labels on the conversation that holds an email. Labeling leaves the conversation where it is unless archive is true.",
 			parameters: z.object({
 				emailId: z.string().describe("Any email ID in the conversation"),
+				mailboxId: z.string().optional().describe("The address the email is in, from search_all_mail. Defaults to the current mailbox."),
 				add: z.array(z.string()).optional().describe("Label ids or names to add"),
 				remove: z.array(z.string()).optional().describe("Label ids or names to remove"),
 				archive: z.boolean().optional().describe("Also move the conversation's Inbox mail to Archive"),
 			}),
-			execute: async ({ emailId, add, remove, archive }): Promise<unknown> => {
-				return toolLabelConversation(env, mailboxId, emailId, { add, remove, archive });
+			execute: async ({ emailId, mailboxId: inMailbox, add, remove, archive }): Promise<unknown> => {
+				const target = crossAddress && inMailbox ? inMailbox.trim().toLowerCase() : mailboxId;
+				return toolLabelConversation(env, target, emailId, { add, remove, archive });
 			},
 		}),
+
+		...(crossAddress ? crossAddressTools(env) : {}),
 
 		discard_draft: defineTool({
 			description:
@@ -333,6 +345,40 @@ function createEmailTools(env: Env, mailboxId: string) {
 	};
 }
 
+const mailSearchSchema = {
+	query: z.string().optional().describe("Words to match in subject, body and sender"),
+	from: z.array(z.string()).optional().describe("Sender addresses or domains, e.g. receipts@example.com or example.com"),
+	to: z.array(z.string()).optional().describe("Your addresses or domains the mail was delivered to. Leave out for every address."),
+	label: z.array(z.string()).optional().describe("Only conversations that already carry these labels (ids or names)"),
+	folder: z.enum(VIEWS).optional().describe("Folder to search. Defaults to all, which covers every folder except Spam and Trash."),
+	unread: z.boolean().optional().describe("true for unread only, false for read only"),
+	starred: z.boolean().optional(),
+	hasAttachment: z.boolean().optional(),
+	date: z.enum(DATE_TOKENS).optional().describe("today, yesterday, 7d, 30d or older"),
+};
+
+function crossAddressTools(env: Env) {
+	return {
+		search_all_mail: defineTool({
+			description:
+				"Search conversations across every address at once. Each result gives its mailboxId and emailId. Use this, not search_emails, whenever the operator means all their mail.",
+			parameters: z.object({ ...mailSearchSchema, limit: z.number().int().min(1).max(50).optional() }),
+			execute: async (search): Promise<unknown> => toolSearchAllMail(env, search),
+		}),
+		label_matching: defineTool({
+			description:
+				`Add or remove labels on every conversation that matches a search, across all addresses, in one call. Up to ${LABEL_MATCHING_MAX} conversations. Run search_all_mail with the same search first to check what matches.`,
+			parameters: z.object({
+				...mailSearchSchema,
+				add: z.array(z.string()).optional().describe("Label ids or names to add"),
+				remove: z.array(z.string()).optional().describe("Label ids or names to remove"),
+				archive: z.boolean().optional().describe("Also move the matching Inbox mail to Archive"),
+			}),
+			execute: async ({ add, remove, archive, ...search }): Promise<unknown> => toolLabelMatching(env, search, { add, remove, archive }),
+		}),
+	};
+}
+
 // Use `any` for the Env generic to avoid type conflicts between the custom
 // SEND_EMAIL binding shape and the AIChatAgent constraint.  The actual env
 // is fully typed inside the tools via the closure.
@@ -341,7 +387,7 @@ export class EmailAgent extends AIChatAgent<any> {
 		const env = this.env as Env;
 		const mailboxId = this.name;
 		const model = await agentModel(env);
-		const tools = createEmailTools(env, mailboxId);
+		const tools = createEmailTools(env, mailboxId, { crossAddress: true });
 		const systemPrompt = await getSystemPrompt(env, mailboxId);
 
 		const result = streamText({
@@ -537,7 +583,7 @@ Based on the email content and thread context above, draft a reply using draft_r
 			// Check if draft_reply was called (saves to Drafts as side effect).
 			// If NOT, save the agent's text response as a draft directly.
 			const draftToolCalled = result.steps.some((step) =>
-				step.toolCalls.some((tc) => tc.toolName === "draft_reply" || tc.toolName === "draft_email"),
+				step.toolCalls.some((tc) => tc?.toolName === "draft_reply" || tc?.toolName === "draft_email"),
 			);
 
 			if (!draftToolCalled && result.text.trim()) {

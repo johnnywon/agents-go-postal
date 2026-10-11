@@ -22,8 +22,12 @@ import {
 	toolMoveEmail,
 	toolListLabels,
 	toolLabelConversation,
+	toolLabelMatching,
+	toolSearchAllMail,
+	LABEL_MATCHING_MAX,
 } from "../lib/tools";
 import { Folders, FOLDER_TOOL_DESCRIPTION, MOVE_FOLDER_TOOL_DESCRIPTION } from "../../shared/folders";
+import { DATE_TOKENS, VIEWS } from "../lib/mail-index-sql";
 import type { Env } from "../types";
 
 /** Wrap a plain result object into MCP content format. */
@@ -366,6 +370,36 @@ export class EmailMCP extends McpAgent<Env> {
 				if (denied) return denied;
 				return mcpResult(await toolLabelConversation(env, mailboxId, emailId, { add, remove, archive }));
 			},
+		);
+
+		// ── search_all_mail / label_matching ──────────────────────
+		const mailSearch = {
+			query: z.string().optional().describe("Words to match in subject, body and sender"),
+			from: z.array(z.string()).optional().describe("Sender addresses or domains"),
+			to: z.array(z.string()).optional().describe("Your addresses or domains the mail was delivered to. Leave out for every address."),
+			label: z.array(z.string()).optional().describe("Only conversations that already carry these labels (ids or names)"),
+			folder: z.enum(VIEWS).optional().describe("Folder to search. Defaults to all, which covers every folder except Spam and Trash."),
+			unread: z.boolean().optional().describe("true for unread only, false for read only"),
+			starred: z.boolean().optional(),
+			hasAttachment: z.boolean().optional(),
+			date: z.enum(DATE_TOKENS).optional().describe("today, yesterday, 7d, 30d or older"),
+		};
+		this.server.tool(
+			"search_all_mail",
+			"Search conversations across every address at once. Each result gives its mailboxId and emailId.",
+			{ ...mailSearch, limit: z.number().int().min(1).max(50).optional() },
+			async (search) => mcpResult(await toolSearchAllMail(env, search)),
+		);
+		this.server.tool(
+			"label_matching",
+			`Add or remove labels on every conversation that matches a search, across all addresses, in one call. Up to ${LABEL_MATCHING_MAX} conversations.`,
+			{
+				...mailSearch,
+				add: z.array(z.string()).optional().describe("Label ids or names to add"),
+				remove: z.array(z.string()).optional().describe("Label ids or names to remove"),
+				archive: z.boolean().optional().describe("Also move the matching Inbox mail to Archive"),
+			},
+			async ({ add, remove, archive, ...search }) => mcpResult(await toolLabelMatching(env, search, { add, remove, archive })),
 		);
 
 		// ── mark_email_read ────────────────────────────────────────

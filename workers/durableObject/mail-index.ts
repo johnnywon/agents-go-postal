@@ -43,6 +43,7 @@ import {
 	planEmptyTrash,
 	planUndo,
 	pruneBulkJobs,
+	matchingThreadKeys,
 	resolveFilterTarget,
 	restoreLabels,
 	saveBulkProgress,
@@ -314,6 +315,12 @@ export class MailIndexDO extends DurableObject<Env> {
 		const payload = this.ctx.storage.transactionSync(() => takeUndo(this.exec, undoId));
 		if (!payload) return null;
 		return this.#runOps(planUndo(payload));
+	}
+
+	/** Conversations matching a filter, for agent tools that act on a whole search. */
+	async threadKeysMatching(filter: MailFilter, limit: number) {
+		await this.#startIfEmpty();
+		return matchingThreadKeys(this.exec, filter, limit);
 	}
 
 	async threadKeyOf(mailboxId: string, emailId: string) {

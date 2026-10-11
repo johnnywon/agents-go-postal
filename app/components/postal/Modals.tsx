@@ -4,7 +4,7 @@
 
 import {
 	ArrowCounterClockwiseIcon, ArrowsClockwiseIcon, AtIcon, CheckIcon, CopyIcon, DatabaseIcon, DesktopIcon, GearSixIcon, MoonIcon,
-	PlugsConnectedIcon, RobotIcon, SignatureIcon, SignOutIcon, SlidersHorizontalIcon, SunIcon, WrenchIcon, XIcon,
+	KeyIcon, PlugsConnectedIcon, RobotIcon, SignatureIcon, SignOutIcon, SlidersHorizontalIcon, SunIcon, WrenchIcon, XIcon,
 } from "@phosphor-icons/react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
@@ -205,7 +205,7 @@ function AgentModelSection({ draft }: { draft: AgentModelDraft }) {
 	);
 }
 
-type Tab = "general" | "addresses" | "signatures" | "agent" | "index";
+type Tab = "general" | "addresses" | "signatures" | "agent" | "model" | "index";
 
 function indexRowMatches(row: IndexStatusResponse["mailboxes"][number]) {
 	const s = row.source;
@@ -291,6 +291,7 @@ export function SettingsModal({ initialTab, prefs, setPrefs, addresses, identiti
 		{ id: "addresses", label: "Addresses", icon: <AtIcon size={16} /> },
 		{ id: "signatures", label: "Signatures", icon: <SignatureIcon size={16} /> },
 		{ id: "agent", label: "Agent", icon: <RobotIcon size={16} /> },
+		{ id: "model", label: "Model & key", icon: <KeyIcon size={16} /> },
 		{ id: "index", label: "Mail index", icon: <DatabaseIcon size={16} /> },
 	];
 
@@ -386,7 +387,6 @@ export function SettingsModal({ initialTab, prefs, setPrefs, addresses, identiti
 					)}
 					{tab === "agent" && (
 						<>
-							<AgentModelSection draft={agentModel} />
 							<div style={{ display: "flex", alignItems: "center", gap: 8, padding: "14px 0 8px" }}>
 								<b style={{ fontWeight: 500 }}>Agent prompt</b>
 								<span className="pg-badge">{prompt.trim() ? "Custom" : "Default"}</span>
@@ -406,6 +406,9 @@ export function SettingsModal({ initialTab, prefs, setPrefs, addresses, identiti
 								placeholder="You are an email assistant that helps manage this inbox. You read emails, draft replies, and help organize conversations. Write like a real person. Short, direct, flowing prose. Plain text only. (Leave empty to use the built-in default prompt)"
 							/>
 							<div style={{ fontSize: 12, color: "var(--pg-text-6)", padding: "6px 0 4px" }}>Sent as the system message for every address. Controls tone, style and behaviour rules.</div>
+							<Setting title="Model" sub={agentModel.stored?.provider === "openrouter" ? `OpenRouter, ${agentModel.stored.model}` : "Workers AI (default)"}>
+								<button type="button" className="pg-btn pg-btn-sm" onClick={() => setTab("model")}>Change</button>
+							</Setting>
 							<Setting title="Auto-draft new mail" sub={<>Drafts a reply to every new message. Set <span className="pg-mono">AUTO_DRAFT_ENABLED</span> in your Worker config to change.</>}>
 								<span className="pg-tag">{autoDraft ? "on" : "off"} · config</span>
 							</Setting>
@@ -415,6 +418,7 @@ export function SettingsModal({ initialTab, prefs, setPrefs, addresses, identiti
 							{/* TODO(roadmap): rules (Inquiry, Receipts, DMARC, Triage) and per-rule autonomy settings. */}
 						</>
 					)}
+					{tab === "model" && <AgentModelSection draft={agentModel} />}
 					{tab === "index" && <IndexTab />}
 				</div>
 			</div>
@@ -482,6 +486,8 @@ const MCP_TOOLS = [
 	["rename_label", "Rename a label"],
 	["delete_label", "Delete a label"],
 	["label_conversation", "Add or remove labels on a conversation"],
+	["search_all_mail", "Search every address at once"],
+	["label_matching", "Label every conversation a search matches"],
 	["delete_email", "Move email to Trash"],
 ] as const;
 

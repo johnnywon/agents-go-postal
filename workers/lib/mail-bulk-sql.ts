@@ -81,6 +81,16 @@ function moveTarget(action: BulkAction): string | null {
  * `asOf` so mail that arrived after the user looked is left alone. Throws
  * BulkConflictError when the count differs from what the user saw.
  */
+/** Thread keys of conversations matching a filter, newest first, at most `limit`. */
+export function matchingThreadKeys(exec: Exec, filter: MailFilter, limit: number, now = Date.now()): string[] {
+	const w = filterWhere(filter, now);
+	return exec(
+		`SELECT m.thread_key AS k, MAX(m.date) AS d FROM messages m WHERE ${w.sql} GROUP BY m.thread_key ORDER BY d DESC LIMIT ?`,
+		...w.params,
+		limit,
+	).map((r) => String(r.k));
+}
+
 export function resolveFilterTarget(
 	exec: Exec,
 	filter: MailFilter,
