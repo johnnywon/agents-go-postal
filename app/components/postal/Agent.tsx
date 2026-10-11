@@ -6,7 +6,7 @@ import { ArrowElbowDownLeftIcon, CaretDoubleLeftIcon, CaretDoubleRightIcon, Robo
 import { useQueryClient } from "@tanstack/react-query";
 import type { UIMessage } from "ai";
 import type { ComposeState } from "./compose";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { SHARED_AGENT, type AgentContext } from "../../../shared/agent";
@@ -133,7 +133,7 @@ function AgentChat({ hooks, open, prefill, onOpenDraft, onBusy }: AgentPanelProp
 	const history = useMemo(() => sentHistory(messages), [messages]);
 	const [historyAt, setHistoryAt] = useState<number | null>(null);
 	const unsent = useRef("");
-	const inputRef = useRef<HTMLInputElement>(null);
+	const inputRef = useRef<HTMLTextAreaElement>(null);
 	const scrollRef = useRef<HTMLDivElement>(null);
 	const queryClient = useQueryClient();
 	const was = useRef(false);
@@ -150,6 +150,14 @@ function AgentChat({ hooks, open, prefill, onOpenDraft, onBusy }: AgentPanelProp
 		const el = scrollRef.current;
 		if (el) el.scrollTop = el.scrollHeight;
 	}, [messages]);
+
+	// The box starts at two lines and grows with what you type.
+	useLayoutEffect(() => {
+		const el = inputRef.current;
+		if (!el) return;
+		el.style.height = "auto";
+		el.style.height = `${el.scrollHeight}px`;
+	}, [input]);
 
 	useEffect(() => {
 		if (!prefill) return;
@@ -196,16 +204,29 @@ function AgentChat({ hooks, open, prefill, onOpenDraft, onBusy }: AgentPanelProp
 			</div>
 			<div className="pg-agent-input-wrap">
 				<form className="pg-agent-input" onSubmit={(e) => { e.preventDefault(); submit(); }}>
-					<input
+					<textarea
 						ref={inputRef}
+						rows={2}
 						value={input}
 						onChange={(e) => {
 							setInput(e.target.value);
 							setHistoryAt(null);
 						}}
 						onKeyDown={(e) => {
+							if (e.nativeEvent.isComposing) return;
+							// Enter sends; Shift+Enter starts a new line.
+							if (e.key === "Enter" && !e.shiftKey) {
+								e.preventDefault();
+								submit();
+								return;
+							}
 							if (e.key !== "ArrowUp" && e.key !== "ArrowDown") return;
-							if (e.nativeEvent.isComposing || !history.length) return;
+							if (!history.length) return;
+							// Arrows move the caret between lines; history takes over at the first or last line.
+							const el = e.currentTarget;
+							const before = input.slice(0, el.selectionStart);
+							const after = input.slice(el.selectionEnd);
+							if (e.key === "ArrowUp" ? before.includes("\n") : after.includes("\n")) return;
 							const next = stepHistory(history.length, historyAt, e.key === "ArrowUp" ? -1 : 1);
 							if (next === historyAt) return;
 							e.preventDefault();
@@ -213,7 +234,6 @@ function AgentChat({ hooks, open, prefill, onOpenDraft, onBusy }: AgentPanelProp
 							setHistoryAt(next);
 							const text = next === null ? unsent.current : history[next];
 							setInput(text);
-							const el = e.currentTarget;
 							requestAnimationFrame(() => el.setSelectionRange(text.length, text.length));
 						}}
 						placeholder="Ask about your mail…"
