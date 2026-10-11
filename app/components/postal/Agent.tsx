@@ -1,0 +1,332 @@
+// Copyright (c) 2026 Cloudflare, Inc.
+// Licensed under the Apache 2.0 license found in the LICENSE file or at:
+//     https://opensource.org/licenses/Apache-2.0
+
+import { ArrowElbowDownLeftIcon, CaretDoubleLeftIcon, CaretDoubleRightIcon, RobotIcon, SparkleIcon, StopIcon, TrashIcon } from "@phosphor-icons/react";
+import { useQueryClient } from "@tanstack/react-query";
+import type { UIMessage } from "ai";
+import { useEffect, useRef, useState } from "react";
+import Markdown from "react-markdown";
+import remarkGfm from "remark-gfm";
+import { AddressMark, type Identities } from "./identity";
+
+type Hooks = {
+	useAgent: typeof import("agents/react").useAgent;
+	useAgentChat: typeof import("@cloudflare/ai-chat/react").useAgentChat;
+};
+
+let hooksPromise: Promise<Hooks> | null = null;
+
+/** The agent client libraries, loaded once on first use. */
+export function useAgentHooks() {
+	const [hooks, setHooks] = useState<Hooks | null>(null);
+	const [error, setError] = useState<string | null>(null);
+	useEffect(() => {
+		hooksPromise ??= Promise.all([import("agents/react"), import("@cloudflare/ai-chat/react")]).then(([a, c]) => ({
+			useAgent: a.useAgent,
+			useAgentChat: c.useAgentChat,
+		}));
+		let live = true;
+		hooksPromise.then((h) => live && setHooks(() => h)).catch(() => {
+			hooksPromise = null;
+			if (live) setError("Could not reach the agent. Reload to retry.");
+		});
+		return () => {
+			live = false;
+		};
+	}, []);
+	return { hooks, error };
+}
+
+type Part = UIMessage["parts"][number];
+
+function toolName(part: Part): string | null {
+	if (part.type === "dynamic-tool") return (part as { toolName?: string }).toolName ?? null;
+	if (part.type.startsWith("tool-")) return part.type.slice(5);
+	return null;
+}
+
+function toolOutput(part: Part): unknown {
+	const p = part as { output?: unknown; result?: unknown };
+	return p.output ?? p.result;
+}
+
+function toolDone(part: Part): boolean {
+	const state = (part as { state?: string }).state;
+	return state === "output-available" || state === "output-error" || state === "result";
+}
+
+function toolSummary(part: Part): string {
+	const input = (part as { input?: Record<string, unknown> }).input ?? {};
+	const arg = ["query", "emailId", "threadId", "folder", "to", "originalEmailId"].map((k) => input[k]).find((v) => typeof v === "string") as string | undefined;
+	return `${toolName(part)}${arg ? ` ${arg.length > 40 ? `${arg.slice(0, 40)}…` : arg}` : ""}`;
+}
+
+function toolCount(part: Part): string {
+	if (!toolDone(part)) return "…";
+	const out = toolOutput(part) as Record<string, unknown> | unknown[] | null;
+	if (Array.isArray(out)) return String(out.length);
+	if (out && typeof out === "object") {
+		if ("error" in out) return "error";
+		for (const key of ["emails", "results", "labels", "messages"]) {
+			const v = (out as Record<string, unknown>)[key];
+			if (Array.isArray(v)) return String(v.length);
+		}
+	}
+	return "ok";
+}
+
+export interface DraftResult {
+	html?: string;
+	text?: string;
+	draftId?: string;
+}
+
+// ── Panel ────────────────────────────────────────────────────────────
+
+export interface AgentPanelProps {
+	mailboxId: string;
+	identities: Identities;
+	onCollapse: () => void;
+	overlay: boolean;
+	prefill: { text: string; id: number } | null;
+	onOpenDraft: (mailboxId: string, draftId: string) => void;
+	onBusy: (busy: boolean) => void;
+}
+
+export function AgentPanel(props: AgentPanelProps) {
+	const { hooks, error } = useAgentHooks();
+	return (
+		<aside className="pg-agent" aria-label="Agent" data-overlay={props.overlay || undefined}>
+			<button type="button" className="pg-rail-head" onClick={props.onCollapse} title="Collapse agent panel">
+				<CaretDoubleRightIcon size={14} weight="bold" />
+				<span className="pg-head-label">AGENT</span>
+				<RobotIcon size={14} weight="fill" color="var(--pg-green)" />
+			</button>
+			{hooks ? (
+				<AgentChat key={props.mailboxId} hooks={hooks} {...props} />
+			) : (
+				<>
+					<div className="pg-agent-sub">
+						<span className="pg-bot"><RobotIcon size={13} weight="fill" /></span>
+						<span className="pg-name">Agent</span>
+					</div>
+					<div className="pg-agent-empty"><p>{error ?? "Connecting…"}</p></div>
+				</>
+			)}
+		</aside>
+	);
+}
+
+const SUGGESTIONS = ["What came in today that needs a reply?", "Summarize unread mail", "Draft a reply to the open conversation"];
+
+function AgentChat({ hooks, mailboxId, identities, prefill, onOpenDraft, onBusy }: AgentPanelProps & { hooks: Hooks }) {
+	const agent = hooks.useAgent({ agent: "EmailAgent", name: mailboxId });
+	const { messages, sendMessage, status, setMessages, stop } = hooks.useAgentChat({ agent });
+	const busy = status === "streaming" || status === "submitted";
+	const [input, setInput] = useState("");
+	const inputRef = useRef<HTMLInputElement>(null);
+	const scrollRef = useRef<HTMLDivElement>(null);
+	const queryClient = useQueryClient();
+	const was = useRef(false);
+
+	useEffect(() => {
+		onBusy(busy);
+		// Agent tools label, move and draft mail; refresh when a turn ends.
+		if (was.current && !busy) for (const queryKey of [["mail"], ["mail-facets"], ["emails"], ["labels"]]) queryClient.invalidateQueries({ queryKey });
+		was.current = busy;
+	}, [busy]); // eslint-disable-line react-hooks/exhaustive-deps
+	useEffect(() => () => onBusy(false), []); // eslint-disable-line react-hooks/exhaustive-deps
+
+	useEffect(() => {
+		const el = scrollRef.current;
+		if (el) el.scrollTop = el.scrollHeight;
+	}, [messages]);
+
+	useEffect(() => {
+		if (!prefill) return;
+		setInput(prefill.text);
+		requestAnimationFrame(() => inputRef.current?.focus());
+	}, [prefill]);
+
+	const submit = (text = input) => {
+		const t = text.trim();
+		if (!t || busy) return;
+		setInput("");
+		sendMessage({ text: t });
+	};
+
+	return (
+		<>
+			<div className="pg-agent-sub">
+				<span className="pg-bot"><RobotIcon size={13} weight="fill" /></span>
+				<span className="pg-name">Agent</span>
+				<AddressMark address={mailboxId} identities={identities} bold={false} />
+				{messages.length > 0 && !busy && (
+					<button type="button" className="pg-head-btn" title="Clear chat" aria-label="Clear chat" onClick={() => window.confirm("Clear this chat?") && setMessages([])}>
+						<TrashIcon size={13} />
+					</button>
+				)}
+			</div>
+			<div className="pg-agent-scroll" ref={scrollRef} aria-live="polite">
+				{messages.length === 0 ? (
+					<div className="pg-agent-empty">
+						<p>Ask about your mail. The agent reads, searches, labels and drafts. It never sends.</p>
+						{SUGGESTIONS.map((s) => (
+							<button key={s} type="button" className="pg-btn" onClick={() => submit(s)}>{s}</button>
+						))}
+					</div>
+				) : (
+					<div className="pg-agent-thread">
+						{messages.map((m) => <ChatMessage key={m.id} message={m} onOpenDraft={(id) => onOpenDraft(mailboxId, id)} />)}
+						{busy && (
+							<div className="pg-agent-tool" data-running="true"><span className="pg-tri">▸</span><span>working…</span></div>
+						)}
+					</div>
+				)}
+			</div>
+			<div className="pg-agent-input-wrap">
+				<form className="pg-agent-input" onSubmit={(e) => { e.preventDefault(); submit(); }}>
+					<input
+						ref={inputRef}
+						value={input}
+						onChange={(e) => setInput(e.target.value)}
+						placeholder="Ask about your mail…"
+						aria-label="Ask the agent"
+						id="pg-agent-input"
+					/>
+					{busy ? (
+						<button type="button" className="pg-return" title="Stop" aria-label="Stop" onClick={() => stop()}><StopIcon size={13} weight="fill" /></button>
+					) : (
+						<button type="submit" className="pg-return" title="Send (↵)" aria-label="Send" disabled={!input.trim()}><ArrowElbowDownLeftIcon size={14} weight="bold" /></button>
+					)}
+				</form>
+			</div>
+		</>
+	);
+}
+
+function ChatMessage({ message, onOpenDraft }: { message: UIMessage; onOpenDraft: (draftId: string) => void }) {
+	if (message.role === "user") {
+		const text = message.parts.map((p) => (p.type === "text" ? p.text : "")).join("");
+		return <div className="pg-agent-q">{text}</div>;
+	}
+	const drafts: string[] = [];
+	const out: React.ReactNode[] = [];
+	message.parts.forEach((part, i) => {
+		const name = toolName(part);
+		if (name) {
+			out.push(
+				<div key={i} className="pg-agent-tool" data-running={!toolDone(part) || undefined}>
+					<span className="pg-tri">▸</span>
+					<span className="pg-flex pg-ellipsis">{toolSummary(part)}</span>
+					<span>{toolCount(part)}</span>
+				</div>,
+			);
+			const result = toolOutput(part) as { draftId?: string } | undefined;
+			if ((name === "draft_reply" || name === "draft_email") && result?.draftId) drafts.push(result.draftId);
+			return;
+		}
+		if (part.type === "text" && part.text.trim()) {
+			out.push(
+				<div key={i} className="pg-agent-a">
+					<span className="pg-bot is-small"><RobotIcon size={12} weight="fill" /></span>
+					<div className="pg-answer">
+						<Markdown remarkPlugins={[remarkGfm]} components={{ a: ({ href, children }) => <a href={href} target="_blank" rel="noopener noreferrer">{children}</a> }}>
+							{part.text}
+						</Markdown>
+					</div>
+				</div>,
+			);
+		}
+	});
+	if (drafts.length) {
+		out.push(
+			<div key="actions" className="pg-agent-actions" style={{ paddingLeft: 28 }}>
+				{drafts.map((id) => (
+					<button key={id} type="button" className="pg-btn" onClick={() => onOpenDraft(id)}>Open draft</button>
+				))}
+			</div>,
+		);
+	}
+	return <>{out}</>;
+}
+
+export function AgentRail({ onOpen, busy }: { onOpen: () => void; busy: boolean }) {
+	return (
+		<button type="button" className="pg-agentrail" onClick={onOpen} title="Open agent chat (⌘J)" aria-label="Open agent chat">
+			<span className="pg-rail-head"><CaretDoubleLeftIcon size={12} weight="bold" /></span>
+			<span className="pg-vert">
+				<SparkleIcon size={16} weight="fill" />
+				<span className="pg-vert-label">ASK AGENT</span>
+				{busy && <span className="pg-dot pg-round" title="Agent working" />}
+			</span>
+			<span style={{ flex: 1 }} />
+			<span className="pg-kbd">⌘J</span>
+		</button>
+	);
+}
+
+// ── Draft with agent ─────────────────────────────────────────────────
+
+export interface DraftJob {
+	id: number;
+	mailboxId: string;
+	prompt: string;
+}
+
+/**
+ * Sends one message to the mailbox's agent and waits for its draft_reply or
+ * draft_email result. Mount while a job runs; it renders nothing.
+ */
+export function AgentDraftRunner({ job, onDone, onError }: { job: DraftJob; onDone: (r: DraftResult) => void; onError: (message: string) => void }) {
+	const { hooks, error } = useAgentHooks();
+	useEffect(() => {
+		if (error) onError(error);
+	}, [error]); // eslint-disable-line react-hooks/exhaustive-deps
+	if (!hooks) return null;
+	return <Runner hooks={hooks} job={job} onDone={onDone} onError={onError} />;
+}
+
+function Runner({ hooks, job, onDone, onError }: { hooks: Hooks; job: DraftJob; onDone: (r: DraftResult) => void; onError: (message: string) => void }) {
+	const agent = hooks.useAgent({ agent: "EmailAgent", name: job.mailboxId });
+	const { messages, sendMessage, status } = hooks.useAgentChat({ agent });
+	const sent = useRef(false);
+	const settled = useRef(false);
+	const started = useRef(false);
+
+	useEffect(() => {
+		if (sent.current) return;
+		sent.current = true;
+		sendMessage({ text: job.prompt });
+	}, [sendMessage, job.prompt]);
+
+	useEffect(() => {
+		if (settled.current) return;
+		if (status === "streaming" || status === "submitted") started.current = true;
+		const at = messages.map((m) => m.role === "user" && m.parts.some((p) => p.type === "text" && p.text === job.prompt)).lastIndexOf(true);
+		if (at < 0) return;
+		for (const m of messages.slice(at + 1)) {
+			for (const part of m.parts) {
+				const name = toolName(part);
+				if ((name === "draft_reply" || name === "draft_email") && toolDone(part)) {
+					const out = toolOutput(part) as { error?: string; draftId?: string; draft?: { body?: string } } | undefined;
+					settled.current = true;
+					if (!out || out.error) onError(out?.error ?? "The agent could not draft this.");
+					else onDone({ text: out.draft?.body, draftId: out.draftId });
+					return;
+				}
+			}
+		}
+		if (started.current && status === "ready") {
+			settled.current = true;
+			const reply = messages.slice(at + 1).flatMap((m) => m.parts).map((p) => (p.type === "text" ? p.text : "")).join("").trim();
+			onError(reply ? `No draft: ${reply.length > 140 ? `${reply.slice(0, 140)}…` : reply}` : "The agent did not return a draft.");
+		} else if (status === "error") {
+			settled.current = true;
+			onError("The agent ran into an error.");
+		}
+	}, [messages, status]); // eslint-disable-line react-hooks/exhaustive-deps
+
+	return null;
+}

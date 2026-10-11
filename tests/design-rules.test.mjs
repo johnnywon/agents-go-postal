@@ -1030,3 +1030,70 @@ test("the logo image is never clipped", () => {
 		}
 	}
 });
+
+// ---------------------------------------------------------------------------------------------------------
+// Postal view (MAIL_UI=postal): one 6px radius with named exceptions, shapes from clip-path only
+// ---------------------------------------------------------------------------------------------------------
+
+const POSTAL_CSS = "app/components/postal/postal.css";
+
+function cssBlocks(file) {
+	const css = readFileSync(join(ROOT, file), "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
+	// Flatten @media and @container wrappers so each rule is one selector { body } block.
+	return [...css.matchAll(/([^{}]+)\{([^{}]*)\}/g)].map(([, selector, body]) => ({
+		selector: selector.trim().replace(/^@[^{]*$/, "").trim(),
+		decls: body.split(";").map((d) => d.trim()).filter(Boolean).map((d) => {
+			const at = d.indexOf(":");
+			return [d.slice(0, at).trim(), d.slice(at + 1).trim()];
+		}),
+	}));
+}
+
+// Exceptions to the 6px radius, by what may carry them.
+const RADIUS_EXCEPTIONS = [
+	{ value: /^50%\s*!important$/, selector: /pg-round|pg-switch > span/, why: "circles: switch knobs and the agent dot" },
+	{ value: /^2px\s*!important$/, selector: /pg-swatch|mark/, why: "domain swatches and search highlights" },
+	{ value: /^0\s*!important$/, selector: /scrollbar-thumb|\.pg-cw/, why: "square scrollbars and the full-screen mobile composer" },
+];
+
+test("postal styles use the 6px radius, with only the documented exceptions (DESIGN.md)", () => {
+	const problems = [];
+	for (const { selector, decls } of cssBlocks(POSTAL_CSS)) {
+		for (const [prop, value] of decls) {
+			if (!/radius$/.test(prop)) continue;
+			const plain = value.replace(/\s*!important$/, "");
+			if (plain.split(/\s+/).every((v) => v === "6px" || v === "0")) continue;
+			if (RADIUS_EXCEPTIONS.some((e) => e.value.test(value) && e.selector.test(selector))) continue;
+			problems.push(`${selector} { ${prop}: ${value} }`);
+		}
+	}
+	assert.deepEqual(problems, [], `Radius outside the rule:\n  ${problems.join("\n  ")}`);
+});
+
+test("postal domain shapes come from clip-path on .pg-shape-* only, and none is round", () => {
+	const problems = [];
+	const shapes = new Set();
+	for (const { selector, decls } of cssBlocks(POSTAL_CSS)) {
+		for (const [prop, value] of decls) {
+			if (prop !== "clip-path" && !/^(-webkit-)?mask/.test(prop)) continue;
+			if (/^(-webkit-)?mask/.test(prop) && /pg-reader-to/.test(selector)) continue; // the address fade, not a shape
+			if (!/^\.pg-shape-[a-z]+$/.test(selector)) problems.push(`${selector} { ${prop}: ${value} }`);
+			else if (/circle|ellipse|round/.test(value)) problems.push(`${selector} is round`);
+			else shapes.add(selector);
+		}
+	}
+	assert.deepEqual(problems, []);
+	for (const shape of ["diamond", "triangle", "hexagon"]) assert.ok(shapes.has(`.pg-shape-${shape}`), `missing .pg-shape-${shape}`);
+});
+
+test("the postal logo watermark is never clipped, masked or rounded", () => {
+	for (const { selector, decls } of cssBlocks(POSTAL_CSS)) {
+		if (!/pg-watermark/.test(selector)) continue;
+		for (const [prop, value] of decls) {
+			assert.ok(!/^(clip-path|mask|mask-image|-webkit-mask|-webkit-mask-image)$/.test(prop), `${selector}: ${prop}`);
+			if (prop === "border-radius") assert.match(value, /^0/);
+		}
+	}
+	const search = readFileSync(join(ROOT, "app/components/postal/SearchBar.tsx"), "utf8");
+	assert.match(search, /className="deck-brand-logo pg-watermark"/, "the watermark keeps the logo's radius opt-out class");
+});

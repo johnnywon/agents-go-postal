@@ -44,9 +44,12 @@ test("Escape passes even from a field", () => {
 	assert.equal(shortcutFor({ key: "Escape", target: el("input") }), "escape");
 });
 
+// The postal view also uses r (reply), a (reply all), f (forward), c (compose) and z (undo).
+const POSTAL_KEYS = ["r", "a", "f", "c", "z"];
+
 test("a message frame forwards every shortcut key", () => {
 	const source = readFileSync("app/components/EmailIframe.tsx", "utf8");
 	const list = source.match(/if \((\[[^\]]*\])\.indexOf\(e\.key\) < 0\) return;/);
 	assert.ok(list, "key list in the frame script");
-	assert.deepEqual(JSON.parse(list[1]).sort(), [...SHORTCUT_KEYS].sort());
+	assert.deepEqual(JSON.parse(list[1]).sort(), [...new Set([...SHORTCUT_KEYS, ...POSTAL_KEYS])].sort());
 });

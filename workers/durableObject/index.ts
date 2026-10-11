@@ -35,6 +35,16 @@ import {
 	setLabelsSql,
 	updateEmailsSql,
 } from "../lib/mailbox-bulk";
+import { sendMail, type SendEmailRequest } from "../lib/send";
+import {
+	deleteScheduledRow,
+	insertScheduled,
+	listScheduledRows,
+	nextScheduledAt,
+	runDueScheduled,
+	sendModeOf,
+	type ScheduleMode,
+} from "../lib/scheduled-send";
 
 /** Folders whose mail may be hard-deleted. Everywhere else, Delete moves mail to Trash. */
 const HARD_DELETE_FOLDERS: readonly string[] = [Folders.TRASH, Folders.DRAFT];
@@ -209,18 +219,110 @@ export class MailboxDO extends DurableObject<Env> {
 			ackOutbox(this.exec, rows.map((row) => row.email_id), seq);
 		}
 		// More than 50 batches pending: continue from an alarm instead of holding the caller.
-		await this.ctx.storage.setAlarm(Date.now() + 1_000);
+		await this.#armAlarm(Date.now() + 1_000);
 	}
 
 	async #scheduleRetry(): Promise<void> {
 		const previous = Number(getMeta(this.exec, "retry_ms") || 0);
 		const delay = Math.min(Math.max(previous * 2, RETRY_MIN_MS), RETRY_MAX_MS);
 		setMeta(this.exec, "retry_ms", String(delay));
-		await this.ctx.storage.setAlarm(Date.now() + delay);
+		await this.#armAlarm(Date.now() + delay);
+	}
+
+	/**
+	 * The one alarm serves index retries and scheduled sends. Only ever move it
+	 * earlier; alarm() runs both jobs and re-arms for whatever is still pending.
+	 */
+	async #armAlarm(at: number): Promise<void> {
+		const current = await this.ctx.storage.getAlarm();
+		if (current === null || current > at) await this.ctx.storage.setAlarm(at);
 	}
 
 	async alarm() {
 		await this.flushIndex();
+		await this.#sendDueScheduled();
+		const next = nextScheduledAt(this.exec);
+		if (next !== null) await this.#armAlarm(next);
+	}
+
+	// ── Scheduled send ─────────────────────────────────────────────
+	//
+	// The message waits as a draft in Drafts; scheduled_sends holds the send
+	// request. Editing or deleting the draft cancels the send.
+
+	/**
+	 * Save the message as a new draft and schedule it. The route validates
+	 * sendAt, the sender and the payload size. Replaces draftId if it is a draft.
+	 */
+	async scheduleSend(input: {
+		/** The route's mailbox; teaches the mailbox its address so the alarm can send. */
+		mailboxId?: string;
+		sendAt: string;
+		draftId?: string;
+		mode: ScheduleMode;
+		originalId?: string;
+		email: SendEmailRequest;
+	}): Promise<{ id: string; sendAt: string } | { error: string; status: 404 }> {
+		if (input.mailboxId && !getMeta(this.exec, "mailbox_id")) setMeta(this.exec, "mailbox_id", input.mailboxId.toLowerCase());
+		const mailboxId = this.#mailboxId() ?? "";
+		const { email, mode, originalId } = input;
+		let threadId: string | null = null;
+		if (originalId && mode !== "new") {
+			const raw = await this.getEmail(originalId);
+			if (!raw) return { error: "Original email not found", status: 404 };
+			const original = raw.folder_id === Folders.DRAFT && raw.in_reply_to
+				? (await this.getEmail(raw.in_reply_to)) ?? raw
+				: raw;
+			if (mode !== "forward") threadId = original.thread_id || original.id;
+		}
+		const join = (v?: string | string[]) => (v ? (Array.isArray(v) ? v.join(", ") : v).toLowerCase() : null);
+		const id = crypto.randomUUID();
+		const sendAt = new Date(input.sendAt).toISOString();
+		await this.createEmail(Folders.DRAFT, {
+			id, subject: email.subject || "", sender: mailboxId.toLowerCase(),
+			recipient: join(email.to) ?? "", cc: join(email.cc), bcc: join(email.bcc),
+			date: new Date().toISOString(), body: email.html || email.text || "",
+			in_reply_to: originalId || null, email_references: null,
+			thread_id: threadId || originalId || id,
+		}, []);
+		insertScheduled(this.exec, id, sendAt, { mode, original_id: originalId, email });
+		if (input.draftId && input.draftId !== id) {
+			const old = await this.getEmail(input.draftId);
+			if (old?.folder_id === Folders.DRAFT) {
+				deleteScheduledRow(this.exec, input.draftId);
+				await this.deleteEmail(input.draftId);
+			}
+		}
+		await this.#armAlarm(Date.parse(sendAt));
+		return { id, sendAt };
+	}
+
+	async listScheduled() {
+		return listScheduledRows(this.exec);
+	}
+
+	/** Drop the schedule only; the draft stays in Drafts. */
+	async cancelScheduled(emailId: string): Promise<boolean> {
+		return deleteScheduledRow(this.exec, emailId);
+	}
+
+	async #sendDueScheduled() {
+		const mailboxId = this.#mailboxId();
+		try {
+			const result = await runDueScheduled({
+				exec: this.exec,
+				draftFolder: async (emailId) => (await this.getEmail(emailId))?.folder_id ?? null,
+				deleteDraft: (emailId) => this.deleteEmail(emailId),
+				send: async (payload) => {
+					if (!mailboxId) return "Mailbox address unknown";
+					const sent = await sendMail(this.env, mailboxId, this, payload.email, sendModeOf(payload));
+					return sent.ok ? null : sent.error;
+				},
+			}, Folders.DRAFT);
+			if (result.failed.length > 0) console.error(`scheduled send failed for ${result.failed.length} message(s)`);
+		} catch (e) {
+			console.error("scheduled send run failed:", (e as Error).message);
+		}
 	}
 
 	/** One rebuild page for MailIndexDO. Also teaches the mailbox its address. */

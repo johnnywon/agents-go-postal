@@ -144,6 +144,23 @@ export interface Label {
 	color: string;
 	position: number;
 	count: number;
+	/** The agent has applied this label (through the chat agent or MCP). */
+	auto?: boolean;
+}
+
+export interface ScheduledSend {
+	mailboxId: string;
+	emailId: string;
+	sendAt: string;
+	error: string | null;
+}
+
+export interface ScheduleRequest {
+	sendAt: string;
+	draft_id?: string;
+	mode: "new" | "reply" | "reply-all" | "forward";
+	original_id?: string;
+	email: unknown;
 }
 
 export type BulkTarget =
@@ -225,7 +242,7 @@ export interface IndexStatusResponse {
 const api = {
 	// Config
 	getConfig: () =>
-		get<{ domains: string[]; emailAddresses: string[]; mailUi: "unified" | "classic" }>("/api/v1/config"),
+		get<{ domains: string[]; emailAddresses: string[]; mailUi: "postal" | "unified" | "classic"; autoDraft?: boolean }>("/api/v1/config"),
 
 	// Mailboxes
 	listMailboxes: () => get<Mailbox[]>("/api/v1/mailboxes"),
@@ -279,6 +296,13 @@ const api = {
 		post<void>(`/api/v1/mailboxes/${mailboxId}/emails/${emailId}/reply`, email),
 	forwardEmail: (mailboxId: string, emailId: string, email: unknown) =>
 		post<void>(`/api/v1/mailboxes/${mailboxId}/emails/${emailId}/forward`, email),
+
+	// Scheduled send
+	scheduleSend: (mailboxId: string, request: ScheduleRequest) =>
+		post<{ id: string; sendAt: string }>(`/api/v1/mailboxes/${mailboxId}/scheduled`, request),
+	getScheduled: () => get<ScheduledSend[]>("/api/v1/mail/scheduled"),
+	cancelScheduled: (mailboxId: string, emailId: string) =>
+		del<{ status: string }>(`/api/v1/mailboxes/${mailboxId}/scheduled/${encodeURIComponent(emailId)}`),
 
 	// Folders
 	listFolders: (mailboxId: string) =>

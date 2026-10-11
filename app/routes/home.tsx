@@ -16,6 +16,7 @@ import { type FormEvent, useEffect, useRef, useState } from "react";
 import api from "~/services/api";
 import CombinedInbox from "~/components/CombinedInbox";
 import UnifiedMail from "~/components/unified/UnifiedMail";
+import PostalMail from "~/components/postal/PostalMail";
 import MailboxSwitcher from "~/components/MailboxSwitcher";
 import {
 	useCreateMailbox,
@@ -142,6 +143,9 @@ export default function HomeRoute() {
 
 	// Wait for config so the classic view never flashes before the unified one.
 	if (!configData) return <div className="flex h-dvh bg-kumo-recessed" />;
+	if (configData.mailUi === "postal") {
+		return <PostalMail addresses={emailAddresses.map((a) => a.toLowerCase())} domains={domains} autoDraft={!!configData.autoDraft} />;
+	}
 	if (configData.mailUi === "unified") return <UnifiedMail addresses={emailAddresses.map((a) => a.toLowerCase())} />;
 
 	return (

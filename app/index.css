@@ -2,6 +2,8 @@
 @source "../node_modules/@cloudflare/kumo/dist/**/*.{js,jsx,ts,tsx}";
 @import "@fontsource-variable/space-grotesk";
 @import "@fontsource-variable/oxanium";
+@import "@fontsource-variable/jetbrains-mono";
+@import "./components/postal/postal.css";
 @import "@cloudflare/kumo/styles/tailwind";
 @import "tailwindcss";
 
@@ -1356,4 +1358,119 @@ h1, h2, h3 { font-family: var(--font-display); }
   .mail-toast-undo, .mail-toast-close { min-width: 44px; min-height: 44px; }
   .mail-search { height: 40px; }
   .mail-search input, .mail-popover-search input, .mail-from select { font-size: 16px; }
+}
+
+/* ── Postal tokens ──────────────────────────────────────────────────
+   MAIL_UI=postal. Dark first, with a real light palette. Components in
+   app/components/postal/postal.css read only these variables. */
+.postal {
+  color-scheme: dark;
+  --pg-font: "Space Grotesk Variable", "Space Grotesk", system-ui, sans-serif;
+  --pg-mono: "JetBrains Mono Variable", "JetBrains Mono", ui-monospace, monospace;
+  /* Type scale */
+  --pg-t-10: 10px; --pg-t-11: 11px; --pg-t-12: 12px; --pg-t-13: 13px; --pg-t-15: 15px; --pg-t-22: 22px;
+  /* Surfaces */
+  --pg-well: #0f1012;
+  --pg-base: #141518;
+  --pg-rail: #121316;
+  --pg-raised: #1c1d21;
+  --pg-modal: #16171a;
+  --pg-input: #17181b;
+  --pg-hover: #1f2025;
+  --pg-hover-raised: #24262b;
+  --pg-active: #24262b;
+  --pg-segment: #2a2c31;
+  --pg-row-unread: #191a1e;
+  --pg-row-current: #23252a;
+  --pg-chip: #1f2025;
+  --pg-skeleton: #222428;
+  /* Lines */
+  --pg-line: #26282d;
+  --pg-line-2: #2a2c31;
+  --pg-line-3: #33353b;
+  --pg-line-4: #3a3c42;
+  --pg-line-faint: #1f2025;
+  --pg-line-soft: #222428;
+  /* Text, brightest to faintest. #7f8187 is the minimum for body text (4.5:1). */
+  --pg-text-1: #f0f0ed;
+  --pg-text-2: #e4e4e1;
+  --pg-text-3: #d5d5d2;
+  --pg-text-4: #c9c9c5;
+  --pg-text-5: #a3a4a0;
+  --pg-text-6: #8b8d93;
+  --pg-text-7: #7f8187;
+  --pg-text-8: #6f7177;
+  --pg-text-9: #55575e;
+  /* Accents */
+  --pg-blue: oklch(0.8 0.11 250);
+  --pg-green: oklch(0.78 0.14 150);
+  --pg-green-text: oklch(0.8 0.14 150);
+  --pg-amber: oklch(0.82 0.13 75);
+  --pg-amber-text: oklch(0.86 0.13 75);
+  --pg-danger: oklch(0.62 0.17 25);
+  --pg-danger-text: oklch(0.72 0.15 25);
+  --pg-link: oklch(0.78 0.11 240);
+  /* Primary action: light on dark */
+  --pg-primary: #e4e4e1;
+  --pg-primary-hover: #f0f0ed;
+  --pg-on-primary: #141518;
+  /* Domain hue lightness and chroma: swatch, then text */
+  --pg-sw-l: 0.72; --pg-sw-c: 0.12;
+  --pg-dt-l: 0.83; --pg-dt-c: 0.1;
+  /* Scrollbars */
+  --pg-scroll: oklch(0.4 0.035 250);
+  --pg-scroll-hover: oklch(0.58 0.08 250);
+  --pg-shadow-pop: 0 16px 32px rgba(0, 0, 0, .45);
+  --pg-shadow-modal: 0 24px 64px rgba(0, 0, 0, .55);
+  --pg-scrim: rgba(6, 7, 8, .64);
+}
+.postal[data-theme="light"] {
+  color-scheme: light;
+  --pg-well: #e6e6e2;
+  --pg-base: #f6f6f4;
+  --pg-rail: #efefec;
+  --pg-raised: #ffffff;
+  --pg-modal: #ffffff;
+  --pg-input: #ffffff;
+  --pg-hover: #ebebe7;
+  --pg-hover-raised: #efefeb;
+  --pg-active: #e4e4df;
+  --pg-segment: #e1e1dc;
+  --pg-row-unread: #ffffff;
+  --pg-row-current: #e5e7ec;
+  --pg-chip: #ebebe7;
+  --pg-skeleton: #e4e4df;
+  --pg-line: #e0e0db;
+  --pg-line-2: #d8d8d3;
+  --pg-line-3: #cdcdc7;
+  --pg-line-4: #bdbdb7;
+  --pg-line-faint: #e8e8e4;
+  --pg-line-soft: #e4e4df;
+  --pg-text-1: #111214;
+  --pg-text-2: #1b1c20;
+  --pg-text-3: #2a2c31;
+  --pg-text-4: #383a40;
+  --pg-text-5: #4d4f55;
+  --pg-text-6: #5c5e64;
+  --pg-text-7: #63656b;
+  --pg-text-8: #74767c;
+  --pg-text-9: #9a9ca1;
+  --pg-blue: oklch(0.5 0.14 250);
+  --pg-green: oklch(0.55 0.14 150);
+  --pg-green-text: oklch(0.47 0.13 150);
+  --pg-amber: oklch(0.66 0.14 75);
+  --pg-amber-text: oklch(0.5 0.12 70);
+  --pg-danger: oklch(0.55 0.19 25);
+  --pg-danger-text: oklch(0.5 0.18 25);
+  --pg-link: oklch(0.5 0.14 250);
+  --pg-primary: #1b1c20;
+  --pg-primary-hover: #2a2c31;
+  --pg-on-primary: #f6f6f4;
+  --pg-sw-l: 0.62; --pg-sw-c: 0.14;
+  --pg-dt-l: 0.47; --pg-dt-c: 0.12;
+  --pg-scroll: oklch(0.78 0.03 250);
+  --pg-scroll-hover: oklch(0.65 0.07 250);
+  --pg-shadow-pop: 0 16px 32px rgba(20, 22, 26, .14);
+  --pg-shadow-modal: 0 24px 64px rgba(20, 22, 26, .2);
+  --pg-scrim: rgba(20, 22, 26, .32);
 }

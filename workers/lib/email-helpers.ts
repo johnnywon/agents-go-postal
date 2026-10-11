@@ -137,7 +137,7 @@ export function buildThreadingHeaders(
  * Used by reply/forward routes to avoid threading against the draft itself.
  */
 export async function resolveOriginalEmail(
-	stub: DurableObjectStub<MailboxDO>,
+	stub: { getEmail(id: string): Promise<unknown> },
 	email: EmailFull,
 ): Promise<EmailFull> {
 	if (email.folder_id === Folders.DRAFT && email.in_reply_to) {

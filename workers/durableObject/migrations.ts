@@ -192,4 +192,19 @@ export const mailboxMigrations: Migration[] = [
             );
         `,
 	},
+	{
+		// Scheduled sends: email_id is the draft in Drafts that holds the
+		// message; payload is the send request. MailboxDO's alarm sends due rows.
+		name: "10_scheduled_send",
+		sql: `
+            CREATE TABLE IF NOT EXISTS scheduled_sends (
+                email_id TEXT PRIMARY KEY,
+                send_at TEXT NOT NULL,
+                payload TEXT NOT NULL,
+                attempts INTEGER NOT NULL DEFAULT 0,
+                error TEXT
+            );
+            CREATE INDEX IF NOT EXISTS idx_scheduled_sends_send_at ON scheduled_sends(send_at);
+        `,
+	},
 ];

@@ -6,17 +6,14 @@ import { type Context, Hono } from "hono";
 import { cors } from "hono/cors";
 import PostalMime from "postal-mime";
 import { z } from "zod";
-import { sendEmail } from "./email-sender";
-import { storeAttachments, type StoredAttachment } from "./lib/attachments";
+import { type StoredAttachment } from "./lib/attachments";
 import {
 	validateSender,
 	SenderValidationError,
-	generateMessageId,
-	buildThreadingHeaders,
 	listMailboxes,
 } from "./lib/email-helpers";
-import { SendEmailRequestSchema } from "./lib/schemas";
-import { handleReplyEmail, handleForwardEmail } from "./routes/reply-forward";
+import { checkSendAt, ScheduleBody, SCHEDULE_MAX_PAYLOAD_BYTES } from "./lib/scheduled-send";
+import { handleReplyEmail, handleForwardEmail, handleSendEmail } from "./routes/reply-forward";
 import { Folders } from "../shared/folders";
 import type { Env } from "./types";
 import { requireMailbox, type MailboxContext } from "./lib/mailbox";
@@ -112,8 +109,10 @@ app.get("/api/v1/config", (c) => {
 	const domainsRaw = c.env.DOMAINS || "";
 	const domains = domainsRaw.split(",").map((d) => d.trim()).filter(Boolean);
 	const emailAddresses = c.env.EMAIL_ADDRESSES ?? [];
-	const mailUi = String(c.env.MAIL_UI ?? "") === "unified" ? "unified" : "classic";
-	return c.json({ domains, emailAddresses, mailUi });
+	const mailUiRaw = String(c.env.MAIL_UI ?? "");
+	const mailUi = mailUiRaw === "postal" || mailUiRaw === "unified" ? mailUiRaw : "classic";
+	const autoDraft = String(c.env.AUTO_DRAFT_ENABLED ?? "") === "true";
+	return c.json({ domains, emailAddresses, mailUi, autoDraft });
 });
 
 // Local QA only: fill each configured mailbox with sample inbox mail.
@@ -225,6 +224,19 @@ app.get("/api/v1/mail/facets", async (c) => {
 		if (error instanceof InvalidFilterError) return c.json({ error: error.message }, 400);
 		throw error;
 	}
+});
+
+/** Scheduled sends across every configured mailbox, soonest first. */
+app.get("/api/v1/mail/scheduled", async (c) => {
+	const mailboxIds = await indexedMailboxIds(c.env);
+	const lists = await Promise.all(mailboxIds.map(async (mailboxId) => {
+		const rows = await getMailboxStub(c.env, mailboxId).listScheduled().catch((e) => {
+			console.error(`scheduled list failed for ${mailboxId}:`, (e as Error).message);
+			return [];
+		});
+		return rows.map((row) => ({ mailboxId, emailId: row.emailId, sendAt: row.sendAt, error: row.error }));
+	}));
+	return c.json(lists.flat().sort((a, b) => a.sendAt.localeCompare(b.sendAt)));
 });
 
 app.get("/api/v1/mail/folders", async (c) => c.json(await getMailIndexStub(c.env).folderViews()));
@@ -362,51 +374,7 @@ app.get("/api/v1/mailboxes/:mailboxId/emails", async (c: AppContext) => {
 	return c.json(emails);
 });
 
-app.post("/api/v1/mailboxes/:mailboxId/emails", async (c: AppContext) => {
-	const mailboxId = c.req.param("mailboxId")!;
-	const body = SendEmailRequestSchema.parse(await c.req.json());
-	const { to, cc, bcc, from, subject, html, text, attachments, in_reply_to, references, thread_id } = body;
-
-	let toStr: string, fromEmail: string, fromDomain: string;
-	try {
-		({ toStr, fromEmail, fromDomain } = validateSender(to, from, mailboxId));
-	} catch (e) {
-		if (e instanceof SenderValidationError) return c.json({ error: e.message }, 400);
-		throw e;
-	}
-
-	const { messageId, outgoingMessageId } = generateMessageId(fromDomain);
-	const stub = c.var.mailboxStub;
-	const rateLimitError = await (stub as any).checkSendRateLimit();
-	if (rateLimitError) return c.json({ error: rateLimitError }, 429);
-	const attachmentData = await storeAttachments(c.env.BUCKET, messageId, attachments);
-
-	await stub.createEmail(Folders.SENT, {
-		id: messageId, subject, sender: fromEmail, recipient: toStr,
-		cc: cc ? (Array.isArray(cc) ? cc.join(", ") : cc).toLowerCase() : null,
-		bcc: bcc ? (Array.isArray(bcc) ? bcc.join(", ") : bcc).toLowerCase() : null,
-		date: new Date().toISOString(), body: html || text || "",
-		in_reply_to: in_reply_to || null, email_references: references ? JSON.stringify(references) : null,
-		thread_id: thread_id || in_reply_to || messageId, message_id: outgoingMessageId,
-		raw_headers: JSON.stringify([
-			{ key: "from", value: typeof from === "string" ? from : `${from.name} <${from.email}>` },
-			{ key: "to", value: Array.isArray(to) ? to.join(", ") : to },
-			...(cc ? [{ key: "cc", value: Array.isArray(cc) ? cc.join(", ") : cc }] : []),
-			...(bcc ? [{ key: "bcc", value: Array.isArray(bcc) ? bcc.join(", ") : bcc }] : []),
-			{ key: "subject", value: subject }, { key: "date", value: new Date().toISOString() },
-			{ key: "message-id", value: `<${outgoingMessageId}>` },
-		]),
-	}, attachmentData);
-
-	c.executionCtx.waitUntil(
-		sendEmail(c.env.EMAIL, {
-			to, cc, bcc, from, subject, html, text,
-			attachments: attachments?.map((att) => ({ content: att.content, filename: att.filename, type: att.type, disposition: att.disposition || "attachment", contentId: att.contentId })),
-			...(in_reply_to ? { headers: buildThreadingHeaders(in_reply_to, references || []) } : {}),
-		}).catch((e) => console.error("Deferred email delivery failed:", (e as Error).message)),
-	);
-	return c.json({ id: messageId, status: "sent" }, 202);
-});
+app.post("/api/v1/mailboxes/:mailboxId/emails", handleSendEmail);
 
 app.post("/api/v1/mailboxes/:mailboxId/drafts", async (c: AppContext) => {
 	const mailboxId = c.req.param("mailboxId")!;
@@ -422,6 +390,44 @@ app.post("/api/v1/mailboxes/:mailboxId/drafts", async (c: AppContext) => {
 		thread_id: thread_id || in_reply_to || messageId,
 	}, []);
 	return c.json({ id: messageId, status: "draft", subject: subject || "", recipient: to || "", date: now }, 201);
+});
+
+// -- Scheduled send -------------------------------------------------
+
+/** Save the message as a draft and send it at sendAt from the mailbox's alarm. */
+app.post("/api/v1/mailboxes/:mailboxId/scheduled", async (c: AppContext) => {
+	const mailboxId = c.req.param("mailboxId")!;
+	const raw = await c.req.text();
+	if (new TextEncoder().encode(raw).byteLength > SCHEDULE_MAX_PAYLOAD_BYTES) {
+		return c.json({ error: "Message is too large to schedule" }, 413);
+	}
+	let json: unknown;
+	try {
+		json = JSON.parse(raw);
+	} catch {
+		return c.json({ error: "Invalid JSON" }, 400);
+	}
+	const parsed = ScheduleBody.safeParse(json);
+	if (!parsed.success) return c.json({ error: parsed.error.issues[0]?.message ?? "Invalid schedule request" }, 400);
+	const { sendAt, draft_id, mode, original_id, email } = parsed.data;
+	const sendAtError = checkSendAt(sendAt);
+	if (sendAtError) return c.json({ error: sendAtError }, 400);
+	try {
+		validateSender(email.to, email.from, mailboxId);
+	} catch (e) {
+		if (e instanceof SenderValidationError) return c.json({ error: e.message }, 400);
+		throw e;
+	}
+	const result = await c.var.mailboxStub.scheduleSend({
+		mailboxId, sendAt, draftId: draft_id, mode, originalId: mode === "new" ? undefined : original_id, email,
+	});
+	if ("error" in result) return c.json({ error: result.error }, result.status);
+	return c.json(result, 201);
+});
+
+app.delete("/api/v1/mailboxes/:mailboxId/scheduled/:emailId", async (c: AppContext) => {
+	const cancelled = await c.var.mailboxStub.cancelScheduled(c.req.param("emailId")!);
+	return cancelled ? c.json({ status: "cancelled" }) : c.json({ error: "Not found" }, 404);
 });
 
 app.get("/api/v1/mailboxes/:mailboxId/emails/:id", async (c: AppContext) => {

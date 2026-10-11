@@ -392,6 +392,8 @@ export async function toolLabelConversation(
 			done.push(`${type === "label_add" ? "added" : "removed"} ${label.name}`);
 		}
 	}
+	const added = (params.add ?? []).map((ref) => resolve(ref)!.id);
+	if (added.length > 0) await index.markLabelsAuto(added);
 	if (params.archive) {
 		await index.bulk({ threadKeys: [threadKey], view: "inbox" }, { type: "archive" });
 		done.push("archived");

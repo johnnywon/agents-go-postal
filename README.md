@@ -8,12 +8,13 @@ Derived from [cloudflare/agentic-inbox](https://github.com/cloudflare/agentic-in
 
 ## Features
 
-- **One list for every address.** Filter by address, sender, label, date and status. Filters stack as chips you can back out of one step at a time.
+- **One list for every address.** Filter by address, domain, sender, label, date and status. Each domain gets its own colour and shape, so you can tell at a glance which address a message reached.
 - **Full mail client.** Rich-text compose, reply, reply all, forward, drafts, attachments, folders, stars, search and message source view.
+- **Scheduled send.** Pick tomorrow morning, Monday morning or any future time. The message waits in Drafts until it goes out.
 - **Labels and bulk actions.** Select many conversations to archive, delete, mark read, star, label or move. Undo is available after each action.
 - **Keyboard shortcuts** for navigation and actions.
 - **Per-address isolation.** Every address has its own Durable Object, database and prompt settings.
-- **AI agent.** A side panel that can read, search and draft using Workers AI. Automatic drafting of new mail is off by default (`AUTO_DRAFT_ENABLED`).
+- **AI agent.** A side panel that can read, search, label and draft using Workers AI. "Draft with agent" in either composer asks it for a first draft. Labels the agent has applied are marked with a sparkle. Automatic drafting of new mail is off by default (`AUTO_DRAFT_ENABLED`).
 - **MCP server** for connecting outside agents.
 - **Cloudflare Access required.** Outside local development the Worker refuses every request until Access is configured.
 
@@ -65,12 +66,24 @@ Requirements: a domain on Cloudflare, R2, and Workers Paid for outbound email. T
 | `APP_NAME` | `vars` | Name in the header, status bar and page titles |
 | `DOMAINS` | `vars` | Comma-separated domains that receive mail |
 | `EMAIL_ADDRESSES` | `vars` | Addresses that get a mailbox. Mail to other addresses is rejected. |
-| `MAIL_UI` | `vars` | `unified` for one list, `classic` for the per-mailbox routes |
+| `MAIL_UI` | `vars` | `postal` (default) for the current view, `unified` for the earlier one-list view, `classic` for the per-mailbox routes. Unset means `classic`. |
 | `INDEX_SYNC_ENABLED` | `vars` | `false` pauses updates to the combined index; changes queue in each mailbox |
 | `AUTO_DRAFT_ENABLED` | `vars` | `true` drafts a reply to each new message |
 | `POLICY_AUD`, `TEAM_DOMAIN` | secrets | Cloudflare Access verification |
 
 To rebrand a deployment, set `APP_NAME` and replace the files listed in `public/brand/README.md`.
+
+### The postal view
+
+`MAIL_UI=postal` is a three-column workspace: mailboxes on the left, the list and reader in the middle, the agent on the right. Both side columns collapse to rails. Below 1300px the agent overlays the reader; at phone widths the app shows one pane at a time.
+
+Preferences such as theme (dark, light or system), key hints, mark-as-read, remote images and reply-from-receiving-address are stored per browser. Display names and the agent prompt are stored with each mailbox.
+
+Keyboard: `j`/`k` move, `e` archive, `x` select, `r` reply, `a` reply all, `f` forward, `c` new email, `z` undo, `/` or `⌘K` search, `⌘↵` send, `⌘J` agent, `Esc` close.
+
+### Scheduled send
+
+Choose a time from the arrow next to Send in the compose window. The message is saved to Drafts with a "Scheduled" badge, and the address's Durable Object sends it with an alarm at that time through the normal sending path. Cancel removes the schedule and keeps the draft. Editing or deleting the draft before the send time cancels it. A send that fails is retried every 15 minutes, up to three attempts; after that the draft stays in Drafts marked "Send failed". Attachments count toward a 1.5 MB limit per scheduled message.
 
 ### Keeping a deployment in its own repo
 

@@ -28,6 +28,8 @@ import {
 	toolMarkEmailRead,
 	toolMoveEmail,
 	toolDiscardDraft,
+	toolListLabels,
+	toolLabelConversation,
 } from "../lib/tools";
 import { Folders, FOLDER_TOOL_DESCRIPTION, MOVE_FOLDER_TOOL_DESCRIPTION } from "../../shared/folders";
 import type { Env } from "../types";
@@ -253,6 +255,29 @@ function createEmailTools(env: Env, mailboxId: string) {
 			}),
 			execute: async ({ emailId, folderId }): Promise<unknown> => {
 				return toolMoveEmail(env, mailboxId, emailId, folderId);
+			},
+		}),
+
+		list_labels: defineTool({
+			description:
+				"List labels with their ids, colours and conversation counts. Labels are tags shared by every mailbox.",
+			parameters: z.object({}),
+			execute: async (): Promise<unknown> => {
+				return toolListLabels(env);
+			},
+		}),
+
+		label_conversation: defineTool({
+			description:
+				"Add or remove labels on the conversation that holds an email. Labeling leaves the conversation where it is unless archive is true.",
+			parameters: z.object({
+				emailId: z.string().describe("Any email ID in the conversation"),
+				add: z.array(z.string()).optional().describe("Label ids or names to add"),
+				remove: z.array(z.string()).optional().describe("Label ids or names to remove"),
+				archive: z.boolean().optional().describe("Also move the conversation's Inbox mail to Archive"),
+			}),
+			execute: async ({ emailId, add, remove, archive }): Promise<unknown> => {
+				return toolLabelConversation(env, mailboxId, emailId, { add, remove, archive });
 			},
 		}),
 

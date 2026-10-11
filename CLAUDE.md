@@ -10,7 +10,7 @@ Self-hosted multi-address email on Cloudflare Workers. React Router v7 UI in `ap
 
 ## Design
 
-`DESIGN.md` is the design system. `tests/design-rules.test.mjs` enforces the checkable rules (single 6px radius, no accent stripes or edge bars). The unified view lives in `app/components/unified/`; tokens and surfaces in `app/index.css`.
+`DESIGN.md` is the design system. `tests/design-rules.test.mjs` enforces the checkable rules (single 6px radius, no accent stripes or edge bars). The postal view (default, `MAIL_UI=postal`) lives in `app/components/postal/` with its styles in `postal.css`; the unified view in `app/components/unified/`. Tokens and surfaces are in `app/index.css`.
 
 ## Rules
 

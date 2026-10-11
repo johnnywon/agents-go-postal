@@ -33,8 +33,10 @@ import {
 	createLabel,
 	deleteLabelRows,
 	getBulkJob,
+	labelBackup,
 	labelThreadKeys,
 	listLabels,
+	markLabelsAuto,
 	nextBulkOps,
 	opSize,
 	planBulk,
@@ -346,6 +348,13 @@ export class MailIndexDO extends DurableObject<Env> {
 		}
 	}
 
+	/** Flag labels as applied by an agent (MCP or chat). Returns the ids newly flagged. */
+	async markLabelsAuto(ids: string[]) {
+		const flagged = this.ctx.storage.transactionSync(() => markLabelsAuto(this.exec, ids));
+		if (flagged.length > 0) await this.#backupLabels();
+		return { flagged };
+	}
+
 	/** Remove the label from every message, then the definition. */
 	async deleteLabel(id: string) {
 		if (!allLabels(this.exec).some((l) => l.id === id)) return null;
@@ -358,7 +367,7 @@ export class MailIndexDO extends DurableObject<Env> {
 	}
 
 	async #backupLabels() {
-		await this.env.BUCKET.put(LABELS_BACKUP, JSON.stringify(allLabels(this.exec)), {
+		await this.env.BUCKET.put(LABELS_BACKUP, JSON.stringify(labelBackup(this.exec)), {
 			httpMetadata: { contentType: "application/json" },
 		});
 	}

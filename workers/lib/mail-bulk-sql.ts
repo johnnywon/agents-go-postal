@@ -374,14 +374,42 @@ export function allLabels(exec: Exec): Label[] {
 	}));
 }
 
-/** Labels with the number of conversations that carry each, outside Trash and Spam. */
-export function listLabels(exec: Exec): (Label & { count: number })[] {
+/** Ids of labels an agent has applied. */
+function autoLabelIds(exec: Exec): Set<string> {
+	return new Set(exec(`SELECT label_id FROM label_auto`).map((r) => String(r.label_id)));
+}
+
+/** Label definitions with their auto flag, for the R2 backup. */
+export function labelBackup(exec: Exec): (Label & { auto: boolean })[] {
+	const auto = autoLabelIds(exec);
+	return allLabels(exec).map((label) => ({ ...label, auto: auto.has(label.id) }));
+}
+
+/**
+ * Labels with the number of conversations that carry each, outside Trash and
+ * Spam. `auto` is true once an agent has applied the label.
+ */
+export function listLabels(exec: Exec): (Label & { count: number; auto: boolean })[] {
 	const counts = new Map(exec(
 		`SELECT l.label_id AS id, COUNT(DISTINCT m.thread_key) AS n FROM message_labels l
 		JOIN messages m ON m.id = l.message WHERE m.deleted = 0 AND m.state NOT IN ('trash', 'spam')
 		GROUP BY l.label_id`,
 	).map((r) => [String(r.id), Number(r.n)]));
-	return allLabels(exec).map((label) => ({ ...label, count: counts.get(label.id) ?? 0 }));
+	const auto = autoLabelIds(exec);
+	return allLabels(exec).map((label) => ({ ...label, count: counts.get(label.id) ?? 0, auto: auto.has(label.id) }));
+}
+
+/** Flag labels as agent-applied. Unknown ids are skipped. Returns the ids newly flagged. */
+export function markLabelsAuto(exec: Exec, ids: string[], now = new Date().toISOString()): string[] {
+	const known = new Set(allLabels(exec).map((l) => l.id));
+	const flagged: string[] = [];
+	for (const id of new Set(ids)) {
+		if (!known.has(id)) continue;
+		const inserted = exec(`INSERT OR IGNORE INTO label_auto (label_id, applied_at) VALUES (?, ?) RETURNING label_id`, id, now);
+		if (inserted.length > 0) flagged.push(id);
+		else exec(`UPDATE label_auto SET applied_at = ? WHERE label_id = ?`, now, id);
+	}
+	return flagged;
 }
 
 export function findLabelByName(exec: Exec, name: string): Label | null {
@@ -423,6 +451,7 @@ export function labelThreadKeys(exec: Exec, id: string): string[] {
 
 export function deleteLabelRows(exec: Exec, id: string): boolean {
 	exec(`DELETE FROM message_labels WHERE label_id = ?`, id);
+	exec(`DELETE FROM label_auto WHERE label_id = ?`, id);
 	return exec(`DELETE FROM labels WHERE id = ? RETURNING id`, id).length > 0;
 }
 
@@ -431,12 +460,15 @@ export function restoreLabels(exec: Exec, labels: unknown): number {
 	if (!Array.isArray(labels)) return 0;
 	let restored = 0;
 	for (const raw of labels) {
-		const l = raw as Partial<Label>;
+		const l = raw as Partial<Label> & { auto?: unknown };
 		if (typeof l?.id !== "string" || typeof l.name !== "string") continue;
 		const inserted = exec(
 			`INSERT OR IGNORE INTO labels (id, name, color, position) VALUES (?, ?, ?, ?) RETURNING id`,
 			l.id, l.name, typeof l.color === "string" ? l.color : DEFAULT_LABEL_COLOR, Number(l.position ?? 0),
 		);
+		if (inserted.length > 0 && l.auto === true) {
+			exec(`INSERT OR IGNORE INTO label_auto (label_id, applied_at) VALUES (?, ?)`, l.id, new Date().toISOString());
+		}
 		restored += inserted.length;
 	}
 	return restored;

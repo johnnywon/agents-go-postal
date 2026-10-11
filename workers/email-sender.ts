@@ -67,6 +67,7 @@ export async function sendEmail(
 		}));
 	}
 
-	const result = await binding.send(message as any);
-	return { messageId: result.messageId };
+	// Local (Miniflare) bindings resolve without a result.
+	const result = (await binding.send(message as any)) as { messageId?: string } | undefined;
+	return { messageId: result?.messageId ?? "" };
 }

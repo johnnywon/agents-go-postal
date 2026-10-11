@@ -17,6 +17,7 @@ const publicDir = process.env.AGP_PUBLIC_DIR;
 // Dependencies Vite otherwise discovers only after the first request. Re-optimizing them
 // mid-load gives the open page a second copy of React ("Invalid hook call").
 const PREBUNDLE = [
+  "@cloudflare/ai-chat/react",
   "@cloudflare/kumo",
   "@phosphor-icons/react",
   "@tanstack/react-query",
@@ -30,7 +31,10 @@ const PREBUNDLE = [
   "@tiptap/extension-underline",
   "@tiptap/react",
   "@tiptap/starter-kit",
+  "agents/react",
   "dompurify",
+  "react-markdown",
+  "remark-gfm",
   "zustand",
 ];
 

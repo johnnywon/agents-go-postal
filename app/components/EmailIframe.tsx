@@ -9,6 +9,15 @@ interface EmailIframeProps {
 	body: string;
 	/** When true, iframe auto-sizes to content height instead of filling parent */
 	autoSize?: boolean;
+	/** False blocks images from remote servers (they can track opens). Defaults to true. */
+	remoteImages?: boolean;
+	/** Body padding inside the frame, in px. Defaults to 0 when auto-sizing, else 24. */
+	padding?: number;
+}
+
+/** Whether HTML loads anything from a remote server: images, backgrounds or CSS urls. */
+export function hasRemoteImages(html: string): boolean {
+	return /<img\b[^>]*\ssrc\s*=\s*["']?\s*(?:https?:)?\/\/|\bbackground\s*=\s*["']?\s*(?:https?:)?\/\/|url\(\s*["']?\s*(?:https?:)?\/\//i.test(html);
 }
 
 /**
@@ -27,7 +36,7 @@ interface EmailIframeProps {
  * - A strict CSP meta tag blocks external resource loads inside the
  *   iframe as a defense-in-depth layer.
  */
-export default function EmailIframe({ body, autoSize }: EmailIframeProps) {
+export default function EmailIframe({ body, autoSize, remoteImages = true, padding: paddingProp }: EmailIframeProps) {
 	const iframeRef = useRef<HTMLIFrameElement>(null);
 	const [height, setHeight] = useState(autoSize ? 100 : 0);
 
@@ -82,7 +91,7 @@ export default function EmailIframe({ body, autoSize }: EmailIframeProps) {
 			link.setAttribute("rel", "noopener noreferrer");
 		}
 
-		const padding = autoSize ? "0" : "24px";
+		const padding = `${paddingProp ?? (autoSize ? 0 : 24)}px`;
 
 		// Height-reporting script: sends body.scrollHeight to the parent.
 		// Runs inside the opaque-origin sandbox so it has zero access to
@@ -107,7 +116,7 @@ export default function EmailIframe({ body, autoSize }: EmailIframeProps) {
 		const keyScript = `<script>
 			document.addEventListener("keydown", function (e) {
 				if (e.metaKey || e.ctrlKey || e.altKey || e.isComposing) return;
-				if (["j", "k", "/", "?", "Escape", "x", "l", "e", "#", "s", "u"].indexOf(e.key) < 0) return;
+				if (["j", "k", "/", "?", "Escape", "x", "l", "e", "#", "s", "u", "r", "a", "f", "c", "z"].indexOf(e.key) < 0) return;
 				parent.postMessage({ __emailIframeKey: true, key: e.key }, "*");
 			});
 		<\/script>`;
@@ -119,7 +128,7 @@ export default function EmailIframe({ body, autoSize }: EmailIframeProps) {
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; img-src data: cid: https:; script-src 'unsafe-inline';">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; img-src data: cid: ${remoteImages ? "https:" : ""} ${typeof window === "undefined" ? "" : window.location.origin}; script-src 'unsafe-inline';">
 <style>
 * { box-sizing: border-box; }
 html {
@@ -166,7 +175,7 @@ ul, ol { padding-left: 20px; margin: 4px 0; }
 </head>
 <body>${cleanBody.innerHTML}${heightScript}${keyScript}</body>
 </html>`;
-	}, [body, autoSize]);
+	}, [body, autoSize, remoteImages, paddingProp]);
 
 	return (
 		<iframe
