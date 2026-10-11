@@ -14,8 +14,8 @@
 
 import { LABEL_COLORS } from "../../shared/label-colors";
 import { labelSlug, type Label } from "./mail-bulk-sql";
-import { getMailboxStub } from "./email-helpers";
-import { getMailIndexStub, indexedMailboxIds } from "./mail-index-stub";
+import { indexedMailboxIds } from "./mail-index-stub";
+import { mailStore } from "../store";
 import type { Env } from "../types";
 
 export interface MailboxFolders {
@@ -84,10 +84,10 @@ export interface ImportDeps {
 }
 
 export function importDeps(env: Env): ImportDeps {
-	const index = getMailIndexStub(env);
+	const index = mailStore(env).all();
 	return {
 		mailboxIds: () => indexedMailboxIds(env),
-		mailbox: (id) => getMailboxStub(env, id) as unknown as ImportMailbox,
+		mailbox: (id) => mailStore(env).mailbox(id) as unknown as ImportMailbox,
 		listLabels: async () => (await index.listLabels()).map((l) => ({ id: l.id, name: l.name, color: l.color })),
 		createLabel: async (input) => index.createLabel(input),
 		putBackup: async (key, body) => {

@@ -1,6 +1,7 @@
 import { Folders } from "../../shared/folders";
 import type { Env } from "../types";
-import { getMailboxStub, listMailboxes } from "./email-helpers";
+import { listMailboxes } from "./email-helpers";
+import { mailStore } from "../store";
 
 export class InvalidInboxCursorError extends Error {
 	constructor() {
@@ -64,7 +65,7 @@ export async function getCombinedInbox(env: Env, cursor?: string, pageSize = 25)
 	const limit = Math.min(Math.max(pageSize, 1), 100);
 
 	const mailboxPages = await Promise.all(ids.map(async (mailboxId, index) => {
-		const stub = getMailboxStub(env, mailboxId) as unknown as InboxStub;
+		const stub = mailStore(env).mailbox(mailboxId) as unknown as InboxStub;
 		const [emails, totalCount] = await Promise.all([
 			stub.getThreadedEmails({ folder: Folders.INBOX, offset: offsets[index], limit }),
 			stub.countThreadedEmails(Folders.INBOX),

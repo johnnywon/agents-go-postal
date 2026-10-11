@@ -2,14 +2,8 @@
 // Licensed under the Apache 2.0 license found in the LICENSE file or at:
 //     https://opensource.org/licenses/Apache-2.0
 
-import type { MailIndexDO } from "../durableObject/mail-index";
 import type { Env } from "../types";
 import { listMailboxes } from "./email-helpers";
-
-/** The single global index instance. */
-export function getMailIndexStub(env: Env): DurableObjectStub<MailIndexDO> {
-	return env.MAIL_INDEX.get(env.MAIL_INDEX.idFromName("global"));
-}
 
 /** Kill switch: `INDEX_SYNC_ENABLED = "false"` stops mailbox pushes. Mutations still record to the outbox. */
 export function indexSyncEnabled(env: Env): boolean {

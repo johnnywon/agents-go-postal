@@ -22,7 +22,8 @@ import {
 	recordChanges,
 	setMeta,
 } from "../lib/index-rows";
-import { getMailIndexStub, indexSyncEnabled } from "../lib/mail-index-stub";
+import { indexSyncEnabled } from "../lib/mail-index-stub";
+import { durableObjectInternals } from "../store";
 import {
 	customFolderCounts,
 	folderEmailIdsSql,
@@ -212,7 +213,7 @@ export class MailboxDO extends DurableObject<Env> {
 		if (!indexSyncEnabled(this.env)) return;
 		const mailboxId = this.#mailboxId();
 		if (!mailboxId) return;
-		const index = getMailIndexStub(this.env);
+		const index = durableObjectInternals(this.env).index();
 		for (let batch = 0; batch < PUSH_BATCHES_PER_FLUSH; batch++) {
 			const { rows, seq } = readOutbox(this.exec);
 			if (rows.length === 0) return;

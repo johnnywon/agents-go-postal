@@ -18,7 +18,7 @@ async function handleSend(c: AppContext, kind: SendMode["kind"]) {
 	const idempotencyKey = c.req.header("idempotency-key") || undefined;
 	const keyError = idempotencyKey ? checkSendKey(idempotencyKey) : null;
 	if (keyError) return c.json({ error: keyError }, 400);
-	const result = await sendMail(c.env, mailboxId, c.var.mailboxStub, body, mode, {
+	const result = await sendMail(c.env, mailboxId, c.var.mailbox, body, mode, {
 		defer: (delivery) => c.executionCtx.waitUntil(delivery),
 		idempotencyKey,
 	});

@@ -1,6 +1,6 @@
 # Plan: move mail storage to D1 and rebuild search
 
-Status: proposal. Phase 0 is done: [results](d1-phase0.md). Nothing else is built yet.
+Status: in progress. Phase 0 is done ([results](d1-phase0.md)). Phase 1 is done: every caller goes through `mailStore(env)`.
 
 ## Summary
 
@@ -219,11 +219,11 @@ export interface Sql {
 }
 ```
 
-- `workers/store/d1.ts` wraps `env.DB` (`prepare().bind().all()`, `env.DB.batch()`).
-- `tests/helpers/sqlite.mjs` gains an async `Sql` over node:sqlite with the same D1 limits it enforces today: at most 100 bound parameters, no SQL-level transactions, plus a 2 MB value check. Unit tests stay in node and stay fast.
+- `d1Sql` in `workers/store/sql.ts` wraps `env.DB` (`prepare().bind().all()`, `env.DB.batch()`). `chunkByBytes` splits a long statement list into batches under 24 MB.
+- `tests/helpers/sql.mjs` is an async `Sql` over node:sqlite that refuses what D1 refuses: more than 100 bound parameters, SQL-level transactions, a value over 8 MB, a batch over 32 MiB. Unit tests stay in node and stay fast.
 - Id lists use `json_each(?)` with one JSON parameter instead of `IN (?, ?, ...)`, which removes the 100-parameter ceiling from bulk actions.
 
-The modules that hold SQL (`mail-index-sql.ts`, `mail-bulk-sql.ts`, `mailbox-bulk.ts`, `scheduled-send.ts`, `send-keys.ts`, `index-rows.ts`, the `MailboxDO` methods) move to `workers/store/` as async functions over `Sql`. Most of the change is mechanical: `exec(` becomes `await sql.all(`. The functions listed under "Places that rely on `transactionSync`" get rewritten:
+The D1 store's SQL is written new in `workers/store/d1/` over `Sql`, against the new schema. Today's SQL modules (`mail-index-sql.ts`, `mail-bulk-sql.ts`, `mailbox-bulk.ts`, `scheduled-send.ts`, `send-keys.ts`, `index-rows.ts`, the `MailboxDO` methods) stay as they are, serving the Durable Objects until removal. Porting them to async in place was the first version of phase 1. It was dropped for two reasons. The queries change anyway: one `messages` table with `mailbox_id` replaces per-mailbox tables. And awaiting inside a Durable Object would open gaps between a read and the write that depends on it, where `transactionSync` has none today. Where a module's logic carries over (filter compilation, cursors, the scheduled-send runner), the D1 version reuses its pure parts. The operations that relied on `transactionSync` become:
 
 | Operation | D1 form |
 |---|---|
@@ -431,9 +431,9 @@ The copy job is a user-facing feature of one release, so it needs its own README
 | # | Phase | Output | Rough size |
 |---|---|---|---|
 | 0 | Checks | Done. See [Phase 0 results](#phase-0-results). | 1 day |
-| 1 | Access layer | `Sql` interface, the D1 and node:sqlite adapters, and SQL modules moved to `workers/store/` as async functions. The Durable Objects call the async versions through an adapter, so behavior doesn't change and every test still passes. | 3 to 4 days |
+| 1 | Store contract (done) | `workers/store/`: `MailStore` with `mailbox(id)` (one address) and `all()` (every address), and its Durable Object implementation. All 47 call sites in the routes, tools, agent, MCP and helpers go through `mailStore(env)`. Index-sync work that D1 won't need (index status, rebuild, `setMailboxId`, `purgeMailbox`) goes through `durableObjectInternals(env)`. Also: the `Sql` interface with `d1Sql` and byte-sized `chunkByBytes`, and an async node:sqlite `Sql` in `tests/helpers/sql.mjs` that refuses what D1 refuses. A test fails if code outside `workers/store/` or the Durable Objects touches the mail bindings. No behavior change. | 1 day |
 | 2 | D1 schema and store | `migrations/0001_init.sql` and a `MailStore` built on D1 with the same methods the routes, tools and agent use today. Tests run against it. | 4 to 5 days |
-| 3 | Switch callers | The 11 files call `MailStore` instead of stubs. The `STORAGE` var picks the Durable Object store or the D1 store. `MAIL_UI` modes all read through it. | 2 to 3 days |
+| 3 | Switch storage | Callers already use `mailStore(env)` (phase 1). This phase adds the `STORAGE` var to pick the Durable Object store or the D1 store, and moves the mailbox list and settings from R2 into the contract. | 1 day |
 | 4 | Jobs | The cron handler: scheduled send with claims, bulk job chunks, sweeps. Large bodies in R2. Reindex search. | 2 days |
 | 5 | Copy job | Export methods, the copy and catch-up job, the parity report, the settings page button, dual inbound writes | 3 to 4 days |
 | 6 | Move your own deployment | Copy, check, cut over, two-week soak. Fix what it turns up. | 2 weeks elapsed, about 1 day of work |

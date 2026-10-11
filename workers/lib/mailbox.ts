@@ -3,18 +3,17 @@
 //     https://opensource.org/licenses/Apache-2.0
 
 /**
- * Hono middleware to handle repetitive Mailbox Durable Object instantiation.
- * Checks if the mailbox exists in R2, then instantiates the DO stub
- * and attaches it to the Hono context (`c.var.mailboxStub`).
+ * Hono middleware: checks the mailbox exists in R2, then attaches its
+ * store to the Hono context (`c.var.mailbox`).
  */
 import { createMiddleware } from "hono/factory";
-import type { MailboxDO } from "../durableObject";
+import { mailStore, type MailboxStore } from "../store";
 import type { Env } from "../types";
 
 export type MailboxContext = {
 	Bindings: Env;
 	Variables: {
-		mailboxStub: DurableObjectStub<MailboxDO>;
+		mailbox: MailboxStore;
 	};
 };
 
@@ -30,12 +29,7 @@ export const requireMailbox = createMiddleware<MailboxContext>(async (c, next) =
 		return c.json({ error: "Not found" }, 404);
 	}
 
-	// Instantiate DO stub
-	const ns = c.env.MAILBOX;
-	const id = ns.idFromName(mailboxId);
-	const stub = ns.get(id);
-
-	c.set("mailboxStub", stub);
+	c.set("mailbox", mailStore(c.env).mailbox(mailboxId));
 	
 	await next();
 });

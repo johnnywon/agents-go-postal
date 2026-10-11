@@ -23,8 +23,8 @@ import { getCombinedInbox, InvalidInboxCursorError } from "./lib/combined-inbox"
 import { csrf } from "./lib/csrf";
 import { decodeCursor, InvalidFilterError } from "./lib/mail-index-sql";
 import { parseMailParams } from "./lib/mail-filter-params";
-import { getMailboxStub } from "./lib/email-helpers";
-import { getMailIndexStub, indexedMailboxIds } from "./lib/mail-index-stub";
+import { indexedMailboxIds } from "./lib/mail-index-stub";
+import { durableObjectInternals, mailStore } from "./store";
 import { MOVE_FOLDERS } from "./lib/mail-bulk-sql";
 import { automatedMailReason } from "./lib/message-meta";
 import { dryRunFolderImport, importDeps, runFolderImport } from "./lib/folder-import";
@@ -128,7 +128,7 @@ if (import.meta.env?.DEV) {
 		const ids = await indexedMailboxIds(c.env);
 		let created = 0;
 		for (const [m, mailboxId] of ids.entries()) {
-			const stub = getMailboxStub(c.env, mailboxId);
+			const stub = durableObjectInternals(c.env).mailbox(mailboxId);
 			await stub.setMailboxId(mailboxId);
 			for (let i = 0; i < Math.min(perMailbox, 100); i++) {
 				const id = crypto.randomUUID();
@@ -220,7 +220,7 @@ async function createMailbox(env: Env, email: string, name: string, settings?: R
 	const defaultSettings = { fromName: name, forwarding: { enabled: false, email: "" }, signature: { enabled: false, text: "" }, autoReply: { enabled: false, subject: "", message: "" } };
 	const finalSettings = { ...defaultSettings, ...settings };
 	await env.BUCKET.put(`mailboxes/${email}.json`, JSON.stringify(finalSettings));
-	await env.MAILBOX.get(env.MAILBOX.idFromName(email)).setMailboxId(email);
+	await durableObjectInternals(env).mailbox(email).setMailboxId(email);
 	return finalSettings;
 }
 
@@ -245,7 +245,7 @@ app.delete("/api/v1/mailboxes/:mailboxId", async (c) => {
 	const key = `mailboxes/${mailboxId}.json`;
 	if (!(await c.env.BUCKET.head(key))) return c.json({ error: "Not found" }, 404);
 	await c.env.BUCKET.delete(key); // TODO: also delete DO data and R2 attachment blobs
-	await getMailIndexStub(c.env).purgeMailbox(mailboxId);
+	await durableObjectInternals(c.env).index().purgeMailbox(mailboxId);
 	return c.body(null, 204);
 });
 
@@ -260,7 +260,7 @@ function parseMailRequest(url: string) {
 app.get("/api/v1/mail", async (c) => {
 	try {
 		const { filter, cursor, limit } = parseMailRequest(c.req.url);
-		return c.json(await getMailIndexStub(c.env).queryMail(filter, { cursor, limit }));
+		return c.json(await mailStore(c.env).all().queryMail(filter, { cursor, limit }));
 	} catch (error) {
 		if (error instanceof InvalidFilterError) return c.json({ error: error.message }, 400);
 		throw error;
@@ -270,7 +270,7 @@ app.get("/api/v1/mail", async (c) => {
 app.get("/api/v1/mail/facets", async (c) => {
 	try {
 		const { filter } = parseMailRequest(c.req.url);
-		return c.json(await getMailIndexStub(c.env).queryFacets(filter));
+		return c.json(await mailStore(c.env).all().queryFacets(filter));
 	} catch (error) {
 		if (error instanceof InvalidFilterError) return c.json({ error: error.message }, 400);
 		throw error;
@@ -281,7 +281,7 @@ app.get("/api/v1/mail/facets", async (c) => {
 app.get("/api/v1/mail/scheduled", async (c) => {
 	const mailboxIds = await indexedMailboxIds(c.env);
 	const lists = await Promise.all(mailboxIds.map(async (mailboxId) => {
-		const rows = await getMailboxStub(c.env, mailboxId).listScheduled().catch((e) => {
+		const rows = await mailStore(c.env).mailbox(mailboxId).listScheduled().catch((e) => {
 			console.error(`scheduled list failed for ${mailboxId}:`, (e as Error).message);
 			return [];
 		});
@@ -290,15 +290,16 @@ app.get("/api/v1/mail/scheduled", async (c) => {
 	return c.json(lists.flat().sort((a, b) => a.sendAt.localeCompare(b.sendAt)));
 });
 
-app.get("/api/v1/mail/folders", async (c) => c.json(await getMailIndexStub(c.env).folderViews()));
+app.get("/api/v1/mail/folders", async (c) => c.json(await mailStore(c.env).all().folderViews()));
 
 /** Index parity: the index's counts beside each mailbox's own counts. */
 app.get("/api/v1/index/status", async (c) => {
-	const index = getMailIndexStub(c.env);
+	const internals = durableObjectInternals(c.env);
+	const index = internals.index();
 	const [status, mailboxIds] = await Promise.all([index.status(), indexedMailboxIds(c.env)]);
 	const mailboxes = await Promise.all(mailboxIds.map(async (mailboxId) => {
 		try {
-			return { mailboxId, source: await getMailboxStub(c.env, mailboxId).indexStatus(), index: status.counts[mailboxId] ?? null };
+			return { mailboxId, source: await internals.mailbox(mailboxId).indexStatus(), index: status.counts[mailboxId] ?? null };
 		} catch (e) {
 			return { mailboxId, error: (e as Error).message, index: status.counts[mailboxId] ?? null };
 		}
@@ -307,7 +308,7 @@ app.get("/api/v1/index/status", async (c) => {
 });
 
 app.post("/api/v1/index/rebuild", async (c) => {
-	return c.json(await getMailIndexStub(c.env).startRebuild(), 202);
+	return c.json(await durableObjectInternals(c.env).index().startRebuild(), 202);
 });
 
 // -- Bulk actions ---------------------------------------------------
@@ -320,7 +321,7 @@ app.post("/api/v1/mail/bulk", async (c) => {
 		const resolved = "threadKeys" in target
 			? { threadKeys: target.threadKeys, view: parseMailParams(new URLSearchParams({ view: target.view })).filter.view }
 			: { filter: parseMailParams(new URLSearchParams(target.filter)).filter, asOf: target.asOf, expectedCount: target.expectedCount };
-		const result = await getMailIndexStub(c.env).bulk(resolved, action);
+		const result = await mailStore(c.env).all().bulk(resolved, action);
 		if ("conflict" in result) return c.json({ error: "The list changed. Check the selection and try again.", count: result.conflict }, 409);
 		if ("job" in result) return c.json(result.job, 202);
 		return c.json(result);
@@ -333,16 +334,16 @@ app.post("/api/v1/mail/bulk", async (c) => {
 app.post("/api/v1/mail/bulk/undo", async (c) => {
 	const { undoId } = (await c.req.json().catch(() => ({}))) as { undoId?: unknown };
 	if (typeof undoId !== "string" || !undoId) return c.json({ error: "undoId is required" }, 400);
-	const result = await getMailIndexStub(c.env).undo(undoId);
+	const result = await mailStore(c.env).all().undo(undoId);
 	return result ? c.json(result) : c.json({ error: "Nothing to undo. Undo lasts one hour." }, 404);
 });
 
 app.get("/api/v1/mail/bulk/jobs/:id", async (c) => {
-	const job = await getMailIndexStub(c.env).bulkJob(c.req.param("id"));
+	const job = await mailStore(c.env).all().bulkJob(c.req.param("id"));
 	return job ? c.json(job) : c.json({ error: "Not found" }, 404);
 });
 
-app.get("/api/v1/mail/trash", async (c) => c.json(await getMailIndexStub(c.env).trashCount()));
+app.get("/api/v1/mail/trash", async (c) => c.json(await mailStore(c.env).all().trashCount()));
 
 /** Permanently delete everything in Trash. No undo; the count must match what the user confirmed. */
 app.post("/api/v1/mail/empty-trash", async (c) => {
@@ -350,7 +351,7 @@ app.post("/api/v1/mail/empty-trash", async (c) => {
 	if (typeof expectedCount !== "number" || !Number.isInteger(expectedCount) || expectedCount < 0) {
 		return c.json({ error: "expectedCount is required" }, 400);
 	}
-	const result = await getMailIndexStub(c.env).emptyTrash(expectedCount);
+	const result = await mailStore(c.env).all().emptyTrash(expectedCount);
 	if ("conflict" in result) return c.json({ error: "Trash changed. Check the count and try again.", count: result.conflict }, 409);
 	if ("job" in result) return c.json(result.job, 202);
 	return c.json(result);
@@ -358,25 +359,25 @@ app.post("/api/v1/mail/empty-trash", async (c) => {
 
 // -- Labels ---------------------------------------------------------
 
-app.get("/api/v1/labels", async (c) => c.json(await getMailIndexStub(c.env).listLabels()));
+app.get("/api/v1/labels", async (c) => c.json(await mailStore(c.env).all().listLabels()));
 
 app.post("/api/v1/labels", async (c) => {
 	const parsed = LabelBody.safeParse(await c.req.json().catch(() => null));
 	if (!parsed.success) return c.json({ error: "Invalid label" }, 400);
-	const result = await getMailIndexStub(c.env).createLabel({ name: parsed.data.name, color: parsed.data.color });
+	const result = await mailStore(c.env).all().createLabel({ name: parsed.data.name, color: parsed.data.color });
 	return result.label ? c.json(result.label, 201) : c.json({ error: result.error }, 400);
 });
 
 app.put("/api/v1/labels/:id", async (c) => {
 	const parsed = LabelBody.safeParse(await c.req.json().catch(() => null));
 	if (!parsed.success) return c.json({ error: "Invalid label" }, 400);
-	const result = await getMailIndexStub(c.env).updateLabel(c.req.param("id"), parsed.data);
+	const result = await mailStore(c.env).all().updateLabel(c.req.param("id"), parsed.data);
 	if (result.error) return c.json({ error: result.error }, 400);
 	return result.label ? c.json(result.label) : c.json({ error: "Not found" }, 404);
 });
 
 app.delete("/api/v1/labels/:id", async (c) => {
-	const result = await getMailIndexStub(c.env).deleteLabel(c.req.param("id"));
+	const result = await mailStore(c.env).all().deleteLabel(c.req.param("id"));
 	if (!result) return c.json({ error: "Not found" }, 404);
 	if (!result.deleted) return c.json({ error: "Some mailboxes could not drop the label. Try again.", failed: result.failed }, 502);
 	return c.json(result);
@@ -410,7 +411,7 @@ app.get("/api/v1/mailboxes/:mailboxId/emails", async (c: AppContext) => {
 	const limit = intQuery(c, "limit");
 	const sortColumn = c.req.query("sortColumn") as any;
 	const sortDirection = c.req.query("sortDirection") as "ASC" | "DESC" | undefined;
-	const stub = c.var.mailboxStub;
+	const stub = c.var.mailbox;
 
 	if (threaded && folder) {
 		const emails = await (stub as any).getThreadedEmails({ folder, page, limit });
@@ -430,7 +431,7 @@ app.post("/api/v1/mailboxes/:mailboxId/emails", handleSendEmail);
 app.post("/api/v1/mailboxes/:mailboxId/drafts", async (c: AppContext) => {
 	const mailboxId = c.req.param("mailboxId")!;
 	const { to, cc, bcc, subject, body, in_reply_to, thread_id, draft_id } = DraftBody.parse(await c.req.json());
-	const stub = c.var.mailboxStub;
+	const stub = c.var.mailbox;
 	if (draft_id) await stub.deleteEmail(draft_id); // drafts only; not atomic — create-then-delete would be safer
 	const messageId = crypto.randomUUID();
 	const now = new Date().toISOString();
@@ -469,7 +470,7 @@ app.post("/api/v1/mailboxes/:mailboxId/scheduled", async (c: AppContext) => {
 		if (e instanceof SenderValidationError) return c.json({ error: e.message }, 400);
 		throw e;
 	}
-	const result = await c.var.mailboxStub.scheduleSend({
+	const result = await c.var.mailbox.scheduleSend({
 		mailboxId, sendAt, draftId: draft_id, mode, originalId: mode === "new" ? undefined : original_id, email,
 	});
 	if ("error" in result) return c.json({ error: result.error }, result.status);
@@ -477,12 +478,12 @@ app.post("/api/v1/mailboxes/:mailboxId/scheduled", async (c: AppContext) => {
 });
 
 app.delete("/api/v1/mailboxes/:mailboxId/scheduled/:emailId", async (c: AppContext) => {
-	const cancelled = await c.var.mailboxStub.cancelScheduled(c.req.param("emailId")!);
+	const cancelled = await c.var.mailbox.cancelScheduled(c.req.param("emailId")!);
 	return cancelled ? c.json({ status: "cancelled" }) : c.json({ error: "Not found" }, 404);
 });
 
 app.get("/api/v1/mailboxes/:mailboxId/emails/:id", async (c: AppContext) => {
-	const email = await c.var.mailboxStub.getEmail(c.req.param("id")!);
+	const email = await c.var.mailbox.getEmail(c.req.param("id")!);
 	if (!email) return c.json({ error: "Email not found" }, 404);
 	return new Response(JSON.stringify(email), {
 		headers: { "Content-Type": "application/json" },
@@ -491,14 +492,14 @@ app.get("/api/v1/mailboxes/:mailboxId/emails/:id", async (c: AppContext) => {
 
 app.put("/api/v1/mailboxes/:mailboxId/emails/:id", async (c: AppContext) => {
 	const { read, starred } = (await c.req.json()) as { read?: boolean; starred?: boolean };
-	const email = await c.var.mailboxStub.updateEmail(c.req.param("id")!, { read, starred });
+	const email = await c.var.mailbox.updateEmail(c.req.param("id")!, { read, starred });
 	return email ? c.json(email) : c.json({ error: "Email not found" }, 404);
 });
 
 // Delete moves mail to Trash. Only mail already in Trash, and drafts, are deleted permanently.
 app.delete("/api/v1/mailboxes/:mailboxId/emails/:id", async (c: AppContext) => {
 	const id = c.req.param("id")!;
-	const result = await c.var.mailboxStub.trashOrDelete(id);
+	const result = await c.var.mailbox.trashOrDelete(id);
 	if (result === null) return c.json({ error: "Not found" }, 404);
 	if (result.attachments.length > 0) await c.env.BUCKET.delete(result.attachments.map((att) => `attachments/${id}/${att.id}/${att.filename}`));
 	return c.json({ status: result.action });
@@ -506,18 +507,18 @@ app.delete("/api/v1/mailboxes/:mailboxId/emails/:id", async (c: AppContext) => {
 
 app.post("/api/v1/mailboxes/:mailboxId/emails/:id/move", async (c: AppContext) => {
 	const { folderId } = (await c.req.json()) as { folderId: string };
-	const success = await c.var.mailboxStub.moveEmail(c.req.param("id")!, folderId);
+	const success = await c.var.mailbox.moveEmail(c.req.param("id")!, folderId);
 	return success ? c.json({ status: "moved" }) : c.json({ error: "Folder not found" }, 400);
 });
 
 // -- Threads --------------------------------------------------------
 
 app.get("/api/v1/mailboxes/:mailboxId/threads/:threadId", async (c: AppContext) => {
-	return c.json(await (c.var.mailboxStub as any).getThreadEmails(c.req.param("threadId")!));
+	return c.json(await (c.var.mailbox as any).getThreadEmails(c.req.param("threadId")!));
 });
 
 app.post("/api/v1/mailboxes/:mailboxId/threads/:threadId/read", async (c: AppContext) => {
-	await c.var.mailboxStub.markThreadRead(c.req.param("threadId")!);
+	await c.var.mailbox.markThreadRead(c.req.param("threadId")!);
 	return c.json({ status: "marked_read" });
 });
 
@@ -528,24 +529,24 @@ app.post("/api/v1/mailboxes/:mailboxId/emails/:id/forward", handleForwardEmail);
 
 // -- Folders --------------------------------------------------------
 
-app.get("/api/v1/mailboxes/:mailboxId/folders", async (c: AppContext) => c.json(await c.var.mailboxStub.getFolders()));
+app.get("/api/v1/mailboxes/:mailboxId/folders", async (c: AppContext) => c.json(await c.var.mailbox.getFolders()));
 
 app.post("/api/v1/mailboxes/:mailboxId/folders", async (c: AppContext) => {
 	const { name } = (await c.req.json()) as { name: string };
 	const slug = slugify(name);
 	if (!slug) return c.json({ error: "Folder name must contain alphanumeric characters" }, 400);
-	const f = await c.var.mailboxStub.createFolder(slug, name);
+	const f = await c.var.mailbox.createFolder(slug, name);
 	return f ? c.json(f, 201) : c.json({ error: "Folder with this name already exists" }, 409);
 });
 
 app.put("/api/v1/mailboxes/:mailboxId/folders/:id", async (c: AppContext) => {
 	const { name } = (await c.req.json()) as { name: string };
-	const f = await c.var.mailboxStub.updateFolder(c.req.param("id")!, name);
+	const f = await c.var.mailbox.updateFolder(c.req.param("id")!, name);
 	return f ? c.json(f) : c.json({ error: "Folder not found" }, 404);
 });
 
 app.delete("/api/v1/mailboxes/:mailboxId/folders/:id", async (c: AppContext) => {
-	const result = await c.var.mailboxStub.deleteFolder(c.req.param("id")!);
+	const result = await c.var.mailbox.deleteFolder(c.req.param("id")!);
 	if (result === "deleted") return c.body(null, 204);
 	if (result === "not_empty") return c.json({ error: "Folder still holds mail. Move it out first." }, 409);
 	return c.json({ error: "Folder not found or cannot be deleted" }, 400);
@@ -560,7 +561,7 @@ app.get("/api/v1/mailboxes/:mailboxId/search", async (c: AppContext) => {
 		date_end: c.req.query("date_end"), is_read: boolQuery(c, "is_read"),
 		is_starred: boolQuery(c, "is_starred"), has_attachment: boolQuery(c, "has_attachment"),
 	};
-	const stub = c.var.mailboxStub as any;
+	const stub = c.var.mailbox as any;
 	const emails = await stub.searchEmails({ ...searchOpts, page: intQuery(c, "page"), limit: intQuery(c, "limit") });
 	const totalCount = await stub.countSearchResults(searchOpts);
 	return c.json({ emails, totalCount });
@@ -571,7 +572,7 @@ app.get("/api/v1/mailboxes/:mailboxId/search", async (c: AppContext) => {
 app.get("/api/v1/mailboxes/:mailboxId/emails/:emailId/attachments/:attachmentId", async (c: AppContext) => {
 	const emailId = c.req.param("emailId")!;
 	const attachmentId = c.req.param("attachmentId")!;
-	const attachment = await c.var.mailboxStub.getAttachment(attachmentId);
+	const attachment = await c.var.mailbox.getAttachment(attachmentId);
 	if (!attachment) return c.json({ error: "Attachment not found" }, 404);
 	const obj = await c.env.BUCKET.get(`attachments/${emailId}/${attachmentId}/${attachment.filename}`);
 	if (!obj) return c.json({ error: "Attachment file not found" }, 404);
@@ -625,7 +626,7 @@ async function receiveEmail(event: { to: string; raw: ReadableStream; rawSize: n
 		await createMailbox(env, mailboxId, mailboxId.split("@")[0] || mailboxId);
 	}
 
-	const stub = env.MAILBOX.get(env.MAILBOX.idFromName(mailboxId));
+	const stub = mailStore(env).mailbox(mailboxId);
 
 	const attachmentData: StoredAttachment[] = [];
 	if (parsedEmail.attachments) {

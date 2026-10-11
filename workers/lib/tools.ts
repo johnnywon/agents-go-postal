@@ -15,11 +15,10 @@
  */
 
 import { isSystemFolder } from "./mailbox-bulk";
-import { getMailIndexStub } from "./mail-index-stub";
+import { mailStore } from "../store";
 import { DATE_TOKENS, emptyFilter, type MailFilter, VIEWS } from "./mail-index-sql";
 import type { EmailFull } from "./schemas";
 import {
-	getMailboxStub,
 	getFullEmail,
 	getFullThread,
 	buildQuotedReplyBlock,
@@ -56,7 +55,7 @@ export async function toolListEmails(
 	mailboxId: string,
 	params: { folder: string; limit: number; page: number },
 ) {
-	const stub = getMailboxStub(env, mailboxId);
+	const stub = mailStore(env).mailbox(mailboxId);
 	return stub.getEmails({
 		folder: params.folder,
 		limit: params.limit,
@@ -73,7 +72,7 @@ export async function toolGetEmail(
 	mailboxId: string,
 	emailId: string,
 ) {
-	const stub = getMailboxStub(env, mailboxId);
+	const stub = mailStore(env).mailbox(mailboxId);
 	const email = await getFullEmail(stub, emailId);
 	if (!email) return { error: "Email not found" };
 	return email;
@@ -86,7 +85,7 @@ export async function toolGetThread(
 	mailboxId: string,
 	threadId: string,
 ) {
-	const stub = getMailboxStub(env, mailboxId);
+	const stub = mailStore(env).mailbox(mailboxId);
 	return getFullThread(stub, threadId);
 }
 
@@ -97,7 +96,7 @@ export async function toolSearchEmails(
 	mailboxId: string,
 	params: { query: string; folder?: string },
 ) {
-	const stub = getMailboxStub(env, mailboxId);
+	const stub = mailStore(env).mailbox(mailboxId);
 	return (stub as unknown as MailboxSearchStub).searchEmails({
 		query: params.query,
 		folder: params.folder,
@@ -131,7 +130,7 @@ export async function toolDraftReply(
 	| { status: "draft_saved"; draftId: string; message: string; draft: Record<string, string> }
 	| { error: string }
 > {
-	const stub = getMailboxStub(env, mailboxId);
+	const stub = mailStore(env).mailbox(mailboxId);
 
 	// Verify/sanitize if requested
 	let processedBody = params.body.trim();
@@ -213,7 +212,7 @@ export async function toolDraftEmail(
 	| { status: string; draftId: string; threadId?: string; message: string; draft?: Record<string, string> }
 	| { error: string }
 > {
-	const stub = getMailboxStub(env, mailboxId);
+	const stub = mailStore(env).mailbox(mailboxId);
 
 	let processedBody = params.body.trim();
 	if (params.runVerifyDraft) {
@@ -284,7 +283,7 @@ export async function toolUpdateDraft(
 	| { status: string; newDraftId: string; oldDraftId: string; message: string }
 	| { error: string }
 > {
-	const stub = getMailboxStub(env, mailboxId);
+	const stub = mailStore(env).mailbox(mailboxId);
 
 	const oldDraft = (await stub.getEmail(params.draftId)) as EmailFull | null;
 	if (!oldDraft) {
@@ -333,7 +332,7 @@ export async function toolMarkEmailRead(
 	emailId: string,
 	read: boolean,
 ) {
-	const stub = getMailboxStub(env, mailboxId);
+	const stub = mailStore(env).mailbox(mailboxId);
 	await stub.updateEmail(emailId, { read });
 	return { status: "updated", emailId, read };
 }
@@ -346,7 +345,7 @@ export async function toolMoveEmail(
 	emailId: string,
 	folderId: string,
 ) {
-	const stub = getMailboxStub(env, mailboxId);
+	const stub = mailStore(env).mailbox(mailboxId);
 	const success = await stub.moveEmail(emailId, folderId);
 	if (success) {
 		return { status: "moved", emailId, folder: folderId };
@@ -360,7 +359,7 @@ export async function toolMoveEmail(
 // ── list_labels ────────────────────────────────────────────────────
 
 export async function toolListLabels(env: Env) {
-	const labels = await getMailIndexStub(env).listLabels();
+	const labels = await mailStore(env).all().listLabels();
 	return { labels: labels.map(({ id, name, color, count }) => ({ id, name, color, conversations: count })) };
 }
 
@@ -371,7 +370,7 @@ export async function toolListLabels(env: Env) {
  * case) is returned as it is, so the call is safe to repeat.
  */
 export async function toolCreateLabel(env: Env, params: { name: string; color?: string }) {
-	const index = getMailIndexStub(env);
+	const index = mailStore(env).all();
 	const labels = await index.listLabels();
 	const name = params.name.trim();
 	const existing = labels.find((l) => l.name.toLowerCase() === name.toLowerCase());
@@ -392,7 +391,7 @@ function findLabel<T extends { id: string; name: string }>(labels: T[], ref: str
 
 /** Rename a label, named by id or name. Conversations keep it. */
 export async function toolRenameLabel(env: Env, params: { label: string; name: string }) {
-	const index = getMailIndexStub(env);
+	const index = mailStore(env).all();
 	const label = findLabel(await index.listLabels(), params.label);
 	if (!label) return { error: `Unknown label: ${params.label}. Use list_labels to see labels.` };
 	const result = await index.updateLabel(label.id, { name: params.name.trim() });
@@ -406,7 +405,7 @@ export async function toolRenameLabel(env: Env, params: { label: string; name: s
 
 /** Delete a label, named by id or name: it comes off every conversation, then the label goes. */
 export async function toolDeleteLabel(env: Env, params: { label: string }) {
-	const index = getMailIndexStub(env);
+	const index = mailStore(env).all();
 	const label = findLabel(await index.listLabels(), params.label);
 	if (!label) return { error: `Unknown label: ${params.label}. Use list_labels to see labels.` };
 	const result = await index.deleteLabel(label.id);
@@ -427,7 +426,7 @@ export async function toolLabelConversation(
 	emailId: string,
 	params: { add?: string[]; remove?: string[]; archive?: boolean },
 ) {
-	const index = getMailIndexStub(env);
+	const index = mailStore(env).all();
 	const labels = await index.listLabels();
 	const resolve = (ref: string) =>
 		labels.find((l) => l.id === ref || l.name.toLowerCase() === ref.trim().toLowerCase());
@@ -513,7 +512,7 @@ export function mailSearchFilter(
 
 /** Search every address at once. Each result names the address it is in. */
 export async function toolSearchAllMail(env: Env, search: MailSearch & { limit?: number }) {
-	const index = getMailIndexStub(env);
+	const index = mailStore(env).all();
 	const built = mailSearchFilter(search, await index.listLabels());
 	if ("error" in built) return built;
 	const limit = Math.min(Math.max(search.limit ?? 25, 1), 50);
@@ -544,7 +543,7 @@ export async function toolLabelMatching(
 	search: MailSearch,
 	params: { add?: string[]; remove?: string[]; archive?: boolean },
 ) {
-	const index = getMailIndexStub(env);
+	const index = mailStore(env).all();
 	const labels = await index.listLabels();
 	const unknown = [...(params.add ?? []), ...(params.remove ?? [])].filter((ref) => !findLabel(labels, ref));
 	if (unknown.length > 0) {
@@ -585,7 +584,7 @@ export async function toolDiscardDraft(
 	mailboxId: string,
 	draftId: string,
 ) {
-	const stub = getMailboxStub(env, mailboxId);
+	const stub = mailStore(env).mailbox(mailboxId);
 	const email = (await stub.getEmail(draftId)) as { folder_id?: string } | null;
 	if (!email) {
 		return { error: "Draft not found" };
@@ -605,7 +604,7 @@ export async function toolDeleteEmail(
 	mailboxId: string,
 	emailId: string,
 ) {
-	const stub = getMailboxStub(env, mailboxId);
+	const stub = mailStore(env).mailbox(mailboxId);
 	const email = (await stub.getEmail(emailId)) as { folder_id?: string } | null;
 	if (!email) {
 		return { error: "Email not found", emailId };
@@ -625,7 +624,7 @@ export async function toolDeleteEmail(
  * UI uses, so a draft goes out once however many times it is sent.
  */
 export async function toolSendDraft(env: Env, mailboxId: string, draftId: string) {
-	const stub = getMailboxStub(env, mailboxId);
+	const stub = mailStore(env).mailbox(mailboxId);
 	const draft = (await stub.getEmail(draftId)) as EmailFull | null;
 	if (!draft) return { error: "Draft not found" };
 	if (draft.folder_id !== Folders.DRAFT) return { error: "Cannot send: email is not a draft" };
