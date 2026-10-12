@@ -63,6 +63,25 @@ export function hasHeaderLineBreaks(...values: (string | null | undefined)[]): b
 	return values.some((value) => value != null && /[\r\n]/.test(value));
 }
 
+export const MailboxSettingsSchema = z.object({
+	fromName: z.string().max(200).optional(),
+	forwarding: z.object({
+		enabled: z.boolean(),
+		email: z.union([z.literal(""), z.string().email()]),
+	}).optional(),
+	signature: z.object({
+		enabled: z.boolean(),
+		text: z.string().max(10000),
+		html: z.string().optional(),
+	}).optional(),
+	autoReply: z.object({
+		enabled: z.boolean(),
+		subject: HeaderValueSchema,
+		message: z.string().max(10000),
+	}).optional(),
+	agentSystemPrompt: z.string().max(20000).optional(),
+});
+
 export const ErrorResponseSchema = z.object({
 	error: z.string(),
 });

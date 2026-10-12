@@ -17,7 +17,7 @@ import { handleReplyEmail, handleForwardEmail, handleSendEmail } from "./routes/
 import { Folders } from "../shared/folders";
 import type { Env } from "./types";
 import { interpretSearch, MAX_REQUEST_LENGTH } from "./lib/search-interpret";
-import { HeaderValueSchema } from "./lib/schemas";
+import { HeaderValueSchema, MailboxSettingsSchema } from "./lib/schemas";
 import { readPrefs, writePrefs } from "./lib/prefs";
 import { catalogFor, clearCatalogCache, languageModel, mergeAgentModelConfig, quickModel, readAgentModelConfig, viewOf, writeAgentModelConfig } from "./lib/agent-model";
 import { KEYED_PROVIDERS, PROVIDERS, PROVIDER_INFO, RECOMMENDED_MODEL, SUGGESTED_MODELS, validModelId } from "../shared/models";
@@ -40,8 +40,12 @@ type AppContext = Context<MailboxContext>;
 
 const CreateMailboxBody = z.object({
 	email: z.string().email(),
-	name: z.string().min(1),
-	settings: z.record(z.any()).optional(), // unvalidated — agentSystemPrompt goes straight to AI
+	name: z.string().min(1).max(200),
+	settings: MailboxSettingsSchema.optional(),
+});
+
+const UpdateMailboxBody = z.object({
+	settings: MailboxSettingsSchema,
 });
 
 const DraftBody = z.object({
@@ -236,7 +240,9 @@ app.get("/api/v1/mailboxes", async (c) => {
 });
 
 app.post("/api/v1/mailboxes", async (c) => {
-	const { name, settings, email: rawEmail } = CreateMailboxBody.parse(await c.req.json());
+	const parsed = CreateMailboxBody.safeParse(await c.req.json().catch(() => null));
+	if (!parsed.success) return c.json({ error: parsed.error.issues[0]?.message ?? "Invalid request body" }, 400);
+	const { name, settings, email: rawEmail } = parsed.data;
 	const email = rawEmail.toLowerCase();
 	const allowedAddresses = (c.env.EMAIL_ADDRESSES ?? []) as string[];
 	if (allowedAddresses.length > 0 && !allowedAddresses.map((a) => a.toLowerCase()).includes(email)) {
@@ -248,7 +254,7 @@ app.post("/api/v1/mailboxes", async (c) => {
 });
 
 /** Create a mailbox with default settings. */
-async function createMailbox(env: Env, email: string, name: string, settings?: Record<string, unknown>) {
+async function createMailbox(env: Env, email: string, name: string, settings?: z.infer<typeof MailboxSettingsSchema>) {
 	const defaultSettings = { fromName: name, forwarding: { enabled: false, email: "" }, signature: { enabled: false, text: "" }, autoReply: { enabled: false, subject: "", message: "" } };
 	const finalSettings = { ...defaultSettings, ...settings };
 	await mailStore(env).mailboxes.put(email, finalSettings);
@@ -264,7 +270,9 @@ app.get("/api/v1/mailboxes/:mailboxId", async (c) => {
 
 app.put("/api/v1/mailboxes/:mailboxId", async (c) => {
 	const mailboxId = c.req.param("mailboxId")!;
-	const { settings } = (await c.req.json()) as { settings: Record<string, unknown> };
+	const parsed = UpdateMailboxBody.safeParse(await c.req.json().catch(() => null));
+	if (!parsed.success) return c.json({ error: parsed.error.issues[0]?.message ?? "Invalid request body" }, 400);
+	const { settings } = parsed.data;
 	const mailboxes = mailStore(c.env).mailboxes;
 	if (!(await mailboxes.exists(mailboxId))) return c.json({ error: "Not found" }, 404);
 	await mailboxes.put(mailboxId, settings);
