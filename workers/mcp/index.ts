@@ -5,6 +5,7 @@
 import { McpAgent } from "agents/mcp";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
+import { HeaderValueSchema } from "../lib/schemas";
 import {
 	toolDeleteLabel,
 	toolRenameLabel,
@@ -205,7 +206,7 @@ export class EmailMCP extends McpAgent<Env> {
 					.string()
 					.describe("The ID of the email being replied to"),
 				to: z.string().email().describe("Recipient email address"),
-				subject: z.string().describe("Subject line (usually 'Re: ...')"),
+				subject: HeaderValueSchema.describe("Subject line (usually 'Re: ...')"),
 				bodyHtml: z
 					.string()
 					.describe("The HTML body of the reply"),
@@ -235,14 +236,12 @@ export class EmailMCP extends McpAgent<Env> {
 					.string()
 					.optional()
 					.describe("Recipient email address (optional for early drafts)"),
-				subject: z.string().describe("Subject line"),
+				subject: HeaderValueSchema.describe("Subject line"),
 				bodyHtml: z.string().describe("The HTML body of the draft"),
-				in_reply_to: z
-					.string()
+				in_reply_to: HeaderValueSchema
 					.optional()
 					.describe("The ID of the email this draft is replying to (optional)"),
-				thread_id: z
-					.string()
+				thread_id: HeaderValueSchema
 					.optional()
 					.describe("Thread ID to attach this draft to (optional)"),
 			},
@@ -282,7 +281,7 @@ export class EmailMCP extends McpAgent<Env> {
 					.string()
 					.optional()
 					.describe("Updated recipient email address"),
-				subject: z.string().optional().describe("Updated subject line"),
+				subject: HeaderValueSchema.optional().describe("Updated subject line"),
 				bodyHtml: z.string().optional().describe("Updated HTML body"),
 			},
 			async ({ mailboxId, draftId, to, subject, bodyHtml }) => {

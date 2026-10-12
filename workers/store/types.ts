@@ -22,6 +22,7 @@ export type MailboxStore = Pick<
 	| "getEmails"
 	| "getEmail"
 	| "getThreadEmails"
+	| "hasInboundMessageId"
 	| "createEmail"
 	| "updateEmail"
 	| "markThreadRead"

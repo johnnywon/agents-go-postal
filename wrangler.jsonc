@@ -15,7 +15,7 @@
 		// Display name in page titles. Icons and the link preview card live in public/brand/.
 		"APP_NAME": "Open Mailroom",
 		// Production deploys must also define POLICY_AUD and TEAM_DOMAIN.
-		// TEAM_DOMAIN may be the base Access URL or the full /cdn-cgi/access/certs URL.
+		// TEAM_DOMAIN must include https://; it may be the base Access URL or full /cdn-cgi/access/certs URL.
 		// The worker now fails closed outside local development if Access is not configured.
 		"DOMAINS": "example.com",
 		"AUTO_DRAFT_ENABLED": "false",

@@ -4,7 +4,7 @@
 
 import { DurableObject } from "cloudflare:workers";
 import { drizzle } from "drizzle-orm/durable-sqlite";
-import { eq, and, or, asc, desc, sql } from "drizzle-orm";
+import { eq, and, or, asc, desc, sql, notInArray } from "drizzle-orm";
 import type { SQL } from "drizzle-orm";
 import * as schema from "../db/schema";
 import { Folders } from "../../shared/folders";
@@ -59,6 +59,7 @@ import {
 	type ScheduleMode,
 } from "../lib/scheduled-send";
 import { claimSendKey, finishSendKey, releaseSendKey, type SendKeyClaim } from "../lib/send-keys";
+import { deleteAttachmentFiles } from "../lib/attachments";
 import {
 	MAX_REFERENCED_IDS,
 	SUBJECT_JOIN_WINDOW_MS,
@@ -302,7 +303,8 @@ export class MailboxDO extends DurableObject<Env> {
 			const old = await this.getEmail(input.draftId);
 			if (old?.folder_id === Folders.DRAFT) {
 				deleteScheduledRow(this.exec, input.draftId);
-				await this.deleteEmail(input.draftId);
+				const attachments = await this.deleteEmail(input.draftId);
+				if (attachments) await deleteAttachmentFiles(this.env.BUCKET, input.draftId, attachments);
 			}
 		}
 		await this.#armAlarm(Date.parse(sendAt));
@@ -340,7 +342,10 @@ export class MailboxDO extends DurableObject<Env> {
 			const result = await runDueScheduled({
 				exec: this.exec,
 				draftFolder: async (emailId) => (await this.getEmail(emailId))?.folder_id ?? null,
-				deleteDraft: (emailId) => this.deleteEmail(emailId),
+				deleteDraft: async (emailId) => {
+					const attachments = await this.deleteEmail(emailId);
+					if (attachments) await deleteAttachmentFiles(this.env.BUCKET, emailId, attachments);
+				},
 				send: async (payload, emailId) => {
 					if (!mailboxId) return "Mailbox address unknown";
 					const sent = await sendMail(this.env, mailboxId, this, payload.email, sendModeOf(payload), {
@@ -558,6 +563,18 @@ export class MailboxDO extends DurableObject<Env> {
 			starred: !!email.starred,
 			attachments: emailAttachments,
 		};
+	}
+
+	async hasInboundMessageId(messageId: string): Promise<boolean> {
+		return !!this.db
+			.select({ id: schema.emails.id })
+			.from(schema.emails)
+			.where(and(
+				eq(schema.emails.message_id, messageId),
+				notInArray(schema.emails.folder_id, [Folders.SENT, Folders.DRAFT]),
+			))
+			.limit(1)
+			.get();
 	}
 
 	/**

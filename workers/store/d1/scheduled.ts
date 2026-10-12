@@ -12,6 +12,7 @@
  * Deleting or editing the draft drops its row by foreign key.
  */
 import { Folders } from "../../../shared/folders";
+import { deleteAttachmentFiles } from "../../lib/attachments";
 import { SCHEDULE_MAX_ATTEMPTS, SCHEDULE_RETRY_MS, type ScheduledPayload, sendModeOf } from "../../lib/scheduled-send";
 import { sendMail } from "../../lib/send";
 import type { Env } from "../../types";
@@ -63,7 +64,8 @@ export async function sendDueScheduled(env: Env, sql: Sql, now = Date.now()) {
 			failed.push(emailId);
 			continue;
 		}
-		await mailbox.deleteEmail(emailId);
+		const attachments = await mailbox.deleteEmail(emailId);
+		if (attachments) await deleteAttachmentFiles(env.BUCKET, emailId, attachments);
 		sent.push(emailId);
 	}
 	return { sent, failed };

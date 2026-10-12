@@ -91,6 +91,10 @@ test("storing and reading mail", async () => {
 	await same("store other address", B, "createEmail", ["inbox", email("e4", { subject: "Lunch", recipient: B, date: hoursAgo(2) }), []]);
 	await same("store draft", A, "createEmail", ["draft", email("e5", { subject: "Re: Lunch", sender: A, thread_id: null, in_reply_to: "e1" }), []]);
 	await same("unknown folder", A, "createEmail", ["nowhere", email("bad"), []], (r) => (r?.error ? "error" : r));
+	assert.equal(await same("inbound Message-ID", A, "hasInboundMessageId", ["e1@example.net"]), true);
+	assert.equal(await same("sent Message-ID", A, "hasInboundMessageId", ["e2@example.net"]), false);
+	assert.equal(await same("another mailbox Message-ID", A, "hasInboundMessageId", ["e4@example.net"]), false);
+	assert.equal(await same("unknown Message-ID", A, "hasInboundMessageId", ["unknown@example.net"]), false);
 
 	await same("getEmail", A, "getEmail", ["e1"]);
 	await same("getEmail other address", A, "getEmail", ["e4"]);

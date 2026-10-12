@@ -21,6 +21,7 @@ import { getReplyAddresses } from "../../app/lib/reply";
 import { scanForInjection } from "../lib/ai";
 import { stripHtmlToText } from "../lib/email-helpers";
 import { parseSender } from "../lib/message-meta";
+import { HeaderValueSchema } from "../lib/schemas";
 import type { EmailFull } from "../lib/schemas";
 import { toolDraftReply } from "../lib/tools";
 import type { Env } from "../types";
@@ -176,7 +177,7 @@ export function createAutoDraftTools(
 			description:
 				"Draft a reply to the new email and save it to the Drafts folder. It goes to the email's sender. Write the body as plain text, no HTML tags.",
 			parameters: z.object({
-				subject: z.string().describe("Subject line (usually 'Re: ...')"),
+				subject: HeaderValueSchema.describe("Subject line (usually 'Re: ...')"),
 				body: z.string().describe("The plain text body of the reply. No HTML, just write normally."),
 			}),
 			execute: async ({ subject, body }): Promise<unknown> =>

@@ -18,6 +18,15 @@ export interface StoredAttachment {
 	disposition: string;
 }
 
+export async function deleteAttachmentFiles(
+	bucket: Env["BUCKET"],
+	emailId: string,
+	attachments: { id: string; filename: string }[],
+) {
+	if (attachments.length === 0) return;
+	await bucket.delete(attachments.map(({ id, filename }) => `attachments/${emailId}/${id}/${filename}`));
+}
+
 /**
  * Store base64-encoded attachments to R2 and return metadata for the DO.
  */

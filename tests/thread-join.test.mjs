@@ -89,13 +89,14 @@ test("inbound mail with a References header for unknown mail starts its own thre
 	let saved;
 	const looked = [];
 	await receiveEmail(
-		{ to: "jane@example.com", rawSize: raw.length, raw: new ReadableStream({ start(c) { c.enqueue(raw); c.close(); } }) },
+		{ to: "jane@example.com", rawSize: raw.length, raw: new ReadableStream({ start(c) { c.enqueue(raw); c.close(); } }), setReject: () => {} },
 		{
 			EMAIL_ADDRESSES: ["jane@example.com"],
 			BUCKET: { head: async () => ({}) },
 			MAILBOX: {
 				idFromName: (name) => name,
 				get: () => ({
+					hasInboundMessageId: async () => false,
 					findThreadByMessageIds: async (ids) => (looked.push(ids), null),
 					findThreadBySubject: async () => null,
 					createEmail: async (_folder, email) => { saved = email; },

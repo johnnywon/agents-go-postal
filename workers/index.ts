@@ -7,7 +7,7 @@ import { cors } from "hono/cors";
 import PostalMime from "postal-mime";
 import { z } from "zod";
 import { generateText } from "ai";
-import { type StoredAttachment } from "./lib/attachments";
+import { deleteAttachmentFiles, type StoredAttachment } from "./lib/attachments";
 import {
 	validateSender,
 	SenderValidationError,
@@ -17,6 +17,7 @@ import { handleReplyEmail, handleForwardEmail, handleSendEmail } from "./routes/
 import { Folders } from "../shared/folders";
 import type { Env } from "./types";
 import { interpretSearch, MAX_REQUEST_LENGTH } from "./lib/search-interpret";
+import { HeaderValueSchema, MailboxSettingsSchema } from "./lib/schemas";
 import { readPrefs, writePrefs } from "./lib/prefs";
 import { catalogFor, clearCatalogCache, languageModel, mergeAgentModelConfig, quickModel, readAgentModelConfig, viewOf, writeAgentModelConfig } from "./lib/agent-model";
 import { KEYED_PROVIDERS, PROVIDERS, PROVIDER_INFO, RECOMMENDED_MODEL, SUGGESTED_MODELS, validModelId } from "../shared/models";
@@ -39,18 +40,22 @@ type AppContext = Context<MailboxContext>;
 
 const CreateMailboxBody = z.object({
 	email: z.string().email(),
-	name: z.string().min(1),
-	settings: z.record(z.any()).optional(), // unvalidated — agentSystemPrompt goes straight to AI
+	name: z.string().min(1).max(200),
+	settings: MailboxSettingsSchema.optional(),
+});
+
+const UpdateMailboxBody = z.object({
+	settings: MailboxSettingsSchema,
 });
 
 const DraftBody = z.object({
 	to: z.string().optional(),
 	cc: z.string().optional(),
 	bcc: z.string().optional(),
-	subject: z.string().optional(),
+	subject: HeaderValueSchema.optional(),
 	body: z.string(),
-	in_reply_to: z.string().optional(),
-	thread_id: z.string().optional(),
+	in_reply_to: HeaderValueSchema.optional(),
+	thread_id: HeaderValueSchema.optional(),
 	draft_id: z.string().optional(),
 });
 
@@ -78,10 +83,12 @@ app.use("/api/*", cors({
 		// Same-origin requests have no Origin header — allow them.
 		if (!origin) return origin;
 		// In development, allow localhost for Vite dev server.
-		try {
-			const url = new URL(origin);
-			if (url.hostname === "localhost" || url.hostname === "127.0.0.1") return origin;
-		} catch { /* invalid origin */ }
+		if (import.meta.env?.DEV) {
+			try {
+				const url = new URL(origin);
+				if (url.hostname === "localhost" || url.hostname === "127.0.0.1") return origin;
+			} catch { /* invalid origin */ }
+		}
 		// Block all other cross-origin requests. The app is served from the
 		// same origin as the API, so legitimate browser requests never send
 		// an Origin header. Returning undefined omits Access-Control-Allow-Origin.
@@ -233,7 +240,9 @@ app.get("/api/v1/mailboxes", async (c) => {
 });
 
 app.post("/api/v1/mailboxes", async (c) => {
-	const { name, settings, email: rawEmail } = CreateMailboxBody.parse(await c.req.json());
+	const parsed = CreateMailboxBody.safeParse(await c.req.json().catch(() => null));
+	if (!parsed.success) return c.json({ error: parsed.error.issues[0]?.message ?? "Invalid request body" }, 400);
+	const { name, settings, email: rawEmail } = parsed.data;
 	const email = rawEmail.toLowerCase();
 	const allowedAddresses = (c.env.EMAIL_ADDRESSES ?? []) as string[];
 	if (allowedAddresses.length > 0 && !allowedAddresses.map((a) => a.toLowerCase()).includes(email)) {
@@ -245,7 +254,7 @@ app.post("/api/v1/mailboxes", async (c) => {
 });
 
 /** Create a mailbox with default settings. */
-async function createMailbox(env: Env, email: string, name: string, settings?: Record<string, unknown>) {
+async function createMailbox(env: Env, email: string, name: string, settings?: z.infer<typeof MailboxSettingsSchema>) {
 	const defaultSettings = { fromName: name, forwarding: { enabled: false, email: "" }, signature: { enabled: false, text: "" }, autoReply: { enabled: false, subject: "", message: "" } };
 	const finalSettings = { ...defaultSettings, ...settings };
 	await mailStore(env).mailboxes.put(email, finalSettings);
@@ -261,7 +270,9 @@ app.get("/api/v1/mailboxes/:mailboxId", async (c) => {
 
 app.put("/api/v1/mailboxes/:mailboxId", async (c) => {
 	const mailboxId = c.req.param("mailboxId")!;
-	const { settings } = (await c.req.json()) as { settings: Record<string, unknown> };
+	const parsed = UpdateMailboxBody.safeParse(await c.req.json().catch(() => null));
+	if (!parsed.success) return c.json({ error: parsed.error.issues[0]?.message ?? "Invalid request body" }, 400);
+	const { settings } = parsed.data;
 	const mailboxes = mailStore(c.env).mailboxes;
 	if (!(await mailboxes.exists(mailboxId))) return c.json({ error: "Not found" }, 404);
 	await mailboxes.put(mailboxId, settings);
@@ -503,9 +514,14 @@ app.post("/api/v1/mailboxes/:mailboxId/emails", handleSendEmail);
 
 app.post("/api/v1/mailboxes/:mailboxId/drafts", async (c: AppContext) => {
 	const mailboxId = c.req.param("mailboxId")!;
-	const { to, cc, bcc, subject, body, in_reply_to, thread_id, draft_id } = DraftBody.parse(await c.req.json());
+	const parsed = DraftBody.safeParse(await c.req.json().catch(() => null));
+	if (!parsed.success) return c.json({ error: parsed.error.issues[0]?.message ?? "Invalid request body" }, 400);
+	const { to, cc, bcc, subject, body, in_reply_to, thread_id, draft_id } = parsed.data;
 	const stub = c.var.mailbox;
-	if (draft_id) await stub.deleteEmail(draft_id); // drafts only; not atomic — create-then-delete would be safer
+	if (draft_id) {
+		const attachments = await stub.deleteEmail(draft_id);
+		if (attachments) await deleteAttachmentFiles(c.env.BUCKET, draft_id, attachments);
+	}
 	const messageId = crypto.randomUUID();
 	const now = new Date().toISOString();
 	await stub.createEmail(Folders.DRAFT, {
@@ -568,7 +584,7 @@ app.delete("/api/v1/mailboxes/:mailboxId/emails/:id", async (c: AppContext) => {
 	const id = c.req.param("id")!;
 	const result = await c.var.mailbox.trashOrDelete(id);
 	if (result === null) return c.json({ error: "Not found" }, 404);
-	if (result.attachments.length > 0) await c.env.BUCKET.delete(result.attachments.map((att) => `attachments/${id}/${att.id}/${att.filename}`));
+	await deleteAttachmentFiles(c.env.BUCKET, id, result.attachments);
 	return c.json({ status: result.action });
 });
 
@@ -599,6 +615,8 @@ app.get("/api/v1/mailboxes/:mailboxId/emails/:emailId/attachments/:attachmentId"
 	if (!obj) return c.json({ error: "Attachment file not found" }, 404);
 	const headers = new Headers();
 	headers.set("Content-Type", attachment.mimetype);
+	headers.set("X-Content-Type-Options", "nosniff");
+	headers.set("Content-Security-Policy", "sandbox");
 	const sanitized = attachment.filename.replace(/[\x00-\x1f"\\]/g, "_");
 	headers.set("Content-Disposition", `attachment; filename="${sanitized}"; filename*=UTF-8''${encodeURIComponent(attachment.filename)}`);
 	return new Response(obj.body, { headers });
@@ -624,21 +642,26 @@ async function streamToArrayBuffer(stream: ReadableStream, streamSize: number) {
 	return result;
 }
 
-async function receiveEmail(event: { to: string; raw: ReadableStream; rawSize: number }, env: Env, ctx: ExecutionContext) {
-	const rawEmail = await streamToArrayBuffer(event.raw, event.rawSize);
-	const parsedEmail = await new PostalMime().parse(rawEmail);
-
+async function receiveEmail(event: { to: string; raw: ReadableStream; rawSize: number; setReject(reason: string): void }, env: Env, ctx: ExecutionContext) {
 	const allowedAddresses = ((env.EMAIL_ADDRESSES ?? []) as string[]).map((a) => a.toLowerCase());
-	const allRecipients = (parsedEmail.to || []).map((t) => t.address?.toLowerCase()).filter(Boolean) as string[];
-	const ccRecipients = (parsedEmail.cc || []).map((e) => e.address?.toLowerCase()).filter(Boolean) as string[];
-	const bccRecipients = (parsedEmail.bcc || []).map((e) => e.address?.toLowerCase()).filter(Boolean) as string[];
-
 	const mailboxId = event.to?.toLowerCase();
 	if (!mailboxId) throw new Error("received email with no envelope recipient");
 	if (allowedAddresses.length > 0 && !allowedAddresses.includes(mailboxId)) {
-		console.log(`Ignoring email: envelope recipient does not match EMAIL_ADDRESSES.`);
+		event.setReject("Unknown recipient");
 		return;
 	}
+	if (allowedAddresses.length === 0 && !(await mailStore(env).mailboxes.exists(mailboxId))) {
+		event.setReject("Unknown recipient");
+		return;
+	}
+
+	const rawEmail = await streamToArrayBuffer(event.raw, event.rawSize);
+	const parsedEmail = await new PostalMime().parse(rawEmail);
+	const extractMsgId = (s: string) => { const m = s.match(/<([^>]+)>/); return m ? m[1] : s.trim().split(/\s+/)[0]; };
+	const originalMessageId = parsedEmail.messageId ? extractMsgId(parsedEmail.messageId) : null;
+	const allRecipients = (parsedEmail.to || []).map((t) => t.address?.toLowerCase()).filter(Boolean) as string[];
+	const ccRecipients = (parsedEmail.cc || []).map((e) => e.address?.toLowerCase()).filter(Boolean) as string[];
+	const bccRecipients = (parsedEmail.bcc || []).map((e) => e.address?.toLowerCase()).filter(Boolean) as string[];
 
 	const messageId = crypto.randomUUID();
 	if (!(await mailStore(env).mailboxes.exists(mailboxId))) {
@@ -648,29 +671,41 @@ async function receiveEmail(event: { to: string; raw: ReadableStream; rawSize: n
 	}
 
 	const stub = mailStore(env).mailbox(mailboxId);
+	if (originalMessageId && await stub.hasInboundMessageId(originalMessageId)) {
+		console.log("duplicate delivery ignored");
+		return;
+	}
 
 	const attachmentData: StoredAttachment[] = [];
+	const attachmentKeys: string[] = [];
+	const withAttachmentCleanup = async <T>(operation: () => Promise<T>): Promise<T> => {
+		try {
+			return await operation();
+		} catch (e) {
+			if (attachmentKeys.length > 0) await env.BUCKET.delete(attachmentKeys).catch(() => {});
+			throw e;
+		}
+	};
 	if (parsedEmail.attachments) {
 		for (const att of parsedEmail.attachments) {
 			const attId = crypto.randomUUID();
 			const filename = (att.filename || "untitled").replace(/[\/\\:*?"<>|\x00-\x1f]/g, "_");
-			await env.BUCKET.put(`attachments/${messageId}/${attId}/${filename}`, att.content);
+			const key = `attachments/${messageId}/${attId}/${filename}`;
+			attachmentKeys.push(key);
+			await withAttachmentCleanup(() => env.BUCKET.put(key, att.content));
 			attachmentData.push({ id: attId, email_id: messageId, filename, mimetype: att.mimeType,
 				size: typeof att.content === "string" ? att.content.length : att.content.byteLength,
 				content_id: att.contentId || null, disposition: att.disposition || "attachment" });
 		}
 	}
 
-	const extractMsgId = (s: string) => { const m = s.match(/<([^>]+)>/); return m ? m[1] : s.trim().split(/\s+/)[0]; };
 	const inReplyTo = parsedEmail.inReplyTo ? extractMsgId(parsedEmail.inReplyTo) : null;
 	const emailReferences = parsedEmail.references ? parsedEmail.references.split(/\s+/).filter(Boolean).map(extractMsgId) : [];
 	// Join a thread only through mail this mailbox already holds (lib/threading.ts).
-	const threadId = await resolveThreadId(stub, {
+	const threadId = await withAttachmentCleanup(() => resolveThreadId(stub, {
 		messageId, inReplyTo, references: emailReferences,
 		subject: parsedEmail.subject || "", sender: (parsedEmail.from?.address || "").toLowerCase(),
-	});
-
-	const originalMessageId = parsedEmail.messageId ? extractMsgId(parsedEmail.messageId) : null;
+	}));
 
 	const inbound = {
 		id: messageId, subject: parsedEmail.subject || "",
@@ -681,7 +716,7 @@ async function receiveEmail(event: { to: string; raw: ReadableStream; rawSize: n
 		in_reply_to: inReplyTo, email_references: emailReferences.length > 0 ? JSON.stringify(emailReferences) : null,
 		thread_id: threadId, message_id: originalMessageId, raw_headers: JSON.stringify(parsedEmail.headers),
 	};
-	await stub.createEmail(Folders.INBOX, inbound, attachmentData);
+	await withAttachmentCleanup(() => stub.createEmail(Folders.INBOX, inbound, attachmentData));
 	// For two weeks after the move to D1, the old mailbox gets a copy too (store/copy-job.ts).
 	if (usesD1(env)) {
 		ctx.waitUntil(mirrorInbound(env, mailboxId, Folders.INBOX, inbound, attachmentData)

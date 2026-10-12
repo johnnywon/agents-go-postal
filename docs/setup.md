@@ -26,7 +26,7 @@ Requirements: a domain on Cloudflare, R2, and Workers Paid for outbound email. T
    npx wrangler secret put POLICY_AUD
    npx wrangler secret put TEAM_DOMAIN
    ```
-   `TEAM_DOMAIN` may be the team URL or the full `/cdn-cgi/access/certs` URL.
+   `TEAM_DOMAIN` must include `https://`; use the team URL or the full `/cdn-cgi/access/certs` URL.
 6. **Route mail to the Worker.** Enable Email Routing for the domain, then add one rule per address in `EMAIL_ADDRESSES`:
    ```sh
    npx wrangler@latest email routing enable example.com
@@ -45,7 +45,7 @@ Requirements: a domain on Cloudflare, R2, and Workers Paid for outbound email. T
 ### Troubleshooting Access
 
 - `Invalid or expired Access token`: `POLICY_AUD` or `TEAM_DOMAIN` is wrong. Turn Access off and on for the Worker to see the values again, then reset both secrets.
-- `Cloudflare Access must be configured in production`: the secrets are missing. The Worker fails closed on purpose.
+- `POLICY_AUD is missing`, `TEAM_DOMAIN is missing`, or `TEAM_DOMAIN must be an https:// URL`: correct the missing or malformed secret. The Worker fails closed on purpose.
 
 ## Configuration
 

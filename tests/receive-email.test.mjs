@@ -35,6 +35,7 @@ function freshEnvironment(addresses) {
 				idFromName: (name) => name,
 				get: (id) => ({
 					setMailboxId: async (email) => calls.push(["setMailboxId", id, email]),
+					hasInboundMessageId: async () => false,
 					findThreadBySubject: async () => null,
 					createEmail: async (folder, email) => calls.push(["createEmail", id, folder, email.subject]),
 				}),
@@ -43,9 +44,9 @@ function freshEnvironment(addresses) {
 	};
 }
 
-async function deliveredMailbox(envelopeTo, headers) {
+async function deliveredMailbox(envelopeTo, headers, rejections = []) {
 	const { env, calls } = freshEnvironment(["hello@example.com", "support@example.org"]);
-	await receiveEmail({ to: envelopeTo, ...rawMessage(headers) }, env, { waitUntil: () => {} });
+	await receiveEmail({ to: envelopeTo, ...rawMessage(headers), setReject: (reason) => rejections.push(reason) }, env, { waitUntil: () => {} });
 	return calls.filter(([op]) => op === "createEmail").map(([, id]) => id);
 }
 
@@ -64,15 +65,17 @@ test("a Bcc delivery reaches its envelope mailbox", async () => {
 });
 
 test("an unconfigured envelope recipient is ignored", async () => {
+	const rejections = [];
 	assert.deepEqual(
-		await deliveredMailbox("other@example.net", "To: hello@example.com"),
+		await deliveredMailbox("other@example.net", "To: hello@example.com", rejections),
 		[],
 	);
+	assert.deepEqual(rejections, ["Unknown recipient"]);
 });
 
 test("the first delivery to a configured address creates its mailbox and keeps the message", async () => {
 	const { env, calls, objects } = freshEnvironment(["hello@example.com"]);
-	await receiveEmail({ to: "Hello@Example.com", ...rawMessage("To: hello@example.com", "Before anyone signed in") }, env, { waitUntil: () => {} });
+	await receiveEmail({ to: "Hello@Example.com", ...rawMessage("To: hello@example.com", "Before anyone signed in"), setReject: () => {} }, env, { waitUntil: () => {} });
 	assert.deepEqual(JSON.parse(objects.get("mailboxes/hello@example.com.json")).fromName, "hello");
 	assert.deepEqual(calls.filter(([op]) => op !== "head"), [
 		["put", "mailboxes/hello@example.com.json"],
@@ -84,14 +87,14 @@ test("the first delivery to a configured address creates its mailbox and keeps t
 test("a later delivery leaves the existing mailbox settings alone", async () => {
 	const { env, calls, objects } = freshEnvironment(["hello@example.com"]);
 	objects.set("mailboxes/hello@example.com.json", JSON.stringify({ fromName: "Custom" }));
-	await receiveEmail({ to: "hello@example.com", ...rawMessage("To: hello@example.com") }, env, { waitUntil: () => {} });
+	await receiveEmail({ to: "hello@example.com", ...rawMessage("To: hello@example.com"), setReject: () => {} }, env, { waitUntil: () => {} });
 	assert.equal(JSON.parse(objects.get("mailboxes/hello@example.com.json")).fromName, "Custom");
 	assert.deepEqual(calls.filter(([op]) => op === "put" || op === "setMailboxId"), []);
 });
 
 test("without EMAIL_ADDRESSES, mail for a mailbox nobody created is ignored", async () => {
 	const { env, calls } = freshEnvironment([]);
-	await receiveEmail({ to: "anyone@example.com", ...rawMessage("To: anyone@example.com") }, env, { waitUntil: () => {} });
+	await receiveEmail({ to: "anyone@example.com", ...rawMessage("To: anyone@example.com"), setReject: () => {} }, env, { waitUntil: () => {} });
 	assert.deepEqual(calls, [["head", "mailboxes/anyone@example.com.json"]]);
 });
 
@@ -103,6 +106,7 @@ test("an inbound message triggers the receiving agent through RPC", async () => 
 	let agentInput;
 	const background = [];
 	const mailbox = {
+		hasInboundMessageId: async () => false,
 		findThreadBySubject: async () => null,
 		createEmail: async (_folder, email) => { savedEmail = email; },
 	};
@@ -115,6 +119,7 @@ test("an inbound message triggers the receiving agent through RPC", async () => 
 			to: "jane@example.org",
 			rawSize: raw.length,
 			raw: new ReadableStream({ start(controller) { controller.enqueue(raw); controller.close(); } }),
+			setReject: () => {},
 		},
 		{
 			AUTO_DRAFT_ENABLED: "true",
@@ -147,6 +152,7 @@ test("inbound mail is saved without triggering the agent when auto-drafting is o
 			to: "jane@example.org",
 			rawSize: raw.length,
 			raw: new ReadableStream({ start(controller) { controller.enqueue(raw); controller.close(); } }),
+			setReject: () => {},
 		},
 		{
 			AUTO_DRAFT_ENABLED: "false",
@@ -155,6 +161,7 @@ test("inbound mail is saved without triggering the agent when auto-drafting is o
 			MAILBOX: {
 				idFromName: (name) => name,
 				get: () => ({
+					hasInboundMessageId: async () => false,
 					findThreadBySubject: async () => null,
 					createEmail: async (_folder, email) => { savedEmail = email; },
 				}),
