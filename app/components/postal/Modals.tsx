@@ -65,13 +65,13 @@ function Modal({ className = "", label, onClose, children }: { className?: strin
 	);
 }
 
-function Head({ icon, title, sub, onClose, danger }: { icon: React.ReactNode; title: string; sub: string; onClose: () => void; danger?: boolean }) {
+function Head({ icon, title, sub, onClose, danger }: { icon: React.ReactNode; title: string; sub?: string; onClose: () => void; danger?: boolean }) {
 	return (
 		<div className="pg-modal-head">
 			<span className={`pg-modal-icon${danger ? " is-danger" : ""}`}>{icon}</span>
 			<div className="pg-modal-title">
 				<h2>{title}</h2>
-				<span>{sub}</span>
+				{sub && <span>{sub}</span>}
 			</div>
 			<button type="button" className="pg-modal-x" title="Close (Esc)" aria-label="Close" onClick={onClose}><XIcon size={16} /></button>
 		</div>
@@ -663,7 +663,7 @@ export function McpModal({ onClose }: { onClose: () => void }) {
 export function ShortcutsModal({ onClose, onEdit }: { onClose: () => void; onEdit: () => void }) {
 	return (
 		<Modal className="is-shortcuts" label="Keyboard shortcuts" onClose={onClose}>
-			<Head icon={<KeyboardIcon size={16} />} title="Keyboard shortcuts" sub="Keys sit where they act" onClose={onClose} />
+			<Head icon={<KeyboardIcon size={16} />} title="Keyboard shortcuts" onClose={onClose} />
 			<div className="pg-keys-scroll">
 				<ShortcutMap onAll={onEdit} />
 			</div>

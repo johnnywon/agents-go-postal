@@ -211,6 +211,16 @@ function PostalApp({ addresses, domains, autoDraft }: PostalProps) {
 		if (mobile || narrow) setPanelTemp((v) => !v);
 		else setLayout({ panel: !panelOpen });
 	};
+	// Both side columns: closes both when either is open, else opens both. Below 1300px they overlay, so it only closes.
+	const toggleBoth = () => {
+		if (mobile || narrow) {
+			setNavTemp(false);
+			setPanelTemp(false);
+		} else {
+			const open = !(navOpen || panelOpen);
+			setLayout({ nav: open, panel: open });
+		}
+	};
 
 	// Reset inline composer when the open conversation changes.
 	useEffect(() => setInline(null), [open?.mailboxId, open?.emailId]);
@@ -461,6 +471,8 @@ function PostalApp({ addresses, domains, autoDraft }: PostalProps) {
 			replyAll: () => reply("reply-all"),
 			forward: () => reply("forward"),
 			agent: () => (togglePanelRef.current(), true),
+			sidebar: () => (toggleNav(), true),
+			panels: () => (toggleBoth(), true),
 			help: () => (setHelpOpen(true), true),
 		};
 		return actions[id]();

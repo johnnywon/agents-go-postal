@@ -110,9 +110,10 @@ function Reading({ subject }: { subject: string | null }) {
 
 export function AgentPanel(props: AgentPanelProps) {
 	const { hooks, error } = useAgentHooks();
+	const { tip } = useShortcuts();
 	return (
 		<aside className="pg-agent" aria-label="Agent" data-overlay={props.overlay || undefined}>
-			<button type="button" className="pg-rail-head" onClick={props.onCollapse} title="Collapse agent panel">
+			<button type="button" className="pg-rail-head" onClick={props.onCollapse} title={tip("agent", "Collapse agent panel")}>
 				<CaretDoubleRightIcon size={14} weight="bold" />
 				<span className="pg-head-label">AGENT</span>
 				<AgentIcon size={14} weight="fill" color="var(--pg-green)" />

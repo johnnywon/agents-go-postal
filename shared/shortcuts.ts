@@ -58,6 +58,8 @@ export interface ShortcutDef {
 	cluster?: number;
 	/** A shorter name for the map. */
 	short?: string;
+	/** Drawn in its column's header on the map, where the real collapse button is. */
+	header?: boolean;
 }
 
 export const SHORTCUTS = [
@@ -96,8 +98,10 @@ export const SHORTCUTS = [
 	{ id: "searchSave", group: "Search", label: "Save search", keys: ["Mod+s"], scope: "search", fixed: true, area: "search" },
 	{ id: "searchClose", group: "Search", label: "Close suggestions, then clear", keys: ["Escape"], scope: "search", fixed: true, area: "search" },
 
-	{ id: "agent", group: "App", label: "Agent panel", keys: ["Mod+j"], scope: "mail", area: "agent", short: "Open or close" },
-	{ id: "help", group: "App", label: "Keyboard shortcuts", keys: ["?"], scope: "mail", fixed: true, area: "more", short: "This map" },
+	{ id: "sidebar", group: "App", label: "Sidebar", keys: ["["], scope: "mail", area: "go", header: true },
+	{ id: "agent", group: "App", label: "Agent panel", keys: ["Mod+j", "]"], scope: "mail", area: "agent", header: true },
+	{ id: "panels", group: "App", label: "Both side panels", keys: ["\\"], scope: "mail", area: "more", short: "Both panels" },
+	{ id: "help", group: "App", label: "Keyboard shortcuts", keys: ["?"], scope: "mail", fixed: true, area: "more", short: "Shortcuts" },
 ] as const satisfies readonly ShortcutDef[];
 
 type Def = (typeof SHORTCUTS)[number];

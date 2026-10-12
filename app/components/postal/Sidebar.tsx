@@ -10,6 +10,7 @@ import { AgentIcon } from "./AgentIcon";
 import {
 	AllAddressesIcon, ArchiveIcon, ByAddressIcon, DraftsIcon, InboxIcon, LabelsIcon, SentIcon, SpamIcon, StarredIcon, TrashIcon, UnreadIcon,
 } from "./NavIcons";
+import { useShortcuts } from "./shortcuts";
 import { type FormEvent, useState } from "react";
 import type { MailFilter } from "~/lib/mail-filter";
 import type { Label, SavedSearch } from "~/services/api";
@@ -74,9 +75,10 @@ export function Sidebar(props: SidebarProps) {
 		setNewLabel(null);
 	};
 
+	const { tip } = useShortcuts();
 	return (
 		<nav className="pg-nav" aria-label="Mail" data-overlay={props.overlay || undefined} data-drawer={props.drawer}>
-			<button type="button" className="pg-rail-head" onClick={props.onCollapse} title="Collapse sidebar">
+			<button type="button" className="pg-rail-head" onClick={props.onCollapse} title={tip("sidebar", "Collapse sidebar")}>
 				<AllAddressesIcon size={14} />
 				<span className="pg-flex" style={{ lineHeight: 1, textAlign: "left" }}>ALL ADDRESSES</span>
 				<CaretDoubleLeftIcon size={14} weight="bold" />
@@ -289,9 +291,10 @@ export function NavRail({
 	const globalView = !scope && !labelOf(filter) ? filter.view : null;
 	const domainUnread = (domain: string) =>
 		[...unreadByAddress.entries()].reduce((sum, [address, n]) => (address.endsWith(`@${domain}`) ? sum + n : sum), 0);
+	const { tip } = useShortcuts();
 	return (
 		<nav className="pg-navrail" aria-label="Mail">
-			<button type="button" className="pg-rail-head" onClick={onExpand} title="Expand sidebar" aria-label="Expand sidebar">
+			<button type="button" className="pg-rail-head" onClick={onExpand} title={tip("sidebar", "Expand sidebar")} aria-label="Expand sidebar">
 				<AllAddressesIcon size={14} />
 				<CaretDoubleRightIcon size={10} weight="bold" />
 			</button>
