@@ -24,7 +24,7 @@
 		"deploy": "[ -f build/server/wrangler.json ] || (echo 'Run npm run build first.' >&2; exit 1) && wrangler deploy",
 		"smoke": "bash scripts/smoke.sh",
 		"dev": "react-router dev",
-		"dev:local": "AGP_WRANGLER_CONFIG=wrangler.local.jsonc react-router dev",
+		"dev:local": "OMR_WRANGLER_CONFIG=wrangler.local.jsonc react-router dev",
 		"preview": "npm run build && vite preview",
 		"typecheck": "npm run cf-typegen && react-router typegen && tsc -b",
 		"test": "node --test tests/*.test.mjs"
