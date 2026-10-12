@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { loadTs } from "./helpers/sqlite.mjs";
 
-const { SHORTCUTS, KeyMatcher, cannotBind, cleanOverrides, describeShortcuts, findShortcut, keycaps, keyText, parseBinding, rebind, resolveBindings, setShortcut, stepOf, tidy, validStep } = await loadTs("shared/shortcuts.ts");
+const { SHORTCUTS, KeyMatcher, cannotBind, describeChanges, cleanOverrides, describeShortcuts, findShortcut, keycaps, keyText, parseBinding, rebind, resolveBindings, setShortcut, stepOf, tidy, validStep } = await loadTs("shared/shortcuts.ts");
 
 test("ids are unique and every default key is a valid step", () => {
 	const ids = SHORTCUTS.map((s) => s.id);
@@ -123,4 +123,18 @@ test("setShortcut rebinds, reports what it took, and refuses what it must", () =
 	assert.match(setShortcut({}, "nope", ["q"]).error, /Unknown shortcut/);
 	const list = describeShortcuts(r.overrides);
 	assert.deepEqual(list.find((s) => s.id === "archive"), { id: "archive", label: "Archive", group: "Conversation", scope: "mail", keys: ["s"], defaultKeys: ["e"], rebindable: true });
+});
+
+test("keys the browser keeps can't be bound", () => {
+	for (const k of ["Mod+t", "Mod+w", "Mod+r", "Mod+c", "Mod+Shift+t", "Mod+1", "Mod+Tab"]) assert.match(cannotBind(k), /browser/, k);
+	assert.equal(cannotBind("Mod+e"), null);
+	assert.match(setShortcut({}, "archive", ["cmd+t"]).error, /belongs to the browser/);
+});
+
+test("a change made elsewhere is described for the toast", () => {
+	const after = setShortcut({}, "archive", ["y"]).overrides;
+	assert.deepEqual(describeChanges({}, after, true), ["Archive is now Y"]);
+	assert.deepEqual(describeChanges({}, setShortcut({}, "archive", ["s"]).overrides, true), ["Archive is now S", "Star or unstar is off"]);
+	assert.deepEqual(describeChanges(after, after, true), []);
+	assert.deepEqual(describeChanges({}, { search: ["Mod+e"] }, false), ["Search is now Ctrl+E"]);
 });

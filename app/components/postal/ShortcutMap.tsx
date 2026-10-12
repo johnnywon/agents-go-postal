@@ -13,7 +13,7 @@
 import {
 	ArchiveIcon, ArrowBendDoubleUpLeftIcon, ArrowBendUpLeftIcon, ArrowBendUpRightIcon, ArrowCounterClockwiseIcon,
 	CaretDoubleLeftIcon, CaretDoubleRightIcon, EnvelopeOpenIcon, EnvelopeSimpleIcon, type Icon, MagnifyingGlassIcon, PaperPlaneTiltIcon,
-	PencilSimpleLineIcon, SquareIcon, StarIcon, TagIcon, TrashIcon, TrayIcon,
+	PencilSimpleLineIcon, SquareIcon, StarIcon, TagIcon, TrashIcon, TrayIcon, WarningOctagonIcon,
 } from "@phosphor-icons/react";
 import { Fragment } from "react";
 import { keycaps, SHORTCUTS, type ShortcutArea, type ShortcutDef, type ShortcutId } from "shared/shortcuts";
@@ -29,7 +29,7 @@ type AnyIcon = Icon | React.ComponentType<{ size?: number }>;
 const ICONS: Partial<Record<ShortcutId, AnyIcon>> = {
 	goInbox: InboxIcon, goStarred: StarredIcon, goDrafts: DraftsIcon, goSent: SentIcon, goAll: TrayIcon,
 	reply: ArrowBendUpLeftIcon, replyAll: ArrowBendDoubleUpLeftIcon, forward: ArrowBendUpRightIcon,
-	archive: ArchiveIcon, trash: TrashIcon, markRead: EnvelopeOpenIcon, markUnread: EnvelopeSimpleIcon, star: StarIcon, label: TagIcon,
+	archive: ArchiveIcon, trash: TrashIcon, spam: WarningOctagonIcon, markRead: EnvelopeOpenIcon, markUnread: EnvelopeSimpleIcon, star: StarIcon, label: TagIcon,
 	compose: PencilSimpleLineIcon, select: SquareIcon, send: PaperPlaneTiltIcon, undo: ArrowCounterClockwiseIcon,
 };
 

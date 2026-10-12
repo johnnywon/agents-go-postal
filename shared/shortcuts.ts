@@ -75,6 +75,7 @@ export const SHORTCUTS = [
 
 	{ id: "archive", group: "Conversation", label: "Archive", keys: ["e"], scope: "mail", area: "toolbar", primary: true, cluster: 2 },
 	{ id: "trash", group: "Conversation", label: "Move to trash", keys: ["#", "Delete"], scope: "mail", area: "toolbar", primary: true, cluster: 2, short: "Trash" },
+	{ id: "spam", group: "Conversation", label: "Report spam", keys: ["!"], scope: "mail", area: "toolbar", cluster: 2, short: "Spam" },
 	{ id: "markRead", group: "Conversation", label: "Mark read", keys: ["Shift+i"], scope: "mail", area: "toolbar", cluster: 3 },
 	{ id: "markUnread", group: "Conversation", label: "Mark unread", keys: ["Shift+u"], scope: "mail", area: "toolbar", cluster: 3 },
 	{ id: "star", group: "Conversation", label: "Star or unstar", keys: ["s"], scope: "mail", area: "toolbar", cluster: 3, short: "Star" },
@@ -175,11 +176,24 @@ const RESERVED = new Set([
 	"Tab", "Shift+Tab", "Enter", "Space", "Shift+Space",
 ]);
 
+/**
+ * ⌘ keys the browser or the OS acts on first (new tab, close, reload, quit,
+ * hide, zoom, tab switching) or that people expect to edit text (copy,
+ * paste, select all, undo, find, print). A page never sees some of them, so
+ * a shortcut on one would silently not fire.
+ */
+const BROWSER_KEYS = new Set([
+	..."tnwqrlhmcvxazfpdoy0123456789,=-+".split("").map((k) => `Mod+${k}`),
+	..."tnwrzbhjoip".split("").map((k) => `Mod+Shift+${k}`),
+	"Mod+Tab", "Mod+Shift+Tab", "Mod+ArrowLeft", "Mod+ArrowRight", "Mod+Backspace", "Mod+Delete",
+]);
+
 /** Why a step can't be bound to a shortcut, or null if it can. */
 export function cannotBind(step: string): string | null {
 	if (!validStep(step)) return "That key can't be used.";
 	if (RESERVED.has(step)) return step === "g" ? "G starts the Go to shortcuts." : `${keyText(step, true)} is kept for the app.`;
 	if (step.startsWith("Alt+") || step.includes("+Alt+")) return "Option and Alt type characters; use another key.";
+	if (BROWSER_KEYS.has(step)) return `${keyText(step, true)} belongs to the browser.`;
 	return null;
 }
 
@@ -428,4 +442,19 @@ export function setShortcut(overrides: ShortcutOverrides, ref: string, keys: str
 	const takenFrom = [...before].filter(([id, had]) => id !== def.id && shortcut(id).scope === "mail" && had.some((k) => steps.includes(k)))
 		.map(([id, had]) => ({ id, label: shortcut(id).label, keys: had.filter((k) => steps.includes(k)) }));
 	return { ok: true, overrides: next, id: def.id, keys: steps, takenFrom };
+}
+
+/** What changed between two sets of overrides, as "Archive is now Y" lines; for the toast when keys change elsewhere. */
+export function describeChanges(before: ShortcutOverrides, after: ShortcutOverrides, mac: boolean): string[] {
+	const a = resolveBindings(before);
+	const b = resolveBindings(after);
+	const out: string[] = [];
+	for (const def of ALL) {
+		if (!isRebindable(def.id)) continue;
+		const was = a.get(def.id as ShortcutId) ?? [];
+		const now = b.get(def.id as ShortcutId) ?? [];
+		if (was.join(" ") === now.join(" ")) continue;
+		out.push(now.length ? `${def.label} is now ${now.map((k) => keyText(k, mac)).join(" or ")}` : `${def.label} is off`);
+	}
+	return out;
 }

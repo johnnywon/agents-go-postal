@@ -3,7 +3,7 @@
 //     https://opensource.org/licenses/Apache-2.0
 
 import {
-	BookmarkSimpleIcon, CaretDoubleLeftIcon, CaretDoubleRightIcon, CaretDownIcon, CaretRightIcon, GearSixIcon,
+	BookmarkSimpleIcon, CaretDoubleLeftIcon, KeyboardIcon, CaretDoubleRightIcon, CaretDownIcon, CaretRightIcon, GearSixIcon,
 	PencilSimpleIcon, PlugsConnectedIcon, PlusIcon, SignOutIcon,
 } from "@phosphor-icons/react";
 import { AgentIcon } from "./AgentIcon";
@@ -50,6 +50,7 @@ export interface SidebarProps {
 	/** Opens Settings on its Labels tab. */
 	onManageLabels: () => void;
 	onLogout: () => void;
+	onShortcuts: () => void;
 	overlay?: boolean;
 	drawer?: "open" | "closed";
 }
@@ -273,6 +274,9 @@ export function Sidebar(props: SidebarProps) {
 					<span>Settings</span>
 				</button>
 				<div className="pg-flex" />
+				<button type="button" className="pg-foot-btn is-square" onClick={props.onShortcuts} title={tip("help", "Keyboard shortcuts")} aria-label="Keyboard shortcuts">
+					<KeyboardIcon size={14} />
+				</button>
 				<button type="button" className="pg-foot-btn is-square" onClick={props.onLogout} title="Log out" aria-label="Log out">
 					<SignOutIcon size={14} />
 				</button>
@@ -282,8 +286,8 @@ export function Sidebar(props: SidebarProps) {
 }
 
 export function NavRail({
-	identities, filter, go, allUnread, unreadByAddress, onExpand, onLabels, onMcp, onSettings, onLogout,
-}: Pick<SidebarProps, "identities" | "filter" | "go" | "allUnread" | "unreadByAddress" | "onMcp" | "onSettings" | "onLogout"> & {
+	identities, filter, go, allUnread, unreadByAddress, onExpand, onLabels, onMcp, onSettings, onLogout, onShortcuts,
+}: Pick<SidebarProps, "identities" | "filter" | "go" | "allUnread" | "unreadByAddress" | "onMcp" | "onSettings" | "onLogout" | "onShortcuts"> & {
 	onExpand: () => void;
 	onLabels: () => void;
 }) {
@@ -343,6 +347,7 @@ export function NavRail({
 			<div className="pg-rail-foot">
 				<button type="button" onClick={onMcp} title="MCP" aria-label="MCP"><PlugsConnectedIcon size={16} /></button>
 				<button type="button" onClick={onSettings} title="Settings" aria-label="Settings"><GearSixIcon size={16} /></button>
+				<button type="button" onClick={onShortcuts} title={tip("help", "Keyboard shortcuts")} aria-label="Keyboard shortcuts"><KeyboardIcon size={16} /></button>
 				<button type="button" onClick={onLogout} title="Log out" aria-label="Log out"><SignOutIcon size={16} /></button>
 			</div>
 		</nav>

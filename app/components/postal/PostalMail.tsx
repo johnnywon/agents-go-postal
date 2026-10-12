@@ -2,12 +2,12 @@
 // Licensed under the Apache 2.0 license found in the LICENSE file or at:
 //     https://opensource.org/licenses/Apache-2.0
 
-import { ArchiveIcon, BookmarkSimpleIcon, ClockIcon, EnvelopeOpenIcon, EnvelopeSimpleIcon, FileIcon, PaperPlaneTiltIcon, StarIcon, TagIcon, TrashIcon, WarningIcon } from "@phosphor-icons/react";
+import { ArchiveIcon, BookmarkSimpleIcon, ClockIcon, EnvelopeOpenIcon, EnvelopeSimpleIcon, FileIcon, KeyboardIcon, PaperPlaneTiltIcon, StarIcon, TagIcon, TrashIcon, WarningIcon } from "@phosphor-icons/react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router";
 import { LABEL_COLORS } from "shared/label-colors";
-import { KeyMatcher, type KeyLike, type MailShortcutId, ownerOf, resolveBindings, stepOf } from "shared/shortcuts";
+import { cleanOverrides, describeChanges, KeyMatcher, type KeyLike, type MailShortcutId, ownerOf, resolveBindings, type ShortcutOverrides, stepOf } from "shared/shortcuts";
 import { type BulkAction, applyAction, readToggle, starToggle } from "~/lib/bulk-optimistic";
 import { type MailFilter, type OpenRef, filterToParams, openParam, parseOpen, VIEW_LABELS } from "~/lib/mail-filter";
 import * as sel from "~/lib/selection";
@@ -29,13 +29,15 @@ import { type SettingsTab, settingsTabFrom } from "./settings-tabs";
 import { conversations, HOME, labelOf, type MailAction, parsePostalFilter, RESTORABLE, scopeOf, searchErrors, searchTerms, withSearch } from "./model";
 import { withOrder } from "./search-window";
 import { useDeleteSavedSearch, useSavedSearches, useSaveSearch, useSuggest } from "~/queries/search";
-import { useLayout, usePrefs, useResolvedTheme, useWidth } from "./prefs";
+import { readJson, useLayout, usePrefs, useResolvedTheme, useWidth, writeJson } from "./prefs";
 import { Reader } from "./Reader";
 import { SearchBar, type FilterSuggestion } from "./SearchBar";
 import { NavRail, Sidebar } from "./Sidebar";
-import { ShortcutsProvider } from "./shortcuts";
+import { isMac, ShortcutsProvider } from "./shortcuts";
 import { TooltipLayer } from "./Tooltip";
 
+/** The shortcut keys this browser last showed, so a change made elsewhere gets a toast once. */
+const SEEN_SHORTCUTS_KEY = "agp-shortcuts-seen";
 const EDITABLE = "input, textarea, select, [contenteditable=''], [contenteditable='true']";
 const ICON = 15;
 
@@ -328,6 +330,7 @@ function PostalApp({ addresses, domains, autoDraft }: PostalProps) {
 	};
 
 	const canTrash = filter.view !== "trash";
+	const canSpam = filter.view !== "spam";
 	const canRestore = RESTORABLE.has(filter.view);
 	const act = (kind: MailAction, override?: Conversation[] | null) => {
 		const list = targets(override);
@@ -335,6 +338,7 @@ function PostalApp({ addresses, domains, autoDraft }: PostalProps) {
 		if (kind === "archive") run({ type: "archive" }, override);
 		else if (kind === "restore") canRestore && run({ type: "restore" }, override);
 		else if (kind === "trash") canTrash && run({ type: "trash" }, override);
+		else if (kind === "spam") canSpam && run({ type: "move", folder: "spam" }, override);
 		else if (kind === "star") run(starToggle(list), override);
 		else run(readToggle(list), override);
 	};
@@ -451,6 +455,7 @@ function PostalApp({ addresses, domains, autoDraft }: PostalProps) {
 			},
 			archive: () => (act("archive"), true),
 			trash: () => (act("trash"), true),
+			spam: () => (act("spam"), true),
 			star: () => (act("star"), true),
 			markRead: () => (run({ type: "read" }), true),
 			markUnread: () => (run({ type: "unread" }), true),
@@ -482,6 +487,29 @@ function PostalApp({ addresses, domains, autoDraft }: PostalProps) {
 	const togglePanelRef = useRef(togglePanel);
 	togglePanelRef.current = togglePanel;
 	const [helpOpen, setHelpOpen] = useState(false);
+
+	// Keys rebound elsewhere (the agent, MCP, another browser), now or since this browser last looked, get a toast
+	// with Undo. Edits in Settings don't.
+	const [seenAtLoad] = useState<ShortcutOverrides>(() => {
+		const stored = readJson<object | null>(SEEN_SHORTCUTS_KEY, null);
+		return stored ? cleanOverrides(stored) : prefs.shortcuts;
+	});
+	const seenShortcuts = useRef(seenAtLoad);
+	useEffect(() => {
+		const before = seenShortcuts.current;
+		seenShortcuts.current = prefs.shortcuts;
+		writeJson(SEEN_SHORTCUTS_KEY, prefs.shortcuts);
+		if (settingsTab || before === prefs.shortcuts) return;
+		const lines = describeChanges(before, prefs.shortcuts, isMac());
+		if (!lines.length) return;
+		const text = lines.length > 2 ? `${lines.slice(0, 2).join(". ")}, and ${lines.length - 2} more` : lines.join(". ");
+		showToast({ text, icon: <KeyboardIcon size={ICON} />, onUndo: () => {
+			setToast(null);
+			seenShortcuts.current = before;
+			writeJson(SEEN_SHORTCUTS_KEY, before);
+			void setPrefs({ shortcuts: before });
+		} });
+	}, [prefs.shortcuts]); // eslint-disable-line react-hooks/exhaustive-deps
 	const [labelRequest, setLabelRequest] = useState(0);
 
 	useEffect(() => {
@@ -556,6 +584,7 @@ function PostalApp({ addresses, domains, autoDraft }: PostalProps) {
 		onSettings: () => openSettings(),
 		onManageLabels: () => openSettings("labels"),
 		onLogout: () => setModal("logout"),
+		onShortcuts: () => setHelpOpen(true),
 	};
 
 	return (
@@ -682,6 +711,7 @@ function PostalApp({ addresses, domains, autoDraft }: PostalProps) {
 								labels={labels}
 								labelsById={labelsById}
 								canTrash={canTrash}
+								canSpam={canSpam}
 								canRestore={canRestore}
 								onBack={closeConversation}
 								onAction={(a) => act(a, openRow ? [openRow] : null)}

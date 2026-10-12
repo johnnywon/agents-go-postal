@@ -7,6 +7,7 @@
  * a shortcut's keys, press the new key. The ? dialog shows it read-only.
  */
 
+import { XIcon } from "@phosphor-icons/react";
 import { Fragment, useEffect, useMemo, useState } from "react";
 import {
 	cannotBind, isRebindable, keycaps, ownerOf, type RebindableId, rebind, resolveBindings, SHORTCUT_GROUPS, SHORTCUTS,
@@ -103,6 +104,17 @@ export function ShortcutList({ overrides, onChange }: { overrides: ShortcutOverr
 												onClick={() => { setNote(null); onChange!(rebind(overrides, id as RebindableId, [...s.keys])); }}
 											>
 												Reset
+											</button>
+										)}
+										{keys.length > 0 && !isRecording && (
+											<button
+												type="button"
+												className="pg-keys-off"
+												title={`Turn off ${s.label}`}
+												aria-label={`Turn off ${s.label}`}
+												onClick={() => { setNote(null); onChange!(rebind(overrides, id as RebindableId, [])); }}
+											>
+												<XIcon size={12} />
 											</button>
 										)}
 										<button

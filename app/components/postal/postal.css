@@ -826,14 +826,16 @@ html:has(.postal), html:has(.postal) body { background: var(--pg-base, #141518);
 .pg-keys-row[data-recording] .pg-keys-edit { border-color: var(--pg-mail); }
 .pg-keys-caps { display: inline-flex; gap: 3px; }
 .pg-keys-caps .pg-kbd { min-width: 20px; text-align: center; padding: 2px 5px; font-size: 11px; color: var(--pg-text-4); background: var(--pg-input); }
+.pg-keys-off { flex: none; display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; color: var(--pg-text-7); }
+.pg-keys-off:hover { background: var(--pg-hover); color: var(--pg-text-2); }
 .pg-keys-or { font-size: 11px; color: var(--pg-text-7); }
 .pg-keys-none, .pg-keys-wait { font: 11px var(--pg-mono); color: var(--pg-text-7); }
 .pg-keys-wait { color: var(--pg-mail); }
-.pg-modal.is-shortcuts { width: min(1000px, 100%); height: auto; max-height: min(760px, 100%); }
+.pg-modal.is-shortcuts { width: min(1060px, 100%); height: auto; max-height: min(760px, 100%); }
 .pg-map { display: flex; flex-direction: column; gap: 8px; padding-top: 16px; }
 .pg-map-search, .pg-map-col { border: 1px solid var(--pg-line-2); background: var(--pg-base); }
 .pg-map-search { display: flex; align-items: center; gap: 8px; height: 44px; padding: 0 8px 0 12px; color: var(--pg-text-6); }
-.pg-map-cols { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 2.1fr) minmax(0, .95fr); gap: 8px; }
+.pg-map-cols { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 2.4fr) minmax(0, .9fr); gap: 8px; }
 .pg-map-col { display: flex; flex-direction: column; min-width: 0; overflow: hidden; }
 .pg-map-col[data-area="go"], .pg-map-col[data-area="agent"] { background: var(--pg-rail); }
 .pg-map-head { display: flex; align-items: center; gap: 7px; height: 38px; white-space: nowrap; padding: 0 8px 0 10px; border-bottom: 1px solid var(--pg-line); font: 600 var(--pg-t-10) var(--pg-mono); letter-spacing: .08em; text-transform: uppercase; color: var(--pg-text-5); }
@@ -858,7 +860,7 @@ html:has(.postal), html:has(.postal) body { background: var(--pg-base, #141518);
 .pg-map-lines { flex: 1; display: flex; flex-direction: column; gap: 5px; }
 .pg-map-lines i + i { width: 70%; }
 .pg-map-check { display: inline-flex; }
-.pg-map-toolbar { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 4px; padding: 8px; border-bottom: 1px solid var(--pg-line); }
+.pg-map-toolbar { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 2px; padding: 8px; border-bottom: 1px solid var(--pg-line); }
 .pg-map-tool { display: flex; flex-direction: column; align-items: center; gap: 5px; min-width: 30px; padding: 6px 2px 5px; color: var(--pg-text-5); }
 .pg-map-tool[data-primary] { color: var(--pg-text-2); }
 .pg-map-sep { width: 1px; align-self: stretch; margin: 4px 2px; background: var(--pg-line-2); }
@@ -987,6 +989,7 @@ html:has(.postal), html:has(.postal) body { background: var(--pg-base, #141518);
   .pg-map-col[data-area="reader"] { grid-column: 1 / -1; order: -1; }
   .pg-map-col[data-area="agent"] { grid-column: 1 / -1; }
   .pg-keys-edit { min-height: 44px; }
+  .pg-keys-off { width: 44px; height: 44px; }
   .pg-modal-head { height: auto; min-height: 56px; padding-top: 8px; padding-bottom: 8px; }
   .pg-modal-title span { white-space: normal; }
   .pg-settings { flex-direction: column; }
