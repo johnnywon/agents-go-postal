@@ -18,8 +18,8 @@ import { Folders } from "../shared/folders";
 import type { Env } from "./types";
 import { interpretSearch, MAX_REQUEST_LENGTH } from "./lib/search-interpret";
 import { readPrefs, writePrefs } from "./lib/prefs";
-import { mergeAgentModelConfig, quickModel, OPENROUTER_BASE, openRouterModel, readAgentModelConfig, viewOf, workersAiCatalog, WORKERS_AI_MODEL, writeAgentModelConfig } from "./lib/agent-model";
-import { CATALOG_SNAPSHOT_DATE, SUGGESTED_WORKERS_AI_MODELS } from "../shared/workers-ai-models";
+import { catalogFor, clearCatalogCache, languageModel, mergeAgentModelConfig, quickModel, readAgentModelConfig, viewOf, writeAgentModelConfig } from "./lib/agent-model";
+import { KEYED_PROVIDERS, PROVIDERS, PROVIDER_INFO, RECOMMENDED_MODEL, SUGGESTED_MODELS, validModelId } from "../shared/models";
 import { requireMailbox, type MailboxContext } from "./lib/mailbox";
 import { csrf } from "./lib/csrf";
 import { decodeCursor, InvalidFilterError } from "./lib/mail-index-sql";
@@ -146,68 +146,59 @@ app.get("/api/v1/agent-model", async (c) => {
 	return c.json(viewOf(await readAgentModelConfig(c.env)));
 });
 
+const ModelRefBody = z.object({ provider: z.enum(PROVIDERS), id: z.string().max(200) });
+
 const AgentModelBody = z.object({
-	provider: z.enum(["workers-ai", "openrouter"]).optional(),
-	model: z.string().max(200).optional(),
-	apiKey: z.string().max(500).optional(),
-	workersAiModel: z.string().max(200).optional(),
+	selected: ModelRefBody.nullable().optional(),
+	keys: z.record(z.string(), z.string().max(500)).optional(),
 });
 
 app.put("/api/v1/agent-model", async (c) => {
 	const body = AgentModelBody.parse(await c.req.json());
 	const next = mergeAgentModelConfig(await readAgentModelConfig(c.env), body);
 	if ("error" in next) return c.json({ error: next.error }, 400);
-	if (body.workersAiModel && next.workersAiModel) {
-		const catalog = await workersAiCatalog(c.env);
-		if (catalog && !catalog.some((m) => m.id === next.workersAiModel)) {
-			return c.json({ error: "Cloudflare doesn't list that model as able to call tools." }, 400);
-		}
-	}
 	await writeAgentModelConfig(c.env, next);
+	if (body.keys) clearCatalogCache();
 	return c.json(viewOf(next));
 });
 
-/** Send one short prompt to OpenRouter with the given (or stored) key and model. */
+const TestBody = z.object({ provider: z.enum(PROVIDERS), id: z.string().max(200), key: z.string().max(500).optional() });
+
+/** Send one short prompt to a model, with the given key or the saved one. */
 app.post("/api/v1/agent-model/test", async (c) => {
-	const body = AgentModelBody.parse(await c.req.json().catch(() => ({})));
+	const body = TestBody.parse(await c.req.json());
+	const label = PROVIDER_INFO[body.provider].label;
+	if (!validModelId(body.provider, body.id.trim())) return c.json({ ok: false, error: `That isn't a ${label} model id.` }, 400);
 	const stored = await readAgentModelConfig(c.env);
-	const apiKey = body.apiKey?.trim() || stored.apiKey;
-	const model = body.model?.trim() || stored.model;
-	if (!apiKey || !model) return c.json({ ok: false, error: "Add an API key and a model first." }, 400);
+	const key = body.provider === "workers-ai" ? undefined : body.key?.trim() || stored.keys[body.provider];
+	if (body.provider !== "workers-ai" && !key) return c.json({ ok: false, error: `Add your ${label} key first.` }, 400);
+	const started = Date.now();
 	try {
 		const result = await generateText({
-			model: openRouterModel(apiKey, model),
+			model: languageModel(c.env, { provider: body.provider, id: body.id.trim() }, key),
 			prompt: "Reply with the single word OK.",
-			maxOutputTokens: 16,
+			maxOutputTokens: 400,
 		});
-		return c.json({ ok: true, reply: result.text.trim().slice(0, 80) });
+		return c.json({ ok: true, reply: result.text.trim().slice(0, 80), ms: Date.now() - started });
 	} catch (e) {
 		return c.json({ ok: false, error: (e as Error).message.slice(0, 300) }, 502);
 	}
 });
 
 /**
- * Workers AI models that can call tools, with prices and context sizes from
- * Cloudflare's catalog. When the catalog can't be read, the suggested models
- * come back with the prices saved in shared/workers-ai-models.ts and live: false.
+ * Every provider's models, with price per million tokens and context size
+ * where the provider or OpenRouter publishes them. Nothing here limits what
+ * can be saved: any id shaped right for its provider is accepted.
  */
-app.get("/api/v1/agent-model/workers-ai-models", async (c) => {
-	const catalog = await workersAiCatalog(c.env);
+app.get("/api/v1/agent-model/catalog", async (c) => {
+	const { keys } = await readAgentModelConfig(c.env);
+	const entries = await Promise.all(PROVIDERS.map(async (p) => [p, await catalogFor(c.env, p, keys)] as const));
 	return c.json({
-		recommended: WORKERS_AI_MODEL,
-		live: !!catalog,
-		snapshotDate: CATALOG_SNAPSHOT_DATE,
-		models: catalog ?? SUGGESTED_WORKERS_AI_MODELS,
+		recommended: RECOMMENDED_MODEL,
+		suggested: SUGGESTED_MODELS.map(({ provider, id }) => ({ provider, id })),
+		providers: Object.fromEntries(entries),
+		keyed: KEYED_PROVIDERS.filter((p) => !!keys[p]),
 	});
-});
-
-/** OpenRouter models that can call tools, for the model picker. */
-app.get("/api/v1/agent-model/models", async (c) => {
-	const res = await fetch(`${OPENROUTER_BASE}/models?supported_parameters=tools`);
-	if (!res.ok) return c.json({ models: [] });
-	const data = (await res.json()) as { data?: { id: string; name?: string }[] };
-	const models = (data.data ?? []).map((m) => ({ id: m.id, name: m.name ?? m.id }));
-	return c.json({ models });
 });
 
 // -- Mailboxes ------------------------------------------------------
