@@ -67,12 +67,14 @@ The agent reads your mail, so a model that keeps or trains on it is a security r
 
 | Provider | Key | What happens to prompts |
 |---|---|---|
-| Cloudflare (Workers AI) | None; bills your Cloudflare account | Runs in your own account; not used for training |
-| OpenRouter | `sk-or-…` | Zero data retention endpoints only |
+| Cloudflare (Workers AI) | None; bills your Cloudflare account | Not used to train models or improve services ([data usage](https://developers.cloudflare.com/workers-ai/platform/data-usage/)). No zero retention promise. |
+| OpenRouter | `sk-or-…` | Zero data retention endpoints only; OpenRouter doesn't log prompts unless you opt in ([ZDR](https://openrouter.ai/docs/guides/features/zdr)) |
 
 Nothing else can be connected. Anthropic, OpenAI, xAI and Google models are reached through OpenRouter's zero retention endpoints, not with their own keys, because their APIs keep traffic by default. Free models are never offered or accepted: free endpoints can keep and train on prompts.
 
 OpenRouter's list holds only models with a zero retention endpoint ([`/endpoints/zdr`](https://openrouter.ai/api/v1/endpoints/zdr)), priced at the cheapest of those endpoints. Every request carries `provider: { zdr: true, data_collection: "deny" }`, so a model with no such endpoint fails rather than fall back to one that keeps data. Keys saved for a direct provider by an earlier version are deleted from R2 the next time the config is read.
+
+These are the providers' own policies; nothing here can audit them. What the code does guarantee: requests go only to these two providers, every OpenRouter request carries `zdr: true` and `data_collection: "deny"` (tested in `tests/agent-model.test.mjs`), and a model without a zero retention endpoint is refused by OpenRouter rather than rerouted. OpenRouter counts in-memory prompt caching as not retaining, and marks any provider without a clear policy as retaining. For a second lock, turn on zero data retention in your OpenRouter account's privacy settings; the per-request flag can add enforcement but never removes the account's.
 
 The agent runs on Workers AI (`@cf/moonshotai/kimi-k2.6`) until you pick something else in Settings, then Model & key. The picker searches both lists, filters by provider or by maker (Anthropic, OpenAI, Google and xAI on OpenRouter) and sorts by price or context. Prices are per million input and output tokens. Models a catalog marks as unable to call tools carry a "No tools" tag; you can still pick them, but the agent reads, labels and drafts through tools.
 

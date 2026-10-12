@@ -963,6 +963,10 @@ html:has(.postal), html:has(.postal) body { background: var(--pg-base, #141518);
 }
 .pg-models-notice > svg { flex: none; margin-top: 1px; color: var(--pg-green); }
 .pg-models-notice b { display: block; margin-bottom: 4px; font-weight: 600; font-size: var(--pg-t-13); color: var(--pg-text-1); }
+.pg-models-notice a, :is(.pg-prov-data, .pg-model-data, .pg-models-note) a { color: inherit; text-decoration: underline; text-underline-offset: 2px; }
+:is(.pg-prov-data, .pg-model-data, .pg-models-note) a { display: inline-flex; align-items: center; gap: 2px; }
+:is(.pg-prov-data, .pg-model-data, .pg-models-note) > svg { display: inline-block; vertical-align: -2px; margin-right: 5px; }
+.pg-models-notice a:hover, :is(.pg-prov-data, .pg-model-data, .pg-models-note) a:hover { color: var(--pg-text-1); }
 .pg-models-notice p { margin: 0; font-size: var(--pg-t-12); line-height: 1.5; color: var(--pg-text-4); }
 .pg-models-head { display: flex; align-items: baseline; justify-content: space-between; flex-wrap: wrap; gap: 6px 12px; margin-bottom: 10px; }
 .pg-models-head b { font-weight: 500; color: var(--pg-text-2); }
@@ -1007,9 +1011,9 @@ html:has(.postal), html:has(.postal) body { background: var(--pg-base, #141518);
 .pg-prov-count { font: 11px var(--pg-mono); color: var(--pg-text-7); }
 .pg-prov-data { grid-column: 2 / 5; grid-row: 2; margin-top: -4px; font-size: var(--pg-t-12); color: var(--pg-text-6); }
 .pg-prov-data[data-zdr="true"], .pg-model-data[data-zdr="true"], .pg-models-note[data-zdr="true"], .pg-zdr { color: var(--pg-green-text); }
-.pg-model-data { display: inline-flex; align-items: center; gap: 5px; margin-top: 2px; font-size: var(--pg-t-12); color: var(--pg-text-6); }
+.pg-model-data { display: block; margin-top: 2px; font-size: var(--pg-t-12); color: var(--pg-text-6); }
 .pg-zdr { display: inline-flex; align-items: center; gap: 4px; }
-.pg-models-note { display: flex; align-items: center; gap: 6px; margin: 0; padding: 8px 14px; font-size: var(--pg-t-12); color: var(--pg-text-6); border-bottom: 1px solid var(--pg-line-soft); }
+.pg-models-note { display: block; margin: 0; padding: 8px 14px; font-size: var(--pg-t-12); color: var(--pg-text-6); border-bottom: 1px solid var(--pg-line-soft); }
 .pg-prov-row-key { display: flex; gap: 8px; align-items: center; padding: 0 12px 12px 34px; }
 .pg-prov-row-key .pg-btn { display: inline-flex; align-items: center; gap: 4px; flex: none; }
 

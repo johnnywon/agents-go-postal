@@ -74,6 +74,18 @@ function ProviderMark({ provider }: { provider: ProviderId }) {
 	return <span className="pg-prov-mark" style={hueStyle(info.hue)}><i aria-hidden="true" />{info.label}</span>;
 }
 
+/** What happens to prompts on a provider, linked to the provider's own policy. */
+function DataLine({ provider, className }: { provider: ProviderId; className: string }) {
+	const info = PROVIDER_INFO[provider];
+	return (
+		<span className={className} data-zdr={info.zdr}>
+			{info.zdr && <ShieldCheckIcon size={13} aria-hidden="true" />}
+			{info.data}{" "}
+			<a href={info.policyUrl} target="_blank" rel="noreferrer">Policy<ArrowSquareOutIcon size={11} aria-hidden="true" /></a>
+		</span>
+	);
+}
+
 function Price({ model }: { model: CatalogModel }) {
 	if (!model.price) return <span className="pg-model-price" data-none>–</span>;
 	if (model.price.input === 0 && model.price.output === 0) return <span className="pg-model-price"><b>Free</b></span>;
@@ -137,7 +149,7 @@ function ProviderRow({ provider, draft, count, open, highlight, onToggle }: {
 				<b>{info.label}</b>
 				<span className="pg-prov-status" data-on={connected}>{status}</span>
 				<span className="pg-prov-count">{count} models</span>
-				<span className="pg-prov-data" data-zdr={info.zdr}>{info.data}</span>
+				<DataLine provider={provider} className="pg-prov-data" />
 				{keyed && (
 					<button type="button" className="pg-btn pg-btn-sm" onClick={onToggle} aria-expanded={open}>
 						{open ? "Done" : saved?.set || pendingKey ? "Manage" : "Add key"}
@@ -338,7 +350,7 @@ function ModelPicker({ catalog, draft, onPick, onBack }: {
 						<span>$ per 1M, in / out</span>
 					</div>
 					{error && <p className="pg-models-warn">{error}</p>}
-					{source && !words.length && <p className="pg-models-note" data-zdr={PROVIDER_INFO[source].zdr}>{PROVIDER_INFO[source].zdr && <ShieldCheckIcon size={13} />}{PROVIDER_INFO[source].data}</p>}
+					{source && !words.length && <DataLine provider={source} className="pg-models-note" />}
 					{missingKey && source && <p className="pg-models-warn">No {PROVIDER_INFO[source].label} key yet. Pick a model, then add the key.</p>}
 					{rows.slice(0, limit).map((m) => (
 						<ModelRow
@@ -433,11 +445,13 @@ export function AgentModelSection({ draft }: { draft: AgentModelDraft }) {
 			<div className="pg-models-notice" role="note">
 				<ShieldCheckIcon size={18} weight="duotone" aria-hidden="true" />
 				<div>
-					<b>Zero data retention only</b>
+					<b>Private models only</b>
 					<p>
-						The agent reads your mail, so a model that keeps or trains on it is a security risk. Models run on Cloudflare
-						in your own account, or on OpenRouter endpoints that retain nothing. Free models, providers that train on
-						prompts and direct provider keys can't be connected.
+						The agent reads your mail, so a model that keeps or trains on it is a security risk. Cloudflare doesn't train
+						on your prompts (<a href={PROVIDER_INFO["workers-ai"].policyUrl} target="_blank" rel="noreferrer">policy</a>).
+						OpenRouter is held to zero data retention endpoints and doesn't log prompts
+						(<a href={PROVIDER_INFO.openrouter.policyUrl} target="_blank" rel="noreferrer">policy</a>). Free models and
+						direct provider keys can't be connected.
 					</p>
 				</div>
 			</div>
@@ -450,9 +464,7 @@ export function AgentModelSection({ draft }: { draft: AgentModelDraft }) {
 					</span>
 					<ModelSub model={model} needsKey={false} />
 					<code>{effective.id}</code>
-					<span className="pg-model-data" data-zdr={PROVIDER_INFO[effective.provider].zdr}>
-						{PROVIDER_INFO[effective.provider].zdr && <ShieldCheckIcon size={13} />}{PROVIDER_INFO[effective.provider].data}
-					</span>
+					<DataLine provider={effective.provider} className="pg-model-data" />
 				</div>
 				<dl className="pg-model-card-stats">
 					<div><dt>Context</dt><dd>{formatContext(model.context)}</dd></div>
