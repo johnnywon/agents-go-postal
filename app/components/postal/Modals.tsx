@@ -29,8 +29,9 @@ function Modal({ className = "", label, onClose, children }: { className?: strin
 		ref.current?.querySelector<HTMLElement>("[data-autofocus]")?.focus();
 		const onKey = (e: KeyboardEvent) => {
 			if (e.key === "Escape") {
-				// Escape in a search box with text clears the box; the box handles it.
+				// Escape in a search box with text clears the box, and a step inside the dialog can take Escape for itself.
 				if (e.target instanceof HTMLInputElement && e.target.type === "search" && e.target.value) return;
+				if (e.target instanceof Element && e.target.closest("[data-own-escape]")) return;
 				e.preventDefault();
 				onClose();
 			} else if (e.key === "Tab" && ref.current) {

@@ -4,7 +4,7 @@ Versions follow [semantic versioning](https://semver.org). Before 1.0, a minor v
 
 ## 0.1.4
 
-- Settings > Model & key is rewritten for five providers: Cloudflare (Workers AI), OpenRouter, Anthropic, OpenAI and xAI. One searchable list holds every provider's models with price per million tokens and context size, filtered by provider and sorted by price or context. Anthropic, OpenAI and xAI list their own models with your key and take prices from OpenRouter's catalog.
+- Settings > Model & key is rewritten for five providers: Cloudflare (Workers AI), OpenRouter, Anthropic, OpenAI and xAI. The tab shows the agent model and the providers, each with its connection status and key; Change model opens one searchable list holds every provider's models with price per million tokens and context size, filtered by provider and sorted by price or context. Anthropic, OpenAI and xAI list their own models with your key and take prices from OpenRouter's catalog.
 - Any model id can be used: type it in the search and choose Use. Models a catalog marks as unable to call tools are tagged, not hidden. Test works for every provider.
 - `config/agent-model.json` now holds `{ selected, keys }`, one key per provider. The older OpenRouter-only file is read as before. `GET /api/v1/agent-model/catalog` replaces `/models` and `/workers-ai-models`; `PUT /api/v1/agent-model` takes `{ selected, keys }`.
 - New dependencies: `@ai-sdk/anthropic`, `@ai-sdk/openai`, `@ai-sdk/xai`.
