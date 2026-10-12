@@ -46,6 +46,8 @@ export interface SidebarProps {
 	onCollapse: () => void;
 	onMcp: () => void;
 	onSettings: () => void;
+	/** Opens Settings on its Labels tab. */
+	onManageLabels: () => void;
 	onLogout: () => void;
 	overlay?: boolean;
 	drawer?: "open" | "closed";
@@ -211,10 +213,10 @@ export function Sidebar(props: SidebarProps) {
 									<PlusIcon size={12} />
 									<span>New label</span>
 								</button>
-								<a className="pg-nav-new" href="/settings" title="Rename, recolour or delete labels">
+								<button type="button" className="pg-nav-new" onClick={props.onManageLabels} title="Rename, recolour or delete labels">
 									<PencilSimpleIcon size={12} />
 									<span>Manage labels</span>
-								</a>
+								</button>
 							</>
 						) : (
 							<form onSubmit={submitLabel}>

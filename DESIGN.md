@@ -1,6 +1,6 @@
 # Agents Go Postal design
 
-Agents Go Postal has one mail view, the postal view, described here. The settings pages (`/settings` for labels, `/settings/index` for the mail index) keep the older brushed-metal look; their rules are at the end.
+Agents Go Postal has one mail view, the postal view, described here. Everything else opens over it: Settings as a dialog, errors as a page in the same look.
 
 ## Postal
 
@@ -61,17 +61,12 @@ The reader reads like a mail client: subject, then a sender row with a 36px squa
 
 Mail renders in the sandboxed iframe. Plain mail (no tables, images, colours or backgrounds of its own, see `isPlainHtml`) takes the reader's text colours on the reader surface, indented under the sender's name. Designed HTML mail keeps its white page inside a 1px-bordered card; on mobile the card runs edge to edge. Text-only bodies keep their line breaks. Remote images are blocked until the reader allows them (Settings: Ask, Always, Never).
 
+### Settings
+
+Settings is a dialog over the mail, with tabs: General, Addresses, Signatures, Labels, Agent, Model & key, Storage. The open tab is in the URL (`?settings=labels`), so a link opens it and Back closes it; `/settings` and `/settings/index` redirect to the Labels and Storage tabs. Most tabs save with Save changes. Labels and Storage act at once and say so. Tables (`.pg-table`) use mono headers on the well colour, right-aligned numbers, and a rose tint for rows that disagree. Below 600px the dialog fills the screen and the tabs scroll sideways.
+
 ### Error pages
 
 Every error the app shows uses one layout (`ErrorPage.tsx`): the postal surface and theme, the status code in mono, a 22px heading, one line, Back to mail (plus Reload when a retry can help), and below them a small, faint watermark (112px, the sidebar watermark's opacity). The 404 page, the root error boundary and the Worker's Access errors all use it; the Worker's version is static HTML in `workers/lib/error-page.ts` that follows the system theme. A developer stack trace shows only in dev builds. API clients still get plain text.
-
-## Settings pages
-
-`/settings` and `/settings/index` keep the brushed titanium and graphite look.
-
-- Use `/brand/logo.svg` in the upper left, including the mobile top bar. Keep its proportions intact. It may be smaller, never clipped.
-- Use Oxanium for headings and Space Grotesk for interface text.
-- Use `--chassis-surface`, `--silver-surface`, and `--titanium-surface` for metal. Graphite panels anchor navigation and folder headings.
-- The single global radius rule is 6px; the logo image is exempt (`.deck-brand-logo`).
 
 Validation: `npm test`, `npm run typecheck`, and `npm run build`.

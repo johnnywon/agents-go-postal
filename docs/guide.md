@@ -9,7 +9,7 @@ How the app works day to day. Back to the [README](../README.md).
 - **One composer.** New mail, replies and forwards share the same layout. Replies and forwards quote the original as HTML, with its styles and scripts removed.
 - **Signatures.** One per address, set in Settings > Signatures. None is added unless you turn on "Add by default"; the signature button in the composer adds or removes it on any message.
 - **Scheduled send.** Pick tomorrow morning, Monday morning or any future time. The message waits in Drafts until it goes out.
-- **Labels and bulk actions.** Select many conversations to archive, delete, mark read, star, label or move. Undo is available after each action.
+- **Labels and bulk actions.** Select many conversations to archive, delete, mark read, star, label or move. Undo is available after each action. Rename, recolour and delete labels in Settings > Labels, or from Manage labels in the sidebar.
 - **Keyboard shortcuts** for navigation and actions.
 - **Per-address isolation.** Every address has its own Durable Object, database and prompt settings.
 - **AI agent.** A side panel that can read, search, label, draft and send using Workers AI, or any OpenRouter model with your own key. It searches and labels across every address at once (`search_all_mail`, `label_matching`, up to 500 conversations per call). "Draft reply" in either composer (or "Draft" in a new message) asks it for a first draft. Labels the agent has applied are marked with a sparkle. It sends a draft with `send_draft` when you ask it to. Automatic drafting of new mail is off by default (`AUTO_DRAFT_ENABLED`); it only drafts, and skips mailing lists, bulk mail, auto-replies and no-reply senders.

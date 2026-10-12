@@ -24,6 +24,7 @@ import { ComposePopout, Composer } from "./ComposeWindow";
 import { buildIdentities } from "./identity";
 import { ListPane } from "./ListPane";
 import { LogoutModal, McpModal, SettingsModal, Toast, type ToastState } from "./Modals";
+import { type SettingsTab, settingsTabFrom } from "./settings-tabs";
 import { conversations, HOME, labelOf, type MailAction, parsePostalFilter, RESTORABLE, scopeOf, searchErrors, searchTerms, withSearch } from "./model";
 import { withOrder } from "./search-window";
 import { useDeleteSavedSearch, useSavedSearches, useSaveSearch, useSuggest } from "~/queries/search";
@@ -98,7 +99,12 @@ function PostalApp({ addresses, domains, autoDraft }: PostalProps) {
 			const params = filterToParams(next);
 			if (nextOpen) params.set("open", openParam(nextOpen));
 			if (nextSearch.trim()) params.set("search", nextSearch);
-			setSearchParams(params, { replace });
+			// An open Settings dialog stays open while the mail behind it moves.
+			setSearchParams((cur) => {
+				const settings = cur.get("settings");
+				if (settings) params.set("settings", settings);
+				return params;
+			}, { replace });
 		},
 		[debounced, setSearchParams],
 	);
@@ -170,11 +176,22 @@ function PostalApp({ addresses, domains, autoDraft }: PostalProps) {
 	const [panelTemp, setPanelTemp] = useState(false);
 	const navOpen = mobile ? navTemp : narrow ? navTemp : layout.nav ?? true;
 	const panelOpen = mobile ? panelTemp : narrow ? panelTemp : layout.panel ?? true;
-	const [modal, setModal] = useState<"settings" | "mcp" | "logout" | null>(null);
+	const [modal, setModal] = useState<"mcp" | "logout" | null>(null);
 	const [toast, setToast] = useState<ToastState | null>(null);
 	const [cw, setCw] = useState<{ key: number; initial: ComposeState; max?: boolean } | null>(null);
 	const [inline, setInline] = useState<{ key: number; initial: ComposeState } | null>(null);
-	const [settingsTab, setSettingsTab] = useState<"general" | "signatures" | undefined>(undefined);
+	// Settings lives in the URL (?settings=<tab>), so a link opens it on a tab and Back closes it.
+	const settingsTab = settingsTabFrom(searchParams.get("settings"));
+	const openSettings = (tab: SettingsTab = "general") => setSearchParams((cur) => {
+		const next = new URLSearchParams(cur);
+		next.set("settings", tab);
+		return next;
+	}, { replace: !!settingsTab });
+	const closeSettings = () => setSearchParams((cur) => {
+		const next = new URLSearchParams(cur);
+		next.delete("settings");
+		return next;
+	});
 	const [prefill, setPrefill] = useState<{ text: string; id: number } | null>(null);
 	const [agentBusy, setAgentBusy] = useState(false);
 	const [replyRequest, setReplyRequest] = useState<{ mode: Exclude<ComposeMode, "new">; id: number } | null>(null);
@@ -494,10 +511,8 @@ function PostalApp({ addresses, domains, autoDraft }: PostalProps) {
 		setLayout,
 		onCollapse: toggleNav,
 		onMcp: () => setModal("mcp"),
-		onSettings: () => {
-			setSettingsTab(undefined);
-			setModal("settings");
-		},
+		onSettings: () => openSettings(),
+		onManageLabels: () => openSettings("labels"),
 		onLogout: () => setModal("logout"),
 	};
 
@@ -640,10 +655,7 @@ function PostalApp({ addresses, domains, autoDraft }: PostalProps) {
 								popOut(state, () => openCompose(state));
 								setInline(null);
 							}}
-							onEditSignatures={() => {
-								setSettingsTab("signatures");
-								setModal("settings");
-							}}
+							onEditSignatures={() => openSettings("signatures")}
 							onEditDraft={(draft) => open && editDraft(open.mailboxId, draft.id, draft)}
 							draftWithAgent={draftWithAgent}
 							replyRequest={replyRequest}
@@ -674,10 +686,7 @@ function PostalApp({ addresses, domains, autoDraft }: PostalProps) {
 					initial={cw.initial}
 					maximised={cw.max}
 					lockFrom={prefs.replyFrom}
-					onEditSignatures={() => {
-						setSettingsTab("signatures");
-						setModal("settings");
-					}}
+					onEditSignatures={() => openSettings("signatures")}
 					addresses={addresses}
 					identities={identities}
 					info={info}
@@ -696,16 +705,19 @@ function PostalApp({ addresses, domains, autoDraft }: PostalProps) {
 			)}
 			{draftRunner}
 			<Toast toast={toast} onClose={closeToast} />
-			{modal === "settings" && (
+			{settingsTab && (
 				<SettingsModal
-					initialTab={settingsTab}
+					// A link can open Settings before each address's settings load; it starts again as they arrive so it compares against them.
+					key={`${addresses.length}:${[...info.values()].filter((i) => i.mailbox).length}`}
+					tab={settingsTab}
+					onTab={openSettings}
 					prefs={prefs}
 					setPrefs={setPrefs}
 					addresses={addresses}
 					identities={identities}
 					info={info}
 					autoDraft={autoDraft}
-					onClose={() => setModal(null)}
+					onClose={closeSettings}
 					onSaved={(text) => showToast({ text })}
 				/>
 			)}

@@ -1,7 +1,6 @@
 @source "./**/*.{ts,tsx}";
 @source "../node_modules/@cloudflare/kumo/dist/**/*.{js,jsx,ts,tsx}";
 @import "@fontsource-variable/space-grotesk";
-@import "@fontsource-variable/oxanium";
 @import "@fontsource-variable/jetbrains-mono";
 @import "./components/postal/postal.css";
 @import "@cloudflare/kumo/styles/tailwind";
@@ -31,30 +30,13 @@ body {
   margin-bottom: 0.25em;
 }
 
-/* Machined titanium and smoked graphite; technical type, compact controls. */
 @theme {
   --font-sans: "Space Grotesk Variable", sans-serif;
 }
 
 :root {
   color-scheme: light;
-  --case: #bdc3c6;
-  --case-shadow: #747d82;
-  --lcd: #292b2b;
   --ink: #252a2e;
-  --metal: #a6adb1;
-  --accent: #d2e5dd;
-  --graphite: #282e32;
-  --muted: #5b666e;
-  --airmail-blue: #365a8a;
-  --airmail-red: #b94d45;
-  --font-display: "Oxanium Variable", sans-serif;
-  --font-data: "Oxanium Variable", sans-serif;
-  --chassis-surface:
-    repeating-linear-gradient(0deg, #ffffff0a 0 1px, #00000002 1px 2px),
-    linear-gradient(115deg, #979fa4 0%, #e3e7e8 18%, #bcc3c7 36%, #d9dfe1 57%, #939da3 78%, #ccd3d6 94%, #969fa4);
-  --silver-surface: linear-gradient(180deg, #f4f6f7, #d2d8db 48%, #c1c9cd 49%, #dce1e3);
-  --titanium-surface: linear-gradient(180deg, #edf2f4, #bac4ca);
   --text-color-kumo-link: #455e6a;
 }
 body {
@@ -82,14 +64,6 @@ button:disabled {
   opacity: 0.4;
 }
 
-.deck-brand {
-  display: inline-flex;
-  align-items: center;
-  color: #303234;
-  text-decoration: none;
-  min-width: 0;
-  width: 100%;
-}
 .deck-brand-logo {
   display: block;
   width: 100%;
@@ -120,40 +94,6 @@ button:disabled {
   border-radius: 6px !important;
 }
 
-/* One compact hierarchy across inbox, conversation, composer and settings. */
-h1, h2, h3 { font-family: var(--font-display); }
-
-.settings-page { max-width: 760px; padding: 20px; }
-.settings-page > h1 { margin-bottom: 16px; }
-.index-settings { min-height: 100vh; background: var(--case); }
-.index-settings-header { display: flex; align-items: center; min-height: 54px; padding: 6px 12px; background: var(--chassis-surface); }
-.index-settings-header .deck-brand { width: 156px; padding: 6px; background: var(--silver-surface); box-shadow: 0 1px 3px #0003; }
-.index-settings-page { max-width: none; background: #fff; margin: 6px; }
-.index-settings-lede { margin-bottom: 12px; font-size: 13px; color: var(--muted); }
-.index-settings-summary { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: space-between; margin-bottom: 12px; font-size: 13px; }
-.index-parity-scroll { overflow-x: auto; border: 1px solid #c9d1d6; }
-.index-parity { width: 100%; border-collapse: collapse; font: 12px var(--font-sans); font-variant-numeric: tabular-nums; }
-.index-parity th, .index-parity td { padding: 6px 10px; border-bottom: 1px solid #e1e6e9; text-align: right; white-space: nowrap; }
-.index-parity thead th { background: #eef2f4; font-weight: 600; color: var(--ink); }
-.index-parity th:first-child { text-align: left; }
-.index-parity tbody th { font-weight: 500; }
-.index-parity tr.is-off { background: #fbf1ef; }
-.index-parity td.is-off { font-weight: 700; color: var(--airmail-red); }
-.index-parity-mark { display: inline-block; width: 1.4em; font-weight: 700; }
-.index-parity tr.is-off .index-parity-mark { color: var(--airmail-red); }
-.copy-d1 { margin-top: 24px; padding-top: 16px; border-top: 1px solid #e1e6e9; }
-.copy-d1 > h2 { margin-bottom: 8px; }
-.copy-d1-confirm { display: inline-flex; gap: 8px; }
-.copy-d1-parity { margin: 0; padding-left: 18px; font-size: 13px; list-style: disc; }
-
-@media (max-width: 767px) {
-
-  .deck-brand { max-width: 180px; }
-
-  .settings-page input, .settings-page textarea { font-size: 16px; }
-  .settings-page { padding: 14px; }
-
-}
 @media (pointer: coarse) {
   button.group { min-height: 44px; }
   button.group[aria-label] { min-width: 44px; min-height: 44px; }
@@ -175,24 +115,6 @@ h1, h2, h3 { font-family: var(--font-display); }
 /* The supplied logo is artwork: the global radius rule must not clip it. */
 .deck-brand-logo { border-radius: 0 !important; }
 
-.mail-caption { font: 600 11px var(--font-display); text-transform: uppercase; letter-spacing: .3px; color: var(--muted); }
-.mail-link { color: var(--airmail-blue); text-decoration: underline; font-size: 12px; }
-
-.mail-button {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  height: 24px;
-  padding: 0 8px;
-  border: 1px solid #9aa5ac;
-  background: var(--silver-surface);
-  box-shadow: inset 0 1px #fff;
-  color: #36383a;
-  font-size: 12px;
-  white-space: nowrap;
-}
-.mail-button[aria-expanded="true"] { background: linear-gradient(#545658, #383a3c); color: #fff; }
-
 /* Filter popovers */
 .mail-popover {
   position: absolute;
@@ -212,43 +134,6 @@ h1, h2, h3 { font-family: var(--font-display); }
 .mail-label-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .mail-label-chip button { display: grid; place-items: center; width: 14px; height: 14px; color: inherit; }
 .mail-label-swatch { flex: none; display: inline-block; width: 10px; height: 10px; overflow: visible; }
-
-.global-settings .settings-page > h1 { display: none; }
-.global-settings .settings-page { padding: 0; max-width: 760px; }
-
-.settings-section { margin-bottom: 20px; padding-bottom: 16px; border-bottom: 1px solid #d5dbdf; }
-.settings-section h2 { margin-bottom: 6px; }
-.settings-note { margin: 4px 0 8px; color: var(--muted); font-size: 12px; }
-.label-list { display: grid; gap: 6px; margin-bottom: 10px; }
-.label-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; padding: 6px 8px; border: 1px solid #d5dbdf; background: #fff; }
-.label-row-main { display: flex; align-items: center; gap: 8px; flex: 1 1 260px; min-width: 0; }
-.label-row-main input, .label-new input { min-width: 0; flex: 1; max-width: 220px; height: 26px; padding: 0 6px; border: 1px solid #b5bdc1; background: #fff; font: 12px var(--font-sans); }
-.label-row-count { color: var(--muted); font-size: 11px; white-space: nowrap; }
-.label-row-confirm { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: 12px; }
-.label-colors { display: flex; flex-wrap: wrap; gap: 2px; }
-.label-color { display: grid; place-items: center; width: 20px; height: 20px; border: 1px solid transparent; }
-.label-color[aria-checked="true"] { border-color: #2d2f31; }
-.label-color .mail-label-swatch { width: 12px; height: 12px; }
-.label-new { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
-.label-error { margin-top: 6px; color: var(--airmail-red); font-size: 12px; }
-.folder-import-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 8px; }
-.folder-import-table { width: 100%; border-collapse: collapse; font-size: 12px; }
-.folder-import-table caption { text-align: left; }
-.folder-import-table th, .folder-import-table td { padding: 4px 6px; border-bottom: 1px solid #e1e6e9; text-align: left; }
-.folder-import-table td:nth-child(4) { font-variant-numeric: tabular-nums; }
-@media (pointer: coarse) {
-  .label-color { width: 44px; height: 44px; }
-  .label-row-main input, .label-new input { height: 40px; font-size: 16px; }
-}
-.index-settings-header { gap: 12px; flex-wrap: wrap; }
-.settings-nav { display: flex; flex-wrap: wrap; gap: 4px 14px; }
-.settings-nav .mail-link[aria-current="page"] { color: var(--ink); text-decoration: none; font-weight: 600; }
-
-@media (pointer: coarse) {
-
-  .mail-button { height: 36px; }
-
-}
 
 /* ── Postal tokens ──────────────────────────────────────────────────
    MAIL_UI=postal. Dark first, with a real light palette. Components in

@@ -3,18 +3,21 @@
 //     https://opensource.org/licenses/Apache-2.0
 
 import {
-	ArrowCounterClockwiseIcon, ArrowsClockwiseIcon, AtIcon, CheckIcon, CopyIcon, DatabaseIcon, DesktopIcon, GearSixIcon, MoonIcon,
-	KeyIcon, PlugsConnectedIcon, SignatureIcon, SignOutIcon, SlidersHorizontalIcon, SunIcon, WrenchIcon, XIcon,
+	ArrowCounterClockwiseIcon, AtIcon, CheckIcon, CopyIcon, DatabaseIcon, DesktopIcon, GearSixIcon, MoonIcon,
+	KeyIcon, PlugsConnectedIcon, SignatureIcon, SignOutIcon, SlidersHorizontalIcon, SunIcon, TagIcon, WrenchIcon, XIcon,
 } from "@phosphor-icons/react";
 import { AgentIcon } from "./AgentIcon";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 import { queryKeys } from "~/queries/keys";
-import api, { type AgentProvider, type IndexStatusResponse } from "~/services/api";
+import api, { type AgentProvider } from "~/services/api";
 import { type AddressInfo, textToParagraphs } from "./compose";
 import { Editor } from "./Editor";
 import { htmlToPlainText } from "~/lib/utils";
 import { AddressText, type Identities, Swatch } from "./identity";
+import { LabelsTab } from "./LabelsTab";
+import type { SettingsTab } from "./settings-tabs";
+import { StorageTab } from "./StorageTab";
 import type { Prefs } from "./prefs";
 
 function Modal({ className = "", label, onClose, children }: { className?: string; label: string; onClose: () => void; children: React.ReactNode }) {
@@ -206,19 +209,9 @@ function AgentModelSection({ draft }: { draft: AgentModelDraft }) {
 	);
 }
 
-type Tab = "general" | "addresses" | "signatures" | "agent" | "model" | "index";
-
-function indexRowMatches(row: IndexStatusResponse["mailboxes"][number]) {
-	const s = row.source;
-	const i = row.index;
-	if (row.error || !s || !i) return false;
-	const states = new Set([...Object.keys(s.counts.states), ...Object.keys(i.states)]);
-	return [...states].every((k) => (s.counts.states[k] ?? 0) === (i.states[k] ?? 0))
-		&& s.counts.unread === i.unread && s.counts.starred === i.starred && s.inboxConversations === i.inboxConversations;
-}
-
-export function SettingsModal({ initialTab, prefs, setPrefs, addresses, identities, info, autoDraft, onClose, onSaved }: {
-	initialTab?: Tab;
+export function SettingsModal({ tab, onTab, prefs, setPrefs, addresses, identities, info, autoDraft, onClose, onSaved }: {
+	tab: SettingsTab;
+	onTab: (tab: SettingsTab) => void;
 	prefs: Prefs;
 	setPrefs: (p: Partial<Prefs>) => void;
 	addresses: string[];
@@ -228,7 +221,6 @@ export function SettingsModal({ initialTab, prefs, setPrefs, addresses, identiti
 	onClose: () => void;
 	onSaved: (message: string) => void;
 }) {
-	const [tab, setTab] = useState<Tab>(initialTab ?? "general");
 	const initialSigs = Object.fromEntries(addresses.map((a) => {
 		const sig = info.get(a)?.mailbox?.settings?.signature;
 		const html = sig?.html || (sig?.text ? textToParagraphs(sig.text) : "");
@@ -287,22 +279,23 @@ export function SettingsModal({ initialTab, prefs, setPrefs, addresses, identiti
 		}
 	};
 
-	const tabs: { id: Tab; label: string; icon: React.ReactNode }[] = [
+	const tabs: { id: SettingsTab; label: string; icon: React.ReactNode }[] = [
 		{ id: "general", label: "General", icon: <SlidersHorizontalIcon size={16} /> },
 		{ id: "addresses", label: "Addresses", icon: <AtIcon size={16} /> },
 		{ id: "signatures", label: "Signatures", icon: <SignatureIcon size={16} /> },
+		{ id: "labels", label: "Labels", icon: <TagIcon size={16} /> },
 		{ id: "agent", label: "Agent", icon: <AgentIcon size={16} /> },
 		{ id: "model", label: "Model & key", icon: <KeyIcon size={16} /> },
-		{ id: "index", label: "Mail index", icon: <DatabaseIcon size={16} /> },
+		{ id: "storage", label: "Storage", icon: <DatabaseIcon size={16} /> },
 	];
 
 	return (
-		<Modal label="Settings" onClose={onClose}>
+		<Modal className="is-settings" label="Settings" onClose={onClose}>
 			<Head icon={<GearSixIcon size={16} />} title="Settings" sub="saved in this browser · per-address settings sync to each mailbox" onClose={onClose} />
 			<div className="pg-settings">
 				<div className="pg-tabs" role="tablist" aria-label="Settings sections">
 					{tabs.map((t) => (
-						<button key={t.id} type="button" role="tab" aria-selected={tab === t.id} onClick={() => setTab(t.id)}>{t.icon}<span>{t.label}</span></button>
+						<button key={t.id} type="button" role="tab" aria-selected={tab === t.id} onClick={() => onTab(t.id)} ref={tab === t.id ? (el) => el?.scrollIntoView({ block: "nearest", inline: "nearest" }) : undefined}>{t.icon}<span>{t.label}</span></button>
 					))}
 				</div>
 				<div className="pg-tab-body" role="tabpanel">
@@ -408,7 +401,7 @@ export function SettingsModal({ initialTab, prefs, setPrefs, addresses, identiti
 							/>
 							<div style={{ fontSize: 12, color: "var(--pg-text-6)", padding: "6px 0 4px" }}>Sent as the system message for every address. Controls tone, style and behaviour rules.</div>
 							<Setting title="Model" sub={agentModel.stored?.provider === "openrouter" ? `OpenRouter, ${agentModel.stored.model}` : "Workers AI (default)"}>
-								<button type="button" className="pg-btn pg-btn-sm" onClick={() => setTab("model")}>Change</button>
+								<button type="button" className="pg-btn pg-btn-sm" onClick={() => onTab("model")}>Change</button>
 							</Setting>
 							<Setting title="Auto-draft new mail" sub={<>Drafts a reply to each new message. Mailing lists and automated mail are skipped. Set <span className="pg-mono">AUTO_DRAFT_ENABLED</span> in your Worker config to change.</>}>
 								<span className="pg-tag">{autoDraft ? "on" : "off"} · config</span>
@@ -420,7 +413,8 @@ export function SettingsModal({ initialTab, prefs, setPrefs, addresses, identiti
 						</>
 					)}
 					{tab === "model" && <AgentModelSection draft={agentModel} />}
-					{tab === "index" && <IndexTab />}
+					{tab === "labels" && <LabelsTab />}
+					{tab === "storage" && <StorageTab />}
 				</div>
 			</div>
 			<div className="pg-modal-foot">
@@ -430,46 +424,6 @@ export function SettingsModal({ initialTab, prefs, setPrefs, addresses, identiti
 				<button type="button" className="pg-btn pg-btn-primary" onClick={save} disabled={saving}>Save changes</button>
 			</div>
 		</Modal>
-	);
-}
-
-function IndexTab() {
-	const queryClient = useQueryClient();
-	const { data, error, isLoading } = useQuery({
-		queryKey: ["index-status"],
-		queryFn: () => api.getIndexStatus(),
-		refetchInterval: (q) => (q.state.data?.job && !q.state.data.job.finishedAt ? 3_000 : false),
-	});
-	const rebuild = useMutation({
-		mutationFn: () => api.rebuildIndex(),
-		onSuccess: () => queryClient.invalidateQueries({ queryKey: ["index-status"] }),
-	});
-	const rows = data?.mailboxes ?? [];
-	const matching = rows.filter(indexRowMatches).length;
-	const job = data?.job;
-	const running = !!job && !job.finishedAt;
-	const jobText = !job
-		? "no rebuild has run"
-		: running
-			? `rebuilding ${job.position} of ${job.mailboxes.length}`
-			: `last rebuild ${new Date(job.finishedAt!).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}`;
-	return (
-		<div style={{ padding: "14px 0", display: "flex", flexDirection: "column", gap: 12 }}>
-			<div className="pg-index-card">
-				<DatabaseIcon size={18} color="var(--pg-text-5)" />
-				<div className="pg-card-text">
-					<b style={{ fontWeight: 600 }}>{isLoading ? "Checking…" : error ? "Could not read the index" : `${matching} of ${rows.length} addresses match`}</b>
-					<span>{data ? `${data.messages.toLocaleString()} messages indexed · ${jobText}` : ""}</span>
-				</div>
-				<button type="button" className="pg-btn" onClick={() => rebuild.mutate()} disabled={rebuild.isPending || running}>
-					<ArrowsClockwiseIcon size={13} />{running ? "Rebuilding" : "Rebuild"}
-				</button>
-			</div>
-			{rebuild.isError && <span style={{ fontSize: 12, color: "var(--pg-danger-text)" }}>Rebuild failed to start.</span>}
-			<span style={{ fontSize: 12, color: "var(--pg-text-6)" }}>
-				The combined index merges every address into one list. If counts drift from a mailbox, rebuild it. Changes queue in each mailbox while <span className="pg-mono">INDEX_SYNC_ENABLED</span> is off. <a href="/settings/index">Per-address detail</a>
-			</span>
-		</div>
 	);
 }
 

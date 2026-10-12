@@ -2,6 +2,13 @@
 
 Versions follow [semantic versioning](https://semver.org). Before 1.0, a minor version can break things. Each entry names any new D1 migration: apply it with `wrangler d1 migrations apply <db> --remote` before you deploy that version.
 
+## 0.1.3
+
+- Settings holds everything: the Labels page and the Mail index page are now the Labels and Storage tabs of the Settings dialog. `/settings` and `/settings/index` redirect there. The open tab is in the URL (`?settings=labels`), and Back closes the dialog. Storage shows per-address counts on D1 and the index comparison and Rebuild on Durable Objects.
+- The brushed-metal settings styles, `SettingsHeader`, `DeckBrand` and the Oxanium font are gone.
+
+No D1 migration.
+
 ## 0.1.2
 
 - Unknown paths answer HTTP 404 instead of 200.
