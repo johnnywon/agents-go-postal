@@ -91,17 +91,21 @@ test("config round-trips through R2", async () => {
 	assert.deepEqual(await m.readAgentModelConfig(env), config);
 });
 
-test("Cloudflare's catalog keeps text models and marks which call tools", () => {
+test("Cloudflare's catalog keeps priced text models it serves itself, and marks which call tools", () => {
 	const entry = (name, props, task = "Text Generation") => ({ name, task: { name: task }, properties: Object.entries(props).map(([property_id, value]) => ({ property_id, value })) });
 	const price = [{ unit: "per M input tokens", price: 0.1 }, { unit: "per M output tokens", price: 0.2 }];
 	const models = s.modelsFromWorkersAi([
 		entry("@cf/zz/other", { function_calling: "true", context_window: "32000", price }),
-		entry("@cf/aa/no-tools", { context_window: "8000" }),
-		entry("@cf/aa/embedder", { function_calling: "true" }, "Text Embeddings"),
+		entry("@cf/aa/no-tools", { context_window: "8000", price }),
+		entry("@cf/aa/embedder", { function_calling: "true", price }, "Text Embeddings"),
+		entry("@cf/aa/unpriced", { function_calling: "true" }),
+		entry("@cf/aa/empty-price", { function_calling: "true", price: [] }),
+		entry("@cf/aa/zero", { function_calling: "true", price: [{ unit: "per M input tokens", price: 0 }, { unit: "per M output tokens", price: 0 }] }),
+		entry("@cf/partner/model", { function_calling: "true", price, partner: "true" }),
 	]);
 	assert.deepEqual(models, [
 		{ provider: "workers-ai", id: "@cf/zz/other", name: "Other", context: 32000, price: { input: 0.1, output: 0.2 }, tools: true },
-		{ provider: "workers-ai", id: "@cf/aa/no-tools", name: "No Tools", context: 8000, price: null, tools: false },
+		{ provider: "workers-ai", id: "@cf/aa/no-tools", name: "No Tools", context: 8000, price: { input: 0.1, output: 0.2 }, tools: false },
 	]);
 });
 

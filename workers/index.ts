@@ -153,10 +153,28 @@ const AgentModelBody = z.object({
 	keys: z.record(z.string(), z.string().max(500)).optional(),
 });
 
+/**
+ * A Cloudflare model must be in the allowed catalog (priced, not a partner
+ * model), so a typed id can't reach a free or third-party one. When the
+ * catalog can't be read the id is let through; the agent then falls back to
+ * the recommended model if Cloudflare doesn't list it. OpenRouter needs no
+ * check here: every request is refused there without a zero retention endpoint.
+ */
+async function notAllowed(env: Env, ref: { provider: string; id: string }, keys: Parameters<typeof catalogFor>[2]): Promise<string | null> {
+	if (ref.provider !== "workers-ai") return null;
+	const catalog = await catalogFor(env, "workers-ai", keys);
+	if (catalog.source === "none" || catalog.models.some((m) => m.id === ref.id)) return null;
+	return "That Cloudflare model isn't allowed. Only priced models that aren't partner models can be used.";
+}
+
 app.put("/api/v1/agent-model", async (c) => {
 	const body = AgentModelBody.parse(await c.req.json());
 	const next = mergeAgentModelConfig(await readAgentModelConfig(c.env), body);
 	if ("error" in next) return c.json({ error: next.error }, 400);
+	if (body.selected && next.selected) {
+		const refused = await notAllowed(c.env, next.selected, next.keys);
+		if (refused) return c.json({ error: refused }, 400);
+	}
 	await writeAgentModelConfig(c.env, next);
 	if (body.keys) clearCatalogCache();
 	return c.json(viewOf(next));
@@ -172,6 +190,8 @@ app.post("/api/v1/agent-model/test", async (c) => {
 	const stored = await readAgentModelConfig(c.env);
 	const key = body.provider === "workers-ai" ? undefined : body.key?.trim() || stored.keys[body.provider];
 	if (body.provider !== "workers-ai" && !key) return c.json({ ok: false, error: `Add your ${label} key first.` }, 400);
+	const refused = await notAllowed(c.env, { provider: body.provider, id: body.id.trim() }, stored.keys);
+	if (refused) return c.json({ ok: false, error: refused }, 400);
 	const started = Date.now();
 	try {
 		const result = await generateText({

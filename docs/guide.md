@@ -70,6 +70,8 @@ The agent reads your mail, so a model that keeps or trains on it is a security r
 | Cloudflare (Workers AI) | None; bills your Cloudflare account | Not used to train models or improve services ([data usage](https://developers.cloudflare.com/workers-ai/platform/data-usage/)). No zero retention promise. |
 | OpenRouter | `sk-or-…` | Zero data retention endpoints only; OpenRouter doesn't log prompts unless you opt in ([ZDR](https://openrouter.ai/docs/guides/features/zdr)) |
 
+Cloudflare's list is filtered too: it holds only text models with a listed price above zero that the catalog doesn't mark as `partner` (models served under a third party's terms; today those are image and speech models). Unpriced models, including Cloudflare's own preview ones, are left out. A typed `@cf/…` id outside that list is refused when you save or test it. The `terms` link some Cloudflare models carry is the license for the model weights, not a data policy; the weights don't learn from what you send.
+
 Nothing else can be connected. Anthropic, OpenAI, xAI and Google models are reached through OpenRouter's zero retention endpoints, not with their own keys, because their APIs keep traffic by default. Free models are never offered or accepted: free endpoints can keep and train on prompts.
 
 OpenRouter's list holds only models with a zero retention endpoint ([`/endpoints/zdr`](https://openrouter.ai/api/v1/endpoints/zdr)), priced at the cheapest of those endpoints. Every request carries `provider: { zdr: true, data_collection: "deny" }`, so a model with no such endpoint fails rather than fall back to one that keeps data. Keys saved for a direct provider by an earlier version are deleted from R2 the next time the config is read.

@@ -174,11 +174,21 @@ function workersAiPrice(value: unknown): ModelPrice | null {
 }
 
 /** Cloudflare's text-generation models. `tools` says whether each can call tools. */
+/**
+ * Cloudflare's text models the agent may use. Partner models, which
+ * Cloudflare's catalog marks as served under a third party's terms, are left
+ * out, and so is any model without a listed price above zero: unpriced
+ * models are free or preview, and free is never used for private mail.
+ */
 export function modelsFromWorkersAi(entries: WorkersAiEntry[]): CatalogModel[] {
 	const out: CatalogModel[] = [];
 	for (const entry of entries) {
 		if (entry.task?.name !== "Text Generation") continue;
 		const props = new Map((entry.properties ?? []).map((p) => [p.property_id, p.value]));
+		const partner = props.get("partner");
+		if (partner === true || partner === "true") continue;
+		const price = workersAiPrice(props.get("price"));
+		if (!price || price.output <= 0) continue;
 		const fc = props.get("function_calling");
 		const context = Number(props.get("context_window"));
 		out.push({
@@ -186,7 +196,7 @@ export function modelsFromWorkersAi(entries: WorkersAiEntry[]): CatalogModel[] {
 			id: entry.name,
 			name: prettyName(entry.name),
 			context: Number.isFinite(context) && context > 0 ? context : null,
-			price: workersAiPrice(props.get("price")),
+			price,
 			tools: fc === true || fc === "true",
 		});
 	}

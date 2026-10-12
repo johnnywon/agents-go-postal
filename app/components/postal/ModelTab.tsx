@@ -450,8 +450,8 @@ export function AgentModelSection({ draft }: { draft: AgentModelDraft }) {
 						The agent reads your mail, so a model that keeps or trains on it is a security risk. Cloudflare doesn't train
 						on your prompts (<a href={PROVIDER_INFO["workers-ai"].policyUrl} target="_blank" rel="noreferrer">policy</a>).
 						OpenRouter is held to zero data retention endpoints and doesn't log prompts
-						(<a href={PROVIDER_INFO.openrouter.policyUrl} target="_blank" rel="noreferrer">policy</a>). Free models and
-						direct provider keys can't be connected.
+						(<a href={PROVIDER_INFO.openrouter.policyUrl} target="_blank" rel="noreferrer">policy</a>). Free, unpriced and
+						third-party partner models, and direct provider keys, can't be connected.
 					</p>
 				</div>
 			</div>
