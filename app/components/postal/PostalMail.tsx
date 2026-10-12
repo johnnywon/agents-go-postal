@@ -24,7 +24,7 @@ import { ComposePopout, Composer } from "./ComposeWindow";
 import { buildIdentities } from "./identity";
 import { ListPane } from "./ListPane";
 import { LogoutModal, McpModal, SettingsModal, Toast, type ToastState } from "./Modals";
-import { conversations, HOME, labelOf, parsePostalFilter, scopeOf, searchErrors, searchTerms, withSearch } from "./model";
+import { conversations, HOME, labelOf, type MailAction, parsePostalFilter, RESTORABLE, scopeOf, searchErrors, searchTerms, withSearch } from "./model";
 import { withOrder } from "./search-window";
 import { useDeleteSavedSearch, useSavedSearches, useSaveSearch, useSuggest } from "~/queries/search";
 import { useLayout, usePrefs, useResolvedTheme, useWidth } from "./prefs";
@@ -292,13 +292,31 @@ function PostalApp({ addresses, domains, autoDraft }: PostalProps) {
 	};
 
 	const canTrash = filter.view !== "trash";
-	const act = (kind: "archive" | "trash" | "read" | "star", override?: Conversation[] | null) => {
+	const canRestore = RESTORABLE.has(filter.view);
+	const act = (kind: MailAction, override?: Conversation[] | null) => {
 		const list = targets(override);
 		if (!list.length) return;
 		if (kind === "archive") run({ type: "archive" }, override);
+		else if (kind === "restore") canRestore && run({ type: "restore" }, override);
 		else if (kind === "trash") canTrash && run({ type: "trash" }, override);
 		else if (kind === "star") run(starToggle(list), override);
 		else run(readToggle(list), override);
+	};
+
+	const emptyTrash = async () => {
+		try {
+			const { messages, conversations: n } = await api.trashCount();
+			if (!messages || !window.confirm(`Delete ${n === 1 ? "1 conversation" : conversations(n)} in Trash forever? This can't be undone.`)) return;
+			await api.emptyTrash(messages);
+			closeConversation();
+			showToast({ text: "Trash emptied", icon: <TrashIcon size={ICON} /> });
+		} catch (e) {
+			const msg = e instanceof ApiError && e.status === 409 ? "Trash changed. Nothing was deleted." : `Could not empty Trash. ${(e as Error).message}`;
+			showToast({ text: msg, icon: <WarningIcon size={ICON} /> });
+		} finally {
+			queryClient.invalidateQueries({ queryKey: ["mail"] });
+			queryClient.invalidateQueries({ queryKey: ["mail-facets"] });
+		}
 	};
 
 	const toggleLabel = (label: Label, add: boolean, rowsFor?: Conversation[]) =>
@@ -534,7 +552,7 @@ function PostalApp({ addresses, domains, autoDraft }: PostalProps) {
 						onAgent={togglePanel}
 						onFocusChange={setSearchFocus}
 					/>
-					<div className="pg-panes">
+					<main className="pg-panes">
 						<ListPane
 							identities={identities}
 							filter={filter}
@@ -569,6 +587,7 @@ function PostalApp({ addresses, domains, autoDraft }: PostalProps) {
 							onClearSelection={() => setSelection(sel.EMPTY_SELECTION)}
 							onRowAction={(row, action) => act(action, [row])}
 							onBulk={(action) => act(action)}
+							onEmptyTrash={emptyTrash}
 							terms={terms}
 							order={rankable ? (pages[0]?.order === "relevance" ? "relevance" : "date") : undefined}
 							rankSkipped={!!pages[0]?.rankSkipped}
@@ -597,6 +616,7 @@ function PostalApp({ addresses, domains, autoDraft }: PostalProps) {
 							labels={labels}
 							labelsById={labelsById}
 							canTrash={canTrash}
+							canRestore={canRestore}
 							onBack={closeConversation}
 							onAction={(a) => act(a, openRow ? [openRow] : null)}
 							onLabel={(label, add) => toggleLabel(label, add)}
@@ -620,7 +640,7 @@ function PostalApp({ addresses, domains, autoDraft }: PostalProps) {
 							draftWithAgent={draftWithAgent}
 							replyRequest={replyRequest}
 						/>
-					</div>
+					</main>
 				</div>
 				{panelOpen ? (
 					<>

@@ -355,6 +355,8 @@ const api = {
 	// Bulk actions
 	bulk: (target: BulkTarget, action: BulkAction) => post<BulkResult | BulkJobStarted>("/api/v1/mail/bulk", { target, action }),
 	undoBulk: (undoId: string) => post<{ affected: number }>("/api/v1/mail/bulk/undo", { undoId }),
+	trashCount: () => get<{ messages: number; conversations: number }>("/api/v1/mail/trash"),
+	emptyTrash: (expectedCount: number) => post<unknown>("/api/v1/mail/empty-trash", { expectedCount }),
 
 	// Search window
 	suggest: (params: URLSearchParams, opts?: { signal?: AbortSignal }) =>

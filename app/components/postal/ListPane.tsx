@@ -5,7 +5,7 @@
 import {
 	ArchiveIcon, ArrowsClockwiseIcon, CaretDownIcon, CheckIcon, ClockIcon, EnvelopeOpenIcon, EnvelopeSimpleIcon,
 	FileIcon, FunnelSimpleIcon, MagnifyingGlassIcon, PaperclipIcon, PaperPlaneTiltIcon, PencilSimpleLineIcon, SortAscendingIcon,
-	SortDescendingIcon, StarIcon, TrashIcon, TrayIcon, WarningIcon, XIcon,
+	SortDescendingIcon, StarIcon, TrashIcon, TrayArrowUpIcon, TrayIcon, WarningIcon, XIcon,
 } from "@phosphor-icons/react";
 import { Fragment, useEffect, useRef, useState } from "react";
 import type { MailFilter } from "~/lib/mail-filter";
@@ -13,7 +13,7 @@ import type { Conversation, Label, MailFacets, ScheduledSend } from "~/services/
 import { AddressText, type Identities, LabelChip, LabelTag, Swatch } from "./identity";
 import { AllAddressesIcon } from "./NavIcons";
 import { marks, snippetMarkup } from "./search-window";
-import { dayKey, dayLabel, filterCount, hasChip, labelOf, scopeOf, sendTimeLabel, timeLabel, toggleChip, withoutKinds } from "./model";
+import { dayKey, dayLabel, filterCount, hasChip, labelOf, type MailAction, RESTORABLE, scopeOf, sendTimeLabel, timeLabel, toggleChip, withoutKinds } from "./model";
 
 export interface ListPaneProps {
 	identities: Identities;
@@ -44,8 +44,9 @@ export interface ListPaneProps {
 	onCheck: (row: Conversation, range: boolean) => void;
 	onSelectAll: () => void;
 	onClearSelection: () => void;
-	onRowAction: (row: Conversation, action: "archive" | "star" | "read" | "trash") => void;
-	onBulk: (action: "archive" | "read" | "star" | "trash") => void;
+	onRowAction: (row: Conversation, action: MailAction) => void;
+	onBulk: (action: MailAction) => void;
+	onEmptyTrash: () => void;
 	terms: string[];
 	/** How the server ordered a search, when it can rank (D1); else undefined. */
 	order?: "relevance" | "date";
@@ -181,6 +182,9 @@ export function ListPane(props: ListPaneProps) {
 					</>
 				)}
 				<div style={{ flex: 1, minWidth: 4 }} />
+				{filter.view === "trash" && props.rows.length > 0 && (
+					<button type="button" className="pg-btn pg-btn-sm pg-btn-outline" onClick={props.onEmptyTrash} title="Delete everything in Trash forever">Empty Trash</button>
+				)}
 				<button type="button" className="pg-new-btn" onClick={props.onNew} title="New email (C)" aria-label="New email">
 					<PencilSimpleLineIcon size={16} />
 				</button>
@@ -377,6 +381,9 @@ export function ListPane(props: ListPaneProps) {
 										<span className="pg-check" data-on={checked}>{checked && <CheckIcon size={10} weight="bold" />}</span>
 									</button>
 									<span className="pg-sep" />
+									{RESTORABLE.has(filter.view) && (
+										<button type="button" title="Move to Inbox" aria-label="Move to Inbox" onClick={() => props.onRowAction(row, "restore")}><TrayArrowUpIcon size={15} /></button>
+									)}
 									<button type="button" title="Archive (E)" aria-label="Archive" onClick={() => props.onRowAction(row, "archive")}><ArchiveIcon size={15} /></button>
 									<button type="button" title={row.starred ? "Unstar" : "Star"} aria-label={row.starred ? "Unstar" : "Star"} onClick={() => props.onRowAction(row, "star")}>
 										<StarIcon size={15} weight={row.starred ? "fill" : "regular"} />
@@ -404,6 +411,7 @@ export function ListPane(props: ListPaneProps) {
 							<span className="pg-sel-count">{props.checked.size} selected</span>
 							<button type="button" className="pg-all" onClick={props.onSelectAll}>All</button>
 							<div style={{ flex: 1 }} />
+							{RESTORABLE.has(filter.view) && <button type="button" className="pg-tool" title="Move to Inbox" aria-label="Move to Inbox" onClick={() => props.onBulk("restore")}><TrayArrowUpIcon size={15} /></button>}
 							<button type="button" className="pg-tool" title="Archive" aria-label="Archive" onClick={() => props.onBulk("archive")}><ArchiveIcon size={15} /></button>
 							<button type="button" className="pg-tool" title="Read" aria-label="Mark read" onClick={() => props.onBulk("read")}><EnvelopeOpenIcon size={15} /></button>
 							<button type="button" className="pg-tool" title="Star" aria-label="Star" onClick={() => props.onBulk("star")}><StarIcon size={15} /></button>

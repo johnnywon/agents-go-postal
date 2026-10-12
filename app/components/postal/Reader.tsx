@@ -3,7 +3,7 @@
 //     https://opensource.org/licenses/Apache-2.0
 
 import {
-	ArchiveIcon, ArrowBendDoubleUpLeftIcon, ArrowBendUpLeftIcon, ArrowBendUpRightIcon, CalendarBlankIcon, CaretLeftIcon, CheckIcon, CodeIcon, DownloadSimpleIcon, EnvelopeOpenIcon, EnvelopeSimpleIcon, FileAudioIcon, FileCodeIcon, FileDocIcon, FileIcon, FileImageIcon, FilePdfIcon, FilePptIcon, FileTextIcon, FileVideoIcon, FileXlsIcon, FileZipIcon, ImageIcon, PaperclipIcon, PencilSimpleLineIcon, PlusIcon, StarIcon, TagIcon, TrashIcon, WarningIcon, XIcon,
+	ArchiveIcon, ArrowBendDoubleUpLeftIcon, ArrowBendUpLeftIcon, ArrowBendUpRightIcon, CalendarBlankIcon, CaretLeftIcon, CheckIcon, CodeIcon, DownloadSimpleIcon, EnvelopeOpenIcon, EnvelopeSimpleIcon, FileAudioIcon, FileCodeIcon, FileDocIcon, FileIcon, FileImageIcon, FilePdfIcon, FilePptIcon, FileTextIcon, FileVideoIcon, FileXlsIcon, FileZipIcon, ImageIcon, PaperclipIcon, PencilSimpleLineIcon, PlusIcon, StarIcon, TagIcon, TrashIcon, TrayArrowUpIcon, WarningIcon, XIcon,
 } from "@phosphor-icons/react";
 import { AgentIcon } from "./AgentIcon";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
@@ -17,7 +17,7 @@ import type { DraftResult } from "./Agent";
 import type { AddressInfo, ComposeMode, ComposeState, useMailSender } from "./compose";
 import { Composer } from "./ComposeWindow";
 import { AddressText, type Identities, LabelChip, LabelTag, Swatch } from "./identity";
-import { formatSize, fullDate, nameFromHeaders } from "./model";
+import { formatSize, fullDate, type MailAction, nameFromHeaders } from "./model";
 import type { Prefs } from "./prefs";
 
 type Sender = ReturnType<typeof useMailSender>;
@@ -34,8 +34,9 @@ export interface ReaderProps {
 	labels: Label[];
 	labelsById: ReadonlyMap<string, Label>;
 	canTrash: boolean;
+	canRestore: boolean;
 	onBack: () => void;
-	onAction: (action: "archive" | "trash" | "read" | "star") => void;
+	onAction: (action: MailAction) => void;
 	onLabel: (label: Label, add: boolean) => void;
 	onCreateLabel: (name: string) => void;
 	/** The open reply composer, keyed so a mode switch starts it afresh. */
@@ -152,6 +153,7 @@ export function Reader(props: ReaderProps) {
 						<button type="button" className="pg-icon-btn" title="Forward (F)" aria-label="Forward" onClick={() => reply("forward")} disabled={!original}><ArrowBendUpRightIcon size={16} /></button>
 					</div>
 					<div className="pg-group">
+						{props.canRestore && <button type="button" className="pg-icon-btn" title="Move to Inbox" aria-label="Move to Inbox" onClick={() => props.onAction("restore")} disabled={!row}><TrayArrowUpIcon size={16} /></button>}
 						<button type="button" className="pg-icon-btn" title="Archive (E) · Out of the inbox, kept in Archive" aria-label="Archive" onClick={() => props.onAction("archive")} disabled={!row}><ArchiveIcon size={16} /></button>
 						<button type="button" className="pg-icon-btn" title="Move to trash · Recoverable from Trash" aria-label="Move to trash" onClick={() => props.onAction("trash")} disabled={!row || !props.canTrash}><TrashIcon size={16} /></button>
 					</div>

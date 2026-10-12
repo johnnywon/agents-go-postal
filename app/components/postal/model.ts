@@ -27,6 +27,12 @@ const FILTER_KEYS = ["view", "sort", "dir", "address", "from", "label", "is", "h
 /** The postal view lands on Inbox across all addresses, not the Unread view. */
 export const HOME: MailFilter = { view: "inbox", chips: [], sort: "date", dir: "desc" };
 
+/** What the row, bulk and reader toolbars can do to a conversation. */
+export type MailAction = "archive" | "trash" | "read" | "star" | "restore";
+
+/** Views whose mail can move back to the Inbox. */
+export const RESTORABLE: ReadonlySet<string> = new Set(["archive", "spam", "trash"]);
+
 export function parsePostalFilter(params: URLSearchParams): MailFilter {
 	if (![...params.keys()].some((k) => FILTER_KEYS.includes(k))) return { ...HOME, chips: [] };
 	return parseFilter(params);
