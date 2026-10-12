@@ -54,6 +54,9 @@ export function Editor({ value, onChange, placeholder, size = "inline", autoFocu
 	}, [editor, autoFocus]);
 
 	const state = useEditorState({ editor, selector: ({ editor: e }) => ({ empty: !e || e.isEmpty }) });
+	// The editor is created after the first render, already holding its content, and no transaction tells
+	// useEditorState; asking the editor too keeps the placeholder off text it already has.
+	const empty = !!state?.empty && (!editor || editor.isEmpty);
 
 	return (
 		<div
@@ -68,7 +71,7 @@ export function Editor({ value, onChange, placeholder, size = "inline", autoFocu
 				}
 			}}
 		>
-			{state?.empty && (
+			{empty && (
 				<span aria-hidden style={{ position: "absolute", left: 14, top: 12, color: "var(--pg-text-8)", font: "14px/1.6 var(--pg-font)", pointerEvents: "none" }}>
 					{placeholder}
 				</span>
