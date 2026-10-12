@@ -5,7 +5,7 @@
   </picture>
 </h1>
 
-**An email UI for Cloudflare Email Routing/Service.**
+**An inbox your agents can work. Self-hosted email UI and MCP server for every address on your domains, on Cloudflare Workers.**
 
 Every message to your domain arrives in a Worker you deploy, and Email Service sends replies from the same Worker, with SPF and DKIM set up when you enable Email Sending.
 
