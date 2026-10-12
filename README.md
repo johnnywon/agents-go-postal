@@ -11,11 +11,11 @@ Every message to your domain arrives in a Worker you deploy, and Email Service s
 
 Cloudflare doesn't include a mail client. Agents Go Postal is one: every address on every domain in one list, on desktop or phone, with an agent that can search, label, draft and send. It runs entirely on your Cloudflare account.
 
-> **Work in progress.** It runs on real mail daily and changes often. Pin a [release](https://github.com/johnnywon/agents-go-postal/releases) if you deploy it, read the [changelog](CHANGELOG.md) before upgrading, and see the [roadmap](#roadmap).
-
 [![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/johnnywon/agents-go-postal)
 [![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
 [![Runs on Cloudflare Workers](https://img.shields.io/badge/runs%20on-Cloudflare%20Workers-f38020?logo=cloudflare&logoColor=white)](https://developers.cloudflare.com/workers/)
+
+Needs a domain on Cloudflare, the Workers Paid plan and Cloudflare Access. See the [quick start](#quick-start).
 
 ![The inbox: every address in one list, a conversation open, the agent on the right](docs/images/inbox.jpg)
 
@@ -47,7 +47,7 @@ Replies go out from the address the message reached, with the original quoted. D
 
 ### 3. Plug in any agent over MCP
 
-<p align="center"><img src="docs/images/mcp.jpg" alt="The MCP panel: the server URL and 19 tools" width="560"></p>
+<p align="center"><img src="docs/images/mcp.jpg" alt="The MCP panel: the server URL and its tools" width="560"></p>
 
 The MCP panel gives you the server URL and lists every tool: read, search, draft, send, label and move, across every address.
 
@@ -55,7 +55,13 @@ The MCP panel gives you the server URL and lists every tool: read, search, draft
 
 ### Also in the box
 
-An agent panel inside the app that searches, labels, drafts and sends when you ask, on Workers AI or any OpenRouter model with your key. Drafts, attachments, stars, archive, bulk actions with undo, scheduled send, signatures, keyboard shortcuts and a phone layout. The Worker refuses every request until Cloudflare Access is set up, and incoming HTML is sanitised, sandboxed and shown without remote images until you ask.
+An agent panel inside the app that searches, labels, drafts and sends when you ask, on Workers AI or any OpenRouter model with your key. Drafts, attachments, stars, archive, bulk actions with undo, scheduled send, signatures and a phone layout. Keyboard shortcuts follow Gmail, `?` shows where each one acts, and you or an agent can rebind any of them. The Worker refuses every request until Cloudflare Access is set up, and incoming HTML is sanitised, sandboxed and shown without remote images until you ask.
+
+## Why not something else
+
+- **Forwarding to Gmail or Outlook.** Each address needs its own Send As setup, and an agent you connect sees your whole personal mailbox.
+- **A mailbox plan per address.** Cost grows with every address and domain, and agents reach the mail through IMAP or a vendor API.
+- **A mail server on a VPS.** A server to patch, an IP reputation to keep, and a mail client still to choose. Here Cloudflare handles delivery, SPF and DKIM, and the client and agent tools come with it.
 
 ## How it works
 
@@ -138,6 +144,8 @@ This starts on Durable Object storage. For attachment search and every search op
 <p align="center"><img src="docs/images/mobile.jpg" alt="The list and a receipt on a phone" width="620"></p>
 
 ## Roadmap
+
+**Status.** It runs on real mail daily and changes often. Pin a [release](https://github.com/johnnywon/agents-go-postal/releases) if you deploy it and read the [changelog](CHANGELOG.md) before upgrading.
 
 Shipped: one list for every address, labels and bulk actions with undo, scheduled send, the in-app agent, the MCP server, one search language with ranked results, D1 storage with attachment search, Move to Inbox and Empty Trash.
 
