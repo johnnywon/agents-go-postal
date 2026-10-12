@@ -1,12 +1,11 @@
-import { ArrowLeftIcon, ArrowSquareOutIcon, CheckIcon, KeyIcon, MagnifyingGlassIcon, WarningIcon } from "@phosphor-icons/react";
+import { ArrowLeftIcon, ArrowSquareOutIcon, CaretRightIcon, CheckIcon, MagnifyingGlassIcon, WarningIcon } from "@phosphor-icons/react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import api, { type ModelCatalog } from "~/services/api";
 import {
 	type CatalogModel, guessProvider, type KeyedProvider, makerOf, type ModelRef, PROVIDER_INFO, PROVIDERS,
 	type ProviderId, sameModel, validModelId,
 } from "shared/models";
-import { Segmented } from "./Segmented";
 
 export function useModelCatalog(enabled = true) {
 	return useQuery({ queryKey: ["agent-model", "catalog"], queryFn: api.getModelCatalog, enabled, staleTime: 3_600_000 });
@@ -65,64 +64,53 @@ function formatPrice(usd: number): string {
 	return usd >= 10 ? `$${usd.toFixed(0)}` : `$${usd.toFixed(2)}`;
 }
 
-/** Cost band by output price, which dominates an agent's bill. */
-function priceTier(model: CatalogModel): "low" | "mid" | "high" | "none" {
-	if (!model.price) return "none";
-	return model.price.output <= 0.6 ? "low" : model.price.output <= 2 ? "mid" : "high";
-}
-
-/** Context on a log scale from 8K to 2M tokens, as a share of the bar. */
-function contextShare(tokens: number | null): number {
-	if (!tokens) return 0;
-	const lo = Math.log(8_000), hi = Math.log(2_097_152);
-	return Math.min(1, Math.max(0.04, (Math.log(tokens) - lo) / (hi - lo)));
-}
-
 function hueStyle(hue: number) {
 	return { "--pg-h": hue } as React.CSSProperties;
 }
 
-function ProviderTag({ provider }: { provider: ProviderId }) {
+/** The provider's colour square and name. The only place a provider's hue shows. */
+function ProviderMark({ provider }: { provider: ProviderId }) {
 	const info = PROVIDER_INFO[provider];
-	return <span className="pg-prov" style={hueStyle(info.hue)}>{info.label}</span>;
+	return <span className="pg-prov-mark" style={hueStyle(info.hue)}><i aria-hidden="true" />{info.label}</span>;
 }
 
-function ModelRow({ model, selected, recommended, needsKey, onSelect }: {
-	model: CatalogModel; selected: boolean; recommended: boolean; needsKey: boolean; onSelect: () => void;
-}) {
-	const maker = makerOf(model);
-	const tier = priceTier(model);
-	const showMaker = maker.label !== PROVIDER_INFO[model.provider].label;
+function Price({ model }: { model: CatalogModel }) {
+	if (!model.price) return <span className="pg-model-price" data-none>–</span>;
+	if (model.price.input === 0 && model.price.output === 0) return <span className="pg-model-price"><b>Free</b></span>;
 	return (
-		<button type="button" role="radio" aria-checked={selected} className="pg-model-row" onClick={onSelect}>
-			<span className="pg-model-check" aria-hidden="true">{selected && <CheckIcon size={12} weight="bold" />}</span>
-			<span className="pg-model-name">
-				<span className="pg-model-title">
-					<ProviderTag provider={model.provider} />
-					{showMaker && <span className="pg-maker" style={hueStyle(maker.hue)}>{maker.label}</span>}
-					<b>{model.name}</b>
-					{recommended && <span className="pg-model-rec">Recommended</span>}
-					{model.tools === false && <span className="pg-model-flag" title="The catalog doesn't list tool calling. The agent reads, labels and drafts through tools.">No tools</span>}
-					{needsKey && <span className="pg-model-key" title={`Needs a ${PROVIDER_INFO[model.provider].label} key`}><KeyIcon size={11} /></span>}
-				</span>
-				<code>{model.id}</code>
-			</span>
-			<span className="pg-model-ctx">
-				<span className="pg-model-bar" aria-hidden="true"><i style={{ width: `${contextShare(model.context) * 100}%` }} /></span>
-				<span>{formatContext(model.context)}</span>
-			</span>
-			<span className="pg-model-price" data-tier={tier}>
-				{model.price ? <><span>{formatPrice(model.price.input)}</span><span className="pg-model-slash">/</span><b>{formatPrice(model.price.output)}</b></> : "No price"}
-			</span>
-		</button>
+		<span className="pg-model-price">
+			{formatPrice(model.price.input)}<span className="pg-model-slash">/</span><b>{formatPrice(model.price.output)}</b>
+		</span>
 	);
 }
 
-function PriceChip({ model }: { model: CatalogModel }) {
+/** Provider, maker when it differs, and what the model is missing. */
+function ModelSub({ model, needsKey, provider = true }: { model: CatalogModel; needsKey: boolean; provider?: boolean }) {
+	const maker = makerOf(model);
+	const showMaker = maker.label !== PROVIDER_INFO[model.provider].label;
 	return (
-		<span className="pg-model-price" data-tier={priceTier(model)}>
-			{model.price ? <><span>{formatPrice(model.price.input)}</span><span className="pg-model-slash">/</span><b>{formatPrice(model.price.output)}</b></> : "No price"}
+		<span className="pg-model-sub">
+			{provider && <ProviderMark provider={model.provider} />}
+			{(showMaker || !provider) && <span>{maker.label}</span>}
+			{model.tools === false && <span>No tools</span>}
+			{needsKey && <span className="pg-model-needs">Needs key</span>}
 		</span>
+	);
+}
+
+function ModelRow({ model, selected, recommended, needsKey, provider, onSelect }: {
+	model: CatalogModel; selected: boolean; recommended: boolean; needsKey: boolean; provider: boolean; onSelect: () => void;
+}) {
+	return (
+		<button type="button" role="radio" aria-checked={selected} className="pg-model-row" onClick={onSelect} title={model.id}>
+			<span className="pg-model-check" aria-hidden="true">{selected && <CheckIcon size={12} weight="bold" />}</span>
+			<span className="pg-model-name">
+				<span className="pg-model-title"><b>{model.name}</b>{recommended && <span className="pg-model-rec">Recommended</span>}</span>
+				<ModelSub model={model} needsKey={needsKey} provider={provider} />
+			</span>
+			<span className="pg-model-ctx">{formatContext(model.context)}</span>
+			<Price model={model} />
+		</button>
 	);
 }
 
@@ -179,18 +167,23 @@ function ProviderRow({ provider, draft, count, open, highlight, onToggle }: {
 
 type Filter = "all" | ProviderId;
 type ModelSort = "suggested" | "price" | "context";
-const GROUP_PREVIEW = 6;
-const SEARCH_LIMIT = 150;
+const PAGE = 100;
 
 /** Step 2: the full list, opened from Change model. Picking a model returns to the overview. */
 function ModelPicker({ catalog, draft, onPick, onBack }: {
 	catalog: ModelCatalog; draft: AgentModelDraft; onPick: (ref: ModelRef) => void; onBack: () => void;
 }) {
 	const [query, setQuery] = useState("");
-	const [filter, setFilter] = useState<Filter>("all");
+	const [filter, setFilterState] = useState<Filter>("all");
 	const [sort, setSort] = useState<ModelSort>("suggested");
-	const [open, setOpen] = useState<Set<ProviderId>>(new Set());
+	const [limit, setLimit] = useState(PAGE);
 	const [customProvider, setCustomProvider] = useState<ProviderId | null>(null);
+	const top = useRef<HTMLDivElement>(null);
+	const setFilter = (f: Filter) => {
+		setFilterState(f);
+		setLimit(PAGE);
+		top.current?.scrollIntoView({ block: "start" });
+	};
 
 	const all = PROVIDERS.flatMap((p) => catalog.providers[p]?.models ?? []);
 	const recommended = catalog.recommended;
@@ -210,25 +203,19 @@ function ModelPicker({ catalog, draft, onPick, onBack }: {
 		: sort === "context"
 			? (a: CatalogModel, b: CatalogModel) => (b.context ?? 0) - (a.context ?? 0) || (a.price?.output ?? Infinity) - (b.price?.output ?? Infinity)
 			: (a: CatalogModel, b: CatalogModel) => Number(isSuggested(b)) - Number(isSuggested(a));
-	const sorted = [...matches].sort(sorter);
 
-	const grouped = filter === "all" && sort === "suggested" && words.length === 0;
-	const suggestedRows = catalog.suggested.map(find).filter((m): m is CatalogModel => !!m);
-	type Group = { key: string; title: React.ReactNode; count: number; rows: CatalogModel[]; more?: ProviderId; error?: string };
-	const groups: Group[] = grouped
-		? [
-			{ key: "suggested", title: "Suggested", count: suggestedRows.length, rows: suggestedRows },
-			...PROVIDERS.map((p) => {
-				const pc = catalog.providers[p];
-				const rows = pc?.models ?? [];
-				const expanded = open.has(p);
-				return {
-					key: p, title: <><ProviderTag provider={p} />{pc?.source === "openrouter" && <span className="pg-models-src">via OpenRouter</span>}</>,
-					count: rows.length, rows: expanded ? rows : rows.slice(0, GROUP_PREVIEW), more: !expanded && rows.length > GROUP_PREVIEW ? p : undefined, error: pc?.error,
-				};
-			}),
-		]
-		: [{ key: "results", title: `${sorted.length} ${sorted.length === 1 ? "model" : "models"}`, count: sorted.length, rows: sorted.slice(0, SEARCH_LIMIT) }];
+	// Nothing typed and no provider chosen: the suggested models, then one row per provider to browse.
+	const home = filter === "all" && words.length === 0;
+	const rows = home
+		? catalog.suggested.map(find).filter((m): m is CatalogModel => !!m).sort(sorter)
+		: [...matches].sort(sorter);
+	const title = home ? "Suggested"
+		: filter !== "all" && !words.length ? <ProviderMark provider={filter} />
+		: `${rows.length} ${rows.length === 1 ? "match" : "matches"}`;
+	const error = filter !== "all" ? catalog.providers[filter]?.error : undefined;
+	// One provider's list says once that its key is missing, not on every row.
+	const single = filter !== "all";
+	const missingKey = single && !draft.hasKey(filter);
 
 	const typed = query.trim();
 	const customTarget = customProvider ?? (filter === "all" ? guessProvider(typed) : filter);
@@ -237,96 +224,110 @@ function ModelPicker({ catalog, draft, onPick, onBack }: {
 
 	return (
 		<div
+			ref={top}
 			className="pg-picker"
 			data-own-escape
 			onKeyDown={(e) => {
 				if (e.key !== "Escape") return;
 				e.preventDefault();
 				if (query) setQuery("");
+				else if (filter !== "all") setFilter("all");
 				else onBack();
 			}}
 		>
 			<div className="pg-picker-head">
 				<button type="button" className="pg-btn pg-btn-sm pg-btn-quiet" onClick={onBack}><ArrowLeftIcon size={13} /> Back</button>
 				<b>Choose a model</b>
-				<span className="pg-models-legend">
-					$ per 1M tokens, in / out
-					<span data-tier="low">Low</span><span data-tier="mid">Mid</span><span data-tier="high">High</span>
-				</span>
 			</div>
-			<div className="pg-models-tools">
-				<label className="pg-models-search">
-					<MagnifyingGlassIcon size={14} aria-hidden="true" />
-					<input
-						type="search"
-						autoFocus
-						value={query}
-						placeholder="Search, or paste any model id"
-						aria-label="Search models"
-						spellCheck={false}
-						onChange={(e) => { setQuery(e.target.value); setCustomProvider(null); }}
-					/>
-				</label>
-				<Segmented<ModelSort>
-					label="Sort models"
-					value={sort}
-					onChange={setSort}
-					options={[{ value: "suggested", label: "Suggested" }, { value: "price", label: "Cheapest" }, { value: "context", label: "Most context" }]}
+			<label className="pg-models-search">
+				<MagnifyingGlassIcon size={15} aria-hidden="true" />
+				<input
+					type="search"
+					autoFocus
+					value={query}
+					placeholder={`Search ${all.length} models, or paste a model id`}
+					aria-label="Search models"
+					spellCheck={false}
+					onChange={(e) => { setQuery(e.target.value); setCustomProvider(null); setLimit(PAGE); }}
 				/>
-			</div>
-			<div className="pg-prov-filter" role="group" aria-label="Provider">
-				<button type="button" aria-pressed={filter === "all"} onClick={() => setFilter("all")}>All <span>{all.length}</span></button>
-				{PROVIDERS.map((p) => (
-					<button key={p} type="button" aria-pressed={filter === p} onClick={() => setFilter(p)} style={hueStyle(PROVIDER_INFO[p].hue)}>
-						<i aria-hidden="true" />{PROVIDER_INFO[p].label} <span>{catalog.providers[p]?.models.length ?? 0}</span>
-					</button>
-				))}
+			</label>
+			<div className="pg-models-tools">
+				<div className="pg-prov-filter" role="group" aria-label="Provider">
+					<button type="button" aria-pressed={filter === "all"} onClick={() => setFilter("all")}>All</button>
+					{PROVIDERS.map((p) => (
+						<button key={p} type="button" aria-pressed={filter === p} onClick={() => setFilter(p)}>
+							<ProviderMark provider={p} />
+						</button>
+					))}
+				</div>
+				<select className="pg-select" value={sort} aria-label="Sort models" onChange={(e) => setSort(e.target.value as ModelSort)}>
+					<option value="suggested">Suggested first</option>
+					<option value="price">Cheapest first</option>
+					<option value="context">Most context first</option>
+				</select>
 			</div>
 
-			<div className="pg-models-list" role="radiogroup" aria-label="Agent model">
-				{showCustom && (
-					<div className="pg-models-group">
-						<div className="pg-model-custom">
-							<button type="button" role="radio" aria-checked={false} className="pg-model-row" disabled={!customValid} onClick={() => onPick({ provider: customTarget, id: typed })}>
-								<span className="pg-model-check is-custom" aria-hidden="true" />
-								<span className="pg-model-name">
-									<span className="pg-model-title"><b>Use <code>{typed}</code></b></span>
-									<code>{customValid ? `Sent to ${PROVIDER_INFO[customTarget].label} as typed` : `${PROVIDER_INFO[customTarget].label} ids look like ${PROVIDER_INFO[customTarget].idExample}`}</code>
+			{showCustom && (
+				<div className="pg-model-custom">
+					<button type="button" className="pg-model-row" disabled={!customValid} onClick={() => onPick({ provider: customTarget, id: typed })}>
+						<span className="pg-model-check is-custom" aria-hidden="true" />
+						<span className="pg-model-name">
+							<span className="pg-model-title"><b>Use <code>{typed}</code></b></span>
+							<span className="pg-model-sub">{customValid ? `Sent to ${PROVIDER_INFO[customTarget].label} as typed` : `${PROVIDER_INFO[customTarget].label} ids look like ${PROVIDER_INFO[customTarget].idExample}`}</span>
+						</span>
+					</button>
+					<select className="pg-select" value={customTarget} aria-label="Provider for this model id" onChange={(e) => setCustomProvider(e.target.value as ProviderId)}>
+						{PROVIDERS.map((p) => <option key={p} value={p}>{PROVIDER_INFO[p].label}</option>)}
+					</select>
+				</div>
+			)}
+
+			{(rows.length > 0 || home || !showCustom) && (
+				<div className="pg-models-list" role="radiogroup" aria-label="Agent model">
+					<div className="pg-models-cols">
+						<span>{title}</span>
+						<span>Context</span>
+						<span>$ per 1M, in / out</span>
+					</div>
+					{error && <p className="pg-models-warn">{error}</p>}
+					{missingKey && <p className="pg-models-warn">No {PROVIDER_INFO[filter].label} key yet. Pick a model, then add the key.</p>}
+					{rows.slice(0, limit).map((m) => (
+						<ModelRow
+							key={`${m.provider}:${m.id}`}
+							model={m}
+							selected={sameModel(m, effective)}
+							recommended={sameModel(m, recommended)}
+							needsKey={!single && !draft.hasKey(m.provider)}
+							provider={!single}
+							onSelect={() => onPick({ provider: m.provider, id: m.id })}
+						/>
+					))}
+					{rows.length > limit && (
+						<button type="button" className="pg-models-more" onClick={() => setLimit(rows.length)}>Show all {rows.length}</button>
+					)}
+					{rows.length === 0 && <p className="pg-models-empty">No model matches "{typed}".</p>}
+				</div>
+			)}
+
+			{home && (
+				<div className="pg-models-list">
+					<div className="pg-models-cols"><span>Browse by provider</span></div>
+					{PROVIDERS.map((p) => {
+						const pc = catalog.providers[p];
+						return (
+							<button key={p} type="button" className="pg-browse-row" onClick={() => setFilter(p)}>
+								<ProviderMark provider={p} />
+								<span className="pg-model-sub">
+									{pc?.source === "openrouter" && <span>Prices via OpenRouter</span>}
+									{!draft.hasKey(p) && <span className="pg-model-needs">Needs key</span>}
 								</span>
+								<span className="pg-browse-count">{pc?.models.length ?? 0} models</span>
+								<CaretRightIcon size={13} aria-hidden="true" />
 							</button>
-							<select className="pg-select" value={customTarget} aria-label="Provider for this model id" onChange={(e) => setCustomProvider(e.target.value as ProviderId)}>
-								{PROVIDERS.map((p) => <option key={p} value={p}>{PROVIDER_INFO[p].label}</option>)}
-							</select>
-						</div>
-					</div>
-				)}
-				{groups.map((g) => (g.rows.length > 0 || g.error) && (
-					<div key={g.key} className="pg-models-group">
-						<div className="pg-models-group-head">
-							<span>{g.title}</span>
-							<span>{g.count}</span>
-						</div>
-						{g.error && <p className="pg-models-warn">{g.error}</p>}
-						{g.rows.map((m) => (
-							<ModelRow
-								key={`${m.provider}:${m.id}`}
-								model={m}
-								selected={sameModel(m, effective)}
-								recommended={sameModel(m, recommended)}
-								needsKey={!draft.hasKey(m.provider)}
-								onSelect={() => onPick({ provider: m.provider, id: m.id })}
-							/>
-						))}
-						{g.more && (
-							<button type="button" className="pg-models-more" onClick={() => setOpen(new Set(open).add(g.more!))}>
-								Show all {g.count}
-							</button>
-						)}
-					</div>
-				))}
-				{!grouped && sorted.length > SEARCH_LIMIT && <p className="pg-models-empty">{sorted.length - SEARCH_LIMIT} more. Narrow the search.</p>}
-				{!grouped && sorted.length === 0 && !showCustom && <p className="pg-models-empty">No model matches "{typed}".</p>}
-			</div>
+						);
+					})}
+				</div>
+			)}
 		</div>
 	);
 }
@@ -344,7 +345,6 @@ export function AgentModelSection({ draft }: { draft: AgentModelDraft }) {
 	const model: CatalogModel = catalog.providers[effective.provider]?.models.find((m) => m.id === effective.id)
 		?? { ...effective, name: effective.id, context: null, price: null, tools: null };
 	const needsKey = !draft.hasKey(effective.provider);
-	const maker = makerOf(model);
 
 	if (picking) {
 		return (
@@ -379,16 +379,15 @@ export function AgentModelSection({ draft }: { draft: AgentModelDraft }) {
 			<div className="pg-model-card">
 				<div className="pg-model-card-main">
 					<span className="pg-model-title">
-						<ProviderTag provider={effective.provider} />
-						{maker.label !== PROVIDER_INFO[effective.provider].label && <span className="pg-maker" style={hueStyle(maker.hue)}>{maker.label}</span>}
+						<b className="pg-model-card-name">{model.name}</b>
 						{sameModel(effective, recommended) && <span className="pg-model-rec">Recommended</span>}
 					</span>
-					<b className="pg-model-card-name">{model.name}</b>
+					<ModelSub model={model} needsKey={false} />
 					<code>{effective.id}</code>
 				</div>
 				<dl className="pg-model-card-stats">
-					<div><dt>Price</dt><dd><PriceChip model={model} /></dd></div>
 					<div><dt>Context</dt><dd>{formatContext(model.context)}</dd></div>
+					<div><dt>$ per 1M, in / out</dt><dd><Price model={model} /></dd></div>
 				</dl>
 				<div className="pg-model-card-actions">
 					<button type="button" className="pg-btn pg-btn-sm" onClick={runTest} disabled={test.busy || needsKey}>{test.busy ? "Testing…" : "Test"}</button>
