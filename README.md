@@ -92,7 +92,7 @@ One Worker in your account. Mail is stored in a Durable Object per address, or i
 **What to know first**
 
 - Email Sending is in public beta and needs Workers Paid. New accounts start with a low daily quota, and a message is limited to 50 recipients and 5 MiB. Receiving uses Email Routing, which isn't in beta and works on Workers Free.
-- Agents can send when you ask them to. There's no approval step yet.
+- Agents can send when you ask them to. There's no approval step yet; it's the first item on the [roadmap](#roadmap).
 - There's no mail export, IMAP or SMTP yet. On D1, `wrangler d1 time-travel` restores the last 30 days.
 - Everyone who passes Access sees every address.
 
@@ -107,8 +107,8 @@ Each step, with commands, is in [docs/setup.md](docs/setup.md).
 
 ## Roadmap
 
-- **Now:** one-command setup, mail import, starting on Workers Free.
-- **Next:** scoped agent access, an approval queue with an activity log, rules in plain words.
+- **Now:** an approval queue with an activity log, and scoped agent access.
+- **Next:** one-command setup, mail import, starting on Workers Free, rules in plain words.
 - **Later:** shared inboxes, Queue events, search by meaning, notifications and offline.
 
 Details are in [docs/roadmap.md](docs/roadmap.md). [Open an issue](https://github.com/johnnywon/agents-go-postal/issues) to argue for one or propose another.

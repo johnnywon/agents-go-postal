@@ -6,16 +6,16 @@ Shipped: one list for every address, one search language with ranked results, th
 
 [Open an issue](https://github.com/johnnywon/agents-go-postal/issues) to argue for one of these or propose another.
 
-## Now: a faster start
+## Now: control over what agents do
+
+- [ ] **Approval queue and activity log.** Agent sends and bulk changes can wait for one-click approval, and every action an agent took is logged with its reason.
+- [ ] **Scoped agent access.** MCP tokens limited to chosen addresses, read-only or draft-only, so a support agent never sees billing mail.
+
+## Next: a faster start, and rules
 
 - [ ] **One-command setup.** A CLI that creates the Email Routing rule for each address, enables Email Sending, turns on Access and writes the secrets. Adding an address becomes one command.
 - [ ] **Import existing mail.** Bring in an mbox or IMAP export so a new deployment starts with your history.
 - [ ] **Start on Workers Free.** Receive, read, search and use the agent without a paid plan, and add Workers Paid when you want to send.
-
-## Next: control over what agents do
-
-- [ ] **Scoped agent access.** MCP tokens limited to chosen addresses, read-only or draft-only, so a support agent never sees billing mail.
-- [ ] **Approval queue and activity log.** Agent sends and bulk changes can wait for one-click approval, and every action an agent took is logged with its reason.
 - [ ] **Rules in plain words.** "File receipts under Receipts" or "draft replies for support@" runs on each new message, shown as a rule you can read and edit.
 
 ## Later: teams and reach
