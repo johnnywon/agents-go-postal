@@ -148,30 +148,31 @@ This starts on Durable Object storage. For attachment search and every search op
 
 **Status.** It runs on real mail daily and changes often. Pin a [release](https://github.com/johnnywon/agents-go-postal/releases) if you deploy it and read the [changelog](CHANGELOG.md) before upgrading.
 
-Shipped: one list for every address, labels and bulk actions with undo, scheduled send, the in-app agent, the MCP server, one search language with ranked results, D1 storage with attachment search, Move to Inbox and Empty Trash.
+Shipped: one list for every address, one search language with ranked results, the in-app agent and the MCP server, labels and bulk actions with undo, scheduled send, D1 storage with attachment search, and keyboard shortcuts that people and agents can rebind.
 
-These are the directions under consideration. [Open an issue](https://github.com/johnnywon/agents-go-postal/issues) to argue for one or propose another.
+[Open an issue](https://github.com/johnnywon/agents-go-postal/issues) to argue for one of these or propose another.
 
-### Now: make it easy to run
+### Now: any model, and a faster start
 
-- [ ] **One-command setup.** A CLI that creates the Email Routing rule for each address, enables Email Sending, turns on Access and writes the secrets. Setting up a new address becomes one command.
-- [ ] **D1 as the only store.** Finish the migration and remove the Durable Object mail path, so there is one storage model to learn and test.
-- [ ] **Browser smoke test in CI.** Tests, typecheck and build run on every pull request. Add a browser check against a seeded dev server.
-- [ ] **Import existing mail.** Bring in an mbox or IMAP export so a new deployment starts with history.
+- [ ] **Bring any model.** Run the agent on Anthropic, OpenAI, xAI, OpenRouter or Workers AI with your own key, and pick the model for chat and for auto-drafts separately.
+- [ ] **One-command setup.** A CLI that creates the Email Routing rule for each address, enables Email Sending, turns on Access and writes the secrets. Adding an address becomes one command.
+- [ ] **Import existing mail.** Bring in an mbox or IMAP export so a new deployment starts with your history.
+- [ ] **Start on Workers Free.** Receive, read, search and use the agent without a paid plan, and add Workers Paid when you want to send.
 
 ### Next: control over what agents do
 
-- [ ] **Approval queue.** Agent sends and bulk changes can wait for one-click approval, with a log of every action an agent took and why.
-- [ ] **Scoped access for agents.** MCP tokens limited to chosen addresses, read-only or draft-only, so a support agent never sees billing mail.
-- [ ] **Rules in plain words.** "File receipts under Receipts" or "draft replies for support@" runs on each new message, shown as a readable rule you can edit.
-- [ ] **Events for other Workers.** Publish new-mail and label events to Cloudflare Queues, so your own code can react without polling.
+- [ ] **Scoped agent access.** MCP tokens limited to chosen addresses, read-only or draft-only, so a support agent never sees billing mail.
+- [ ] **Approval queue and activity log.** Agent sends and bulk changes can wait for one-click approval, and every action an agent took is logged with its reason.
+- [ ] **Rules in plain words.** "File receipts under Receipts" or "draft replies for support@" runs on each new message, shown as a rule you can read and edit.
 
-### Later: teams, search and offline
+### Later: teams and reach
 
-- [ ] **Per-person access.** People see only the addresses they are given, with assignment and internal notes for shared inboxes.
+- [ ] **Shared inboxes.** People see only the addresses they are given, with assignment and internal notes.
+- [ ] **Events for other Workers.** New-mail and label events on Cloudflare Queues, so your own code can react without polling.
 - [ ] **Search by meaning.** Opt-in Vectorize search alongside full-text, for "the email where they offered a discount".
 - [ ] **Notifications and offline.** Web push for new mail and an installable app that reads cached mail offline.
-- [ ] **Delete one message forever** from Trash, alongside Empty Trash.
+
+Underneath: D1 becomes the only store, so there is one storage model to learn and upgrade, and CI gains a browser check against a seeded dev server.
 
 ## Docs
 
