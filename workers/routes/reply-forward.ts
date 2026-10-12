@@ -13,7 +13,9 @@ type AppContext = Context<MailboxContext>;
 async function handleSend(c: AppContext, kind: SendMode["kind"]) {
 	const mailboxId = c.req.param("mailboxId") ?? "";
 	const id = c.req.param("id") ?? "";
-	const body = SendEmailRequestSchema.parse(await c.req.json());
+	const parsed = SendEmailRequestSchema.safeParse(await c.req.json().catch(() => null));
+	if (!parsed.success) return c.json({ error: parsed.error.issues[0]?.message ?? "Invalid request body" }, 400);
+	const body = parsed.data;
 	const mode: SendMode = kind === "new" ? { kind } : { kind, originalId: id };
 	const idempotencyKey = c.req.header("idempotency-key") || undefined;
 	const keyError = idempotencyKey ? checkSendKey(idempotencyKey) : null;

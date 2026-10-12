@@ -3,12 +3,35 @@ import { test } from "node:test";
 import { loadTs } from "./helpers/sqlite.mjs";
 
 const { SendEmailRequestSchema, hasHeaderLineBreaks } = await loadTs("workers/lib/schemas.ts");
+const { app } = await loadTs("workers/index.ts");
 const base = {
 	to: "hello@example.com",
 	from: "sender@example.org",
 	subject: "Hello",
 	text: "Body",
 };
+const MAILBOX = "hello@example.com";
+
+function routeEnvironment(calls = []) {
+	return {
+		EMAIL_ADDRESSES: [MAILBOX],
+		BUCKET: { head: async () => ({}) },
+		MAILBOX: {
+			idFromName: (name) => name,
+			get: () => ({ createEmail: async (...args) => calls.push(args) }),
+		},
+	};
+}
+
+const jsonHeaders = { "content-type": "application/json", "sec-fetch-site": "same-origin" };
+
+async function routePost(path, body, env) {
+	return app.request(`http://localhost/api/v1/mailboxes/${MAILBOX}/${path}`, {
+		method: "POST",
+		headers: jsonHeaders,
+		body: JSON.stringify(body),
+	}, env);
+}
 
 test("outbound header fields reject CR, LF, and CRLF", () => {
 	for (const [field, wrap] of [
@@ -39,4 +62,23 @@ test("the send-time guard catches line breaks in all delivered header values", (
 		assert.equal(hasHeaderLineBreaks("Hello", null, `ref${newline}injected`), true);
 	}
 	assert.equal(hasHeaderLineBreaks("Hello", "id@example.net", "ref@example.net"), false);
+});
+
+test("draft and send routes return 400 for CR/LF subjects", async () => {
+	for (const [path, body] of [
+		["drafts", { subject: "bad\r\nsubject", body: "Draft body" }],
+		["emails", { ...base, subject: "bad\r\nsubject" }],
+	]) {
+		const response = await routePost(path, body, routeEnvironment());
+		assert.equal(response.status, 400);
+		assert.match((await response.json()).error, /must not contain line breaks/);
+	}
+});
+
+test("the draft route still accepts a normal draft", async () => {
+	const calls = [];
+	const response = await routePost("drafts", { subject: "A safe subject", body: "Draft body" }, routeEnvironment(calls));
+	assert.equal(response.status, 201);
+	assert.equal((await response.json()).status, "draft");
+	assert.equal(calls.length, 1);
 });
