@@ -6,10 +6,9 @@ Everything needed to run Open Mailroom on your own Cloudflare account. Back to t
 
 [![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/johnnywon/open-mailroom)
 
-The button copies this repo to your GitHub account, creates the R2 bucket, the D1 database and the Durable Objects, then builds, applies the D1 migrations and deploys. Its form asks for `DOMAINS` but has no field for `EMAIL_ADDRESSES`. It also saves the placeholder values from `.dev.vars.example` as the `POLICY_AUD` and `TEAM_DOMAIN` secrets, so every request returns the "Access must be configured" error until step 5 replaces them. Then:
+The button copies this repo to your GitHub account, creates the R2 bucket, the D1 database and the Durable Objects, then builds, applies the D1 migrations and deploys. Its form asks for `DOMAINS` and `EMAIL_ADDRESSES`. Enter the addresses comma-separated; every address must belong to a domain in `DOMAINS`. Leave the `POLICY_AUD` and `TEAM_DOMAIN` placeholders: every request returns the "Access must be configured" error until step 5 below replaces them. Then do steps 5 to 8 below: Access, Email Routing, Email Sending, and the check.
 
-1. In the new repo, set `EMAIL_ADDRESSES` in `wrangler.jsonc` to the addresses you want, and push. The push builds and deploys again. Every address must belong to a domain in `DOMAINS`.
-2. Do steps 5 to 8 below: Access, Email Routing, Email Sending, and the check.
+To change the addresses later, edit `EMAIL_ADDRESSES` in `wrangler.jsonc` in the new repo and push. The push builds and deploys again.
 
 The Worker answers on its workers.dev URL until you add a custom domain (step 4 under Deploy by hand).
 
@@ -58,7 +57,7 @@ Requirements: a domain on Cloudflare, R2, and Workers Paid for outbound email. T
 | --- | --- | --- |
 | `APP_NAME` | `vars` | Name in the header, status bar and page titles |
 | `DOMAINS` | `vars` | Comma-separated domains that receive mail |
-| `EMAIL_ADDRESSES` | `vars` | Addresses that get a mailbox. Mail to other addresses is rejected. |
+| `EMAIL_ADDRESSES` | `vars` | Addresses that get a mailbox, as a list or a comma-separated string. Mail to other addresses bounces. |
 | `STORAGE` | `vars` | `d1` keeps mail in the `DB` database. `do` keeps it in Durable Objects, for a deployment that hasn't moved yet. |
 | `INDEX_SYNC_ENABLED` | `vars` | `false` pauses updates to the combined index; changes queue in each mailbox |
 | `AUTO_DRAFT_ENABLED` | `vars` | `true` drafts a reply to each new message, except list, bulk and automated mail |

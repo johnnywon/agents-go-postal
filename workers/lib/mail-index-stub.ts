@@ -4,6 +4,7 @@
 
 import type { Env } from "../types";
 import { mailStore } from "../store";
+import { configuredAddresses } from "./addresses";
 
 /** Kill switch: `INDEX_SYNC_ENABLED = "false"` stops mailbox pushes. Mutations still record to the outbox. */
 export function indexSyncEnabled(env: Env): boolean {
@@ -12,7 +13,7 @@ export function indexSyncEnabled(env: Env): boolean {
 
 /** Mailboxes that exist in R2 and are configured in EMAIL_ADDRESSES, sorted. */
 export async function indexedMailboxIds(env: Env): Promise<string[]> {
-	const configured = new Set(((env.EMAIL_ADDRESSES ?? []) as string[]).map((a) => a.toLowerCase()));
+	const configured = new Set(configuredAddresses(env).map((a) => a.toLowerCase()));
 	return (await mailStore(env).mailboxes.list())
 		.map((mailbox) => mailbox.id.toLowerCase())
 		.filter((id) => configured.size === 0 || configured.has(id))

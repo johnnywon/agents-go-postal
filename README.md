@@ -112,10 +112,9 @@ One Worker in your account. Mail is stored in D1, one database for every address
 
 ## Quick start
 
-1. Click **Deploy to Cloudflare** above. It copies the repo to your GitHub, creates the storage and deploys.
-2. Set `DOMAINS` and `EMAIL_ADDRESSES` in `wrangler.jsonc` in the new repo and push.
-3. Turn on Cloudflare Access for the Worker and save its two values as secrets.
-4. Route each address to the Worker with Email Routing, and enable Email Sending.
+1. Click **Deploy to Cloudflare** above and enter your domain and addresses. It copies the repo to your GitHub, creates the storage and deploys.
+2. Turn on Cloudflare Access for the Worker and save its two values as secrets.
+3. Route each address to the Worker with Email Routing, and enable Email Sending.
 
 Each step, with commands, is in [docs/setup.md](docs/setup.md).
 
