@@ -24,6 +24,23 @@ export function resolveMailbox(named: string | undefined, bound: string | null, 
 	return { mailboxId: id };
 }
 
+/**
+ * Whose prompt the agent runs with: its own address, else the address of the
+ * mail open in the chat panel, else none (the default prompt). An open
+ * address that isn't configured counts as none.
+ */
+export function promptAddress(bound: string | null, context: AgentContext | undefined, known: string[]): string | null {
+	if (bound) return bound.toLowerCase();
+	const open = context?.open?.mailboxId?.trim().toLowerCase();
+	return open && known.includes(open) ? open : null;
+}
+
+/** The address's own prompt, or null when it has none and the default applies. */
+export function customPrompt(settings: Record<string, unknown> | null | undefined): string | null {
+	const prompt = settings?.agentSystemPrompt;
+	return typeof prompt === "string" && prompt.trim() ? prompt : null;
+}
+
 /** System prompt lines that tell the shared agent which addresses exist and what is open. */
 export function sharedAgentNote(addresses: string[], context: AgentContext | undefined): string {
 	const lines = [

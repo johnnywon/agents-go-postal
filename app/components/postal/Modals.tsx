@@ -119,8 +119,12 @@ export function SettingsModal({ tab, onTab, prefs, setPrefs, addresses, identiti
 	const [draft, setDraft] = useState<Prefs>(prefs);
 	const initialNames = Object.fromEntries(addresses.map((a) => [a, info.get(a)?.mailbox?.settings?.fromName ?? info.get(a)?.name ?? ""]));
 	const [names, setNames] = useState<Record<string, string>>(initialNames);
-	const initialPrompt = addresses.map((a) => info.get(a)?.mailbox?.settings?.agentSystemPrompt).find((p) => p?.trim()) ?? "";
-	const [prompt, setPrompt] = useState(initialPrompt);
+	const initialPrompts = Object.fromEntries(addresses.map((a) => [a, info.get(a)?.mailbox?.settings?.agentSystemPrompt ?? ""]));
+	const [prompts, setPrompts] = useState<Record<string, string>>(initialPrompts);
+	const promptChanged = (a: string) => (prompts[a] ?? "").trim() !== (initialPrompts[a] ?? "").trim();
+	const [promptFor, setPromptFor] = useState(addresses[0] ?? "");
+	const prompt = prompts[promptFor] ?? "";
+	const setPrompt = (value: string) => setPrompts({ ...prompts, [promptFor]: value });
 	const [saving, setSaving] = useState(false);
 	const [error, setError] = useState<string | null>(null);
 	const queryClient = useQueryClient();
@@ -129,7 +133,7 @@ export function SettingsModal({ tab, onTab, prefs, setPrefs, addresses, identiti
 
 	const dirty = !samePrefs(draft, prefs)
 		|| addresses.some((a) => (names[a] ?? "") !== (initialNames[a] ?? ""))
-		|| prompt.trim() !== initialPrompt.trim()
+		|| addresses.some(promptChanged)
 		|| addresses.some(sigChanged)
 		|| agentModel.dirty;
 
@@ -142,15 +146,14 @@ export function SettingsModal({ tab, onTab, prefs, setPrefs, addresses, identiti
 				if (!mailbox) return [];
 				const name = (names[a] ?? "").trim();
 				const nameChanged = name !== (initialNames[a] ?? "").trim() && name.length > 0;
-				const promptChanged = (mailbox.settings?.agentSystemPrompt ?? "").trim() !== prompt.trim();
 				const signatureChanged = sigChanged(a);
-				if (!nameChanged && !promptChanged && !signatureChanged) return [];
+				if (!nameChanged && !promptChanged(a) && !signatureChanged) return [];
 				const sig = sigs[a];
 				const empty = !sig?.html.replace(/<[^>]+>/g, "").trim();
 				const settings = {
 					...mailbox.settings,
 					...(nameChanged ? { fromName: name } : {}),
-					agentSystemPrompt: prompt.trim() || undefined,
+					agentSystemPrompt: (prompts[a] ?? "").trim() || undefined,
 					...(signatureChanged ? { signature: empty ? { enabled: false, text: "" } : { enabled: sig.enabled, text: htmlToPlainText(sig.html), html: sig.html } } : {}),
 				};
 				return [api.updateMailbox(a, settings)];
@@ -271,10 +274,20 @@ export function SettingsModal({ tab, onTab, prefs, setPrefs, addresses, identiti
 					)}
 					{tab === "agent" && (
 						<>
-							<div style={{ display: "flex", alignItems: "center", gap: 8, padding: "14px 0 8px" }}>
+							<div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 8, padding: "14px 0 8px" }}>
 								<b style={{ fontWeight: 500 }}>Agent prompt</b>
+								{addresses.length > 1 && (
+									<select className="pg-select" value={promptFor} aria-label="Address this prompt is for" onChange={(e) => setPromptFor(e.target.value)}>
+										{addresses.map((a) => <option key={a} value={a}>{a}</option>)}
+									</select>
+								)}
 								<span className="pg-badge">{prompt.trim() ? "Custom" : "Default"}</span>
 								<div className="pg-flex" />
+								{addresses.length > 1 && addresses.some((a) => (prompts[a] ?? "").trim() !== prompt.trim()) && (
+									<button type="button" className="pg-btn pg-btn-sm pg-btn-quiet" onClick={() => setPrompts(Object.fromEntries(addresses.map((a) => [a, prompt])))}>
+										Use for every address
+									</button>
+								)}
 								{prompt.trim() && (
 									<button type="button" className="pg-btn pg-btn-sm pg-btn-quiet" onClick={() => setPrompt("")}>
 										<ArrowCounterClockwiseIcon size={12} />Reset to default
@@ -285,11 +298,11 @@ export function SettingsModal({ tab, onTab, prefs, setPrefs, addresses, identiti
 								className="pg-textarea"
 								rows={9}
 								value={prompt}
-								aria-label="Agent prompt"
+								aria-label={`Agent prompt for ${promptFor}`}
 								onChange={(e) => setPrompt(e.target.value)}
 								placeholder="You are an email assistant that helps manage this inbox. You read emails, draft replies, and help organize conversations. Write like a real person. Short, direct, flowing prose. Plain text only. (Leave empty to use the built-in default prompt)"
 							/>
-							<div style={{ fontSize: 12, color: "var(--pg-text-6)", padding: "6px 0 4px" }}>Sent as the system message for every address. Controls tone, style and behaviour rules.</div>
+							<div style={{ fontSize: 12, color: "var(--pg-text-6)", padding: "6px 0 4px" }}>Sent as the system message when the agent works on this address: Draft reply, auto-draft, and chat while its mail is open. Controls tone, style and behaviour rules.</div>
 							<Setting title="Model" sub={agentModel.stored ? modelName(catalog, agentModel.stored.active) : ""}>
 								<button type="button" className="pg-btn pg-btn-sm" onClick={() => onTab("model")}>Change</button>
 							</Setting>
