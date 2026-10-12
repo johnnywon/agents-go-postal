@@ -44,6 +44,7 @@ function environment(addresses, mailboxExists = false) {
 				idFromName: (name) => name,
 				get: (id) => ({
 					setMailboxId: async () => {},
+					hasInboundMessageId: async () => false,
 					findThreadBySubject: async () => null,
 					createEmail: async (_folder, email) => calls.push([id, email.subject]),
 				}),

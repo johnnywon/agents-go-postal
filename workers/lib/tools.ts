@@ -28,6 +28,7 @@ import {
 } from "./email-helpers";
 import { verifyDraft } from "./ai";
 import { sendMail } from "./send";
+import { deleteAttachmentFiles } from "./attachments";
 import { Folders } from "../../shared/folders";
 import { LABEL_COLORS } from "../../shared/label-colors";
 import { describeShortcuts, findShortcut, isRebindable, setShortcut, type ShortcutOverrides } from "../../shared/shortcuts";
@@ -298,7 +299,8 @@ export async function toolUpdateDraft(
 		return { error: "Draft verification failed — keeping existing draft unchanged. Please try again." };
 	}
 
-	await stub.deleteEmail(params.draftId);
+	const attachments = await stub.deleteEmail(params.draftId);
+	if (attachments) await deleteAttachmentFiles(env.BUCKET, params.draftId, attachments);
 	await stub.createEmail(
 		Folders.DRAFT,
 		{
@@ -654,7 +656,8 @@ export async function toolDiscardDraft(
 	if (email.folder_id !== Folders.DRAFT) {
 		return { error: "Cannot discard: email is not a draft" };
 	}
-	await stub.deleteEmail(draftId);
+	const attachments = await stub.deleteEmail(draftId);
+	if (attachments) await deleteAttachmentFiles(env.BUCKET, draftId, attachments);
 	return { status: "discarded", draftId };
 }
 
@@ -709,6 +712,7 @@ export async function toolSendDraft(env: Env, mailboxId: string, draftId: string
 		text: html.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim(),
 	}, original ? { kind: "reply", originalId: original.id } : { kind: "new" }, { idempotencyKey: `draft:${draftId}` });
 	if (!result.ok) return { error: result.error };
-	await stub.deleteEmail(draftId);
+	const attachments = await stub.deleteEmail(draftId);
+	if (attachments) await deleteAttachmentFiles(env.BUCKET, draftId, attachments);
 	return { status: result.duplicate ? "already_sent" : "sent", sentId: result.id, to: to.join(", "), subject: draft.subject || "" };
 }

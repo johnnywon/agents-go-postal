@@ -35,6 +35,7 @@ function freshEnvironment(addresses) {
 				idFromName: (name) => name,
 				get: (id) => ({
 					setMailboxId: async (email) => calls.push(["setMailboxId", id, email]),
+					hasInboundMessageId: async () => false,
 					findThreadBySubject: async () => null,
 					createEmail: async (folder, email) => calls.push(["createEmail", id, folder, email.subject]),
 				}),
@@ -105,6 +106,7 @@ test("an inbound message triggers the receiving agent through RPC", async () => 
 	let agentInput;
 	const background = [];
 	const mailbox = {
+		hasInboundMessageId: async () => false,
 		findThreadBySubject: async () => null,
 		createEmail: async (_folder, email) => { savedEmail = email; },
 	};
@@ -159,6 +161,7 @@ test("inbound mail is saved without triggering the agent when auto-drafting is o
 			MAILBOX: {
 				idFromName: (name) => name,
 				get: () => ({
+					hasInboundMessageId: async () => false,
 					findThreadBySubject: async () => null,
 					createEmail: async (_folder, email) => { savedEmail = email; },
 				}),

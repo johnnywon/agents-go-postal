@@ -7,6 +7,7 @@
  * MailboxDO. Every query is scoped to the mailbox.
  */
 import { Folders } from "../../../shared/folders";
+import { deleteAttachmentFiles } from "../../lib/attachments";
 import type { ScheduleMode, ScheduledPayload, ScheduledRow } from "../../lib/scheduled-send";
 import type { SendEmailRequest } from "../../lib/send";
 import { SEND_KEY_TTL_MS, type SendKeyClaim } from "../../lib/send-keys";
@@ -105,6 +106,13 @@ export class D1Mailbox {
 		if (!row) return null;
 		const attachments = (await this.#attachments([id])).get(id) ?? [];
 		return { ...toEmailRow(row, await this.#body(row)), attachments };
+	}
+
+	async hasInboundMessageId(messageId: string): Promise<boolean> {
+		return !!(await this.sql.first(
+			`SELECT 1 FROM messages WHERE mailbox_id = ? AND message_id = ? AND folder_id NOT IN (?, ?) LIMIT 1`,
+			this.#id, messageId, Folders.SENT, Folders.DRAFT,
+		));
 	}
 
 	async getThreadEmails(threadId: string) {
@@ -346,7 +354,10 @@ export class D1Mailbox {
 		);
 		if (input.draftId && input.draftId !== id) {
 			const old = await this.getEmail(input.draftId);
-			if (old?.folder_id === Folders.DRAFT) await this.deleteEmail(input.draftId);
+			if (old?.folder_id === Folders.DRAFT) {
+				const attachments = await this.deleteEmail(input.draftId);
+				if (attachments) await deleteAttachmentFiles(this.bucket, input.draftId, attachments);
+			}
 		}
 		return { id, sendAt };
 	}

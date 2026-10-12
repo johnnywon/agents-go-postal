@@ -7,7 +7,7 @@ import { cors } from "hono/cors";
 import PostalMime from "postal-mime";
 import { z } from "zod";
 import { generateText } from "ai";
-import { type StoredAttachment } from "./lib/attachments";
+import { deleteAttachmentFiles, type StoredAttachment } from "./lib/attachments";
 import {
 	validateSender,
 	SenderValidationError,
@@ -505,7 +505,10 @@ app.post("/api/v1/mailboxes/:mailboxId/drafts", async (c: AppContext) => {
 	const mailboxId = c.req.param("mailboxId")!;
 	const { to, cc, bcc, subject, body, in_reply_to, thread_id, draft_id } = DraftBody.parse(await c.req.json());
 	const stub = c.var.mailbox;
-	if (draft_id) await stub.deleteEmail(draft_id); // drafts only; not atomic — create-then-delete would be safer
+	if (draft_id) {
+		const attachments = await stub.deleteEmail(draft_id);
+		if (attachments) await deleteAttachmentFiles(c.env.BUCKET, draft_id, attachments);
+	}
 	const messageId = crypto.randomUUID();
 	const now = new Date().toISOString();
 	await stub.createEmail(Folders.DRAFT, {
@@ -568,7 +571,7 @@ app.delete("/api/v1/mailboxes/:mailboxId/emails/:id", async (c: AppContext) => {
 	const id = c.req.param("id")!;
 	const result = await c.var.mailbox.trashOrDelete(id);
 	if (result === null) return c.json({ error: "Not found" }, 404);
-	if (result.attachments.length > 0) await c.env.BUCKET.delete(result.attachments.map((att) => `attachments/${id}/${att.id}/${att.filename}`));
+	await deleteAttachmentFiles(c.env.BUCKET, id, result.attachments);
 	return c.json({ status: result.action });
 });
 
@@ -639,6 +642,8 @@ async function receiveEmail(event: { to: string; raw: ReadableStream; rawSize: n
 
 	const rawEmail = await streamToArrayBuffer(event.raw, event.rawSize);
 	const parsedEmail = await new PostalMime().parse(rawEmail);
+	const extractMsgId = (s: string) => { const m = s.match(/<([^>]+)>/); return m ? m[1] : s.trim().split(/\s+/)[0]; };
+	const originalMessageId = parsedEmail.messageId ? extractMsgId(parsedEmail.messageId) : null;
 	const allRecipients = (parsedEmail.to || []).map((t) => t.address?.toLowerCase()).filter(Boolean) as string[];
 	const ccRecipients = (parsedEmail.cc || []).map((e) => e.address?.toLowerCase()).filter(Boolean) as string[];
 	const bccRecipients = (parsedEmail.bcc || []).map((e) => e.address?.toLowerCase()).filter(Boolean) as string[];
@@ -651,29 +656,41 @@ async function receiveEmail(event: { to: string; raw: ReadableStream; rawSize: n
 	}
 
 	const stub = mailStore(env).mailbox(mailboxId);
+	if (originalMessageId && await stub.hasInboundMessageId(originalMessageId)) {
+		console.log("duplicate delivery ignored");
+		return;
+	}
 
 	const attachmentData: StoredAttachment[] = [];
+	const attachmentKeys: string[] = [];
+	const withAttachmentCleanup = async <T>(operation: () => Promise<T>): Promise<T> => {
+		try {
+			return await operation();
+		} catch (e) {
+			if (attachmentKeys.length > 0) await env.BUCKET.delete(attachmentKeys).catch(() => {});
+			throw e;
+		}
+	};
 	if (parsedEmail.attachments) {
 		for (const att of parsedEmail.attachments) {
 			const attId = crypto.randomUUID();
 			const filename = (att.filename || "untitled").replace(/[\/\\:*?"<>|\x00-\x1f]/g, "_");
-			await env.BUCKET.put(`attachments/${messageId}/${attId}/${filename}`, att.content);
+			const key = `attachments/${messageId}/${attId}/${filename}`;
+			attachmentKeys.push(key);
+			await withAttachmentCleanup(() => env.BUCKET.put(key, att.content));
 			attachmentData.push({ id: attId, email_id: messageId, filename, mimetype: att.mimeType,
 				size: typeof att.content === "string" ? att.content.length : att.content.byteLength,
 				content_id: att.contentId || null, disposition: att.disposition || "attachment" });
 		}
 	}
 
-	const extractMsgId = (s: string) => { const m = s.match(/<([^>]+)>/); return m ? m[1] : s.trim().split(/\s+/)[0]; };
 	const inReplyTo = parsedEmail.inReplyTo ? extractMsgId(parsedEmail.inReplyTo) : null;
 	const emailReferences = parsedEmail.references ? parsedEmail.references.split(/\s+/).filter(Boolean).map(extractMsgId) : [];
 	// Join a thread only through mail this mailbox already holds (lib/threading.ts).
-	const threadId = await resolveThreadId(stub, {
+	const threadId = await withAttachmentCleanup(() => resolveThreadId(stub, {
 		messageId, inReplyTo, references: emailReferences,
 		subject: parsedEmail.subject || "", sender: (parsedEmail.from?.address || "").toLowerCase(),
-	});
-
-	const originalMessageId = parsedEmail.messageId ? extractMsgId(parsedEmail.messageId) : null;
+	}));
 
 	const inbound = {
 		id: messageId, subject: parsedEmail.subject || "",
@@ -684,7 +701,7 @@ async function receiveEmail(event: { to: string; raw: ReadableStream; rawSize: n
 		in_reply_to: inReplyTo, email_references: emailReferences.length > 0 ? JSON.stringify(emailReferences) : null,
 		thread_id: threadId, message_id: originalMessageId, raw_headers: JSON.stringify(parsedEmail.headers),
 	};
-	await stub.createEmail(Folders.INBOX, inbound, attachmentData);
+	await withAttachmentCleanup(() => stub.createEmail(Folders.INBOX, inbound, attachmentData));
 	// For two weeks after the move to D1, the old mailbox gets a copy too (store/copy-job.ts).
 	if (usesD1(env)) {
 		ctx.waitUntil(mirrorInbound(env, mailboxId, Folders.INBOX, inbound, attachmentData)
