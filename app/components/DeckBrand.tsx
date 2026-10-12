@@ -9,8 +9,8 @@ export default function DeckBrand() {
         className="deck-brand-logo"
         src="/brand/logo.svg"
         alt={appName}
-        width={1166}
-        height={172}
+        width={1324}
+        height={137}
       />
     </Link>
   );

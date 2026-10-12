@@ -37,7 +37,7 @@ An address always renders as **bold handle**, muted `@`, then the domain in its 
 
 - Left column 236px (collapses to a 52px rail), centre, and the agent column 328px (collapses to a 44px "AGENT" rail). Both rail states persist per browser.
 - Every column starts with a 38px header bar on one line: ALL ADDRESSES, the search bar, AGENT.
-- The logo is a faint, tilted watermark at the right end of the search bar. There is no top-left logo.
+- The logo is a faint watermark at the right end of the search bar: grey lettering, a mail-orange @ and a slowly blinking agent-green cursor. There is no top-left logo.
 - The list column is `clamp(280px, 30vw, 430px)`. Nothing may overflow at 280px.
 - At 1100 to 1300px the left column starts as its rail and opens as an overlay; the agent panel overlays the reader.
 - At 600px and below: one pane at a time with a Back control, the left column as a drawer, the agent as a bottom sheet, the composer full screen, 44px targets and 16px inputs.

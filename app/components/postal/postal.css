@@ -282,12 +282,12 @@ html:has(.postal), html:has(.postal) body { background: var(--pg-base, #141518);
 .pg-search .pg-search-error { flex: 0 1 auto; min-width: 0; max-width: 45%; font: 11px var(--pg-mono); color: var(--pg-danger-text); }
 .pg-search .pg-clear { width: 24px; height: 24px; flex: none; display: flex; align-items: center; justify-content: center; color: var(--pg-text-6); }
 .pg-search .pg-clear:hover { background: var(--pg-hover-raised); color: var(--pg-text-2); }
-/* The logo is a faint, tilted watermark. It is never clipped. */
+/* The logo is a faint watermark in the accent colours: mail-orange @, agent-green cursor. It is never clipped. */
 .postal .pg-watermark {
-  flex: none; display: block; height: 16px; width: auto; max-width: 120px; opacity: .16;
-  transform: rotate(-4deg); filter: grayscale(1); pointer-events: none; user-select: none; margin-right: 2px;
+  flex: none; display: block; height: 28px; width: auto; max-width: none; opacity: .45;
+  pointer-events: none; user-select: none; margin-right: 10px;
 }
-.postal[data-theme="light"] .pg-watermark { opacity: .22; }
+.postal[data-theme="light"] .pg-watermark { opacity: .55; }
 .pg-mobile-only { display: none !important; }
 /* The search window spans the bar. Below 768px it fills the screen under it. */
 .pg-sw {
@@ -520,7 +520,8 @@ html:has(.postal), html:has(.postal) body { background: var(--pg-base, #141518);
 }
 .pg-reply-bar:hover { border-color: var(--pg-line-4); background: var(--pg-input); }
 .pg-idle { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; color: var(--pg-text-6); }
-.pg-idle img { width: 64px; height: 64px; opacity: .5; }
+.pg-idle img { width: 160px; height: auto; opacity: .35; }
+.postal[data-theme="light"] .pg-idle img { opacity: .45; }
 .pg-back { display: none !important; }
 
 /* ── Inline composer ───────────────────────────────────────────────── */

@@ -16,6 +16,7 @@ export default function NotFoundRoute() {
 		<div className="index-settings">
 			<SettingsHeader />
 			<main className="settings-page index-settings-page">
+				<img className="deck-brand-logo not-found-logo" src="/brand/watermark.svg" alt="" width={741} height={282} />
 				<h1 className="text-lg font-semibold">Page not found</h1>
 				<p className="index-settings-lede">Nothing lives at {pathname}.</p>
 				<Link to="/" className="mail-link">Back to mail</Link>

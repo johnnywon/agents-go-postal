@@ -85,8 +85,8 @@ const KumoLink = forwardRef<
 	return <a href={href} ref={ref} {...props} />;
 });
 
-export function loader({ context }: Route.LoaderArgs) {
-	return { appName: context.cloudflare.env.APP_NAME || DEFAULT_APP_NAME };
+export function loader({ context, request }: Route.LoaderArgs) {
+	return { appName: context.cloudflare.env.APP_NAME || DEFAULT_APP_NAME, origin: new URL(request.url).origin };
 }
 
 // The app name only changes on deploy, so client navigations never refetch it.
@@ -109,7 +109,13 @@ export function Layout({ children }: { children: React.ReactNode }) {
 				<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
 				<link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
 				<link rel="manifest" href="/site.webmanifest" />
-				<meta name="theme-color" content="#bdc3c6" />
+				<meta name="theme-color" media="(prefers-color-scheme: dark)" content="#141518" />
+				<meta name="theme-color" media="(prefers-color-scheme: light)" content="#f6f6f4" />
+				<meta property="og:title" content={data?.appName || DEFAULT_APP_NAME} />
+				{data?.origin && <meta property="og:image" content={`${data.origin}/brand/og-image.png`} />}
+				<meta property="og:image:width" content="1200" />
+				<meta property="og:image:height" content="630" />
+				<meta name="twitter:card" content="summary_large_image" />
 				<meta name="viewport" content="width=device-width, initial-scale=1.0" />
 				<title>{data?.appName || DEFAULT_APP_NAME}</title>
 				<Meta />
