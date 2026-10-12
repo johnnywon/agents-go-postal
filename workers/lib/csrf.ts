@@ -24,3 +24,13 @@ export const csrf = createMiddleware(async (c, next) => {
 	}
 	return next();
 });
+
+/**
+ * True when a browser sent this request from another origin. WebSockets skip
+ * CORS, and the Access cookie rides along from any page on the same site, so
+ * the agent socket checks Origin itself. Clients outside a browser send none.
+ */
+export function foreignOrigin(req: Request): boolean {
+	const origin = req.headers.get("origin");
+	return origin !== null && origin !== new URL(req.url).origin;
+}

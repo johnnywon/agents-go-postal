@@ -82,3 +82,13 @@ test("mail params are validated before reaching the index", async () => {
 	assert.deepEqual(body.filter.address, ["billing"]);
 	assert.deepEqual(body.options, { cursor: null, limit: 10 });
 });
+
+test("agent connections from another origin are refused", async () => {
+	const { foreignOrigin } = await loadTs("workers/lib/csrf.ts");
+	const req = (origin) => new Request("https://mail.example.com/agents/email-agent/default", origin ? { headers: { origin } } : {});
+	assert.equal(foreignOrigin(req("https://evil.example.net")), true);
+	assert.equal(foreignOrigin(req("https://other.example.com")), true, "a sibling subdomain is another origin");
+	assert.equal(foreignOrigin(req("null")), true);
+	assert.equal(foreignOrigin(req("https://mail.example.com")), false);
+	assert.equal(foreignOrigin(req()), false, "clients outside a browser send no Origin");
+});
