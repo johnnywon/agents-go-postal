@@ -11,8 +11,7 @@ import {
 } from "ai";
 import { z } from "zod";
 import { HeaderValueSchema } from "../lib/schemas";
-import type { EmailFull, EmailMetadata } from "../lib/schemas";
-import { verifyDraft, isPromptInjection } from "../lib/ai";
+import { verifyDraft } from "../lib/ai";
 import { agentModel } from "../lib/agent-model";
 import { textToHtml } from "../lib/email-helpers";
 import { mailStore } from "../store";
