@@ -176,3 +176,26 @@ test("stored keys for providers that can't be connected are deleted on read", as
 	assert.deepEqual(await m.readAgentModelConfig(env), { keys: { openrouter: "sk-or-1" } });
 	assert.ok(!env.BUCKET.store.get("config/agent-model.json").includes("sk-ant"));
 });
+
+test("free models are refused in any case, and an old free pick is dropped", () => {
+	assert.equal(s.validModelId("openrouter", "meta-llama/llama-3.3-70b-instruct:FREE"), false);
+	assert.equal(s.isFree({ id: "a/b:Free", price: { input: 1, output: 1 } }), true);
+	const merged = m.mergeAgentModelConfig({ keys: { openrouter: "sk-or-1234567890" } }, { selected: { provider: "openrouter", id: "a/b:FREE" } });
+	assert.ok("error" in merged && /Free models/.test(merged.error));
+	const old = m.parseAgentModelConfig({ provider: "openrouter", apiKey: "sk-or-1234567890", model: "meta-llama/llama-3.3-70b-instruct:free" });
+	assert.equal(old.selected, undefined);
+	assert.deepEqual(m.activeModel(old), s.RECOMMENDED_MODEL);
+	const saved = m.parseAgentModelConfig({ selected: { provider: "openrouter", id: "a/b:free" }, keys: { openrouter: "sk-or-1234567890" } });
+	assert.deepEqual(m.activeModel(saved), s.RECOMMENDED_MODEL);
+});
+
+test("a catalog that failed is retried after a minute, not on every run", async () => {
+	m.clearCatalogCache();
+	let calls = 0;
+	const env = { AI: { models: async () => { calls++; throw new Error("down"); } } };
+	const first = await m.catalogFor(env, "workers-ai", {});
+	assert.equal(first.source, "none");
+	await m.catalogFor(env, "workers-ai", {});
+	assert.equal(calls, 1);
+	m.clearCatalogCache();
+});

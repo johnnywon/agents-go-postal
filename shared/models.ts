@@ -109,8 +109,11 @@ export function guessProvider(id: string): ProviderId {
 }
 
 /** The shape check a model id must pass for its provider. Anything shaped right is allowed. */
+/** OpenRouter's free variants end in ":free", in any case. */
+const FREE_SUFFIX = /:free$/i;
+
 export function validModelId(provider: ProviderId, id: string): boolean {
-	if (!id || id.length > 200 || /\s/.test(id) || id.endsWith(":free")) return false;
+	if (!id || id.length > 200 || /\s/.test(id) || FREE_SUFFIX.test(id)) return false;
 	if (provider === "workers-ai") return /^@(cf|hf)\/[\w.-]+\/[\w.:-]+$/.test(id);
 	return /^[\w.-]+\/[\w.:~-]+$/.test(id);
 }
@@ -223,7 +226,7 @@ function perMillion(value: string | undefined): number | undefined {
  * your prompts, and the agent reads private mail.
  */
 export function isFree(m: Pick<CatalogModel, "id" | "price">): boolean {
-	return m.id.endsWith(":free") || (!!m.price && m.price.input === 0 && m.price.output === 0);
+	return FREE_SUFFIX.test(m.id) || (!!m.price && m.price.input === 0 && m.price.output === 0);
 }
 
 /** One endpoint from OpenRouter's /endpoints/zdr list. */

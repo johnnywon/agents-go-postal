@@ -65,6 +65,8 @@ export function parseAgentModelConfig(raw: unknown): AgentModelConfig {
 		if (r.provider === "openrouter" && apiKey && model) selected = { provider: "openrouter", id: model };
 		else if (workersAiModel) selected = { provider: "workers-ai", id: workersAiModel };
 	}
+	// A model saved before the free-model rule (an old ":free" pick) is dropped, so the recommended one runs.
+	if (selected && !validModelId(selected.provider, selected.id)) selected = undefined;
 	return selected ? { selected, keys } : { keys };
 }
 
@@ -126,7 +128,7 @@ export function mergeAgentModelConfig(current: AgentModelConfig, update: AgentMo
 	if (selected) {
 		const id = selected.id.trim();
 		if (!isProvider(selected.provider)) return { error: "Choose a provider." };
-		if (id.endsWith(":free")) return { error: "Free models aren't allowed. Free endpoints can keep and train on prompts." };
+		if (/:free$/i.test(id)) return { error: "Free models aren't allowed. Free endpoints can keep and train on prompts." };
 		if (!validModelId(selected.provider, id)) return { error: `That isn't a ${PROVIDER_INFO[selected.provider].label} model id. They look like ${PROVIDER_INFO[selected.provider].idExample}.` };
 		if (selected.provider !== "workers-ai" && !keys[selected.provider]) return { error: `Add your ${PROVIDER_INFO[selected.provider].label} key.` };
 		selected = { provider: selected.provider, id };
@@ -210,7 +212,9 @@ export interface ProviderCatalog {
 }
 
 const CATALOG_TTL_MS = 3_600_000;
-const cache = new Map<string, { at: number; value: ProviderCatalog }>();
+/** A catalog that failed is retried after a minute, so a slow catalog doesn't delay every agent run. */
+const CATALOG_FAILURE_TTL_MS = 60_000;
+const cache = new Map<string, { at: number; ttl: number; value: ProviderCatalog }>();
 
 /** Forget cached lists, for example after a key changes. */
 export function clearCatalogCache(): void {
@@ -219,9 +223,9 @@ export function clearCatalogCache(): void {
 
 async function cached(key: string, load: () => Promise<ProviderCatalog>, now = Date.now()): Promise<ProviderCatalog> {
 	const hit = cache.get(key);
-	if (hit && now - hit.at < CATALOG_TTL_MS) return hit.value;
+	if (hit && now - hit.at < hit.ttl) return hit.value;
 	const value = await load();
-	if (value.source !== "none") cache.set(key, { at: now, value });
+	cache.set(key, { at: now, ttl: value.source === "none" ? CATALOG_FAILURE_TTL_MS : CATALOG_TTL_MS, value });
 	return value;
 }
 

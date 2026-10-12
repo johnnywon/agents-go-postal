@@ -154,17 +154,20 @@ const AgentModelBody = z.object({
 });
 
 /**
- * A Cloudflare model must be in the allowed catalog (priced, not a partner
- * model), so a typed id can't reach a free or third-party one. When the
- * catalog can't be read the id is let through; the agent then falls back to
- * the recommended model if Cloudflare doesn't list it. OpenRouter needs no
- * check here: every request is refused there without a zero retention endpoint.
+ * A typed id must be in its provider's allowed catalog: on Cloudflare, priced
+ * models that aren't partner models; on OpenRouter, paid models with a zero
+ * retention endpoint. So a typed id can't reach a free, third-party or
+ * retaining model. When the catalog can't be read the id is let through; on
+ * Cloudflare the agent then falls back to the recommended model if it isn't
+ * listed, and on OpenRouter the request is refused without a zero retention
+ * endpoint.
  */
 async function notAllowed(env: Env, ref: { provider: string; id: string }, keys: Parameters<typeof catalogFor>[2]): Promise<string | null> {
-	if (ref.provider !== "workers-ai") return null;
-	const catalog = await catalogFor(env, "workers-ai", keys);
+	const catalog = await catalogFor(env, ref.provider === "workers-ai" ? "workers-ai" : "openrouter", keys);
 	if (catalog.source === "none" || catalog.models.some((m) => m.id === ref.id)) return null;
-	return "That Cloudflare model isn't allowed. Only priced models that aren't partner models can be used.";
+	return ref.provider === "workers-ai"
+		? "That Cloudflare model isn't allowed. Only priced models that aren't partner models can be used."
+		: "That OpenRouter model isn't allowed. Only paid models with a zero data retention endpoint can be used.";
 }
 
 app.put("/api/v1/agent-model", async (c) => {
