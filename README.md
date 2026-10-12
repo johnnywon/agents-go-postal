@@ -1,14 +1,12 @@
 # Agents Go Postal
 
-**One inbox for every address. Built for AI.**
-
-Email is older than the web, and for most of that time it has lived in someone else's house. You rented an inbox from Google or Microsoft and took what they gave you.
+**One inbox for every address on your domains, with an agent that can read and send.**
 
 Cloudflare Email Routing hands that mail to your own code instead. Every message to your domain arrives in a Worker you deploy, and Email Service sends replies from the same Worker with SPF, DKIM and DMARC already in place.
 
-What Cloudflare doesn't give you is somewhere to read it. Agents Go Postal is that inbox: every address on every domain in one list, on desktop or phone, with an agent that can search, label, draft and send. It runs entirely on your Cloudflare account.
+Cloudflare doesn't include a mail client. Agents Go Postal is one: every address on every domain in one list, on desktop or phone, with an agent that can search, label, draft and send. It runs entirely on your Cloudflare account.
 
-> **Work in progress.** It handles real mail every day and changes every week. Pin a commit if you deploy it, and see the [roadmap](#roadmap).
+> **Work in progress.** It runs on real mail daily and changes often. Pin a commit if you deploy it, and see the [roadmap](#roadmap).
 
 [![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/johnnywon/agents-go-postal)
 [![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
@@ -20,7 +18,7 @@ What Cloudflare doesn't give you is somewhere to read it. Agents Go Postal is th
 
 - **A startup with several arms.** The company domain, the product domain and the docs domain each have `sales@`, `support@`, `billing@` and `press@`. All of it lands in one list. The agent drafts support replies and files invoices, and every reply leaves from the address that received the mail.
 - **A consultant or agency with mail per client.** Each engagement gets an address on its own domain. One inbox, a label per client, and `to:` narrows the list to one client.
-- **An indie developer with a shelf of side projects.** `hello@`, `abuse@` and app store contact addresses for ten small products, without ten mailbox plans or a tangle of forwards into one personal account.
+- **An indie developer with a shelf of side projects.** `hello@`, `abuse@` and app store contact addresses for ten small products, without ten mailbox plans or forwarding everything to a personal account.
 - **Agents that need their own address.** Give a support agent `support@` and a finance agent `receipts@`. They read, label and draft through MCP. You see every message and every draft in the same list.
 - **Finance and ops across several companies.** Invoices, receipts and alerts from every entity in one place. With attachment search on, `INV-2207` finds the invoice even when the number only appears inside the PDF.
 
@@ -40,7 +38,7 @@ Operators, phrases, exclusions and `OR`, with results ranked by relevance and fi
 
 Replies go out from the address the message reached, with the original quoted. Drafts the agent writes open in the same composer, so you review and send.
 
-**For developers:** sends go through Cloudflare's `send_email` binding. Each send carries an idempotency key, and a saved draft always sends with `draft:<id>`, so a draft goes out once whether a person, the agent or the scheduler sends it. Retries are safe by construction.
+**For developers:** sends go through Cloudflare's `send_email` binding. Each send carries an idempotency key, and a saved draft always sends with `draft:<id>`, so a draft goes out once whether a person, the agent or the scheduler sends it.
 
 ### 3. Plug in any agent over MCP
 
@@ -48,7 +46,7 @@ Replies go out from the address the message reached, with the original quoted. D
 
 The MCP panel gives you the server URL and lists every tool: read, search, draft, send, label and move, across every address.
 
-**For developers:** 19 tools over the same store the UI uses, behind the same Cloudflare Access login. Point Claude Code, Cursor or your own agent at `/mcp`. `search_all_mail` and `label_matching` act on every address in one call, so a triage workflow needs a prompt and nothing else to host.
+**For developers:** 19 tools over the same store the UI uses, behind the same Cloudflare Access login. Point Claude Code, Cursor or your own agent at `/mcp`. `search_all_mail` and `label_matching` act on every address in one call.
 
 ### Also in the box
 
@@ -119,14 +117,14 @@ These are the directions under consideration. [Open an issue](https://github.com
 - [ ] **CI on every pull request.** Run tests, typecheck and build in GitHub Actions, plus a browser smoke test against a seeded dev server.
 - [ ] **Import existing mail.** Bring in an mbox or IMAP export so a new deployment starts with history.
 
-### Next: agents you can trust with an inbox
+### Next: control over what agents do
 
 - [ ] **Approval queue.** Agent sends and bulk changes can wait for one-click approval, with a log of every action an agent took and why.
 - [ ] **Scoped access for agents.** MCP tokens limited to chosen addresses, read-only or draft-only, so a support agent never sees billing mail.
 - [ ] **Rules in plain words.** "File receipts under Receipts" or "draft replies for support@" runs on each new message, shown as a readable rule you can edit.
 - [ ] **Events for other Workers.** Publish new-mail and label events to Cloudflare Queues, so your own code can react without polling.
 
-### Later: teams and depth
+### Later: teams, search and offline
 
 - [ ] **Per-person access.** People see only the addresses they are given, with assignment and internal notes for shared inboxes.
 - [ ] **Search by meaning.** Opt-in Vectorize search alongside full-text, for "the email where they offered a discount".
