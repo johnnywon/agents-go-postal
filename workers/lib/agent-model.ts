@@ -3,22 +3,19 @@
 //     https://opensource.org/licenses/Apache-2.0
 
 /**
- * Which model runs the agent, on which provider: Workers AI (Cloudflare),
- * OpenRouter, Anthropic, OpenAI or xAI. Until Settings picks a model, the
- * agent follows RECOMMENDED_MODEL in shared/models.ts.
+ * Which model runs the agent: Workers AI (Cloudflare), or OpenRouter held to
+ * zero data retention endpoints. Nothing else can be connected. Until Settings
+ * picks a model, the agent follows RECOMMENDED_MODEL in shared/models.ts.
  *
  * Keys are stored in R2 under config/, which no route serves. The API only
  * ever returns their last four characters.
  */
 
-import { createAnthropic } from "@ai-sdk/anthropic";
-import { createOpenAI } from "@ai-sdk/openai";
 import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
-import { createXai } from "@ai-sdk/xai";
 import type { LanguageModel } from "ai";
 import { createWorkersAI } from "workers-ai-provider";
 import {
-	type CatalogModel, chatModelsOnly, directFromOpenRouter, enrich, isFree, isProvider, KEYED_PROVIDERS, type KeyedProvider,
+	type CatalogModel, isFree, isProvider, KEYED_PROVIDERS, type KeyedProvider,
 	type ModelRef, modelsFromOpenRouter, modelsFromWorkersAi, type OpenRouterEntry, PROVIDER_INFO, type ProviderId,
 	prettyName, RECOMMENDED_MODEL, validModelId, type WorkersAiEntry, type ZdrEndpoint, zdrOnly,
 } from "../../shared/models";
@@ -75,7 +72,12 @@ export async function readAgentModelConfig(env: Env): Promise<AgentModelConfig> 
 	const obj = await env.BUCKET.get(CONFIG_KEY);
 	if (!obj) return { keys: {} };
 	try {
-		return parseAgentModelConfig(await obj.json());
+		const raw = (await obj.json()) as { keys?: Record<string, unknown> };
+		const config = parseAgentModelConfig(raw);
+		// Keys for providers that can no longer be connected are deleted, not left at rest.
+		const stale = raw?.keys && typeof raw.keys === "object" && Object.keys(raw.keys).some((p) => !(KEYED_PROVIDERS as string[]).includes(p));
+		if (stale) await writeAgentModelConfig(env, config);
+		return config;
 	} catch {
 		return { keys: {} };
 	}
@@ -124,6 +126,7 @@ export function mergeAgentModelConfig(current: AgentModelConfig, update: AgentMo
 	if (selected) {
 		const id = selected.id.trim();
 		if (!isProvider(selected.provider)) return { error: "Choose a provider." };
+		if (id.endsWith(":free")) return { error: "Free models aren't allowed. Free endpoints can keep and train on prompts." };
 		if (!validModelId(selected.provider, id)) return { error: `That isn't a ${PROVIDER_INFO[selected.provider].label} model id. They look like ${PROVIDER_INFO[selected.provider].idExample}.` };
 		if (selected.provider !== "workers-ai" && !keys[selected.provider]) return { error: `Add your ${PROVIDER_INFO[selected.provider].label} key.` };
 		selected = { provider: selected.provider, id };
@@ -158,12 +161,6 @@ export function languageModel(env: Env, ref: ModelRef, key?: string): LanguageMo
 			return createOpenAICompatible({
 				name: "openrouter", baseURL: OPENROUTER_BASE, apiKey: key, headers: { "X-Title": "Agents Go Postal" }, fetch: zeroRetentionFetch,
 			}).chatModel(ref.id);
-		case "anthropic":
-			return createAnthropic({ apiKey: key })(ref.id);
-		case "openai":
-			return createOpenAI({ apiKey: key })(ref.id);
-		case "xai":
-			return createXai({ apiKey: key })(ref.id);
 		default:
 			return createWorkersAI({ binding: env.AI })(ref.id as Parameters<ReturnType<typeof createWorkersAI>>[0]);
 	}
@@ -270,32 +267,8 @@ async function loadOpenRouterZdr(all: ProviderCatalog): Promise<ProviderCatalog>
 	}
 }
 
-/** A direct provider's own list, read with its key. */
-async function loadDirect(provider: KeyedProvider, key: string): Promise<CatalogModel[]> {
-	if (provider === "anthropic") {
-		const data = (await fetchJson("https://api.anthropic.com/v1/models?limit=1000", { "x-api-key": key, "anthropic-version": "2023-06-01" })) as {
-			data?: { id: string; display_name?: string; max_input_tokens?: number }[];
-		};
-		return (data.data ?? []).map((m) => ({ provider, id: m.id, name: m.display_name ?? prettyName(m.id), context: m.max_input_tokens ?? null, price: null, tools: true }));
-	}
-	const base = provider === "openai" ? "https://api.openai.com/v1" : "https://api.x.ai/v1";
-	const data = (await fetchJson(`${base}/models`, { Authorization: `Bearer ${key}` })) as { data?: { id: string; created?: number }[] };
-	const newestFirst = [...(data.data ?? [])].sort((a, b) => (b.created ?? 0) - (a.created ?? 0)).map((m) => m.id);
-	return chatModelsOnly(newestFirst).map((id) => ({ provider, id, name: prettyName(id), context: null, price: null, tools: null }));
-}
-
 export async function catalogFor(env: Env, provider: ProviderId, keys: Keys): Promise<ProviderCatalog> {
 	if (provider === "workers-ai") return cached("workers-ai", () => loadWorkersAi(env));
 	const openrouter = await cached("openrouter", loadOpenRouter);
-	if (provider === "openrouter") return cached("openrouter-zdr", () => loadOpenRouterZdr(openrouter));
-	const fallback = directFromOpenRouter(provider, openrouter.models);
-	const key = keys[provider];
-	if (!key) return { source: fallback.length ? "openrouter" : "none", models: fallback };
-	return cached(`${provider}:${key.slice(-6)}`, async () => {
-		try {
-			return { source: "live", models: enrich(await loadDirect(provider, key), fallback).filter((m) => !isFree(m)) };
-		} catch (e) {
-			return { source: fallback.length ? "openrouter" : "none", models: fallback, error: `${PROVIDER_INFO[provider].label} didn't list models: ${(e as Error).message}` };
-		}
-	});
+	return cached("openrouter-zdr", () => loadOpenRouterZdr(openrouter));
 }

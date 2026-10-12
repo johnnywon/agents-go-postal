@@ -956,6 +956,14 @@ html:has(.postal), html:has(.postal) body { background: var(--pg-base, #141518);
    the chosen, recommended or connected, yellow for a missing key. Prices
    and context are plain aligned numbers under one column header. */
 .pg-models { padding: 14px 0 6px; }
+.pg-models-notice {
+  display: flex; gap: 12px; align-items: flex-start; padding: 14px 16px; margin-bottom: 22px;
+  border: 1px solid color-mix(in oklch, var(--pg-green) 35%, var(--pg-line));
+  background: color-mix(in oklch, var(--pg-green) 7%, var(--pg-raised));
+}
+.pg-models-notice > svg { flex: none; margin-top: 1px; color: var(--pg-green); }
+.pg-models-notice b { display: block; margin-bottom: 4px; font-weight: 600; font-size: var(--pg-t-13); color: var(--pg-text-1); }
+.pg-models-notice p { margin: 0; font-size: var(--pg-t-12); line-height: 1.5; color: var(--pg-text-4); }
 .pg-models-head { display: flex; align-items: baseline; justify-content: space-between; flex-wrap: wrap; gap: 6px 12px; margin-bottom: 10px; }
 .pg-models-head b { font-weight: 500; color: var(--pg-text-2); }
 .pg-prov-mark { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }

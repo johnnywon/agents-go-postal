@@ -85,28 +85,28 @@ function Price({ model }: { model: CatalogModel }) {
 }
 
 /** Provider, maker when it differs, and what the model is missing. */
-function ModelSub({ model, needsKey, provider = true }: { model: CatalogModel; needsKey: boolean; provider?: boolean }) {
+function ModelSub({ model, needsKey, provider = true, maker: showMakerLine = true }: { model: CatalogModel; needsKey: boolean; provider?: boolean; maker?: boolean }) {
 	const maker = makerOf(model);
 	const showMaker = maker.label !== PROVIDER_INFO[model.provider].label;
 	return (
 		<span className="pg-model-sub">
 			{provider && <ProviderMark provider={model.provider} />}
-			{(showMaker || !provider) && <span>{maker.label}</span>}
+			{showMakerLine && (showMaker || !provider) && <span>{maker.label}</span>}
 			{model.tools === false && <span>No tools</span>}
 			{needsKey && <span className="pg-model-needs">Needs key</span>}
 		</span>
 	);
 }
 
-function ModelRow({ model, selected, recommended, needsKey, provider, onSelect }: {
-	model: CatalogModel; selected: boolean; recommended: boolean; needsKey: boolean; provider: boolean; onSelect: () => void;
+function ModelRow({ model, selected, recommended, needsKey, provider, maker = true, onSelect }: {
+	model: CatalogModel; selected: boolean; recommended: boolean; needsKey: boolean; provider: boolean; maker?: boolean; onSelect: () => void;
 }) {
 	return (
 		<button type="button" role="radio" aria-checked={selected} className="pg-model-row" onClick={onSelect} title={model.id}>
 			<span className="pg-model-check" aria-hidden="true">{selected && <CheckIcon size={12} weight="bold" />}</span>
 			<span className="pg-model-name">
 				<span className="pg-model-title"><b>{model.name}</b>{recommended && <span className="pg-model-rec">Recommended</span>}</span>
-				<ModelSub model={model} needsKey={needsKey} provider={provider} />
+				<ModelSub model={model} needsKey={needsKey} provider={provider} maker={maker} />
 			</span>
 			<span className="pg-model-ctx">{formatContext(model.context)}</span>
 			<Price model={model} />
@@ -166,7 +166,13 @@ function ProviderRow({ provider, draft, count, open, highlight, onToggle }: {
 	);
 }
 
-type Filter = "all" | ProviderId;
+/** Makers whose models are reached through OpenRouter's zero retention endpoints, as shortcuts. */
+const MAKER_FILTERS = ["Anthropic", "OpenAI", "Google", "xAI"] as const;
+type MakerFilter = (typeof MAKER_FILTERS)[number];
+type Filter = "all" | ProviderId | MakerFilter;
+const isMaker = (f: Filter): f is MakerFilter => (MAKER_FILTERS as readonly string[]).includes(f);
+/** The provider a filter's models come from. */
+const providerOf = (f: Exclude<Filter, "all">): ProviderId => (isMaker(f) ? "openrouter" : f);
 type ModelSort = "suggested" | "price" | "context";
 const PAGE = 100;
 
@@ -193,7 +199,9 @@ function ModelPicker({ catalog, draft, onPick, onBack }: {
 	const find = (ref: ModelRef) => catalog.providers[ref.provider]?.models.find((m) => m.id === ref.id);
 
 	const words = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
-	const pool = filter === "all" ? all : catalog.providers[filter]?.models ?? [];
+	const pool = filter === "all" ? all
+		: isMaker(filter) ? (catalog.providers.openrouter?.models ?? []).filter((m) => makerOf(m).label === filter)
+		: catalog.providers[filter]?.models ?? [];
 	const matches = pool.filter((m) => {
 		if (!words.length) return true;
 		const text = `${m.name} ${m.id} ${PROVIDER_INFO[m.provider].label} ${makerOf(m).label}`.toLowerCase();
@@ -212,15 +220,16 @@ function ModelPicker({ catalog, draft, onPick, onBack }: {
 		return m ? [{ ...s, model: m }] : [];
 	});
 	const rows = home ? [] : [...matches].sort(sorter);
-	const title = filter !== "all" && !words.length ? <ProviderMark provider={filter} />
+	const title = filter !== "all" && !words.length ? (isMaker(filter) ? `${filter} on OpenRouter` : <ProviderMark provider={filter} />)
 		: `${rows.length} ${rows.length === 1 ? "match" : "matches"}`;
-	const error = filter !== "all" ? catalog.providers[filter]?.error : undefined;
+	const source = filter === "all" ? null : providerOf(filter);
+	const error = source ? catalog.providers[source]?.error : undefined;
 	// One provider's list says once that its key is missing, not on every row.
-	const single = filter !== "all";
-	const missingKey = single && !draft.hasKey(filter);
+	const single = !!source;
+	const missingKey = !!source && !draft.hasKey(source);
 
 	const typed = query.trim();
-	const customTarget = customProvider ?? (filter === "all" ? guessProvider(typed) : filter);
+	const customTarget = customProvider ?? (source ?? guessProvider(typed));
 	const showCustom = typed.length > 1 && !all.some((m) => m.id === typed) && !/\s/.test(typed);
 	const customValid = validModelId(customTarget, typed);
 
@@ -260,6 +269,9 @@ function ModelPicker({ catalog, draft, onPick, onBack }: {
 						<button key={p} type="button" aria-pressed={filter === p} onClick={() => setFilter(p)}>
 							<ProviderMark provider={p} />
 						</button>
+					))}
+					{MAKER_FILTERS.map((f) => (
+						<button key={f} type="button" aria-pressed={filter === f} onClick={() => setFilter(f)}>{f}</button>
 					))}
 				</div>
 				{!home && <select className="pg-select" value={sort} aria-label="Sort models" onChange={(e) => setSort(e.target.value as ModelSort)}>
@@ -326,8 +338,8 @@ function ModelPicker({ catalog, draft, onPick, onBack }: {
 						<span>$ per 1M, in / out</span>
 					</div>
 					{error && <p className="pg-models-warn">{error}</p>}
-					{single && !words.length && <p className="pg-models-note" data-zdr={PROVIDER_INFO[filter].zdr}>{PROVIDER_INFO[filter].zdr && <ShieldCheckIcon size={13} />}{PROVIDER_INFO[filter].data}</p>}
-					{missingKey && <p className="pg-models-warn">No {PROVIDER_INFO[filter].label} key yet. Pick a model, then add the key.</p>}
+					{source && !words.length && <p className="pg-models-note" data-zdr={PROVIDER_INFO[source].zdr}>{PROVIDER_INFO[source].zdr && <ShieldCheckIcon size={13} />}{PROVIDER_INFO[source].data}</p>}
+					{missingKey && source && <p className="pg-models-warn">No {PROVIDER_INFO[source].label} key yet. Pick a model, then add the key.</p>}
 					{rows.slice(0, limit).map((m) => (
 						<ModelRow
 							key={`${m.provider}:${m.id}`}
@@ -336,6 +348,7 @@ function ModelPicker({ catalog, draft, onPick, onBack }: {
 							recommended={sameModel(m, recommended)}
 							needsKey={!single && !draft.hasKey(m.provider)}
 							provider={!single}
+							maker={!isMaker(filter)}
 							onSelect={() => onPick({ provider: m.provider, id: m.id })}
 						/>
 					))}
@@ -348,22 +361,26 @@ function ModelPicker({ catalog, draft, onPick, onBack }: {
 
 			{home && (
 				<div className="pg-models-list">
-					<div className="pg-models-cols"><span>Browse by provider</span></div>
-					{PROVIDERS.map((p) => {
-						const pc = catalog.providers[p];
-						return (
-							<button key={p} type="button" className="pg-browse-row" onClick={() => setFilter(p)}>
-								<ProviderMark provider={p} />
-								<span className="pg-model-sub">
-									{PROVIDER_INFO[p].zdr && <span className="pg-zdr"><ShieldCheckIcon size={12} /> Zero retention</span>}
-									{pc?.source === "openrouter" && <span>Prices via OpenRouter</span>}
-									{!draft.hasKey(p) && <span className="pg-model-needs">Needs key</span>}
-								</span>
-								<span className="pg-browse-count">{pc?.models.length ?? 0} models</span>
-								<CaretRightIcon size={13} aria-hidden="true" />
-							</button>
-						);
-					})}
+					<div className="pg-models-cols"><span>Browse</span></div>
+					{PROVIDERS.map((p) => (
+						<button key={p} type="button" className="pg-browse-row" onClick={() => setFilter(p)}>
+							<ProviderMark provider={p} />
+							<span className="pg-model-sub">
+								{PROVIDER_INFO[p].zdr && <span className="pg-zdr"><ShieldCheckIcon size={12} /> Zero retention</span>}
+								{!draft.hasKey(p) && <span className="pg-model-needs">Needs key</span>}
+							</span>
+							<span className="pg-browse-count">{catalog.providers[p]?.models.length ?? 0} models</span>
+							<CaretRightIcon size={13} aria-hidden="true" />
+						</button>
+					))}
+					{MAKER_FILTERS.map((f) => (
+						<button key={f} type="button" className="pg-browse-row" onClick={() => setFilter(f)}>
+							<span>{f}</span>
+							<span className="pg-model-sub"><ProviderMark provider="openrouter" /></span>
+							<span className="pg-browse-count">{(catalog.providers.openrouter?.models ?? []).filter((m) => makerOf(m).label === f).length} models</span>
+							<CaretRightIcon size={13} aria-hidden="true" />
+						</button>
+					))}
 				</div>
 			)}
 		</div>
@@ -413,6 +430,17 @@ export function AgentModelSection({ draft }: { draft: AgentModelDraft }) {
 
 	return (
 		<div className="pg-models">
+			<div className="pg-models-notice" role="note">
+				<ShieldCheckIcon size={18} weight="duotone" aria-hidden="true" />
+				<div>
+					<b>Zero data retention only</b>
+					<p>
+						The agent reads your mail, so a model that keeps or trains on it is a security risk. Models run on Cloudflare
+						in your own account, or on OpenRouter endpoints that retain nothing. Free models, providers that train on
+						prompts and direct provider keys can't be connected.
+					</p>
+				</div>
+			</div>
 			<div className="pg-models-head"><b>Agent model</b></div>
 			<div className="pg-model-card">
 				<div className="pg-model-card-main">

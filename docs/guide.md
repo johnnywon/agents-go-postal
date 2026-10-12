@@ -12,7 +12,7 @@ How the app works day to day. Back to the [README](../README.md).
 - **Labels and bulk actions.** Select many conversations to archive, delete, mark read, star, label or move. Undo is available after each action. Rename, recolour and delete labels in Settings > Labels, or from Manage labels in the sidebar.
 - **Keyboard shortcuts** for navigation and actions.
 - **Per-address isolation.** Every address has its own Durable Object, database and prompt settings.
-- **AI agent.** A side panel that can read, search, label, draft and send on Workers AI, or on OpenRouter, Anthropic, OpenAI or xAI with your own key. It searches and labels across every address at once (`search_all_mail`, `label_matching`, up to 500 conversations per call). "Draft reply" in either composer (or "Draft" in a new message) asks it for a first draft. Labels the agent has applied are marked with a sparkle. It sends a draft with `send_draft` when you ask it to. Automatic drafting of new mail is off by default (`AUTO_DRAFT_ENABLED`); it only drafts, and skips mailing lists, bulk mail, auto-replies and no-reply senders.
+- **AI agent.** A side panel that can read, search, label, draft and send on Workers AI, or on OpenRouter's zero data retention endpoints with your key. It searches and labels across every address at once (`search_all_mail`, `label_matching`, up to 500 conversations per call). "Draft reply" in either composer (or "Draft" in a new message) asks it for a first draft. Labels the agent has applied are marked with a sparkle. It sends a draft with `send_draft` when you ask it to. Automatic drafting of new mail is off by default (`AUTO_DRAFT_ENABLED`); it only drafts, and skips mailing lists, bulk mail, auto-replies and no-reply senders.
 - **MCP server** for connecting outside agents, including `send_draft`.
 - **Sends go out once.** Each send can carry an `Idempotency-Key` header. A retry with the same key returns the first send instead of sending again. The composer sets one per message, and every way of sending a saved draft uses `draft:<id>`, so a draft is sent once whether you, the agent or the schedule sends it.
 - **Cloudflare Access required.** Outside local development the Worker refuses every request until Access is configured.
@@ -63,34 +63,28 @@ On D1 storage ([Moving to D1](setup.md#moving-to-d1)), a one-minute cron sends s
 
 ## Agent model
 
-The agent runs on Workers AI (`@cf/moonshotai/kimi-k2.6`) until you pick something else in Settings, then Model & key. It can run on five providers:
+The agent reads your mail, so a model that keeps or trains on it is a security risk. It runs only where prompts aren't kept:
 
-| Provider | Key | Model list |
+| Provider | Key | What happens to prompts |
 |---|---|---|
-| Cloudflare (Workers AI) | None; bills your Cloudflare account | Cloudflare's catalog, with price and context |
-| OpenRouter | `sk-or-…` | OpenRouter's catalog, with price and context |
-| Anthropic | `sk-ant-…` | Anthropic's list with your key, priced from OpenRouter |
-| OpenAI | `sk-…` | OpenAI's chat models with your key, priced from OpenRouter |
-| xAI | `xai-…` | xAI's list with your key, priced from OpenRouter |
+| Cloudflare (Workers AI) | None; bills your Cloudflare account | Runs in your own account; not used for training |
+| OpenRouter | `sk-or-…` | Zero data retention endpoints only |
 
-Every model each provider lists is offered, in one search with a filter per provider and sorting by price or context. Prices are per million input and output tokens and are coloured by output price: green up to $0.60, yellow up to $2, rose above. Without a key, Anthropic, OpenAI and xAI show the models OpenRouter lists for them. Models a catalog marks as unable to call tools carry a "No tools" tag; you can still pick them, but the agent reads, labels and drafts through tools.
+Nothing else can be connected. Anthropic, OpenAI, xAI and Google models are reached through OpenRouter's zero retention endpoints, not with their own keys, because their APIs keep traffic by default. Free models are never offered or accepted: free endpoints can keep and train on prompts.
 
-Nothing is limited to the lists. Type any model id in the search and choose "Use" to send it to the provider it looks like (`@cf/…` to Cloudflare, `maker/model` to OpenRouter, `claude-…` to Anthropic, `grok-…` to xAI, anything else to OpenAI), or pick the provider yourself. The id only has to be shaped right for that provider. Test sends one short prompt to the picked model before you save.
+OpenRouter's list holds only models with a zero retention endpoint ([`/endpoints/zdr`](https://openrouter.ai/api/v1/endpoints/zdr)), priced at the cheapest of those endpoints. Every request carries `provider: { zdr: true, data_collection: "deny" }`, so a model with no such endpoint fails rather than fall back to one that keeps data. Keys saved for a direct provider by an earlier version are deleted from R2 the next time the config is read.
 
-The agent reads your mail, so where prompts go matters:
+The agent runs on Workers AI (`@cf/moonshotai/kimi-k2.6`) until you pick something else in Settings, then Model & key. The picker searches both lists, filters by provider or by maker (Anthropic, OpenAI, Google and xAI on OpenRouter) and sorts by price or context. Prices are per million input and output tokens. Models a catalog marks as unable to call tools carry a "No tools" tag; you can still pick them, but the agent reads, labels and drafts through tools.
 
-- **Cloudflare** runs in your own account and Cloudflare doesn't train on it.
-- **OpenRouter** is held to zero data retention. Settings lists only models with a zero retention endpoint ([`/endpoints/zdr`](https://openrouter.ai/api/v1/endpoints/zdr)), priced at the cheapest of those endpoints, and every request carries `provider: { zdr: true, data_collection: "deny" }`. A model with no such endpoint fails rather than fall back to one that keeps data.
-- **Anthropic, OpenAI and xAI** keep API traffic for a period for abuse checks unless your organisation has a zero retention agreement with them. Settings says so on each provider.
-- **Free models are never offered or accepted**, on any provider: free endpoints can keep and train on prompts.
+Type any paid model id in the search and choose "Use": `@cf/…` goes to Cloudflare, `maker/model` to OpenRouter. Test sends one short prompt to the picked model before you save.
 
-The four suggested models, one per need (Recommended, Cheapest, Balanced, Best quality), are in [`shared/models.ts`](../shared/models.ts). The two that need a key are Claude Sonnet 5.5 and Claude Opus 5.5 through OpenRouter's zero retention endpoints, so one OpenRouter key covers both. Until you pick a model the agent follows the recommended one, so a new default reaches you with an update. A picked model whose key you remove falls back to the recommended one, and so does a Workers AI model Cloudflare stops listing. The chat panel, Draft reply, auto-draft and Turn into a search use the picked model; the prompt-injection check and the draft cleanup on incoming mail stay on Workers AI.
+The four suggested models, one per need (Recommended, Cheapest, Balanced, Best quality), are in [`shared/models.ts`](../shared/models.ts). The two that need a key are Claude Sonnet 5.5 and Claude Opus 5.5 on OpenRouter, so one OpenRouter key covers both. Until you pick a model the agent follows the recommended one, so a new default reaches you with an update. A picked model whose key you remove falls back to the recommended one, and so does a Workers AI model Cloudflare stops listing. The chat panel, Draft reply, auto-draft and Turn into a search use the picked model; the prompt-injection check and the draft cleanup on incoming mail stay on Workers AI.
 
-Keys and the pick are stored in R2 at `config/agent-model.json`, which no route serves. The API returns only each key's last four characters. Anyone who can open the app can replace or remove them, so keep the app behind Access. `GET /api/v1/agent-model/catalog` returns every provider's list; `PUT /api/v1/agent-model` takes `{ selected, keys }`.
+Keys and the pick are stored in R2 at `config/agent-model.json`, which no route serves. The API returns only each key's last four characters. Anyone who can open the app can replace or remove them, so keep the app behind Access. `GET /api/v1/agent-model/catalog` returns both lists; `PUT /api/v1/agent-model` takes `{ selected, keys }`.
 
 ## Stack
 
 - **Frontend:** React 19, React Router v7 (server rendered), Tailwind CSS, TanStack Query, Zustand, TipTap, `@cloudflare/kumo`
 - **Backend:** Hono, Cloudflare Workers, Durable Objects (SQLite), R2, Email Routing, Email Sending
-- **Agent:** Cloudflare Agents SDK, AI SDK v6, Workers AI, OpenRouter, Anthropic, OpenAI or xAI
+- **Agent:** Cloudflare Agents SDK, AI SDK v6, Workers AI or OpenRouter (zero data retention)
 - **Auth:** Cloudflare Access JWT validation

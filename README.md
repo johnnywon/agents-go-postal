@@ -55,7 +55,7 @@ The MCP panel gives you the server URL and lists every tool: read, search, draft
 
 ### Also in the box
 
-An agent panel inside the app that searches, labels, drafts and sends when you ask, on Workers AI, or on OpenRouter, Anthropic, OpenAI or xAI with your key. Drafts, attachments, stars, archive, bulk actions with undo, scheduled send, signatures, keyboard shortcuts and a phone layout. The Worker refuses every request until Cloudflare Access is set up, and incoming HTML is sanitised, sandboxed and shown without remote images until you ask.
+An agent panel inside the app that searches, labels, drafts and sends when you ask, on Workers AI, or on OpenRouter's zero data retention endpoints with your key. Free models and providers that keep or train on prompts can't be connected. Drafts, attachments, stars, archive, bulk actions with undo, scheduled send, signatures, keyboard shortcuts and a phone layout. The Worker refuses every request until Cloudflare Access is set up, and incoming HTML is sanitised, sandboxed and shown without remote images until you ask.
 
 ## How it works
 
@@ -80,8 +80,8 @@ An agent panel inside the app that searches, labels, drafts and sends when you a
 | address     |  | on D1       |          |                    |
 | + an index  |  +-------------+          v                    v
 +-------------+                   Workers AI or            Recipient
-                                  OpenRouter, Anthropic,
-                                  OpenAI, xAI
+                                  OpenRouter (zero
+                                  data retention)
 ```
 
 Everything runs in one Worker on your account. Mail is stored either in a Durable Object per address with a combined index, which is what a fresh deploy uses, or in D1, one database for every address. D1 adds attachment search, the `filename:`, `cc:`, `has:pdf`, `has:image`, `has:link` and `is:scheduled` operators, and large bodies in R2, and its cron sends scheduled mail. On Durable Objects, each mailbox's own alarm sends its scheduled mail. D1 is where the project is heading; see [Moving to D1](docs/setup.md#moving-to-d1) and the roadmap.

@@ -40,33 +40,41 @@ test("the older one-provider file still reads", () => {
 });
 
 test("the view never carries a key, only its last four characters", () => {
-	const view = m.viewOf({ keys: { anthropic: "sk-ant-api03-0123456789abcd" } });
-	assert.deepEqual(view.keys.anthropic, { set: true, hint: "abcd" });
-	assert.deepEqual(view.keys.openai, { set: false, hint: "" });
-	assert.ok(!JSON.stringify(view).includes("sk-ant"));
+	const view = m.viewOf({ keys: { openrouter: "sk-or-v1-0123456789abcd" } });
+	assert.deepEqual(view.keys.openrouter, { set: true, hint: "abcd" });
+	assert.ok(!JSON.stringify(view).includes("sk-or"));
 });
 
-test("any id shaped right for its provider is accepted; a keyed provider needs its key", () => {
+test("any id shaped right for its provider is accepted; OpenRouter needs its key", () => {
 	const none = { keys: {} };
-	assert.deepEqual(m.mergeAgentModelConfig(none, { selected: { provider: "anthropic", id: "claude-fable-5-1" } }), { error: "Add your Anthropic key." });
-	const ok = m.mergeAgentModelConfig(none, { selected: { provider: "anthropic", id: "claude-anything-new" }, keys: { anthropic: " sk-ant-x " } });
-	assert.deepEqual(ok, { selected: { provider: "anthropic", id: "claude-anything-new" }, keys: { anthropic: "sk-ant-x" } });
+	assert.deepEqual(m.mergeAgentModelConfig(none, { selected: { provider: "openrouter", id: "anthropic/claude-opus-5.5" } }), { error: "Add your OpenRouter key." });
+	const ok = m.mergeAgentModelConfig(none, { selected: { provider: "openrouter", id: "anthropic/claude-anything-new" }, keys: { openrouter: " sk-or-x " } });
+	assert.deepEqual(ok, { selected: { provider: "openrouter", id: "anthropic/claude-anything-new" }, keys: { openrouter: "sk-or-x" } });
 	assert.equal(m.mergeAgentModelConfig(none, { selected: { provider: "workers-ai", id: "@cf/someone/brand-new" } }).selected.id, "@cf/someone/brand-new");
 	assert.match(m.mergeAgentModelConfig(none, { selected: { provider: "workers-ai", id: "gpt-6" } }).error, /Cloudflare model id/);
 	assert.match(m.mergeAgentModelConfig(none, { selected: { provider: "openrouter", id: "no slash" } }).error, /OpenRouter model id/);
 });
 
-test("keys are kept, replaced or removed per provider, and null goes back to the recommended model", () => {
-	const current = { selected: { provider: "openai", id: "gpt-6-astra" }, keys: { openai: "sk-old", xai: "xai-old" } };
-	assert.deepEqual(m.mergeAgentModelConfig(current, { keys: { xai: "" } }), { selected: current.selected, keys: { openai: "sk-old" } });
-	assert.deepEqual(m.mergeAgentModelConfig(current, { keys: { openai: "sk-new" } }).keys, { openai: "sk-new", xai: "xai-old" });
+test("direct provider connections are refused, and old ones are dropped on read", () => {
+	assert.deepEqual(s.PROVIDERS, ["workers-ai", "openrouter"]);
+	assert.deepEqual(m.mergeAgentModelConfig({ keys: {} }, { selected: { provider: "anthropic", id: "claude-fable-5-1" }, keys: { anthropic: "sk-ant-x" } }), { error: "Choose a provider." });
+	assert.deepEqual(m.mergeAgentModelConfig({ keys: {} }, { keys: { openai: "sk-x" } }), { keys: {} });
+	const old = m.parseAgentModelConfig({ selected: { provider: "openai", id: "gpt-6-astra" }, keys: { openai: "sk-1", openrouter: "sk-or-1" } });
+	assert.deepEqual(old, { keys: { openrouter: "sk-or-1" } });
+	assert.deepEqual(m.activeModel(old), s.RECOMMENDED_MODEL);
+});
+
+test("keys are kept, replaced or removed, and null goes back to the recommended model", () => {
+	const current = { selected: { provider: "openrouter", id: "anthropic/claude-sonnet-5.5" }, keys: { openrouter: "sk-or-old" } };
+	assert.deepEqual(m.mergeAgentModelConfig(current, { keys: { openrouter: "sk-or-new" } }).keys, { openrouter: "sk-or-new" });
 	assert.deepEqual(m.mergeAgentModelConfig(current, { selected: null }), { keys: current.keys });
-	assert.deepEqual(m.mergeAgentModelConfig(current, { keys: { openai: "" } }), { error: "Add your OpenAI key." });
+	assert.deepEqual(m.mergeAgentModelConfig(current, { keys: { openrouter: "" } }), { error: "Add your OpenRouter key." });
 });
 
 test("a picked model without its key runs the recommended one", () => {
-	assert.deepEqual(m.activeModel({ selected: { provider: "xai", id: "grok-4.7" }, keys: {} }), s.RECOMMENDED_MODEL);
-	assert.deepEqual(m.activeModel({ selected: { provider: "xai", id: "grok-4.7" }, keys: { xai: "k" } }), { provider: "xai", id: "grok-4.7" });
+	const pick = { provider: "openrouter", id: "x-ai/grok-4.7" };
+	assert.deepEqual(m.activeModel({ selected: pick, keys: {} }), s.RECOMMENDED_MODEL);
+	assert.deepEqual(m.activeModel({ selected: pick, keys: { openrouter: "k" } }), pick);
 });
 
 test("a Workers AI model Cloudflare stopped listing falls back to the recommended one", () => {
@@ -78,7 +86,7 @@ test("a Workers AI model Cloudflare stopped listing falls back to the recommende
 
 test("config round-trips through R2", async () => {
 	const env = { BUCKET: bucket() };
-	const config = { selected: { provider: "openai", id: "gpt-6-astra" }, keys: { openai: "sk-1" } };
+	const config = { selected: { provider: "openrouter", id: "openai/gpt-6-astra" }, keys: { openrouter: "sk-or-1" } };
 	await m.writeAgentModelConfig(env, config);
 	assert.deepEqual(await m.readAgentModelConfig(env), config);
 });
@@ -97,7 +105,7 @@ test("Cloudflare's catalog keeps text models and marks which call tools", () => 
 	]);
 });
 
-test("OpenRouter prices per token become per million, and direct providers borrow them", () => {
+test("OpenRouter prices per token become per million", () => {
 	const or = s.modelsFromOpenRouter([
 		{ id: "anthropic/claude-sonnet-5.5", name: "Anthropic: Claude Sonnet 5.5", context_length: 1000000, pricing: { prompt: "0.000002", completion: "0.00001" }, supported_parameters: ["tools"] },
 		{ id: "anthropic/claude-sonnet-5.5:batch", pricing: { prompt: "0.000001", completion: "0.000005" } },
@@ -105,20 +113,12 @@ test("OpenRouter prices per token become per million, and direct providers borro
 	]);
 	assert.deepEqual(or[0], { provider: "openrouter", id: "anthropic/claude-sonnet-5.5", name: "Claude Sonnet 5.5", context: 1000000, price: { input: 2, output: 10 }, tools: true });
 	assert.equal(or[2].tools, false);
-	const anthropic = s.directFromOpenRouter("anthropic", or);
-	assert.deepEqual(anthropic.map((x) => x.id), ["claude-sonnet-5-5"]);
-	const live = [{ provider: "anthropic", id: "claude-sonnet-5-5-20260928", name: "Claude Sonnet 5.5", context: null, price: null, tools: true }];
-	assert.deepEqual(s.enrich(live, anthropic)[0].price, { input: 2, output: 10 });
-	assert.deepEqual(s.directFromOpenRouter("openai", or).map((x) => x.id), ["gpt-6-luna"]);
 });
 
 test("typed ids go to the provider they look like, and names read well", () => {
 	assert.equal(s.guessProvider("@cf/meta/llama"), "workers-ai");
 	assert.equal(s.guessProvider("anthropic/claude-fable-5.1"), "openrouter");
-	assert.equal(s.guessProvider("claude-fable-5-1"), "anthropic");
-	assert.equal(s.guessProvider("grok-4.7"), "xai");
-	assert.equal(s.guessProvider("gpt-6-astra"), "openai");
-	assert.deepEqual(s.chatModelsOnly(["gpt-6-astra", "text-embedding-3-large", "whisper-1", "o5-mini", "gpt-image-2"]), ["gpt-6-astra", "o5-mini"]);
+	assert.equal(s.guessProvider("claude-fable-5-1"), "openrouter");
 	assert.equal(s.prettyName("@cf/deepseek-ai/deepseek-v4-pro-0813"), "DeepSeek V4 Pro 0813");
 	assert.equal(s.prettyName("@cf/openai/gpt-oss-20b"), "GPT OSS 20B");
 	assert.equal(s.makerOf({ provider: "openrouter", id: "x-ai/grok-4.7" }).label, "xAI");
@@ -160,8 +160,15 @@ test("every OpenRouter request asks for zero retention and no data collection", 
 	assert.deepEqual(sent.provider, { order: ["x"], zdr: true, data_collection: "deny" });
 });
 
-test("suggestions that need a key go through a zero retention provider", () => {
+test("every suggestion runs on Cloudflare or a zero retention provider", () => {
 	for (const pick of s.SUGGESTED_MODELS) {
 		if (pick.provider !== "workers-ai") assert.ok(s.PROVIDER_INFO[pick.provider].zdr, pick.id);
 	}
+});
+
+test("stored keys for providers that can't be connected are deleted on read", async () => {
+	const env = { BUCKET: bucket() };
+	env.BUCKET.store.set("config/agent-model.json", JSON.stringify({ selected: { provider: "anthropic", id: "claude-x" }, keys: { anthropic: "sk-ant-1", openrouter: "sk-or-1" } }));
+	assert.deepEqual(await m.readAgentModelConfig(env), { keys: { openrouter: "sk-or-1" } });
+	assert.ok(!env.BUCKET.store.get("config/agent-model.json").includes("sk-ant"));
 });

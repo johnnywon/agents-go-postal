@@ -1,16 +1,21 @@
 /**
  * The agent's model providers and catalogs, shared by the Worker and Settings.
  *
- * Every provider's full list is offered, and any model id can be typed in.
+ * Two providers only, both chosen because the agent reads private mail:
+ * Cloudflare Workers AI, built in and run in the deployment's own account, and
+ * OpenRouter held to zero data retention endpoints. Direct connections to
+ * model makers aren't offered, since their APIs keep traffic by default; their
+ * models are reached through OpenRouter's zero retention endpoints instead.
+ * Free models are refused everywhere.
  * SUGGESTED_MODELS is the short list shown first, one model per need, each
  * with the role it fills. `recommended` marks the default that deployments
  * follow until they pick something else.
  */
 
-export const PROVIDERS = ["workers-ai", "openrouter", "anthropic", "openai", "xai"] as const;
+export const PROVIDERS = ["workers-ai", "openrouter"] as const;
 export type ProviderId = (typeof PROVIDERS)[number];
 export type KeyedProvider = Exclude<ProviderId, "workers-ai">;
-export const KEYED_PROVIDERS: KeyedProvider[] = ["openrouter", "anthropic", "openai", "xai"];
+export const KEYED_PROVIDERS: KeyedProvider[] = ["openrouter"];
 
 export interface ProviderInfo {
 	id: ProviderId;
@@ -37,18 +42,6 @@ export const PROVIDER_INFO: Record<ProviderId, ProviderInfo> = {
 	openrouter: {
 		id: "openrouter", label: "OpenRouter", hue: 265, keyHint: "sk-or-…", keyUrl: "https://openrouter.ai/settings/keys", idExample: "maker/model", zdr: true,
 		data: "Zero data retention. Only endpoints that keep nothing are listed and used.",
-	},
-	anthropic: {
-		id: "anthropic", label: "Anthropic", hue: 35, keyHint: "sk-ant-…", keyUrl: "https://console.anthropic.com/settings/keys", idExample: "claude-…", zdr: false,
-		data: "Kept up to 30 days unless your org has a zero retention agreement.",
-	},
-	openai: {
-		id: "openai", label: "OpenAI", hue: 160, keyHint: "sk-…", keyUrl: "https://platform.openai.com/api-keys", idExample: "gpt-…", zdr: false,
-		data: "Kept up to 30 days unless your org is approved for zero retention.",
-	},
-	xai: {
-		id: "xai", label: "xAI", hue: 235, keyHint: "xai-…", keyUrl: "https://console.x.ai", idExample: "grok-…", zdr: false,
-		data: "Kept under xAI's API terms unless your team has zero retention.",
 	},
 };
 
@@ -108,18 +101,14 @@ export function sameModel(a: ModelRef, b: ModelRef): boolean {
 export function guessProvider(id: string): ProviderId {
 	const s = id.trim().toLowerCase();
 	if (/^@(cf|hf)\//.test(s)) return "workers-ai";
-	if (s.includes("/")) return "openrouter";
-	if (s.startsWith("claude")) return "anthropic";
-	if (s.startsWith("grok")) return "xai";
-	return "openai";
+	return "openrouter";
 }
 
 /** The shape check a model id must pass for its provider. Anything shaped right is allowed. */
 export function validModelId(provider: ProviderId, id: string): boolean {
 	if (!id || id.length > 200 || /\s/.test(id) || id.endsWith(":free")) return false;
 	if (provider === "workers-ai") return /^@(cf|hf)\/[\w.-]+\/[\w.:-]+$/.test(id);
-	if (provider === "openrouter") return /^[\w.-]+\/[\w.:~-]+$/.test(id);
-	return /^[\w.:-]+$/.test(id);
+	return /^[\w.-]+\/[\w.:~-]+$/.test(id);
 }
 
 const UPPER = new Set(["glm", "gpt", "oss", "fp8", "awq", "it", "ai"]);
@@ -155,9 +144,6 @@ const MAKERS: Record<string, { label: string; hue: number }> = {
 };
 
 export function makerOf(model: ModelRef): { label: string; hue: number } {
-	if (model.provider === "anthropic") return MAKERS.anthropic;
-	if (model.provider === "openai") return MAKERS.openai;
-	if (model.provider === "xai") return MAKERS.xai;
 	const parts = model.id.split("/");
 	const author = model.provider === "workers-ai" ? parts[1] ?? "" : parts[0] ?? "";
 	if (MAKERS[author]) return MAKERS[author];
@@ -266,44 +252,4 @@ export function modelsFromOpenRouter(entries: OpenRouterEntry[]): CatalogModel[]
 			tools: Array.isArray(e.supported_parameters) ? e.supported_parameters.includes("tools") : null,
 		};
 	});
-}
-
-/** Where each direct provider's models sit in OpenRouter's catalog. */
-const OPENROUTER_PREFIX: Partial<Record<ProviderId, string>> = { anthropic: "anthropic/", openai: "openai/", xai: "x-ai/" };
-
-/** "claude-sonnet-5.5", "claude-sonnet-5-5" and "claude-sonnet-5-5-20260928" all key as "claude-sonnet-5-5". */
-function matchKey(id: string): string {
-	return id.toLowerCase().replace(/\./g, "-").replace(/-(\d{8}|\d{4}-\d{2}-\d{2})$/, "");
-}
-
-/**
- * A direct provider's models as OpenRouter lists them, for prices and context,
- * and for showing the list before a key is added. Variants like ":batch" are left out.
- */
-export function directFromOpenRouter(provider: ProviderId, openrouter: CatalogModel[]): CatalogModel[] {
-	const prefix = OPENROUTER_PREFIX[provider];
-	if (!prefix) return [];
-	return openrouter
-		.filter((m) => m.id.startsWith(prefix) && !m.id.includes(":"))
-		.map((m) => {
-			const bare = m.id.slice(prefix.length);
-			return { ...m, provider, id: provider === "anthropic" ? bare.replace(/\./g, "-") : bare };
-		});
-}
-
-/** Fill in price and context for a direct provider's own list from OpenRouter's entries. */
-export function enrich(models: CatalogModel[], reference: CatalogModel[]): CatalogModel[] {
-	const byKey = new Map(reference.map((m) => [matchKey(m.id), m]));
-	return models.map((m) => {
-		const ref = byKey.get(matchKey(m.id));
-		if (!ref) return m;
-		return { ...m, context: m.context ?? ref.context, price: m.price ?? ref.price, tools: m.tools ?? ref.tools, name: m.name || ref.name };
-	});
-}
-
-/** OpenAI's /models lists embeddings, audio and image models too; the agent needs a chat model. */
-const NOT_CHAT = /embedding|tts|whisper|sora|dall-e|gpt-image|image|audio|realtime|transcribe|moderation|babbage|davinci|search/;
-
-export function chatModelsOnly(ids: string[]): string[] {
-	return ids.filter((id) => !NOT_CHAT.test(id));
 }
