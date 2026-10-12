@@ -913,6 +913,8 @@ html:has(.postal), html:has(.postal) body { background: var(--pg-base, #141518);
   .pg-toast { bottom: 16px; }
   .pg-modal-scrim { padding: 0; }
   .pg-modal, .pg-modal.is-settings { width: 100%; height: 100%; border: 0; }
+  .pg-modal-head { height: auto; min-height: 56px; padding-top: 8px; padding-bottom: 8px; }
+  .pg-modal-title span { white-space: normal; }
   .pg-settings { flex-direction: column; }
   .pg-setting:has(.pg-setting-field) { flex-wrap: wrap; }
   .pg-setting-field { width: 100%; }

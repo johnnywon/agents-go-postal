@@ -291,7 +291,7 @@ export function SettingsModal({ tab, onTab, prefs, setPrefs, addresses, identiti
 
 	return (
 		<Modal className="is-settings" label="Settings" onClose={onClose}>
-			<Head icon={<GearSixIcon size={16} />} title="Settings" sub="saved in this browser · per-address settings sync to each mailbox" onClose={onClose} />
+			<Head icon={<GearSixIcon size={16} />} title="Settings" sub="General is saved in this browser · everything else is saved to your deployment" onClose={onClose} />
 			<div className="pg-settings">
 				<div className="pg-tabs" role="tablist" aria-label="Settings sections">
 					{tabs.map((t) => (
