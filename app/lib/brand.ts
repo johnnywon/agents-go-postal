@@ -1,6 +1,6 @@
 import { useRouteLoaderData } from "react-router";
 
-export const DEFAULT_APP_NAME = "Agents Go Postal";
+export const DEFAULT_APP_NAME = "Open Mailroom";
 
 type RootData = { appName?: string } | undefined;
 type Match = { id: string; data?: unknown } | undefined;

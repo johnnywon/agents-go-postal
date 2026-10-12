@@ -1,10 +1,10 @@
 # Setup
 
-Everything needed to run Agents Go Postal on your own Cloudflare account. Back to the [README](../README.md).
+Everything needed to run Open Mailroom on your own Cloudflare account. Back to the [README](../README.md).
 
 ## Deploy with the button
 
-[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/johnnywon/agents-go-postal)
+[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/johnnywon/open-mailroom)
 
 The button copies this repo to your GitHub account, creates the R2 bucket and Durable Objects, builds and deploys. Its form asks for `DOMAINS` but has no field for `EMAIL_ADDRESSES`. It also saves the placeholder values from `.dev.vars.example` as the `POLICY_AUD` and `TEAM_DOMAIN` secrets, so every request returns the "Access must be configured" error until step 5 replaces them. Then:
 
@@ -19,7 +19,7 @@ Requirements: a domain on Cloudflare, R2, and Workers Paid for outbound email. T
 
 1. **Install and sign in.** `npm install`, then `npx wrangler login`.
 2. **Configure `wrangler.jsonc`.** Set `name`, `account_id`, `vars.APP_NAME`, `vars.DOMAINS`, and `vars.EMAIL_ADDRESSES`. Every address must belong to a domain in `DOMAINS`.
-3. **Create the R2 bucket** named in `r2_buckets`: `npx wrangler r2 bucket create agents-go-postal`
+3. **Create the R2 bucket** named in `r2_buckets`: `npx wrangler r2 bucket create open-mailroom`
 4. **Deploy.** `npm run build && npm run deploy`. `npm run deploy` only deploys, and refuses to run before a build. Until step 5 is done, every request returns an error asking for Access. To serve the app on your own hostname, uncomment `routes` in `wrangler.jsonc` and set the `pattern`, or add a custom domain under the Worker's Settings > Domains & Routes.
 5. **Turn on Cloudflare Access** for the Worker under Settings > Domains & Routes ([one-click Access](https://developers.cloudflare.com/changelog/post/2025-10-03-one-click-access-for-workers/)). Copy the values the modal shows into Worker secrets:
    ```sh
@@ -32,7 +32,7 @@ Requirements: a domain on Cloudflare, R2, and Workers Paid for outbound email. T
    npx wrangler@latest email routing enable example.com
    npx wrangler@latest email routing rules create example.com \
      --match-type literal --match-field to --match-value hello@example.com \
-     --action-type worker --action-value agents-go-postal
+     --action-type worker --action-value open-mailroom
    ```
    `email routing enable` adds and locks Cloudflare MX records at the root of the domain. If that domain already receives mail elsewhere, such as Google Workspace, use a subdomain instead: add it under Email Routing > Settings > Subdomains in the dashboard, since Wrangler only enables whole domains. Rules for subdomain addresses are created on the parent domain.
 7. **Enable Email Sending** so the Worker can send replies. Cloudflare adds the SPF, DKIM and DMARC records:
@@ -82,8 +82,8 @@ For two weeks after the switch, new inbound mail is also written to the old stor
 A deployment can keep its config and brand files outside this checkout, for example in a private repo that includes this one as a submodule. Build with:
 
 ```sh
-AGP_WRANGLER_CONFIG=../wrangler.jsonc AGP_PUBLIC_DIR=../public npm run build
+OMR_WRANGLER_CONFIG=../wrangler.jsonc OMR_PUBLIC_DIR=../public npm run build
 npx wrangler deploy
 ```
 
-`AGP_WRANGLER_CONFIG` replaces `wrangler.jsonc`. Paths inside it, such as `main`, are relative to that file. `AGP_PUBLIC_DIR` replaces `public/`, so it must hold the full set of brand files. `wrangler deploy` then uses the config the build wrote to `build/server/`.
+`OMR_WRANGLER_CONFIG` replaces `wrangler.jsonc`. Paths inside it, such as `main`, are relative to that file. `OMR_PUBLIC_DIR` replaces `public/`, so it must hold the full set of brand files. `wrangler deploy` then uses the config the build wrote to `build/server/`. `AGP_WRANGLER_CONFIG` and `AGP_PUBLIC_DIR` from before 0.4.0 still work.

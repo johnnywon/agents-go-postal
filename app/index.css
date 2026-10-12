@@ -64,13 +64,6 @@ button:disabled {
   opacity: 0.4;
 }
 
-.deck-brand-logo {
-  display: block;
-  width: 100%;
-  max-width: 194px;
-  height: auto;
-}
-
 .reader-content {
   overflow-y: auto;
   flex: 1;
@@ -111,9 +104,6 @@ button:disabled {
 /* ── Unified mail ───────────────────────────────────────────────────
    One list for every address. State is shown with fill, weight, a full
    1px ring or a glyph; never an edge bar. */
-
-/* The supplied logo is artwork: the global radius rule must not clip it. */
-.deck-brand-logo { border-radius: 0 !important; }
 
 /* Filter popovers */
 .mail-popover {

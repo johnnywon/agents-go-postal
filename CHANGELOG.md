@@ -2,6 +2,17 @@
 
 Versions follow [semantic versioning](https://semver.org). Before 1.0, a minor version can break things. Each entry names any new D1 migration: apply it with `wrangler d1 migrations apply <db> --remote` before you deploy that version.
 
+## 0.4.0
+
+- Agents Go Postal is now Open Mailroom. The repo moved to github.com/johnnywon/open-mailroom; the old URL redirects.
+- The logo is gone from the sidebar, the empty reader and error pages. The app icon stays. The link preview card shows the mark without a name.
+- Build env vars are `OMR_WRANGLER_CONFIG` and `OMR_PUBLIC_DIR`. `AGP_*` still work.
+- Browser prefs move from `agp-*` to `omr-*` keys on first load. Nothing to do.
+- The default worker and R2 bucket names in `wrangler.jsonc` are `open-mailroom`. An existing deployment keeps its own names; don't change them, or Cloudflare creates a new worker and an empty bucket.
+- README screenshots reshot, with light versions for readers on a light theme.
+
+No D1 migration.
+
 ## 0.3.0
 
 - Settings > Model & key is rewritten. The agent runs on Cloudflare (Workers AI) in your own account, or on OpenRouter held to zero data retention; nothing else can be connected. A notice at the top of the tab says why: the agent reads your mail, so a model that keeps or trains on it is a security risk. Each provider's line says what its own policy states and links to it; Cloudflare's says it makes no zero retention promise. A search-interpret log line no longer records the model's reply text. Catalog reads time out after 10 s and show an error instead of leaving the tab loading.

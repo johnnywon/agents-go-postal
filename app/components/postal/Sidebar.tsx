@@ -264,7 +264,6 @@ export function Sidebar(props: SidebarProps) {
 				<div style={{ flex: 1, minHeight: 12 }} />
 			</div>
 			<div className="pg-nav-foot">
-				<img className="deck-brand-logo pg-watermark" src="/brand/watermark.svg" alt="" aria-hidden="true" />
 				<button type="button" className="pg-foot-btn" onClick={props.onMcp} title="MCP server · connect outside agents">
 					<PlugsConnectedIcon size={14} />
 					<span>MCP</span>

@@ -161,7 +161,7 @@ export function languageModel(env: Env, ref: ModelRef, key?: string): LanguageMo
 	switch (ref.provider) {
 		case "openrouter":
 			return createOpenAICompatible({
-				name: "openrouter", baseURL: OPENROUTER_BASE, apiKey: key, headers: { "X-Title": "Agents Go Postal" }, fetch: zeroRetentionFetch,
+				name: "openrouter", baseURL: OPENROUTER_BASE, apiKey: key, headers: { "X-Title": "Open Mailroom" }, fetch: zeroRetentionFetch,
 			}).chatModel(ref.id);
 		default:
 			return createWorkersAI({ binding: env.AI })(ref.id as Parameters<ReturnType<typeof createWorkersAI>>[0]);

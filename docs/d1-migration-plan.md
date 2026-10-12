@@ -136,7 +136,7 @@ Each address keeps its own folders, threads, rate limit (now `WHERE mailbox_id =
 
 ```jsonc
 "d1_databases": [
-	{ "binding": "DB", "database_name": "agents-go-postal", "database_id": "<set by deploy>", "migrations_dir": "migrations" }
+	{ "binding": "DB", "database_name": "open-mailroom", "database_id": "<set by deploy>", "migrations_dir": "migrations" }
 ],
 "triggers": { "crons": ["* * * * *"] }
 ```

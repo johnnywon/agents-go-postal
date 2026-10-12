@@ -1,6 +1,6 @@
 {
 	"$schema": "node_modules/wrangler/config-schema.json",
-	"name": "agents-go-postal",
+	"name": "open-mailroom",
 	// Set to your Cloudflare account ID, or remove to have wrangler ask.
 	// "account_id": "<your-account-id>",
 	"compatibility_date": "2025-11-28",
@@ -12,8 +12,8 @@
 		"nodejs_compat"
 	],
 	"vars": {
-		// Display name in the header, page titles and status bar. Logo and icons live in public/brand/.
-		"APP_NAME": "Agents Go Postal",
+		// Display name in page titles. Icons and the link preview card live in public/brand/.
+		"APP_NAME": "Open Mailroom",
 		// Production deploys must also define POLICY_AUD and TEAM_DOMAIN.
 		// TEAM_DOMAIN may be the base Access URL or the full /cdn-cgi/access/certs URL.
 		// The worker now fails closed outside local development if Access is not configured.
@@ -38,8 +38,8 @@
 	"r2_buckets": [
 		{
 			"binding": "BUCKET",
-			"bucket_name": "agents-go-postal",
-			"preview_bucket_name": "agents-go-postal"
+			"bucket_name": "open-mailroom",
+			"preview_bucket_name": "open-mailroom"
 		}
 	],
 	"ai": {

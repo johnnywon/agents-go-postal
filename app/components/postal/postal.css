@@ -237,7 +237,7 @@ html:has(.postal), html:has(.postal) body { background: var(--pg-base, #141518);
 .pg-nav-scroll {
   flex: 1; min-height: 0; overflow-y: auto; scrollbar-gutter: stable;
   display: grid; grid-template-columns: minmax(0, 1fr); align-content: start; grid-auto-rows: max-content;
-  padding: 10px 1px 76px 8px; gap: 2px;
+  padding: 10px 1px 10px 8px; gap: 2px;
 }
 .pg-nav-item {
   display: flex; align-items: center; gap: 9px; height: 30px; padding: 0 9px; width: 100%;
@@ -290,15 +290,6 @@ html:has(.postal), html:has(.postal) body { background: var(--pg-base, #141518);
 .pg-nav-new { display: flex; align-items: center; gap: 9px; height: 28px; padding: 0 9px 0 22px; color: var(--pg-text-8); font-size: 12px; width: 100%; text-align: left; }
 .pg-nav-new:hover { background: var(--pg-hover); color: var(--pg-text-4); }
 .pg-nav-new-input { margin: 2px 0 2px 13px; height: 28px; padding: 0 9px; width: calc(100% - 13px); border: 1px solid var(--pg-line-2); background: var(--pg-input); color: var(--pg-text-2); outline: none; font-size: 12px; }
-/* The logo is a flat, faint monochrome watermark, painted behind the expanded nav
-   just above its foot. It takes no space; the nav list's bottom padding lets its last item scroll clear of it. It is never clipped. */
-.pg-nav { position: relative; z-index: 0; }
-.pg-nav-foot { position: relative; }
-.postal .pg-watermark {
-  position: absolute; left: 14px; bottom: calc(100% + 10px); z-index: -1; display: block; height: 44px; width: auto; max-width: none; opacity: .16;
-  pointer-events: none; user-select: none;
-}
-.postal[data-theme="light"] .pg-watermark { opacity: .24; }
 .pg-nav-foot { flex: none; display: flex; align-items: center; gap: 6px; padding: 8px; border-top: 1px solid var(--pg-line); }
 .pg-foot-btn {
   display: flex; align-items: center; gap: 6px; height: 26px; padding: 0 9px; white-space: nowrap;
@@ -577,13 +568,9 @@ html:has(.postal), html:has(.postal) body { background: var(--pg-base, #141518);
 }
 .pg-reply-bar:hover { border-color: var(--pg-line-4); background: var(--pg-input); }
 .pg-idle { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; color: var(--pg-text-6); }
-.pg-idle img { width: 160px; height: auto; opacity: .35; }
-.postal[data-theme="light"] .pg-idle img { opacity: .45; }
-/* Error pages (404, crashes) share the empty reader's look: watermark, one line, a way back. */
+/* Error pages (404, crashes) share the empty reader's look: one line, a way back. */
 .pg-fault { min-height: 100vh; min-height: 100dvh; display: flex; background: var(--pg-base); color: var(--pg-text-3); font-family: var(--pg-font); }
 .pg-fault-main { margin: auto; width: 100%; max-width: 440px; padding: 48px 24px; display: flex; flex-direction: column; align-items: center; text-align: center; gap: 10px; }
-.pg-fault .pg-fault-logo { width: 112px; height: auto; opacity: .16; margin-top: 36px; }
-.postal[data-theme="light"] .pg-fault-logo { opacity: .24; }
 .pg-fault-code { margin: 0; font: 500 var(--pg-t-11) var(--pg-mono); letter-spacing: .08em; color: var(--pg-text-7); }
 .pg-fault h1 { margin: 0; font-size: var(--pg-t-22); font-weight: 600; color: var(--pg-text-1); }
 .pg-fault-text { margin: 0; font-size: var(--pg-t-13); line-height: 1.5; color: var(--pg-text-6); overflow-wrap: anywhere; }

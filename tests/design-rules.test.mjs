@@ -1013,24 +1013,6 @@ test("every ALLOWLIST entry still suppresses a hit", () => {
 	for (const entry of ALLOWLIST) assert.ok(entry.split(":")[1] in RULES, `${entry} names an unknown rule`);
 });
 
-// The supplied logo is artwork: no rule may round, clip or mask it.
-test("the logo image is never clipped", () => {
-	const css = readFileSync(join(ROOT, "app/index.css"), "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
-	const blocks = [...css.matchAll(/([^{}]+)\{([^{}]*)\}/g)].filter(([, selector]) => selector.includes("deck-brand-logo"));
-	assert.ok(blocks.length > 0, "no .deck-brand-logo rule found");
-	assert.ok(
-		blocks.some(([, , body]) => /border-radius:\s*0\s*!important/.test(body)),
-		".deck-brand-logo must opt out of the global radius rule with border-radius: 0 !important",
-	);
-	for (const [, selector, body] of blocks) {
-		for (const decl of body.split(";")) {
-			const [prop, value = ""] = decl.split(":").map((s) => s.trim());
-			if (prop === "border-radius") assert.match(value, /^0(px)?(\s*!important)?$/, `${selector.trim()}: ${decl.trim()}`);
-			assert.ok(!/^(clip-path|mask|mask-image|-webkit-mask|-webkit-mask-image)$/.test(prop), `${selector.trim()}: ${decl.trim()}`);
-		}
-	}
-});
-
 // ---------------------------------------------------------------------------------------------------------
 // Postal view: one 6px radius with named exceptions, shapes from clip-path only
 // ---------------------------------------------------------------------------------------------------------
@@ -1107,14 +1089,3 @@ test("postal domain shapes come from clip-path on .pg-shape-* only, and none is 
 	for (const shape of ["diamond", "triangle", "hexagon"]) assert.ok(shapes.has(`.pg-shape-${shape}`), `missing .pg-shape-${shape}`);
 });
 
-test("the postal logo watermark is never clipped, masked or rounded", () => {
-	for (const { selector, decls } of cssBlocks(POSTAL_CSS)) {
-		if (!/pg-watermark/.test(selector)) continue;
-		for (const [prop, value] of decls) {
-			assert.ok(!/^(clip-path|mask|mask-image|-webkit-mask|-webkit-mask-image)$/.test(prop), `${selector}: ${prop}`);
-			if (prop === "border-radius") assert.match(value, /^0/);
-		}
-	}
-	const sidebar = readFileSync(join(ROOT, "app/components/postal/Sidebar.tsx"), "utf8");
-	assert.match(sidebar, /className="deck-brand-logo pg-watermark"/, "the watermark keeps the logo's radius opt-out class");
-});

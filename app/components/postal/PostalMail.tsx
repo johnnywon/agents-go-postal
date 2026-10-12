@@ -29,15 +29,13 @@ import { type SettingsTab, settingsTabFrom } from "./settings-tabs";
 import { conversations, HOME, labelOf, type MailAction, parsePostalFilter, RESTORABLE, scoped, scopeOf, searchErrors, searchTerms, withSearch } from "./model";
 import { withOrder } from "./search-window";
 import { useDeleteSavedSearch, useSavedSearches, useSaveSearch, useSuggest } from "~/queries/search";
-import { readJson, useLayout, usePrefs, useResolvedTheme, useWidth, writeJson } from "./prefs";
+import { readJson, SEEN_SHORTCUTS_KEY, useLayout, usePrefs, useResolvedTheme, useWidth, writeJson } from "./prefs";
 import { Reader } from "./Reader";
 import { SearchBar, type FilterSuggestion } from "./SearchBar";
 import { NavRail, Sidebar } from "./Sidebar";
 import { isMac, ShortcutsProvider } from "./shortcuts";
 import { TooltipLayer } from "./Tooltip";
 
-/** The shortcut keys this browser last showed, so a change made elsewhere gets a toast once. */
-const SEEN_SHORTCUTS_KEY = "agp-shortcuts-seen";
 const EDITABLE = "input, textarea, select, [contenteditable=''], [contenteditable='true']";
 const ICON = 15;
 
