@@ -624,21 +624,24 @@ async function streamToArrayBuffer(stream: ReadableStream, streamSize: number) {
 	return result;
 }
 
-async function receiveEmail(event: { to: string; raw: ReadableStream; rawSize: number }, env: Env, ctx: ExecutionContext) {
-	const rawEmail = await streamToArrayBuffer(event.raw, event.rawSize);
-	const parsedEmail = await new PostalMime().parse(rawEmail);
-
+async function receiveEmail(event: { to: string; raw: ReadableStream; rawSize: number; setReject(reason: string): void }, env: Env, ctx: ExecutionContext) {
 	const allowedAddresses = ((env.EMAIL_ADDRESSES ?? []) as string[]).map((a) => a.toLowerCase());
-	const allRecipients = (parsedEmail.to || []).map((t) => t.address?.toLowerCase()).filter(Boolean) as string[];
-	const ccRecipients = (parsedEmail.cc || []).map((e) => e.address?.toLowerCase()).filter(Boolean) as string[];
-	const bccRecipients = (parsedEmail.bcc || []).map((e) => e.address?.toLowerCase()).filter(Boolean) as string[];
-
 	const mailboxId = event.to?.toLowerCase();
 	if (!mailboxId) throw new Error("received email with no envelope recipient");
 	if (allowedAddresses.length > 0 && !allowedAddresses.includes(mailboxId)) {
-		console.log(`Ignoring email: envelope recipient does not match EMAIL_ADDRESSES.`);
+		event.setReject("Unknown recipient");
 		return;
 	}
+	if (allowedAddresses.length === 0 && !(await mailStore(env).mailboxes.exists(mailboxId))) {
+		event.setReject("Unknown recipient");
+		return;
+	}
+
+	const rawEmail = await streamToArrayBuffer(event.raw, event.rawSize);
+	const parsedEmail = await new PostalMime().parse(rawEmail);
+	const allRecipients = (parsedEmail.to || []).map((t) => t.address?.toLowerCase()).filter(Boolean) as string[];
+	const ccRecipients = (parsedEmail.cc || []).map((e) => e.address?.toLowerCase()).filter(Boolean) as string[];
+	const bccRecipients = (parsedEmail.bcc || []).map((e) => e.address?.toLowerCase()).filter(Boolean) as string[];
 
 	const messageId = crypto.randomUUID();
 	if (!(await mailStore(env).mailboxes.exists(mailboxId))) {
