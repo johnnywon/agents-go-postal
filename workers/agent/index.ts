@@ -361,7 +361,7 @@ function createEmailTools(env: Env, bound: string | null, { crossAddress = false
 			? {
 				send_draft: defineTool({
 					description:
-						"Send a saved draft now and remove it from Drafts. A reply draft is sent in its thread. Sending the same draft twice sends it once.",
+						"Send a saved draft now and remove it from Drafts. A reply draft is sent in its thread. A draft that was already sent returns \"Draft not found\" and is not sent again.",
 					parameters: z.object({
 						...where("The address the draft is in. It is sent from that address."),
 						draftId: z.string().describe("The ID of the draft to send"),

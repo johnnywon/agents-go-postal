@@ -69,7 +69,7 @@ function mcpResult(result: Record<string, unknown>) {
  *
  * Clients (ProtoAgent, Claude Code, Cursor, etc.) connect to the
  * `/mcp` endpoint and can list mailboxes, read/search emails,
- * draft replies, and manage folders. Sending happens from the UI.
+ * draft and send mail, and manage labels and folders.
  */
 export class EmailMCP extends McpAgent<Env> {
 	server = new McpServer({
@@ -270,7 +270,7 @@ export class EmailMCP extends McpAgent<Env> {
 		// ── update_draft ───────────────────────────────────────────
 		this.server.tool(
 			"update_draft",
-			"Update an existing draft email's content.",
+			"Update an existing draft. The draft is replaced: the result's newDraftId is its ID from now on, and the old draftId no longer works.",
 			{
 				mailboxId: z.string().describe("The mailbox email address"),
 				draftId: z.string().describe("The ID of the draft to update"),
@@ -306,7 +306,7 @@ export class EmailMCP extends McpAgent<Env> {
 		// ── send_draft ─────────────────────────────────────────────
 		this.server.tool(
 			"send_draft",
-			"Send a saved draft now and remove it from Drafts. A reply draft is sent in its thread. Sending the same draft twice sends it once.",
+			"Send a saved draft now and remove it from Drafts. A reply draft is sent in its thread. A draft that was already sent returns \"Draft not found\" and is not sent again.",
 			{
 				mailboxId: z.string().describe("The mailbox the draft is in. It is sent from that address."),
 				draftId: z.string().describe("The ID of the draft to send"),
