@@ -18,7 +18,8 @@ import { Folders } from "../shared/folders";
 import type { Env } from "./types";
 import { interpretSearch, MAX_REQUEST_LENGTH } from "./lib/search-interpret";
 import { readPrefs, writePrefs } from "./lib/prefs";
-import { mergeAgentModelConfig, quickModel, OPENROUTER_BASE, openRouterModel, readAgentModelConfig, viewOf, writeAgentModelConfig } from "./lib/agent-model";
+import { mergeAgentModelConfig, quickModel, OPENROUTER_BASE, openRouterModel, readAgentModelConfig, viewOf, workersAiCatalog, WORKERS_AI_MODEL, writeAgentModelConfig } from "./lib/agent-model";
+import { CATALOG_SNAPSHOT_DATE, SUGGESTED_WORKERS_AI_MODELS } from "../shared/workers-ai-models";
 import { requireMailbox, type MailboxContext } from "./lib/mailbox";
 import { csrf } from "./lib/csrf";
 import { decodeCursor, InvalidFilterError } from "./lib/mail-index-sql";
@@ -149,12 +150,19 @@ const AgentModelBody = z.object({
 	provider: z.enum(["workers-ai", "openrouter"]).optional(),
 	model: z.string().max(200).optional(),
 	apiKey: z.string().max(500).optional(),
+	workersAiModel: z.string().max(200).optional(),
 });
 
 app.put("/api/v1/agent-model", async (c) => {
 	const body = AgentModelBody.parse(await c.req.json());
 	const next = mergeAgentModelConfig(await readAgentModelConfig(c.env), body);
 	if ("error" in next) return c.json({ error: next.error }, 400);
+	if (body.workersAiModel && next.workersAiModel) {
+		const catalog = await workersAiCatalog(c.env);
+		if (catalog && !catalog.some((m) => m.id === next.workersAiModel)) {
+			return c.json({ error: "Cloudflare doesn't list that model as able to call tools." }, 400);
+		}
+	}
 	await writeAgentModelConfig(c.env, next);
 	return c.json(viewOf(next));
 });
@@ -176,6 +184,21 @@ app.post("/api/v1/agent-model/test", async (c) => {
 	} catch (e) {
 		return c.json({ ok: false, error: (e as Error).message.slice(0, 300) }, 502);
 	}
+});
+
+/**
+ * Workers AI models that can call tools, with prices and context sizes from
+ * Cloudflare's catalog. When the catalog can't be read, the suggested models
+ * come back with the prices saved in shared/workers-ai-models.ts and live: false.
+ */
+app.get("/api/v1/agent-model/workers-ai-models", async (c) => {
+	const catalog = await workersAiCatalog(c.env);
+	return c.json({
+		recommended: WORKERS_AI_MODEL,
+		live: !!catalog,
+		snapshotDate: CATALOG_SNAPSHOT_DATE,
+		models: catalog ?? SUGGESTED_WORKERS_AI_MODELS,
+	});
 });
 
 /** OpenRouter models that can call tools, for the model picker. */

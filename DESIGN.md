@@ -64,7 +64,7 @@ Mail renders in the sandboxed iframe. Plain mail (no tables, images, colours or 
 
 ### Settings
 
-Settings is a dialog over the mail, with tabs: General, Addresses, Signatures, Labels, Agent, Model & key, Storage. The open tab is in the URL (`?settings=labels`), so a link opens it and Back closes it; `/settings` and `/settings/index` redirect to the Labels and Storage tabs. Most tabs save with Save changes. Labels and Storage act at once and say so. Tables (`.pg-table`) use mono headers with no fill, right-aligned numbers at 13px with zeros dimmed, addresses in the short `AddressText` form, and a rose tint for rows that disagree. Below 600px the dialog fills the screen and the tabs scroll sideways.
+Settings is a dialog over the mail, with tabs: General, Addresses, Signatures, Labels, Agent, Model & key, Storage. The open tab is in the URL (`?settings=labels`), so a link opens it and Back closes it; `/settings` and `/settings/index` redirect to the Labels and Storage tabs. Most tabs save with Save changes. Labels and Storage act at once and say so. Tables (`.pg-table`) use mono headers with no fill, right-aligned numbers at 13px with zeros dimmed, addresses in the short `AddressText` form, and a rose tint for rows that disagree. Model & key lists Workers AI models as a radio list (`.pg-model-row`): name, mono id and a one-line note, then context and price columns; the recommended model carries a green tag, and below 640px the numbers drop under the name with their labels. Below 600px the dialog fills the screen and the tabs scroll sideways.
 
 ### Error pages
 

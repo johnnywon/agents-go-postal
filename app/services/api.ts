@@ -5,6 +5,7 @@
 import type { BulkAction } from "~/lib/bulk-optimistic";
 import type { Email, Mailbox } from "~/types";
 import type { Prefs } from "shared/prefs";
+import type { WorkersAiModel } from "shared/workers-ai-models";
 
 const REQUEST_TIMEOUT_MS = 30_000;
 
@@ -284,7 +285,16 @@ export interface AgentModelView {
 	model: string;
 	keySet: boolean;
 	keyHint: string;
+	workersAiModel: string;
 	defaultModel: string;
+}
+
+export interface WorkersAiModelList {
+	recommended: string;
+	/** False when Cloudflare's catalog couldn't be read and the saved prices are shown. */
+	live: boolean;
+	snapshotDate: string;
+	models: WorkersAiModel[];
 }
 
 // ---------- API client ----------
@@ -298,10 +308,11 @@ const api = {
 	getPrefs: () => get<{ prefs: Prefs; saved: boolean }>("/api/v1/prefs"),
 	savePrefs: (prefs: Partial<Prefs>) => put<{ prefs: Prefs; saved: true }>("/api/v1/prefs", prefs),
 	getAgentModel: () => get<AgentModelView>("/api/v1/agent-model"),
-	updateAgentModel: (body: { provider?: AgentProvider; model?: string; apiKey?: string }) =>
+	updateAgentModel: (body: { provider?: AgentProvider; model?: string; apiKey?: string; workersAiModel?: string }) =>
 		put<AgentModelView>("/api/v1/agent-model", body),
 	testAgentModel: (body: { model?: string; apiKey?: string }) =>
 		post<{ ok: boolean; reply?: string; error?: string }>("/api/v1/agent-model/test", body),
+	listWorkersAiModels: () => get<WorkersAiModelList>("/api/v1/agent-model/workers-ai-models"),
 	listAgentModels: () => get<{ models: { id: string; name: string }[] }>("/api/v1/agent-model/models"),
 
 	// Mailboxes

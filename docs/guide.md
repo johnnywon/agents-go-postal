@@ -63,7 +63,9 @@ On D1 storage ([Moving to D1](setup.md#moving-to-d1)), a one-minute cron sends s
 
 ## Agent model
 
-The agent runs on Workers AI (`@cf/moonshotai/kimi-k2.5`) by default. To use OpenRouter instead, open Settings, then Model & key, choose OpenRouter, paste an API key and pick a model. Only models that can call tools are listed. Test sends one short prompt to check the key. The chat panel, "Draft reply" and auto-draft then use that model and bill your OpenRouter account. The prompt-injection check and the draft cleanup on incoming mail stay on Workers AI.
+The agent runs on Workers AI. Settings, then Model & key, lists the models Cloudflare offers that can call tools, with each one's context size (how many tokens it reads at once) and price per million input and output tokens, read live from Cloudflare's catalog. Five are suggested in [`shared/workers-ai-models.ts`](../shared/workers-ai-models.ts), and one is recommended: `@cf/moonshotai/kimi-k2.6`. Until you pick another, the agent follows the recommended model, so a new default reaches you with an update. If Cloudflare stops listing the model you picked, the agent uses the recommended one and Settings says so. Workers AI bills your Cloudflare account; no key is needed.
+
+To use OpenRouter instead, open Settings, then Model & key, choose OpenRouter, paste an API key and pick a model. Only models that can call tools are listed. Test sends one short prompt to check the key. The chat panel, "Draft reply" and auto-draft then use that model and bill your OpenRouter account. The prompt-injection check and the draft cleanup on incoming mail stay on Workers AI.
 
 The key is stored in R2 at `config/agent-model.json`, which no route serves. The API returns only its last four characters. Anyone who can open the app can replace or remove it, so keep the app behind Access.
 

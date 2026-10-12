@@ -10,7 +10,8 @@ import { AgentIcon } from "./AgentIcon";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 import { queryKeys } from "~/queries/keys";
-import api, { type AgentProvider } from "~/services/api";
+import api, { type AgentProvider, type WorkersAiModelList } from "~/services/api";
+import type { WorkersAiModel } from "shared/workers-ai-models";
 import { type AddressInfo, textToParagraphs } from "./compose";
 import { Editor } from "./Editor";
 import { htmlToPlainText } from "~/lib/utils";
@@ -107,23 +108,125 @@ function useAgentModelDraft() {
 	const [model, setModel] = useState<string | null>(null);
 	const [key, setKey] = useState("");
 	const [removeKey, setRemoveKey] = useState(false);
+	const [workersAiModel, setWorkersAiModel] = useState<string | null>(null);
 	const current = {
 		provider: provider ?? stored?.provider ?? "workers-ai",
 		model: model ?? stored?.model ?? "",
+		workersAiModel: workersAiModel ?? stored?.workersAiModel ?? "",
 	};
-	const dirty = !!stored && (current.provider !== stored.provider || current.model.trim() !== stored.model || key.trim() !== "" || removeKey);
+	const dirty = !!stored && (
+		current.provider !== stored.provider || current.model.trim() !== stored.model || key.trim() !== "" || removeKey
+		|| current.workersAiModel !== stored.workersAiModel
+	);
 	const save = async () => {
 		const view = await api.updateAgentModel({
 			provider: current.provider,
 			model: current.model.trim(),
 			apiKey: removeKey ? "" : key.trim() || undefined,
+			workersAiModel: current.workersAiModel,
 		});
 		queryClient.setQueryData(["agent-model"], view);
 	};
-	return { stored, ...current, key, removeKey, dirty, save, setProvider, setModel, setKey, setRemoveKey };
+	return { stored, ...current, key, removeKey, dirty, save, setProvider, setModel, setKey, setRemoveKey, setWorkersAiModel };
 }
 
 type AgentModelDraft = ReturnType<typeof useAgentModelDraft>;
+
+function useWorkersAiModels(enabled = true) {
+	return useQuery({ queryKey: ["agent-model", "workers-ai"], queryFn: api.listWorkersAiModels, enabled, staleTime: 3_600_000 });
+}
+
+/** The display name of a Workers AI model id, from the list when it's there. */
+function workersAiName(list: WorkersAiModelList | undefined, id: string): string {
+	return list?.models.find((m) => m.id === id)?.name ?? id.split("/").pop() ?? id;
+}
+
+function formatContext(tokens: number | null): string {
+	if (!tokens) return "–";
+	return tokens >= 1_000_000 ? `${Math.round(tokens / 1_000_000)}M` : `${Math.round(tokens / 1000)}K`;
+}
+
+function formatPrice(usd: number | undefined): string {
+	return usd === undefined ? "–" : `$${usd.toFixed(2)}`;
+}
+
+function WorkersAiRow({ model, selected, recommended, onSelect }: { model: WorkersAiModel; selected: boolean; recommended: boolean; onSelect: () => void }) {
+	return (
+		<button type="button" role="radio" aria-checked={selected} className="pg-model-row" onClick={onSelect}>
+			<span className="pg-model-check" aria-hidden="true">{selected && <CheckIcon size={14} weight="bold" />}</span>
+			<span className="pg-model-name">
+				<span className="pg-model-title">{model.name}{recommended && <span className="pg-tag is-rec">Recommended</span>}</span>
+				<code>{model.id}</code>
+				{model.note && <span className="pg-model-note">{model.note}</span>}
+			</span>
+			<span className="pg-model-num" data-label="Context">{formatContext(model.context)}</span>
+			<span className="pg-model-num" data-label="Input">{formatPrice(model.price?.input)}</span>
+			<span className="pg-model-num" data-label="Output">{formatPrice(model.price?.output)}</span>
+		</button>
+	);
+}
+
+function WorkersAiPicker({ draft }: { draft: AgentModelDraft }) {
+	const { data: list, isLoading } = useWorkersAiModels();
+	const [showAll, setShowAll] = useState(false);
+	if (isLoading || !list) return <p className="pg-table-note">Loading Cloudflare's model list…</p>;
+
+	const recommended = list.recommended;
+	const saved = draft.workersAiModel;
+	const selected = saved || recommended;
+	const savedMissing = !!saved && list.live && !list.models.some((m) => m.id === saved);
+	const suggested = list.models.filter((m) => m.suggested);
+	const others = list.models.filter((m) => !m.suggested);
+	// A pick from the long list stays visible when the list is folded.
+	const visible = showAll ? list.models : [...suggested, ...others.filter((m) => m.id === selected)];
+	const select = (id: string) => draft.setWorkersAiModel(id === recommended ? "" : id);
+
+	return (
+		<div className="pg-models">
+			<div className="pg-models-head">
+				<b>Agent model</b>
+				<span>Price per million tokens</span>
+			</div>
+			{savedMissing && (
+				<p className="pg-models-warn">
+					Cloudflare no longer lists <code>{saved}</code>. The agent is using {workersAiName(list, recommended)} until you choose another model.
+				</p>
+			)}
+			<div className="pg-models-list" role="radiogroup" aria-label="Workers AI model">
+				<div className="pg-model-row is-head" aria-hidden="true">
+					<span />
+					<span>Model</span>
+					<span className="pg-model-num">Context</span>
+					<span className="pg-model-num">Input</span>
+					<span className="pg-model-num">Output</span>
+				</div>
+				{visible.map((m) => (
+					<WorkersAiRow key={m.id} model={m} selected={m.id === selected} recommended={m.id === recommended} onSelect={() => select(m.id)} />
+				))}
+			</div>
+			{others.length > 0 && (
+				<button type="button" className="pg-btn pg-btn-sm pg-btn-quiet pg-models-more" onClick={() => setShowAll(!showAll)}>
+					{showAll ? "Show suggested models only" : `Show all ${list.models.length} models that can call tools`}
+				</button>
+			)}
+			<div className="pg-models-how">
+				<b>How this works</b>
+				<p>
+					The agent panel, Draft reply and auto-draft run on this model through the Worker's <code>AI</code> binding, billed to your Cloudflare account.
+					Context is how many tokens the model reads at once; a long thread with attachments can use 50K or more.
+					Only models that can call tools are listed, because the agent reads, labels and drafts through tools.
+					{list.live
+						? " Prices and context sizes come from Cloudflare's catalog; a dash means Cloudflare lists none."
+						: ` Cloudflare's catalog couldn't be read, so these are the suggested models with prices from ${list.snapshotDate}.`}
+				</p>
+				<p>
+					The prompt-injection check on incoming mail and Turn into a search always run on Workers AI. If Cloudflare retires the model you chose, the agent switches to the recommended one.
+					The suggested list is in <code>shared/workers-ai-models.ts</code>.
+				</p>
+			</div>
+		</div>
+	);
+}
 
 function AgentModelSection({ draft }: { draft: AgentModelDraft }) {
 	const openrouter = draft.provider === "openrouter";
@@ -148,7 +251,7 @@ function AgentModelSection({ draft }: { draft: AgentModelDraft }) {
 				title="Model"
 				sub={openrouter
 					? "Chat and auto-draft run on OpenRouter and bill your OpenRouter account. Safety checks on incoming mail stay on Workers AI."
-					: <>Workers AI, <span className="pg-mono">{draft.stored?.defaultModel ?? "default"}</span>. No key needed.</>}
+					: "Workers AI runs on your Cloudflare account. No key needed."}
 			>
 				<Segmented<AgentProvider>
 					label="Agent model provider"
@@ -157,6 +260,7 @@ function AgentModelSection({ draft }: { draft: AgentModelDraft }) {
 					options={[{ value: "workers-ai", label: "Workers AI" }, { value: "openrouter", label: "OpenRouter" }]}
 				/>
 			</Setting>
+			{!openrouter && <WorkersAiPicker draft={draft} />}
 			{openrouter && (
 				<>
 					<Setting
@@ -237,6 +341,7 @@ export function SettingsModal({ tab, onTab, prefs, setPrefs, addresses, identiti
 	const [error, setError] = useState<string | null>(null);
 	const queryClient = useQueryClient();
 	const agentModel = useAgentModelDraft();
+	const { data: workersAi } = useWorkersAiModels(tab === "agent");
 
 	const dirty = JSON.stringify(draft) !== JSON.stringify(prefs)
 		|| addresses.some((a) => (names[a] ?? "") !== (initialNames[a] ?? ""))
@@ -400,7 +505,9 @@ export function SettingsModal({ tab, onTab, prefs, setPrefs, addresses, identiti
 								placeholder="You are an email assistant that helps manage this inbox. You read emails, draft replies, and help organize conversations. Write like a real person. Short, direct, flowing prose. Plain text only. (Leave empty to use the built-in default prompt)"
 							/>
 							<div style={{ fontSize: 12, color: "var(--pg-text-6)", padding: "6px 0 4px" }}>Sent as the system message for every address. Controls tone, style and behaviour rules.</div>
-							<Setting title="Model" sub={agentModel.stored?.provider === "openrouter" ? `OpenRouter, ${agentModel.stored.model}` : "Workers AI (default)"}>
+							<Setting title="Model" sub={agentModel.stored?.provider === "openrouter"
+								? `OpenRouter, ${agentModel.stored.model}`
+								: `Workers AI, ${workersAiName(workersAi, agentModel.stored?.workersAiModel || workersAi?.recommended || agentModel.stored?.defaultModel || "")}`}>
 								<button type="button" className="pg-btn pg-btn-sm" onClick={() => onTab("model")}>Change</button>
 							</Setting>
 							<Setting title="Auto-draft new mail" sub={<>Drafts a reply to each new message. Mailing lists and automated mail are skipped. Set <span className="pg-mono">AUTO_DRAFT_ENABLED</span> in your Worker config to change.</>}>

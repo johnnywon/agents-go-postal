@@ -3,6 +3,7 @@ import { test } from "node:test";
 import { loadTs } from "./helpers/sqlite.mjs";
 
 const m = await loadTs("workers/lib/agent-model.ts");
+const w = await loadTs("shared/workers-ai-models.ts");
 
 function bucket() {
 	const store = new Map();
@@ -17,7 +18,7 @@ test("Workers AI is the default when nothing is stored", async () => {
 	const env = { BUCKET: bucket() };
 	const config = await m.readAgentModelConfig(env);
 	assert.equal(config.provider, "workers-ai");
-	assert.deepEqual(m.viewOf(config), { provider: "workers-ai", model: "", keySet: false, keyHint: "", defaultModel: m.WORKERS_AI_MODEL });
+	assert.deepEqual(m.viewOf(config), { provider: "workers-ai", model: "", keySet: false, keyHint: "", workersAiModel: "", defaultModel: m.WORKERS_AI_MODEL });
 });
 
 test("the view never carries the key, only its last four characters", () => {
@@ -47,4 +48,46 @@ test("config round-trips through R2", async () => {
 	await m.writeAgentModelConfig(env, { provider: "openrouter", model: "a/b", apiKey: "k" });
 	assert.ok(env.BUCKET.store.has("config/agent-model.json"));
 	assert.deepEqual(await m.readAgentModelConfig(env), { provider: "openrouter", model: "a/b", apiKey: "k" });
+});
+
+test("the default Workers AI model is the recommended one in the suggested list", () => {
+	assert.equal(m.WORKERS_AI_MODEL, w.RECOMMENDED_WORKERS_AI_MODEL);
+	assert.equal(w.SUGGESTED_WORKERS_AI_MODELS.filter((x) => x.recommended).length, 1);
+});
+
+test("a Workers AI model is saved, cleared with an empty string and checked for shape", async () => {
+	const none = { provider: "workers-ai" };
+	const picked = m.mergeAgentModelConfig(none, { workersAiModel: "@cf/zai-org/glm-5.3" });
+	assert.equal(picked.workersAiModel, "@cf/zai-org/glm-5.3");
+	assert.equal(m.mergeAgentModelConfig(picked, { model: "a/b" }).workersAiModel, "@cf/zai-org/glm-5.3");
+	assert.equal(m.mergeAgentModelConfig(picked, { workersAiModel: "" }).workersAiModel, undefined);
+	assert.deepEqual(m.mergeAgentModelConfig(none, { workersAiModel: "gpt-4o" }), { error: "Choose a Workers AI model from the list." });
+	const env = { BUCKET: bucket() };
+	await m.writeAgentModelConfig(env, picked);
+	assert.equal(m.viewOf(await m.readAgentModelConfig(env)).workersAiModel, "@cf/zai-org/glm-5.3");
+});
+
+test("a saved model Cloudflare stopped listing falls back to the recommended one", () => {
+	const catalog = [{ id: "@cf/zai-org/glm-5.3" }];
+	assert.equal(m.resolveWorkersAiModel(undefined, catalog), m.WORKERS_AI_MODEL);
+	assert.equal(m.resolveWorkersAiModel("@cf/zai-org/glm-5.3", catalog), "@cf/zai-org/glm-5.3");
+	assert.equal(m.resolveWorkersAiModel("@cf/old/retired", catalog), m.WORKERS_AI_MODEL);
+	assert.equal(m.resolveWorkersAiModel("@cf/old/retired", null), "@cf/old/retired");
+});
+
+test("the catalog keeps text models that call tools, suggested ones first with live prices", () => {
+	const entry = (name, props, task = "Text Generation") => ({ name, task: { name: task }, properties: Object.entries(props).map(([property_id, value]) => ({ property_id, value })) });
+	const price = (input, output) => [{ unit: "per M input tokens", price: input, currency: "USD" }, { unit: "per M output tokens", price: output, currency: "USD" }];
+	const models = w.modelsFromCatalog([
+		entry("@cf/zz/other", { function_calling: "true", context_window: "32000", price: price(0.1, 0.2) }),
+		entry("@cf/zai-org/glm-5.3", { function_calling: "true", context_window: "1048576", price: price(2, 5) }),
+		entry("@cf/moonshotai/kimi-k2.6", { function_calling: "true", context_window: "262144" }),
+		entry("@cf/aa/no-tools", { context_window: "8000" }),
+		entry("@cf/aa/embedder", { function_calling: "true" }, "Text Embeddings"),
+	]);
+	assert.deepEqual(models.map((x) => x.id), ["@cf/moonshotai/kimi-k2.6", "@cf/zai-org/glm-5.3", "@cf/zz/other"]);
+	assert.deepEqual(models[1].price, { input: 2, output: 5 });
+	assert.equal(models[1].note, w.SUGGESTED_WORKERS_AI_MODELS[1].note);
+	assert.deepEqual(models[0].price, w.SUGGESTED_WORKERS_AI_MODELS[0].price, "no live price keeps the saved one");
+	assert.deepEqual(models[2], { id: "@cf/zz/other", name: "other", note: "", context: 32000, price: { input: 0.1, output: 0.2 }, suggested: false });
 });
