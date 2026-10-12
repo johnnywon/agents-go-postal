@@ -27,12 +27,8 @@
 	"triggers": {
 		"crons": ["* * * * *"]
 	},
-	"routes": [
-		{
-			"pattern": "mail.example.com",
-			"custom_domain": true
-		}
-	],
+	// Serve the app on your own hostname. Without a route it answers on workers.dev.
+	// "routes": [{ "pattern": "mail.example.com", "custom_domain": true }],
 	"send_email": [
 		{
 			"name": "EMAIL",
