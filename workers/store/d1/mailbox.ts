@@ -10,6 +10,15 @@ import { Folders } from "../../../shared/folders";
 import type { ScheduleMode, ScheduledPayload, ScheduledRow } from "../../lib/scheduled-send";
 import type { SendEmailRequest } from "../../lib/send";
 import { SEND_KEY_TTL_MS, type SendKeyClaim } from "../../lib/send-keys";
+import {
+	MAX_REFERENCED_IDS,
+	SUBJECT_JOIN_WINDOW_MS,
+	type SubjectRow,
+	hasReplyPrefix,
+	normalizeThreadSubject,
+	pickReferencedThread,
+	pickSubjectThread,
+} from "../../lib/threading";
 import type { Sql } from "../sql";
 import {
 	type AttachmentInput,
@@ -36,7 +45,6 @@ const SORT_COLUMNS: Record<string, string> = {
 	id: "m.email_id", subject: "m.subject", sender: "m.sender_addr", recipient: "m.recipient",
 	date: "m.date", read: "m.read", starred: "m.starred",
 };
-const SUBJECT_PREFIX = /^(?:(?:re|fwd?|fw|aw|wg|r[eé]f|sv)\s*:\s*)+/i;
 
 
 export class D1Mailbox {
@@ -192,23 +200,29 @@ export class D1Mailbox {
 		return row ? toAttachmentRow(row) : null;
 	}
 
-	async findThreadBySubject(subject: string, senderAddress?: string): Promise<string | null> {
-		const normalized = subject.replace(SUBJECT_PREFIX, "").trim().toLowerCase();
-		if (!normalized) return null;
+	/** The thread of the nearest message in this mailbox whose Message-ID is one of `ids` (workers/lib/threading.ts). */
+	async findThreadByMessageIds(ids: string[]): Promise<string | null> {
+		const wanted = ids.slice(0, MAX_REFERENCED_IDS);
+		if (wanted.length === 0) return null;
 		const rows = await this.sql.all(
-			`SELECT thread_id, subject, GROUP_CONCAT(DISTINCT LOWER(sender_addr)) AS senders, GROUP_CONCAT(DISTINCT LOWER(recipient)) AS recipients
-			FROM messages
-			WHERE mailbox_id = ? AND thread_id IS NOT NULL AND thread_id != email_id AND date >= ?
-			GROUP BY thread_id ORDER BY MAX(date) DESC LIMIT 50`,
-			this.#id, new Date(Date.now() - 7 * 86_400_000).toISOString(),
+			`SELECT message_id, thread_id FROM messages
+			WHERE mailbox_id = ? AND thread_id IS NOT NULL AND message_id IN (${wanted.map(() => "?").join(", ")})`,
+			this.#id, ...wanted,
 		);
-		const sender = senderAddress?.toLowerCase().trim();
-		for (const row of rows) {
-			if (String(row.subject ?? "").replace(SUBJECT_PREFIX, "").trim().toLowerCase() !== normalized) continue;
-			if (sender && !`${row.senders ?? ""},${row.recipients ?? ""}`.includes(sender)) continue;
-			return String(row.thread_id);
-		}
-		return null;
+		return pickReferencedThread(wanted, rows);
+	}
+
+	/** A recent thread a header-less reply belongs to (workers/lib/threading.ts). */
+	async findThreadBySubject(subject: string, senderAddress?: string): Promise<string | null> {
+		if (!hasReplyPrefix(subject) || !normalizeThreadSubject(subject) || !senderAddress) return null;
+		const rows = await this.sql.all(
+			`SELECT thread_id, subject, LOWER(sender_addr) AS sender, LOWER(recipient) AS recipient, folder_id, date
+			FROM messages
+			WHERE mailbox_id = ? AND thread_id IS NOT NULL AND folder_id != 'draft' AND date >= ?
+			ORDER BY date DESC LIMIT 500`,
+			this.#id, new Date(Date.now() - SUBJECT_JOIN_WINDOW_MS).toISOString(),
+		);
+		return pickSubjectThread(rows as unknown as SubjectRow[], subject, senderAddress);
 	}
 
 	// ── Folder import ──────────────────────────────────────────────

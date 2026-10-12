@@ -116,6 +116,9 @@ test("flags, moves and deletes", async () => {
 test("search, threading and send limits", async () => {
 	await same("findThreadBySubject", A, "findThreadBySubject", ["RE: invoice october", "ann@example.net"]);
 	await same("findThreadBySubject other sender", A, "findThreadBySubject", ["Invoice October", "zed@example.net"]);
+	await same("findThreadBySubject outsider", A, "findThreadBySubject", ["Re: Invoice October", "zed@example.net"]);
+	await same("findThreadByMessageIds", A, "findThreadByMessageIds", [["unknown@example.net", "e2@example.net"]]);
+	await same("findThreadByMessageIds miss", A, "findThreadByMessageIds", [["unknown@example.net"]]);
 	await same("checkSendRateLimit", A, "checkSendRateLimit");
 	await same("claim new", A, "claimSendKey", ["k1"]);
 	await same("claim pending", A, "claimSendKey", ["k1"]);

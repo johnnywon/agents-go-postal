@@ -2,6 +2,17 @@
 
 Versions follow [semantic versioning](https://semver.org). Before 1.0, a minor version can break things. Each entry names any new D1 migration: apply it with `wrangler d1 migrations apply <db> --remote` before you deploy that version.
 
+## 0.4.1
+
+Agent safety.
+
+- Auto-draft gets three tools: `get_email`, `get_thread` and `draft_reply`. Before, it had the chat agent's full set, including label, move, discard and shortcut tools and `draft_email` to any address. `get_thread` reads only the new email's thread, `get_email` only emails in it, and `draft_reply` answers the new email with the recipient fixed to its Reply-To, else its sender. The chat agent keeps its tools.
+- The agent panel no longer loads images from markdown in the agent's replies. An image shows as a link that opens when clicked.
+- Inbound mail joins a thread only when its In-Reply-To or References names a message stored in that mailbox. Before, the first References entry became the thread id as sent. With no such header, a message joins by subject only when the subject starts with a reply prefix such as `Re:`, the thread had mail in the last two days, and the sender sent mail in it or was written to from the mailbox. Otherwise it starts its own thread. Both stores match the same way.
+- The prompt injection check covers everything auto-draft shows the model: sender, display name, recipient, subject and the full body of every message in the thread, in overlapping chunks. Before, it read the body and 500 characters of each earlier message. `get_email` and `get_thread` return that scanned copy. A detected injection, an unclear answer, a failed check, a thread too long to check or a failed read skips the draft; the reason is logged and shown in the agent panel.
+
+No D1 migration.
+
 ## 0.4.0
 
 - Agents Go Postal is now Open Mailroom. The repo moved to github.com/johnnywon/open-mailroom; the old URL redirects.

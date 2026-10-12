@@ -30,6 +30,7 @@ import { d1Status, durableObjectInternals, hasD1, mailStore, searchEngine, usesD
 import { advanceCopy, copyStartError, copyStatus, mirrorInbound, startCopy } from "./store/copy-job";
 import { MOVE_FOLDERS } from "./lib/mail-bulk-sql";
 import { automatedMailReason } from "./lib/message-meta";
+import { resolveThreadId } from "./lib/threading";
 import { dryRunFolderImport, importDeps, runFolderImport } from "./lib/folder-import";
 
 type AppContext = Context<MailboxContext>;
@@ -663,12 +664,11 @@ async function receiveEmail(event: { to: string; raw: ReadableStream; rawSize: n
 	const extractMsgId = (s: string) => { const m = s.match(/<([^>]+)>/); return m ? m[1] : s.trim().split(/\s+/)[0]; };
 	const inReplyTo = parsedEmail.inReplyTo ? extractMsgId(parsedEmail.inReplyTo) : null;
 	const emailReferences = parsedEmail.references ? parsedEmail.references.split(/\s+/).filter(Boolean).map(extractMsgId) : [];
-	let threadId = emailReferences[0] || inReplyTo || messageId;
-
-	if (!inReplyTo && emailReferences.length === 0) {
-		const subjectThread = await (stub as any).findThreadBySubject(parsedEmail.subject || "", parsedEmail.from?.address || undefined);
-		if (subjectThread) threadId = subjectThread;
-	}
+	// Join a thread only through mail this mailbox already holds (lib/threading.ts).
+	const threadId = await resolveThreadId(stub, {
+		messageId, inReplyTo, references: emailReferences,
+		subject: parsedEmail.subject || "", sender: (parsedEmail.from?.address || "").toLowerCase(),
+	});
 
 	const originalMessageId = parsedEmail.messageId ? extractMsgId(parsedEmail.messageId) : null;
 
