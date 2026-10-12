@@ -6,9 +6,9 @@ Everything needed to run Agents Go Postal on your own Cloudflare account. Back t
 
 [![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/johnnywon/agents-go-postal)
 
-The button copies this repo to your GitHub account, creates the R2 bucket and Durable Objects, builds and deploys. It asks for `DOMAINS`. Then:
+The button copies this repo to your GitHub account, creates the R2 bucket and Durable Objects, builds and deploys. Its form asks for `DOMAINS` but has no field for `EMAIL_ADDRESSES`. It also saves the placeholder values from `.dev.vars.example` as the `POLICY_AUD` and `TEAM_DOMAIN` secrets, so every request returns the "Access must be configured" error until step 5 replaces them. Then:
 
-1. In the new repo, set `EMAIL_ADDRESSES` in `wrangler.jsonc` to the addresses you want, and push. Every address must belong to a domain in `DOMAINS`.
+1. In the new repo, set `EMAIL_ADDRESSES` in `wrangler.jsonc` to the addresses you want, and push. The push builds and deploys again. Every address must belong to a domain in `DOMAINS`.
 2. Do steps 5 to 8 below: Access, Email Routing, Email Sending, and the check.
 
 The Worker answers on its workers.dev URL until you add a custom domain (step 4 under Deploy by hand).
@@ -20,7 +20,7 @@ Requirements: a domain on Cloudflare, R2, and Workers Paid for outbound email. T
 1. **Install and sign in.** `npm install`, then `npx wrangler login`.
 2. **Configure `wrangler.jsonc`.** Set `name`, `account_id`, `vars.APP_NAME`, `vars.DOMAINS`, and `vars.EMAIL_ADDRESSES`. Every address must belong to a domain in `DOMAINS`.
 3. **Create the R2 bucket** named in `r2_buckets`: `npx wrangler r2 bucket create agents-go-postal`
-4. **Deploy.** `npm run deploy`. Until step 5 is done, every request returns an error asking for Access. To serve the app on your own hostname, uncomment `routes` in `wrangler.jsonc` and set the `pattern`, or add a custom domain under the Worker's Settings > Domains & Routes.
+4. **Deploy.** `npm run build && npm run deploy`. `npm run deploy` only deploys, and refuses to run before a build. Until step 5 is done, every request returns an error asking for Access. To serve the app on your own hostname, uncomment `routes` in `wrangler.jsonc` and set the `pattern`, or add a custom domain under the Worker's Settings > Domains & Routes.
 5. **Turn on Cloudflare Access** for the Worker under Settings > Domains & Routes ([one-click Access](https://developers.cloudflare.com/changelog/post/2025-10-03-one-click-access-for-workers/)). Copy the values the modal shows into Worker secrets:
    ```sh
    npx wrangler secret put POLICY_AUD

@@ -7,6 +7,7 @@ import { Hono } from "hono";
 import { jwtVerify, createRemoteJWKSet } from "jose";
 import { createRequestHandler } from "react-router";
 import { runCron } from "./cron";
+import { accessConfigured } from "./lib/access-config";
 import { foreignOrigin } from "./lib/csrf";
 import { app as apiApp, receiveEmail } from "./index";
 import { EmailMCP } from "./mcp";
@@ -54,8 +55,8 @@ app.use("*", async (c, next) => {
 
 	const { POLICY_AUD, TEAM_DOMAIN } = c.env;
 
-	// Fail closed in production if Access is not configured.
-	if (!POLICY_AUD || !TEAM_DOMAIN) {
+	// Fail closed in production if Access is not configured, or still has the deploy button's placeholders.
+	if (!accessConfigured({ POLICY_AUD, TEAM_DOMAIN })) {
 		return c.text(
 			"Cloudflare Access must be configured in production. Set POLICY_AUD and TEAM_DOMAIN.",
 			500,

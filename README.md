@@ -129,8 +129,8 @@ A scheduled send waits in the store until its time. On D1 the cron sends it; on 
 Requirements: a domain on Cloudflare, the Workers Paid plan (for sending) and R2.
 
 1. Click **Deploy to Cloudflare** above. It copies the repo to your GitHub, creates the storage and deploys.
-2. Set your addresses in `wrangler.jsonc` (`DOMAINS`, `EMAIL_ADDRESSES`) and push.
-3. Turn on Cloudflare Access for the Worker and save its two values as secrets.
+2. The deploy form has no field for your addresses, so set `DOMAINS` and `EMAIL_ADDRESSES` in `wrangler.jsonc` in the new repo and push.
+3. Turn on Cloudflare Access for the Worker and save its two values as secrets. Until then, every request returns an error asking for Access.
 4. Route each address to the Worker with Email Routing, and enable Email Sending.
 
 This starts on Durable Object storage. For attachment search and every search operator, [move to D1](docs/setup.md#moving-to-d1). Each step, with commands, is in [docs/setup.md](docs/setup.md). To run it locally with sample mail, see [docs/development.md](docs/development.md).
