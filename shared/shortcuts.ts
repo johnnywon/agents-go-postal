@@ -70,11 +70,13 @@ export const SHORTCUTS = [
 	{ id: "goStarred", group: "Navigate", label: "Go to Starred", keys: ["g s"], scope: "mail", fixed: true, area: "go", short: "Starred" },
 	{ id: "goDrafts", group: "Navigate", label: "Go to Drafts", keys: ["g d"], scope: "mail", fixed: true, area: "go", short: "Drafts" },
 	{ id: "goSent", group: "Navigate", label: "Go to Sent", keys: ["g t"], scope: "mail", fixed: true, area: "go", short: "Sent" },
-	{ id: "back", group: "Navigate", label: "Clear selection or close", keys: ["Escape"], scope: "mail", fixed: true, area: "more", short: "Close" },
+	{ id: "goAll", group: "Navigate", label: "Go to All mail", keys: ["g a"], scope: "mail", fixed: true, area: "go", short: "All mail" },
+	{ id: "back", group: "Navigate", label: "Clear selection or back to the list", keys: ["Escape", "u"], scope: "mail", fixed: true, area: "more", short: "Close" },
 
 	{ id: "archive", group: "Conversation", label: "Archive", keys: ["e"], scope: "mail", area: "toolbar", primary: true, cluster: 2 },
-	{ id: "trash", group: "Conversation", label: "Move to trash", keys: ["#"], scope: "mail", area: "toolbar", primary: true, cluster: 2, short: "Trash" },
-	{ id: "read", group: "Conversation", label: "Mark read or unread", keys: ["u"], scope: "mail", area: "toolbar", cluster: 3, short: "Read" },
+	{ id: "trash", group: "Conversation", label: "Move to trash", keys: ["#", "Delete"], scope: "mail", area: "toolbar", primary: true, cluster: 2, short: "Trash" },
+	{ id: "markRead", group: "Conversation", label: "Mark read", keys: ["Shift+i"], scope: "mail", area: "toolbar", cluster: 3 },
+	{ id: "markUnread", group: "Conversation", label: "Mark unread", keys: ["Shift+u"], scope: "mail", area: "toolbar", cluster: 3 },
 	{ id: "star", group: "Conversation", label: "Star or unstar", keys: ["s"], scope: "mail", area: "toolbar", cluster: 3, short: "Star" },
 	{ id: "label", group: "Conversation", label: "Label", keys: ["l"], scope: "mail", area: "toolbar", cluster: 3 },
 	{ id: "select", group: "Conversation", label: "Select", keys: ["x"], scope: "mail", shiftRange: true, hint: "With Shift, selects a range", area: "list" },
@@ -98,8 +100,8 @@ export const SHORTCUTS = [
 	{ id: "searchSave", group: "Search", label: "Save search", keys: ["Mod+s"], scope: "search", fixed: true, area: "search" },
 	{ id: "searchClose", group: "Search", label: "Close suggestions, then clear", keys: ["Escape"], scope: "search", fixed: true, area: "search" },
 
-	{ id: "sidebar", group: "App", label: "Sidebar", keys: ["["], scope: "mail", area: "go", header: true },
-	{ id: "agent", group: "App", label: "Agent panel", keys: ["Mod+j", "]"], scope: "mail", area: "agent", header: true },
+	{ id: "sidebar", group: "App", label: "Sidebar", keys: ["Mod+b"], scope: "mail", area: "go", header: true },
+	{ id: "agent", group: "App", label: "Agent panel", keys: ["Mod+j"], scope: "mail", area: "agent", header: true },
 	{ id: "panels", group: "App", label: "Both side panels", keys: ["\\"], scope: "mail", area: "more", short: "Both panels" },
 	{ id: "help", group: "App", label: "Keyboard shortcuts", keys: ["?"], scope: "mail", fixed: true, area: "more", short: "Shortcuts" },
 ] as const satisfies readonly ShortcutDef[];
@@ -167,13 +169,16 @@ export function validStep(step: string): boolean {
 	return NAMED_KEYS.has(key);
 }
 
-/** Keys the mail view keeps for itself: Escape, the g of g-sequences, ? and keys that move focus or type. */
-const RESERVED = new Set(["Escape", "g", "?", "Tab", "Shift+Tab", "Enter", "Space", "Shift+Space"]);
+/** Keys the mail view keeps for itself: its fixed keys (Escape, u, ?), the first key of a sequence (g), and keys that move focus or type. */
+const RESERVED = new Set([
+	...ALL.filter((s) => s.scope === "mail" && s.fixed).flatMap((s) => s.keys.map((k) => k.split(" ")[0])),
+	"Tab", "Shift+Tab", "Enter", "Space", "Shift+Space",
+]);
 
 /** Why a step can't be bound to a shortcut, or null if it can. */
 export function cannotBind(step: string): string | null {
 	if (!validStep(step)) return "That key can't be used.";
-	if (RESERVED.has(step)) return step === "g" ? "G starts the Go to shortcuts." : `${step} is kept for the app.`;
+	if (RESERVED.has(step)) return step === "g" ? "G starts the Go to shortcuts." : `${keyText(step, true)} is kept for the app.`;
 	if (step.startsWith("Alt+") || step.includes("+Alt+")) return "Option and Alt type characters; use another key.";
 	return null;
 }

@@ -12,8 +12,8 @@
 
 import {
 	ArchiveIcon, ArrowBendDoubleUpLeftIcon, ArrowBendUpLeftIcon, ArrowBendUpRightIcon, ArrowCounterClockwiseIcon,
-	CaretDoubleLeftIcon, CaretDoubleRightIcon, EnvelopeSimpleIcon, type Icon, MagnifyingGlassIcon, PaperPlaneTiltIcon,
-	PencilSimpleLineIcon, SquareIcon, StarIcon, TagIcon, TrashIcon,
+	CaretDoubleLeftIcon, CaretDoubleRightIcon, EnvelopeOpenIcon, EnvelopeSimpleIcon, type Icon, MagnifyingGlassIcon, PaperPlaneTiltIcon,
+	PencilSimpleLineIcon, SquareIcon, StarIcon, TagIcon, TrashIcon, TrayIcon,
 } from "@phosphor-icons/react";
 import { Fragment } from "react";
 import { keycaps, SHORTCUTS, type ShortcutArea, type ShortcutDef, type ShortcutId } from "shared/shortcuts";
@@ -27,9 +27,9 @@ type AnyIcon = Icon | React.ComponentType<{ size?: number }>;
 
 /** The icon of the button a shortcut presses, as the app draws it. */
 const ICONS: Partial<Record<ShortcutId, AnyIcon>> = {
-	goInbox: InboxIcon, goStarred: StarredIcon, goDrafts: DraftsIcon, goSent: SentIcon,
+	goInbox: InboxIcon, goStarred: StarredIcon, goDrafts: DraftsIcon, goSent: SentIcon, goAll: TrayIcon,
 	reply: ArrowBendUpLeftIcon, replyAll: ArrowBendDoubleUpLeftIcon, forward: ArrowBendUpRightIcon,
-	archive: ArchiveIcon, trash: TrashIcon, read: EnvelopeSimpleIcon, star: StarIcon, label: TagIcon,
+	archive: ArchiveIcon, trash: TrashIcon, markRead: EnvelopeOpenIcon, markUnread: EnvelopeSimpleIcon, star: StarIcon, label: TagIcon,
 	compose: PencilSimpleLineIcon, select: SquareIcon, send: PaperPlaneTiltIcon, undo: ArrowCounterClockwiseIcon,
 };
 
@@ -37,9 +37,10 @@ const ICONS: Partial<Record<ShortcutId, AnyIcon>> = {
 const inArea = (area: ShortcutArea) => ALL.filter((s) => s.area === area && (s.scope === "mail" || s.primary));
 const name = (s: ShortcutDef) => s.short ?? s.label;
 
-function Keys({ id, big }: { id: ShortcutId; big?: boolean }) {
+function Keys({ id, big, first }: { id: ShortcutId; big?: boolean; first?: boolean }) {
 	const { bindings, mac } = useShortcuts();
-	const keys = bindings.get(id) ?? [];
+	const all = bindings.get(id) ?? [];
+	const keys = first ? all.slice(0, 1) : all;
 	if (!keys.length) return <span className="pg-map-none">–</span>;
 	return (
 		<span className="pg-map-keys">
@@ -134,7 +135,7 @@ function Reader() {
 						{group.map((t) => (
 							<div key={t.id} className="pg-map-tool" role="listitem" title={t.label} data-primary={t.primary || undefined}>
 								<Glyph def={t} size={16} />
-								<Keys id={t.id as ShortcutId} big={t.primary} />
+								<Keys id={t.id as ShortcutId} big={t.primary} first />
 							</div>
 						))}
 					</Fragment>
@@ -183,7 +184,7 @@ export function ShortcutMap({ onAll }: { onAll: () => void }) {
 				{inArea("more").map((s) => (
 					<div key={s.id} className="pg-map-nav" title={s.label}>
 						<Keys id={s.id as ShortcutId} />
-						{ICONS[s.id as ShortcutId] ? <Glyph def={s} /> : <span>{name(s)}</span>}
+						<span>{name(s)}</span>
 					</div>
 				))}
 				<span className="pg-flex" />

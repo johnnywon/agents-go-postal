@@ -440,6 +440,7 @@ function PostalApp({ addresses, domains, autoDraft }: PostalProps) {
 			goStarred: () => goTo("starred"),
 			goDrafts: () => goTo("drafts"),
 			goSent: () => goTo("sent"),
+			goAll: () => goTo("all"),
 			back: () => {
 				if (checked.keys.size) setSelection(sel.EMPTY_SELECTION);
 				else if (mobile && navTemp) setNavTemp(false);
@@ -451,7 +452,8 @@ function PostalApp({ addresses, domains, autoDraft }: PostalProps) {
 			archive: () => (act("archive"), true),
 			trash: () => (act("trash"), true),
 			star: () => (act("star"), true),
-			read: () => (act("read"), true),
+			markRead: () => (run({ type: "read" }), true),
+			markUnread: () => (run({ type: "unread" }), true),
 			label: () => {
 				if (!openRow) return false;
 				setLabelRequest(Date.now());

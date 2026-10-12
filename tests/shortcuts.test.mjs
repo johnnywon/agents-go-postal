@@ -39,7 +39,10 @@ test("the matcher finds singles, sequences and Shift ranges", () => {
 	assert.equal(m.match("g", 0), "pending");
 	assert.equal(m.match("i", 1500), null);
 	assert.deepEqual(m.match("Mod+j", 0), { id: "agent", shift: false });
-	assert.equal(m.match("Mod+b", 0), null, "editor keys are not mail keys");
+	assert.equal(m.match("Mod+i", 0), null, "editor keys are not mail keys");
+	assert.deepEqual(m.match("Shift+i", 0), { id: "markRead", shift: false });
+	assert.deepEqual(m.match("u", 0), { id: "back", shift: false });
+	assert.deepEqual(m.match("Delete", 0), { id: "trash", shift: false });
 });
 
 test("rebinding a key takes it from the shortcut that had it", () => {
@@ -57,11 +60,11 @@ test("rebinding a key takes it from the shortcut that had it", () => {
 test("an override that clashes with a fixed key loses it", () => {
 	const bindings = resolveBindings({ archive: ["Escape", "y"] });
 	assert.deepEqual(bindings.get("archive"), ["y"]);
-	assert.deepEqual(bindings.get("back"), ["Escape"]);
+	assert.deepEqual(bindings.get("back"), ["Escape", "u"]);
 });
 
 test("reserved and unusable keys can't be bound", () => {
-	for (const k of ["g", "?", "Escape", "Tab", "Enter", "Alt+e", "E", "nonsense"]) assert.ok(cannotBind(k), k);
+	for (const k of ["g", "?", "Escape", "u", "Tab", "Enter", "Alt+e", "E", "nonsense"]) assert.ok(cannotBind(k), k);
 	for (const k of ["y", "Shift+y", "Mod+Shift+k", "Delete", "!", "1"]) assert.equal(cannotBind(k), null, k);
 	assert.deepEqual(cleanOverrides({ archive: ["y", "y", "g", "q", "w"], help: ["h"] }), { archive: ["y", "q"] });
 	assert.deepEqual(cleanOverrides("nope"), {});

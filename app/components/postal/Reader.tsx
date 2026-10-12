@@ -167,7 +167,7 @@ export function Reader(props: ReaderProps) {
 						<button type="button" className="pg-icon-btn" title={tip("trash", "Move to trash", "Recoverable from Trash")} aria-label="Move to trash" onClick={() => props.onAction("trash")} disabled={!row || !props.canTrash}><TrashIcon size={16} /></button>
 					</div>
 					<div className="pg-group" style={{ position: "relative" }}>
-						<button type="button" className="pg-icon-btn" title={tip("read", unread ? "Mark read" : "Mark unread")} aria-label={unread ? "Mark read" : "Mark unread"} onClick={() => props.onAction("read")} disabled={!row}>
+						<button type="button" className="pg-icon-btn" title={unread ? tip("markRead", "Mark read") : tip("markUnread", "Mark unread")} aria-label={unread ? "Mark read" : "Mark unread"} onClick={() => props.onAction("read")} disabled={!row}>
 							{unread ? <EnvelopeOpenIcon size={16} /> : <EnvelopeSimpleIcon size={16} />}
 						</button>
 						<button type="button" className="pg-icon-btn" title={tip("star", starred ? "Unstar" : "Star")} aria-label={starred ? "Unstar" : "Star"} aria-pressed={starred} onClick={() => props.onAction("star")} disabled={!row}>
