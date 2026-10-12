@@ -2,6 +2,12 @@
 
 Versions follow [semantic versioning](https://semver.org). Before 1.0, a minor version can break things. Each entry names any new D1 migration: apply it with `wrangler d1 migrations apply <db> --remote` before you deploy that version.
 
+## 0.1.2
+
+- Unknown paths answer HTTP 404 instead of 200. The "Page not found" page is unchanged.
+
+No D1 migration.
+
 ## 0.1.1
 
 - CI: tests, typecheck and build run on every pull request and every push to `main`.
