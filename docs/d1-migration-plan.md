@@ -1,6 +1,6 @@
 # Plan: move mail storage to D1 and rebuild search
 
-Status: in progress. Phases 0 to 2 are done: [phase 0 results](d1-phase0.md); every caller goes through `mailStore(env)`; the D1 store (`workers/store/d1/`) implements the whole contract and `tests/store-conformance.test.mjs` runs one script of about 80 calls against both stores with matching results. The classic and unified views were retired on 2026-10-11. Phase 3 is done too: the whole app runs on D1 with `STORAGE=d1` and a `DB` binding. Phase 4 adds the cron that sends scheduled mail on D1. Phase 5 adds the copy from the Durable Objects, run from the Mail index page. Phase 6 is under way: the maintainer's deployment moved to D1 on 2026-10-11 and is in its two-week window until 2026-10-25.
+Status: in progress. Phases 0 to 2 are done: [phase 0 results](#phase-0-results); every caller goes through `mailStore(env)`; the D1 store (`workers/store/d1/`) implements the whole contract and `tests/store-conformance.test.mjs` runs one script of about 80 calls against both stores with matching results. The classic and unified views were retired on 2026-10-11. Phase 3 is done too: the whole app runs on D1 with `STORAGE=d1` and a `DB` binding. Phase 4 adds the cron that sends scheduled mail on D1. Phase 5 adds the copy from the Durable Objects, run from the Mail index page. Phase 6 is under way: the maintainer's deployment moved to D1 on 2026-10-11 and is in its two-week window until 2026-10-25.
 
 ## Summary
 
@@ -327,7 +327,7 @@ Phase 1 ships alone with no behavior change, which makes the rest reviewable in 
 
 ## Phase 0 results
 
-Done 2026-10-11. Details in [d1-phase0.md](d1-phase0.md); the bench is in `scripts/d1-bench/`.
+Done 2026-10-11, against a real D1 database with a bench Worker that has since been removed.
 
 | Unknown | Answer |
 |---|---|
@@ -418,5 +418,5 @@ Confirmed as written:
 
 Second pass, after phase 0 (2026-10-11):
 
-6. The ranking threshold, the CPU-limit rule and the ranking times were corrected to match the phase 0 output. See the drift check in [d1-phase0.md](d1-phase0.md#drift-check).
+6. The ranking threshold, the CPU-limit rule and the ranking times were corrected to match the phase 0 output.
 
