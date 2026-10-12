@@ -295,7 +295,7 @@ export interface ProviderCatalog {
 
 export interface ModelCatalog {
 	recommended: ModelRef;
-	suggested: ModelRef[];
+	suggested: (ModelRef & { role: string })[];
 	providers: Record<ProviderId, ProviderCatalog>;
 	keyed: KeyedProvider[];
 }

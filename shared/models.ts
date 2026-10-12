@@ -2,8 +2,9 @@
  * The agent's model providers and catalogs, shared by the Worker and Settings.
  *
  * Every provider's full list is offered, and any model id can be typed in.
- * SUGGESTED_MODELS is only the short list shown first; `recommended` marks the
- * default that deployments follow until they pick something else.
+ * SUGGESTED_MODELS is the short list shown first, one model per need, each
+ * with the role it fills. `recommended` marks the default that deployments
+ * follow until they pick something else.
  */
 
 export const PROVIDERS = ["workers-ai", "openrouter", "anthropic", "openai", "xai"] as const;
@@ -59,13 +60,21 @@ export interface ModelRef {
 	id: string;
 }
 
-export const SUGGESTED_MODELS: (ModelRef & { recommended?: boolean })[] = [
-	{ provider: "workers-ai", id: "@cf/moonshotai/kimi-k2.6", recommended: true },
-	{ provider: "workers-ai", id: "@cf/zai-org/glm-5.3-flash" },
-	{ provider: "anthropic", id: "claude-sonnet-5-5" },
-	{ provider: "anthropic", id: "claude-fable-5-1" },
-	{ provider: "openai", id: "gpt-6.1-sol" },
-	{ provider: "xai", id: "grok-4.7" },
+export interface SuggestedModel extends ModelRef {
+	/** The need it fills, shown above its name. */
+	role: string;
+	recommended?: boolean;
+}
+
+export const SUGGESTED_MODELS: SuggestedModel[] = [
+	// Built in, no key, reliable tool calls at a mid price.
+	{ provider: "workers-ai", id: "@cf/moonshotai/kimi-k2.6", role: "Recommended", recommended: true },
+	// Built in, the lowest output price of the tool-calling models, 1M context.
+	{ provider: "workers-ai", id: "@cf/zai-org/glm-5.3-flash", role: "Cheapest" },
+	// Strong drafting and tool use at a fifth of the top model's price.
+	{ provider: "anthropic", id: "claude-sonnet-5-5", role: "Balanced" },
+	// The most capable, for hard threads, at the highest price.
+	{ provider: "anthropic", id: "claude-fable-5-1", role: "Best quality" },
 ];
 
 const recommended = SUGGESTED_MODELS.find((m) => m.recommended)!;

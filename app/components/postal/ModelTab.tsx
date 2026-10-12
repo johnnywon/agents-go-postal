@@ -204,13 +204,14 @@ function ModelPicker({ catalog, draft, onPick, onBack }: {
 			? (a: CatalogModel, b: CatalogModel) => (b.context ?? 0) - (a.context ?? 0) || (a.price?.output ?? Infinity) - (b.price?.output ?? Infinity)
 			: (a: CatalogModel, b: CatalogModel) => Number(isSuggested(b)) - Number(isSuggested(a));
 
-	// Nothing typed and no provider chosen: the suggested models, then one row per provider to browse.
+	// Nothing typed and no provider chosen: one card per need, then one row per provider to browse.
 	const home = filter === "all" && words.length === 0;
-	const rows = home
-		? catalog.suggested.map(find).filter((m): m is CatalogModel => !!m).sort(sorter)
-		: [...matches].sort(sorter);
-	const title = home ? "Suggested"
-		: filter !== "all" && !words.length ? <ProviderMark provider={filter} />
+	const picks = catalog.suggested.flatMap((s) => {
+		const m = find(s);
+		return m ? [{ ...s, model: m }] : [];
+	});
+	const rows = home ? [] : [...matches].sort(sorter);
+	const title = filter !== "all" && !words.length ? <ProviderMark provider={filter} />
 		: `${rows.length} ${rows.length === 1 ? "match" : "matches"}`;
 	const error = filter !== "all" ? catalog.providers[filter]?.error : undefined;
 	// One provider's list says once that its key is missing, not on every row.
@@ -260,11 +261,11 @@ function ModelPicker({ catalog, draft, onPick, onBack }: {
 						</button>
 					))}
 				</div>
-				<select className="pg-select" value={sort} aria-label="Sort models" onChange={(e) => setSort(e.target.value as ModelSort)}>
+				{!home && <select className="pg-select" value={sort} aria-label="Sort models" onChange={(e) => setSort(e.target.value as ModelSort)}>
 					<option value="suggested">Suggested first</option>
 					<option value="price">Cheapest first</option>
 					<option value="context">Most context first</option>
-				</select>
+				</select>}
 			</div>
 
 			{showCustom && (
@@ -282,7 +283,35 @@ function ModelPicker({ catalog, draft, onPick, onBack }: {
 				</div>
 			)}
 
-			{(rows.length > 0 || home || !showCustom) && (
+			{home && (
+				<div className="pg-picks" role="radiogroup" aria-label="Suggested models">
+					{picks.map(({ role, model: m }) => {
+						const selected = sameModel(m, effective);
+						return (
+							<button
+								key={`${m.provider}:${m.id}`}
+								type="button"
+								role="radio"
+								aria-checked={selected}
+								className="pg-pick"
+								data-recommended={sameModel(m, recommended)}
+								title={m.id}
+								onClick={() => onPick({ provider: m.provider, id: m.id })}
+							>
+								<span className="pg-pick-role">{role}{selected && <CheckIcon size={13} weight="bold" />}</span>
+								<b>{m.name}</b>
+								<ModelSub model={m} needsKey={!draft.hasKey(m.provider)} />
+								<span className="pg-pick-stats">
+									<span>{formatContext(m.context)} <i>context</i></span>
+									<span><Price model={m} /> <i>per 1M</i></span>
+								</span>
+							</button>
+						);
+					})}
+				</div>
+			)}
+
+			{!home && (rows.length > 0 || !showCustom) && (
 				<div className="pg-models-list" role="radiogroup" aria-label="Agent model">
 					<div className="pg-models-cols">
 						<span>{title}</span>

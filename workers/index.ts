@@ -195,7 +195,7 @@ app.get("/api/v1/agent-model/catalog", async (c) => {
 	const entries = await Promise.all(PROVIDERS.map(async (p) => [p, await catalogFor(c.env, p, keys)] as const));
 	return c.json({
 		recommended: RECOMMENDED_MODEL,
-		suggested: SUGGESTED_MODELS.map(({ provider, id }) => ({ provider, id })),
+		suggested: SUGGESTED_MODELS.map(({ provider, id, role }) => ({ provider, id, role })),
 		providers: Object.fromEntries(entries),
 		keyed: KEYED_PROVIDERS.filter((p) => !!keys[p]),
 	});

@@ -23,6 +23,10 @@ test("with nothing saved the agent runs the recommended Workers AI model", async
 	assert.equal(view.active.provider, "workers-ai");
 	assert.equal(m.WORKERS_AI_MODEL, s.RECOMMENDED_MODEL.id);
 	assert.equal(s.SUGGESTED_MODELS.filter((x) => x.recommended).length, 1);
+	// One model per need: every suggestion has its own role.
+	const roles = s.SUGGESTED_MODELS.map((x) => x.role);
+	assert.ok(roles.every(Boolean));
+	assert.equal(new Set(roles).size, roles.length);
 });
 
 test("the older one-provider file still reads", () => {
