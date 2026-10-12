@@ -1053,6 +1053,7 @@ function cssBlocks(file) {
 const RADIUS_EXCEPTIONS = [
 	{ value: /^50%\s*!important$/, selector: /pg-round|pg-switch > span/, why: "circles: switch knobs and the agent dot" },
 	{ value: /^2px\s*!important$/, selector: /pg-swatch|mark/, why: "domain swatches and search highlights" },
+	{ value: /^10px\s*!important$/, selector: /^\.postal \.pg-switch$/, why: "the switch track, a pill at half its 20px height" },
 	{ value: /^0\s*!important$/, selector: /scrollbar-thumb|\.pg-cw/, why: "square scrollbars and the full-screen mobile composer" },
 ];
 

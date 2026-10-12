@@ -174,9 +174,11 @@ html:has(.postal), html:has(.postal) body { background: var(--pg-base, #141518);
 }
 .pg-check[data-on="true"] { background: var(--pg-mail); border-color: var(--pg-mail); }
 .pg-check-neutral[data-on="true"] { background: var(--pg-text-2); border-color: var(--pg-text-2); }
-.pg-switch { width: 34px; height: 20px; flex: none; padding: 2px; display: flex; justify-content: flex-start; background: var(--pg-line-3); }
+/* A switch is a pill: the track's radius is half its height, and the knob sits inside it with an even 3px inset. */
+.pg-switch { width: 36px; height: 20px; flex: none; padding: 3px; display: flex; align-items: center; justify-content: flex-start; background: var(--pg-line-3); }
 .pg-switch[aria-checked="true"] { justify-content: flex-end; background: var(--pg-green); }
-.pg-switch > span { width: 16px; height: 16px; background: #f0f0ed; }
+.pg-switch > span { width: 14px; height: 14px; background: #f0f0ed; box-shadow: 0 1px 2px #0004; }
+.postal .pg-switch { border-radius: 10px !important; }
 .postal .pg-round, .postal .pg-switch > span { border-radius: 50% !important; }
 .pg-segmented { display: flex; gap: 2px; padding: 2px; background: var(--pg-raised); border: 1px solid var(--pg-line-2); flex: none; }
 .pg-segmented > button { height: 24px; padding: 0 10px; display: flex; align-items: center; gap: 5px; font-size: 12px; white-space: nowrap; color: var(--pg-text-6); }

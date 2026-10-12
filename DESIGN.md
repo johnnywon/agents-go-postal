@@ -22,7 +22,8 @@ A dark, quiet workspace for many addresses on many domains. Mail content comes f
 
 One radius: 6px, from the global rule in `app/index.css`. The exceptions, enforced by `tests/design-rules.test.mjs`:
 
-- Circles (`50%`): switch knobs and the agent's activity dot. Round is reserved for the agent and controls; domains never use it.
+- Circles (`50%`): switch knobs and the agent's activity dot.
+- Pills: the switch track, 36×20 with a 10px radius, holding a 14px knob 3px in from each edge. Round is reserved for the agent and controls; domains never use it.
 - 2px: domain swatches and search-highlight marks.
 - 0: scrollbar thumbs, the full-screen mobile composer, the logo, and anything with a border on one side only (row and table dividers, headers, footers, the side columns). A radius would curl a divider's ends, and dividers are straight. The `.postal :is(...)` rule near the top of `postal.css` lists them, and the design test fails when a new one is missing.
 - Split controls may square their inner corners (`6px 0 0 6px`).
