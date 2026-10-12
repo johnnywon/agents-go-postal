@@ -226,16 +226,26 @@ async function cached(key: string, load: () => Promise<ProviderCatalog>, now = D
 }
 
 async function fetchJson(url: string, headers: Record<string, string> = {}): Promise<unknown> {
-	const res = await fetch(url, { headers });
+	const res = await fetch(url, { headers, signal: AbortSignal.timeout(CATALOG_TIMEOUT_MS) });
 	if (!res.ok) throw new Error(`${res.status} ${res.statusText}`.trim());
 	return res.json();
+}
+
+/** A catalog that doesn't answer in time shows an error instead of leaving Settings loading. */
+const CATALOG_TIMEOUT_MS = 10_000;
+
+function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
+	return new Promise<T>((resolve, reject) => {
+		const timer = setTimeout(() => reject(new Error(`no answer in ${ms / 1000} s`)), ms);
+		promise.then((v) => { clearTimeout(timer); resolve(v); }, (e) => { clearTimeout(timer); reject(e); });
+	});
 }
 
 async function loadWorkersAi(env: Env): Promise<ProviderCatalog> {
 	try {
 		const entries: WorkersAiEntry[] = [];
 		for (let page = 1; page <= 10; page++) {
-			const batch = (await env.AI.models({ page, per_page: 100 })) as WorkersAiEntry[];
+			const batch = (await withTimeout(env.AI.models({ page, per_page: 100 }), CATALOG_TIMEOUT_MS)) as WorkersAiEntry[];
 			entries.push(...batch);
 			if (batch.length < 100) break;
 		}

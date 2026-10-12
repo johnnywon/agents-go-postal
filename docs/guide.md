@@ -67,7 +67,7 @@ The agent reads your mail, so a model that keeps or trains on it is a security r
 
 | Provider | Key | What happens to prompts |
 |---|---|---|
-| Cloudflare (Workers AI) | None; bills your Cloudflare account | Not used to train models or improve services ([data usage](https://developers.cloudflare.com/workers-ai/platform/data-usage/)). No zero retention promise. |
+| Cloudflare (Workers AI) | None; bills your Cloudflare account | Not used to train models or improve services ([data usage](https://developers.cloudflare.com/workers-ai/platform/data-usage/)). No zero retention promise; the mailbox is already stored on Cloudflare, so no new party sees it. |
 | OpenRouter | `sk-or-…` | Zero data retention endpoints only; OpenRouter doesn't log prompts unless you opt in ([ZDR](https://openrouter.ai/docs/guides/features/zdr)) |
 
 Cloudflare's list is filtered too: it holds only text models with a listed price above zero that the catalog doesn't mark as `partner` (models served under a third party's terms; today those are image and speech models). Unpriced models, including Cloudflare's own preview ones, are left out. A typed `@cf/…` id outside that list is refused when you save or test it. The `terms` link some Cloudflare models carry is the license for the model weights, not a data policy; the weights don't learn from what you send.

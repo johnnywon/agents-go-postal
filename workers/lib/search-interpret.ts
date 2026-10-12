@@ -155,8 +155,8 @@ export async function interpretSearch(text: string, ctx: InterpretContext, gener
 	}
 	const model = parseReply(reply);
 	if (!model) {
-		// The reply holds the request and the model's words, never mail.
-		console.error("search interpret: reply didn't fit the schema:", reply.slice(0, 300));
+		// Only the length: the reply can echo the search words, and logs are kept.
+		console.error(`search interpret: reply didn't fit the schema (${reply.length} chars)`);
 		return { error: "The model's answer wasn't a search. Searching for the words instead.", query: request };
 	}
 	const query = searchFromTerms(model, ctx);

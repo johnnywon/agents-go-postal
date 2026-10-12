@@ -39,7 +39,7 @@ export interface ProviderInfo {
 export const PROVIDER_INFO: Record<ProviderId, ProviderInfo> = {
 	"workers-ai": {
 		id: "workers-ai", label: "Cloudflare", hue: 55, keyHint: null, keyUrl: null, idExample: "@cf/author/model", zdr: false,
-		data: "Doesn't train on your prompts or outputs.",
+		data: "Doesn't train on your prompts or outputs. No zero retention promise.",
 		policyUrl: "https://developers.cloudflare.com/workers-ai/platform/data-usage/",
 	},
 	openrouter: {

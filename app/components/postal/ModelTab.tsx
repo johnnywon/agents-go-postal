@@ -445,11 +445,12 @@ export function AgentModelSection({ draft }: { draft: AgentModelDraft }) {
 			<div className="pg-models-notice" role="note">
 				<ShieldCheckIcon size={18} weight="duotone" aria-hidden="true" />
 				<div>
-					<b>Private models only</b>
+					<b>No training on your mail. Zero retention on OpenRouter.</b>
 					<p>
 						The agent reads your mail, so a model that keeps or trains on it is a security risk. Cloudflare doesn't train
-						on your prompts (<a href={PROVIDER_INFO["workers-ai"].policyUrl} target="_blank" rel="noreferrer">policy</a>).
-						OpenRouter is held to zero data retention endpoints and doesn't log prompts
+						on your prompts but makes no zero retention promise; your mailbox is already stored there
+						(<a href={PROVIDER_INFO["workers-ai"].policyUrl} target="_blank" rel="noreferrer">policy</a>). OpenRouter is held
+						to zero data retention endpoints and doesn't log prompts
 						(<a href={PROVIDER_INFO.openrouter.policyUrl} target="_blank" rel="noreferrer">policy</a>). Free, unpriced and
 						third-party partner models, and direct provider keys, can't be connected.
 					</p>
