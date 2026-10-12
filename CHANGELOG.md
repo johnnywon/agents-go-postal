@@ -2,6 +2,17 @@
 
 Versions follow [semantic versioning](https://semver.org). Before 1.0, a minor version can break things. Each entry names any new D1 migration: apply it with `wrangler d1 migrations apply <db> --remote` before you deploy that version.
 
+## 0.4.2
+
+- Incoming messages with a duplicate Message-ID are skipped, and failed saves clean up attachment files.
+- Unknown recipients are rejected before the message is read.
+- Outbound subjects and threading headers reject line breaks.
+- Responses add frame protections and safer attachment headers; `/mcp` refuses foreign origins.
+- Cloudflare Access reuses its JWKS, requires RS256 and an HTTPS `TEAM_DOMAIN`.
+- Mailbox settings are validated before they are saved.
+
+No D1 migration.
+
 ## 0.4.1
 
 Agent safety.
