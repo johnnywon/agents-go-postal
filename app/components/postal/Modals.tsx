@@ -4,14 +4,14 @@
 
 import {
 	ArrowCounterClockwiseIcon, AtIcon, CheckIcon, CopyIcon, DatabaseIcon, DesktopIcon, GearSixIcon, MoonIcon,
-	KeyIcon, PlugsConnectedIcon, SignatureIcon, SignOutIcon, SlidersHorizontalIcon, SunIcon, TagIcon, WrenchIcon, XIcon,
+	KeyIcon, MagnifyingGlassIcon, PlugsConnectedIcon, SignatureIcon, SignOutIcon, SlidersHorizontalIcon, SunIcon, TagIcon, WrenchIcon, XIcon,
 } from "@phosphor-icons/react";
 import { AgentIcon } from "./AgentIcon";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 import { queryKeys } from "~/queries/keys";
 import api, { type AgentProvider, type WorkersAiModelList } from "~/services/api";
-import type { WorkersAiModel } from "shared/workers-ai-models";
+import { makerOf, type WorkersAiModel } from "shared/workers-ai-models";
 import { type AddressInfo, textToParagraphs } from "./compose";
 import { Editor } from "./Editor";
 import { htmlToPlainText } from "~/lib/utils";
@@ -28,6 +28,8 @@ function Modal({ className = "", label, onClose, children }: { className?: strin
 		ref.current?.querySelector<HTMLElement>("[data-autofocus]")?.focus();
 		const onKey = (e: KeyboardEvent) => {
 			if (e.key === "Escape") {
+				// Escape in a search box with text clears the box; the box handles it.
+				if (e.target instanceof HTMLInputElement && e.target.type === "search" && e.target.value) return;
 				e.preventDefault();
 				onClose();
 			} else if (e.key === "Tab" && ref.current) {
@@ -150,73 +152,129 @@ function formatPrice(usd: number | undefined): string {
 	return usd === undefined ? "–" : `$${usd.toFixed(2)}`;
 }
 
+/** Cost band by output price, which dominates an agent's bill. */
+function priceTier(model: WorkersAiModel): "low" | "mid" | "high" | "none" {
+	if (!model.price) return "none";
+	return model.price.output <= 0.6 ? "low" : model.price.output <= 2 ? "mid" : "high";
+}
+
+/** Context on a log scale from 8K to 1M tokens, as a share of the bar. */
+function contextShare(tokens: number | null): number {
+	if (!tokens) return 0;
+	const lo = Math.log(8_000), hi = Math.log(1_048_576);
+	return Math.min(1, Math.max(0.04, (Math.log(tokens) - lo) / (hi - lo)));
+}
+
 function WorkersAiRow({ model, selected, recommended, onSelect }: { model: WorkersAiModel; selected: boolean; recommended: boolean; onSelect: () => void }) {
+	const maker = makerOf(model.id);
+	const tier = priceTier(model);
 	return (
 		<button type="button" role="radio" aria-checked={selected} className="pg-model-row" onClick={onSelect}>
-			<span className="pg-model-check" aria-hidden="true">{selected && <CheckIcon size={14} weight="bold" />}</span>
+			<span className="pg-model-check" aria-hidden="true">{selected && <CheckIcon size={12} weight="bold" />}</span>
 			<span className="pg-model-name">
-				<span className="pg-model-title">{model.name}{recommended && <span className="pg-tag is-rec">Recommended</span>}</span>
+				<span className="pg-model-title">
+					<span className="pg-maker" style={{ "--pg-h": maker.hue } as React.CSSProperties}>{maker.label}</span>
+					<b>{model.name}</b>
+					{recommended && <span className="pg-model-rec">Recommended</span>}
+				</span>
 				<code>{model.id}</code>
 				{model.note && <span className="pg-model-note">{model.note}</span>}
 			</span>
-			<span className="pg-model-num" data-label="Context">{formatContext(model.context)}</span>
-			<span className="pg-model-num" data-label="Input">{formatPrice(model.price?.input)}</span>
-			<span className="pg-model-num" data-label="Output">{formatPrice(model.price?.output)}</span>
+			<span className="pg-model-ctx" data-label="Context">
+				<span className="pg-model-bar" aria-hidden="true"><i style={{ width: `${contextShare(model.context) * 100}%` }} /></span>
+				<span>{formatContext(model.context)}</span>
+			</span>
+			<span className="pg-model-price" data-tier={tier}>
+				{tier === "none" ? "No price listed" : <><span>{formatPrice(model.price?.input)}</span><span className="pg-model-slash">/</span><b>{formatPrice(model.price?.output)}</b></>}
+			</span>
 		</button>
 	);
 }
 
+type ModelSort = "suggested" | "price" | "context";
+
 function WorkersAiPicker({ draft }: { draft: AgentModelDraft }) {
 	const { data: list, isLoading } = useWorkersAiModels();
-	const [showAll, setShowAll] = useState(false);
+	const [query, setQuery] = useState("");
+	const [sort, setSort] = useState<ModelSort>("suggested");
 	if (isLoading || !list) return <p className="pg-table-note">Loading Cloudflare's model list…</p>;
 
 	const recommended = list.recommended;
 	const saved = draft.workersAiModel;
 	const selected = saved || recommended;
 	const savedMissing = !!saved && list.live && !list.models.some((m) => m.id === saved);
-	const suggested = list.models.filter((m) => m.suggested);
-	const others = list.models.filter((m) => !m.suggested);
-	// A pick from the long list stays visible when the list is folded.
-	const visible = showAll ? list.models : [...suggested, ...others.filter((m) => m.id === selected)];
 	const select = (id: string) => draft.setWorkersAiModel(id === recommended ? "" : id);
+
+	const words = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
+	const matches = list.models.filter((m) => {
+		const text = `${m.name} ${m.id} ${makerOf(m.id).label} ${m.note}`.toLowerCase();
+		return words.every((w) => text.includes(w));
+	});
+	const sorted = sort === "suggested" ? matches
+		: [...matches].sort(sort === "price"
+			? (a, b) => (a.price?.output ?? Infinity) - (b.price?.output ?? Infinity) || (a.price?.input ?? 0) - (b.price?.input ?? 0)
+			: (a, b) => (b.context ?? 0) - (a.context ?? 0) || (a.price?.output ?? Infinity) - (b.price?.output ?? Infinity));
+	const grouped = sort === "suggested" && words.length === 0;
+	const groups = grouped
+		? [{ title: "Suggested", rows: sorted.filter((m) => m.suggested) }, { title: "More from Cloudflare", rows: sorted.filter((m) => !m.suggested) }]
+		: [{ title: `${sorted.length} ${sorted.length === 1 ? "model" : "models"}`, rows: sorted }];
+	const row = (m: WorkersAiModel) => <WorkersAiRow key={m.id} model={m} selected={m.id === selected} recommended={m.id === recommended} onSelect={() => select(m.id)} />;
 
 	return (
 		<div className="pg-models">
 			<div className="pg-models-head">
 				<b>Agent model</b>
-				<span>Price per million tokens</span>
+				<span className="pg-models-legend">
+					Price per 1M tokens, in / out
+					<span data-tier="low">Low</span><span data-tier="mid">Mid</span><span data-tier="high">High</span>
+				</span>
 			</div>
 			{savedMissing && (
 				<p className="pg-models-warn">
 					Cloudflare no longer lists <code>{saved}</code>. The agent is using {workersAiName(list, recommended)} until you choose another model.
 				</p>
 			)}
-			<div className="pg-models-list" role="radiogroup" aria-label="Workers AI model">
-				<div className="pg-model-row is-head" aria-hidden="true">
-					<span />
-					<span>Model</span>
-					<span className="pg-model-num">Context</span>
-					<span className="pg-model-num">Input</span>
-					<span className="pg-model-num">Output</span>
-				</div>
-				{visible.map((m) => (
-					<WorkersAiRow key={m.id} model={m} selected={m.id === selected} recommended={m.id === recommended} onSelect={() => select(m.id)} />
-				))}
+			<div className="pg-models-tools">
+				<label className="pg-models-search">
+					<MagnifyingGlassIcon size={14} aria-hidden="true" />
+					<input
+						type="search"
+						value={query}
+						placeholder={`Search ${list.models.length} models: name, maker, "flash"`}
+						aria-label="Search Workers AI models"
+						spellCheck={false}
+						onChange={(e) => setQuery(e.target.value)}
+						onKeyDown={(e) => { if (e.key === "Escape" && query) { e.preventDefault(); setQuery(""); } }}
+					/>
+				</label>
+				<Segmented<ModelSort>
+					label="Sort models"
+					value={sort}
+					onChange={setSort}
+					options={[{ value: "suggested", label: "Suggested" }, { value: "price", label: "Cheapest" }, { value: "context", label: "Most context" }]}
+				/>
 			</div>
-			{others.length > 0 && (
-				<button type="button" className="pg-btn pg-btn-sm pg-btn-quiet pg-models-more" onClick={() => setShowAll(!showAll)}>
-					{showAll ? "Show suggested models only" : `Show all ${list.models.length} models that can call tools`}
-				</button>
-			)}
+			<div className="pg-models-list" role="radiogroup" aria-label="Workers AI model">
+				{groups.map((g) => g.rows.length > 0 && (
+					<div key={g.title} className="pg-models-group">
+						<div className="pg-models-group-head">
+							<span>{g.title}</span>
+							{grouped && <span>{g.rows.length}</span>}
+						</div>
+						{g.rows.map(row)}
+					</div>
+				))}
+				{sorted.length === 0 && <p className="pg-models-empty">No model matches "{query.trim()}".</p>}
+			</div>
 			<div className="pg-models-how">
 				<b>How this works</b>
 				<p>
 					The agent panel, Draft reply and auto-draft run on this model through the Worker's <code>AI</code> binding, billed to your Cloudflare account.
 					Context is how many tokens the model reads at once; a long thread with attachments can use 50K or more.
+					Price colours go by output price, which is most of an agent's bill: low is $0.60 or less per million, mid up to $2, high above.
 					Only models that can call tools are listed, because the agent reads, labels and drafts through tools.
 					{list.live
-						? " Prices and context sizes come from Cloudflare's catalog; a dash means Cloudflare lists none."
+						? " Prices and context sizes come from Cloudflare's catalog."
 						: ` Cloudflare's catalog couldn't be read, so these are the suggested models with prices from ${list.snapshotDate}.`}
 				</p>
 				<p>

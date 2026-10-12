@@ -89,5 +89,17 @@ test("the catalog keeps text models that call tools, suggested ones first with l
 	assert.deepEqual(models[1].price, { input: 2, output: 5 });
 	assert.equal(models[1].note, w.SUGGESTED_WORKERS_AI_MODELS[1].note);
 	assert.deepEqual(models[0].price, w.SUGGESTED_WORKERS_AI_MODELS[0].price, "no live price keeps the saved one");
-	assert.deepEqual(models[2], { id: "@cf/zz/other", name: "other", note: "", context: 32000, price: { input: 0.1, output: 0.2 }, suggested: false });
+	assert.deepEqual(models[2], { id: "@cf/zz/other", name: "Other", note: "", context: 32000, price: { input: 0.1, output: 0.2 }, suggested: false });
+});
+
+test("catalog ids read as names, and each maker gets a label and hue", () => {
+	assert.equal(w.prettyName("@cf/zai-org/glm-5.2"), "GLM 5.2");
+	assert.equal(w.prettyName("@cf/openai/gpt-oss-20b"), "GPT OSS 20B");
+	assert.equal(w.prettyName("@cf/meta/llama-3.3-70b-instruct-fp8-fast"), "Llama 3.3 70B Instruct FP8 Fast");
+	assert.equal(w.prettyName("@cf/moonshotai/kimi-k2.7-code"), "Kimi K2.7 Code");
+	assert.equal(w.prettyName("@cf/deepseek-ai/deepseek-v4-pro-0813"), "DeepSeek V4 Pro 0813");
+	assert.equal(w.makerOf("@cf/zai-org/glm-5.2").label, "Z.ai");
+	const unknown = w.makerOf("@cf/someone/model");
+	assert.equal(unknown.label, "someone");
+	assert.equal(unknown.hue, w.makerOf("@cf/someone/other").hue);
 });

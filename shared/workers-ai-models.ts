@@ -91,9 +91,38 @@ function priceOf(value: unknown): WorkersAiPrice | null {
 	return input === undefined || output === undefined ? null : { input, output };
 }
 
-/** A readable name from a model id: "@cf/zai-org/glm-5.3-flash" becomes "glm-5.3-flash". */
-function shortName(id: string): string {
-	return id.split("/").pop() ?? id;
+const UPPER = new Set(["glm", "gpt", "oss", "fp8", "awq", "it", "ai"]);
+const SPELLED: Record<string, string> = { deepseek: "DeepSeek", eurollm: "EuroLLM" };
+
+/** A readable name from a model id: "@cf/zai-org/glm-5.3-flash" becomes "GLM 5.3 Flash". */
+export function prettyName(id: string): string {
+	return (id.split("/").pop() ?? id).split("-").filter(Boolean).map((w) =>
+		SPELLED[w] ?? (UPPER.has(w) || /^\d+(\.\d+)?[bm]$/.test(w) || /^a\d+b$/.test(w) || /^[kv]\d/.test(w) ? w.toUpperCase() : w[0].toUpperCase() + w.slice(1)),
+	).join(" ");
+}
+
+/** Who makes each model, by the author segment of its id, with a hue for its tag. */
+const MAKERS: Record<string, { label: string; hue: number }> = {
+	moonshotai: { label: "Moonshot", hue: 25 },
+	"zai-org": { label: "Z.ai", hue: 175 },
+	"deepseek-ai": { label: "DeepSeek", hue: 255 },
+	openai: { label: "OpenAI", hue: 150 },
+	meta: { label: "Meta", hue: 230 },
+	qwen: { label: "Qwen", hue: 295 },
+	google: { label: "Google", hue: 75 },
+	mistralai: { label: "Mistral", hue: 45 },
+	nvidia: { label: "NVIDIA", hue: 125 },
+	"ibm-granite": { label: "IBM", hue: 215 },
+	"swiss-ai": { label: "Swiss AI", hue: 5 },
+	"utter-project": { label: "EuroLLM", hue: 270 },
+};
+
+export function makerOf(id: string): { label: string; hue: number } {
+	const author = id.split("/")[1] ?? "";
+	if (MAKERS[author]) return MAKERS[author];
+	let hue = 0;
+	for (const c of author) hue = (hue * 31 + c.charCodeAt(0)) % 360;
+	return { label: author || "Unknown", hue };
 }
 
 /**
@@ -111,7 +140,7 @@ export function modelsFromCatalog(catalog: CatalogEntry[]): WorkersAiModel[] {
 		const context = Number(props.get("context_window"));
 		tools.set(entry.name, {
 			id: entry.name,
-			name: shortName(entry.name),
+			name: prettyName(entry.name),
 			note: "",
 			context: Number.isFinite(context) && context > 0 ? context : null,
 			price: priceOf(props.get("price")),
