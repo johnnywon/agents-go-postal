@@ -92,7 +92,7 @@ Also: an in-app agent on Workers AI or zero data retention OpenRouter models, at
                                   data retention)
 ```
 
-One Worker in your account. Mail is stored in a Durable Object per address, or in D1 for attachment search and every search operator. How mail arrives and leaves is in [Architecture](docs/architecture.md).
+One Worker in your account. Mail is stored in D1, one database for every address. How mail arrives and leaves is in [Architecture](docs/architecture.md).
 
 ## Before you deploy
 
@@ -107,7 +107,7 @@ One Worker in your account. Mail is stored in a Durable Object per address, or i
 
 - Email Sending is in public beta and needs Workers Paid. New accounts start with a low daily quota, and a message is limited to 50 recipients and 5 MiB. Receiving uses Email Routing, which isn't in beta and works on Workers Free.
 - Agents can send when you ask them to. There's no approval step yet; it's the first item on the [roadmap](#roadmap).
-- There's no mail export, IMAP or SMTP yet. On D1, `wrangler d1 time-travel` restores the last 30 days.
+- There's no mail export, IMAP or SMTP yet. `wrangler d1 time-travel` restores the last 30 days.
 - Everyone who passes Access sees every address.
 
 ## Quick start

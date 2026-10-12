@@ -11,7 +11,7 @@ How the app works day to day. Back to the [README](../README.md).
 - **Scheduled send.** Pick tomorrow morning, Monday morning or any future time. The message waits in Drafts until it goes out.
 - **Labels and bulk actions.** Select many conversations to archive, delete, mark read, star, label or move. Undo is available after each action. Rename, recolour and delete labels in Settings > Labels, or from Manage labels in the sidebar.
 - **Keyboard shortcuts** for navigation and actions. Press `?` for a map of where each key acts. Rebind them in Settings > Shortcuts, or ask the agent ("make archive Y").
-- **Per-address isolation.** Every address has its own Durable Object, database and prompt settings.
+- **Per-address isolation.** Every address has its own folders, threads, settings and prompt. Every query on one address filters on it.
 - **AI agent.** A side panel that can read, search, label, draft and send on Workers AI, or on OpenRouter's zero data retention endpoints with your key. It searches and labels across every address at once (`search_all_mail`, `label_matching`, up to 500 conversations per call). "Draft reply" in either composer (or "Draft" in a new message) asks it for a first draft. Labels the agent has applied are marked with a sparkle. It sends a draft with `send_draft` when you ask it to. Automatic drafting of new mail is off by default (`AUTO_DRAFT_ENABLED`); it only drafts, and skips mailing lists, bulk mail, auto-replies and no-reply senders.
 - **MCP server** for connecting outside agents, including `send_draft`, and `list_shortcuts`, `set_shortcut` and `reset_shortcuts` for the keyboard shortcuts.
 - **Sends go out once.** Each send can carry an `Idempotency-Key` header. A retry with the same key returns the first send instead of sending again. The composer sets one per message, and every way of sending a saved draft uses `draft:<id>`, so a draft is sent once whether you, the agent or the schedule sends it.
@@ -43,7 +43,7 @@ The search bar, the agent's `search_all_mail` and `search_emails`, and the MCP t
 | `larger:` `smaller:` | A size including attachments: `500k`, `5mb` |
 | `list:` | A mailing list id |
 
-Unknown operators are searched as plain words. An operator with a value that doesn't parse, such as `before:soon`, is left out and named in the search bar. `cc:`, `filename:`, `larger:`, `smaller:`, `is:scheduled`, `has:pdf`, `has:image` and `has:link` need D1 storage ([Moving to D1](setup.md#moving-to-d1)).
+Unknown operators are searched as plain words. An operator with a value that doesn't parse, such as `before:soon`, is left out and named in the search bar. `cc:`, `filename:`, `larger:`, `smaller:`, `is:scheduled`, `has:pdf`, `has:image` and `has:link` are not available on the Durable Object store ([Moving to D1](setup.md#moving-to-d1)).
 
 On D1, a search with words lists the best match first: subject matches count most, body text least, and near-ties go to newer mail. Each row shows the text around the matched words and how many messages in the conversation matched. `sort:date`, or Newest above the list, puts newest first. Over 20,000 matching messages the list is newest first, since ranking that many takes too long; `sort:relevance` ranks it anyway. A word of three or more letters that matches no word is searched as part of a word in subjects, addresses, attachment names and attachment text, so `7731` finds `XK7731Q`. When nothing matches, the window suggests a spelling. On the Durable Object store results are newest first.
 
@@ -57,9 +57,9 @@ When the text reads like a request ("unread newsletters from this week"), the wi
 
 ## Scheduled send
 
-Choose a time from the arrow next to Send in the compose window. The message is saved to Drafts with a "Scheduled" badge, and the address's Durable Object sends it with an alarm at that time through the normal sending path. Cancel removes the schedule and keeps the draft. Editing or deleting the draft before the send time cancels it. A send that fails is retried every 15 minutes, up to three attempts; after that the draft stays in Drafts marked "Send failed". Attachments count toward a 1.5 MB limit per scheduled message.
+Choose a time from the arrow next to Send in the compose window. The message is saved to Drafts with a "Scheduled" badge, and a one-minute cron sends it through the normal sending path, up to a minute after its time. Cancel removes the schedule and keeps the draft. Editing or deleting the draft before the send time cancels it. A send that fails is retried every 15 minutes, up to three attempts; after that the draft stays in Drafts marked "Send failed". Attachments count toward a 1.5 MB limit per scheduled message.
 
-On D1 storage ([Moving to D1](setup.md#moving-to-d1)), a one-minute cron sends scheduled mail instead of the alarm, so a message can go out up to a minute after its time.
+On the Durable Object store ([Moving to D1](setup.md#moving-to-d1)), the address's Durable Object sends it with an alarm instead.
 
 ## Agent model
 

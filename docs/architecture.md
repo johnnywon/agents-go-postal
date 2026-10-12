@@ -27,7 +27,7 @@ How the Worker is put together, what happens when mail arrives and when you send
                                   data retention)
 ```
 
-Everything runs in one Worker on your account. Mail is stored either in a Durable Object per address with a combined index, which is what a fresh deploy uses, or in D1, one database for every address. D1 adds attachment search, the `filename:`, `cc:`, `has:pdf`, `has:image`, `has:link` and `is:scheduled` operators, and large bodies in R2, and its cron sends scheduled mail. On Durable Objects, each mailbox's own alarm sends its scheduled mail. D1 is where the project is heading; see [Moving to D1](setup.md#moving-to-d1) and the [roadmap](roadmap.md).
+Everything runs in one Worker on your account. Mail is stored in D1, one database for every address, which is what a fresh deploy uses. Deployments from before 0.5 can still store it in a Durable Object per address with a combined index until they move ([Moving to D1](setup.md#moving-to-d1)); that store is removed in 0.6. D1 adds attachment search, the `filename:`, `cc:`, `has:pdf`, `has:image`, `has:link` and `is:scheduled` operators, and large bodies in R2, and its cron sends scheduled mail. On Durable Objects, each mailbox's own alarm sends its scheduled mail.
 
 What happens when a message arrives:
 
