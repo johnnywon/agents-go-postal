@@ -7,6 +7,7 @@ import { AgentIcon } from "./AgentIcon";
 import { useQueryClient } from "@tanstack/react-query";
 import type { UIMessage } from "ai";
 import type { ComposeState } from "./compose";
+import { Keys, useShortcuts } from "./shortcuts";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -327,8 +328,9 @@ export function stepHistory(length: number, at: number | null, delta: -1 | 1): n
 }
 
 export function AgentRail({ onOpen, busy }: { onOpen: () => void; busy: boolean }) {
+	const { tip } = useShortcuts();
 	return (
-		<button type="button" className="pg-agentrail" onClick={onOpen} title="Open agent chat (⌘J)" aria-label="Open agent chat">
+		<button type="button" className="pg-agentrail" onClick={onOpen} title={tip("agent", "Open agent chat")} aria-label="Open agent chat">
 			<span className="pg-rail-head"><CaretDoubleLeftIcon size={12} weight="bold" /></span>
 			<span className="pg-vert">
 				<AgentIcon size={16} weight="fill" />
@@ -336,7 +338,7 @@ export function AgentRail({ onOpen, busy }: { onOpen: () => void; busy: boolean 
 				{busy && <span className="pg-dot pg-round" title="Agent working" />}
 			</span>
 			<span style={{ flex: 1 }} />
-			<span className="pg-kbd">⌘J</span>
+			<Keys id="agent" />
 		</button>
 	);
 }

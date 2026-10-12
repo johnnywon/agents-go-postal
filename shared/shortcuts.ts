@@ -1,0 +1,289 @@
+// Copyright (c) 2026 Cloudflare, Inc.
+// Licensed under the Apache 2.0 license found in the LICENSE file or at:
+//     https://opensource.org/licenses/Apache-2.0
+
+/**
+ * Every keyboard shortcut, defined once. The mail view's key handler, the
+ * tooltips, the key hints, Settings > Shortcuts and the ? list all read this.
+ *
+ * A binding is a step like "e", "Shift+x", "Mod+k" or "ArrowDown", or two
+ * steps for a sequence ("g i"). Mod is ⌘ on a Mac and Ctrl elsewhere. A
+ * letter is always lower case; Shift is written out. A symbol carries its own
+ * shift: "?" and "#", never "Shift+/".
+ *
+ * Mail-scope shortcuts that are not fixed can be rebound in Settings. The
+ * rest are listed so the list is complete, but the composer, the editor and
+ * the search box handle them on their own.
+ */
+
+export type ShortcutGroup = "Navigate" | "Conversation" | "Write" | "Search" | "App";
+
+/** Where a shortcut works: the mail view's handler, the composer, or the search box. */
+export type ShortcutScope = "mail" | "compose" | "search";
+
+export interface ShortcutDef {
+	id: string;
+	group: ShortcutGroup;
+	label: string;
+	keys: readonly string[];
+	scope: ShortcutScope;
+	/** Listed but not rebindable. */
+	fixed?: boolean;
+	/** Shift plus the key does the ranged version (Shift+x selects a range). */
+	shiftRange?: boolean;
+	hint?: string;
+}
+
+export const SHORTCUTS = [
+	{ id: "next", group: "Navigate", label: "Next conversation", keys: ["j", "ArrowDown"], scope: "mail" },
+	{ id: "prev", group: "Navigate", label: "Previous conversation", keys: ["k", "ArrowUp"], scope: "mail" },
+	{ id: "search", group: "Navigate", label: "Search", keys: ["/", "Mod+k"], scope: "mail" },
+	{ id: "goInbox", group: "Navigate", label: "Go to Inbox", keys: ["g i"], scope: "mail", fixed: true },
+	{ id: "goStarred", group: "Navigate", label: "Go to Starred", keys: ["g s"], scope: "mail", fixed: true },
+	{ id: "goDrafts", group: "Navigate", label: "Go to Drafts", keys: ["g d"], scope: "mail", fixed: true },
+	{ id: "goSent", group: "Navigate", label: "Go to Sent", keys: ["g t"], scope: "mail", fixed: true },
+	{ id: "back", group: "Navigate", label: "Clear selection or close", keys: ["Escape"], scope: "mail", fixed: true },
+
+	{ id: "archive", group: "Conversation", label: "Archive", keys: ["e"], scope: "mail" },
+	{ id: "trash", group: "Conversation", label: "Move to trash", keys: ["#"], scope: "mail" },
+	{ id: "star", group: "Conversation", label: "Star or unstar", keys: ["s"], scope: "mail" },
+	{ id: "read", group: "Conversation", label: "Mark read or unread", keys: ["u"], scope: "mail" },
+	{ id: "label", group: "Conversation", label: "Label", keys: ["l"], scope: "mail" },
+	{ id: "select", group: "Conversation", label: "Select", keys: ["x"], scope: "mail", shiftRange: true, hint: "With Shift, selects a range" },
+	{ id: "undo", group: "Conversation", label: "Undo", keys: ["z"], scope: "mail" },
+
+	{ id: "compose", group: "Write", label: "New email", keys: ["c"], scope: "mail" },
+	{ id: "reply", group: "Write", label: "Reply", keys: ["r"], scope: "mail" },
+	{ id: "replyAll", group: "Write", label: "Reply all", keys: ["a"], scope: "mail" },
+	{ id: "forward", group: "Write", label: "Forward", keys: ["f"], scope: "mail" },
+	{ id: "send", group: "Write", label: "Send", keys: ["Mod+Enter"], scope: "compose", fixed: true },
+	{ id: "minimise", group: "Write", label: "Minimise or close the composer", keys: ["Escape"], scope: "compose", fixed: true },
+	{ id: "bold", group: "Write", label: "Bold", keys: ["Mod+b"], scope: "compose", fixed: true },
+	{ id: "italic", group: "Write", label: "Italic", keys: ["Mod+i"], scope: "compose", fixed: true },
+	{ id: "underline", group: "Write", label: "Underline", keys: ["Mod+u"], scope: "compose", fixed: true },
+	{ id: "link", group: "Write", label: "Link", keys: ["Mod+k"], scope: "compose", fixed: true },
+
+	{ id: "searchMove", group: "Search", label: "Move through suggestions", keys: ["ArrowDown", "ArrowUp"], scope: "search", fixed: true },
+	{ id: "searchComplete", group: "Search", label: "Complete", keys: ["Tab"], scope: "search", fixed: true },
+	{ id: "searchOpen", group: "Search", label: "Open the first result", keys: ["Enter"], scope: "search", fixed: true },
+	{ id: "searchRun", group: "Search", label: "Search", keys: ["Mod+Enter"], scope: "search", fixed: true },
+	{ id: "searchSave", group: "Search", label: "Save search", keys: ["Mod+s"], scope: "search", fixed: true },
+	{ id: "searchClose", group: "Search", label: "Close suggestions, then clear", keys: ["Escape"], scope: "search", fixed: true },
+
+	{ id: "agent", group: "App", label: "Agent panel", keys: ["Mod+j"], scope: "mail" },
+	{ id: "help", group: "App", label: "Keyboard shortcuts", keys: ["?"], scope: "mail", fixed: true },
+] as const satisfies readonly ShortcutDef[];
+
+type Def = (typeof SHORTCUTS)[number];
+export type ShortcutId = Def["id"];
+export type MailShortcutId = Extract<Def, { scope: "mail" }>["id"];
+export type RebindableId = Exclude<Extract<Def, { scope: "mail" }>, { fixed: true }>["id"];
+
+export const SHORTCUT_GROUPS: readonly ShortcutGroup[] = ["Navigate", "Conversation", "Write", "Search", "App"];
+const ALL: readonly ShortcutDef[] = SHORTCUTS;
+const BY_ID = new Map<string, ShortcutDef>(ALL.map((s) => [s.id, s]));
+
+export function shortcut(id: ShortcutId): ShortcutDef {
+	return BY_ID.get(id)!;
+}
+
+export function isRebindable(id: string): id is RebindableId {
+	const def = BY_ID.get(id);
+	return !!def && def.scope === "mail" && !def.fixed;
+}
+
+/** Saved rebindings: a shortcut's keys, replacing its defaults. An empty list turns it off. */
+export type ShortcutOverrides = Partial<Record<RebindableId, string[]>>;
+
+/** At most this many keys per shortcut. */
+export const MAX_KEYS = 2;
+
+const MODIFIER_KEYS = new Set(["Shift", "Meta", "Control", "Alt", "AltGraph", "CapsLock", "Fn", "OS", "Hyper", "Super"]);
+const NAMED_KEYS = new Set([
+	"Enter", "Escape", "Tab", "Backspace", "Delete", "Space", "Home", "End", "PageUp", "PageDown",
+	"ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight",
+]);
+const STEP = /^((?:Mod\+|Alt\+|Shift\+)*)(.+)$/;
+
+export interface KeyLike {
+	key: string;
+	metaKey?: boolean;
+	ctrlKey?: boolean;
+	shiftKey?: boolean;
+	altKey?: boolean;
+}
+
+/** The step a key event makes, or null for a lone modifier or a key we don't name. */
+export function stepOf(e: KeyLike): string | null {
+	if (!e.key || MODIFIER_KEYS.has(e.key) || e.key === "Dead" || e.key === "Unidentified") return null;
+	let key = e.key === " " ? "Space" : e.key;
+	const letter = /^[a-z]$/i.test(key);
+	if (letter) key = key.toLowerCase();
+	else if (key.length > 1 && !NAMED_KEYS.has(key)) return null;
+	const named = key.length > 1;
+	let mods = "";
+	if (e.metaKey || e.ctrlKey) mods += "Mod+";
+	if (e.altKey) mods += "Alt+";
+	if (e.shiftKey && (letter || named)) mods += "Shift+";
+	return mods + key;
+}
+
+/** Whether a string is a step the matcher understands. */
+export function validStep(step: string): boolean {
+	const m = STEP.exec(step);
+	if (!m) return false;
+	const key = m[2];
+	if (key.length === 1) return key === key.toLowerCase() || !/[a-z]/i.test(key);
+	return NAMED_KEYS.has(key);
+}
+
+/** Keys the mail view keeps for itself: Escape, the g of g-sequences, ? and keys that move focus or type. */
+const RESERVED = new Set(["Escape", "g", "?", "Tab", "Shift+Tab", "Enter", "Space", "Shift+Space"]);
+
+/** Why a step can't be bound to a shortcut, or null if it can. */
+export function cannotBind(step: string): string | null {
+	if (!validStep(step)) return "That key can't be used.";
+	if (RESERVED.has(step)) return step === "g" ? "G starts the Go to shortcuts." : `${step} is kept for the app.`;
+	if (step.startsWith("Alt+") || step.includes("+Alt+")) return "Option and Alt type characters; use another key.";
+	return null;
+}
+
+/** Overrides from untrusted input: known, rebindable ids with valid, bindable, distinct keys. */
+export function cleanOverrides(input: unknown): ShortcutOverrides {
+	const out: ShortcutOverrides = {};
+	if (!input || typeof input !== "object" || Array.isArray(input)) return out;
+	for (const [id, value] of Object.entries(input as Record<string, unknown>)) {
+		if (!isRebindable(id) || !Array.isArray(value)) continue;
+		const keys = [...new Set(value.filter((k): k is string => typeof k === "string" && cannotBind(k) === null))].slice(0, MAX_KEYS);
+		out[id] = keys;
+	}
+	return out;
+}
+
+/** The keys each shortcut answers to. A rebound key is taken from the shortcut that had it by default. */
+export function resolveBindings(overrides: ShortcutOverrides = {}): Map<ShortcutId, string[]> {
+	const claimed = new Map<string, Map<ShortcutScope, ShortcutId>>();
+	const claim = (step: string, def: ShortcutDef) => {
+		const scopes = claimed.get(step) ?? new Map<ShortcutScope, ShortcutId>();
+		if (scopes.has(def.scope)) return false;
+		scopes.set(def.scope, def.id as ShortcutId);
+		claimed.set(step, scopes);
+		return true;
+	};
+	const out = new Map<ShortcutId, string[]>();
+	const own = (def: ShortcutDef) => (isRebindable(def.id) ? overrides[def.id] : undefined);
+	// Fixed keys first, then rebound ones, then the defaults left over.
+	for (const def of ALL) if (def.fixed) out.set(def.id as ShortcutId, def.keys.filter((k) => claim(k, def)));
+	for (const def of ALL) {
+		const keys = own(def);
+		if (!def.fixed && keys) out.set(def.id as ShortcutId, keys.filter((k) => claim(k, def)));
+	}
+	for (const def of ALL) if (!def.fixed && !own(def)) out.set(def.id as ShortcutId, def.keys.filter((k) => claim(k, def)));
+	return out;
+}
+
+/** Overrides with `keys` given to `id`, taken away from any other shortcut that had them. */
+export function rebind(overrides: ShortcutOverrides, id: RebindableId, keys: string[]): ShortcutOverrides {
+	const current = resolveBindings(overrides);
+	const next: ShortcutOverrides = { ...overrides };
+	for (const def of ALL) {
+		if (def.id === id || !isRebindable(def.id)) continue;
+		const had = current.get(def.id) ?? [];
+		if (had.some((k) => keys.includes(k))) next[def.id] = had.filter((k) => !keys.includes(k));
+	}
+	next[id] = keys.slice(0, MAX_KEYS);
+	return tidy(next);
+}
+
+/** Overrides without entries that only repeat the defaults. */
+export function tidy(overrides: ShortcutOverrides): ShortcutOverrides {
+	const out: ShortcutOverrides = {};
+	for (const [id, keys] of Object.entries(overrides) as [RebindableId, string[]][]) {
+		const def = shortcut(id);
+		if (keys.length === def.keys.length && keys.every((k, i) => k === def.keys[i])) continue;
+		out[id] = keys;
+	}
+	return out;
+}
+
+export function sameOverrides(a: ShortcutOverrides, b: ShortcutOverrides): boolean {
+	const ka = Object.keys(a).sort();
+	const kb = Object.keys(b).sort();
+	if (ka.join() !== kb.join()) return false;
+	return ka.every((id) => (a[id as RebindableId] ?? []).join(" ") === (b[id as RebindableId] ?? []).join(" "));
+}
+
+/** Which shortcut a binding in the given scope belongs to. */
+export function ownerOf(bindings: Map<ShortcutId, string[]>, step: string, scope: ShortcutScope = "mail"): ShortcutId | null {
+	for (const [id, keys] of bindings) if (shortcut(id).scope === scope && keys.includes(step)) return id;
+	return null;
+}
+
+const SEQUENCE_MS = 1000;
+
+/**
+ * Turns key steps into mail-scope shortcuts. The first step of a sequence
+ * ("g" of "g i") returns "pending"; the second, within a second, the shortcut.
+ */
+export class KeyMatcher {
+	private single = new Map<string, MailShortcutId>();
+	private sequences = new Map<string, MailShortcutId>();
+	private starts = new Set<string>();
+	private pending: { step: string; at: number } | null = null;
+
+	constructor(bindings: Map<ShortcutId, string[]>) {
+		for (const [id, keys] of bindings) {
+			if (shortcut(id).scope !== "mail") continue;
+			for (const k of keys) {
+				if (k.includes(" ")) {
+					this.sequences.set(k, id as MailShortcutId);
+					this.starts.add(k.split(" ")[0]);
+				} else this.single.set(k, id as MailShortcutId);
+			}
+		}
+	}
+
+	match(step: string, now = Date.now()): { id: MailShortcutId; shift: boolean } | "pending" | null {
+		const prev = this.pending;
+		this.pending = null;
+		if (prev && now - prev.at < SEQUENCE_MS) {
+			const id = this.sequences.get(`${prev.step} ${step}`);
+			if (id) return { id, shift: false };
+		}
+		if (this.starts.has(step)) {
+			this.pending = { step, at: now };
+			return "pending";
+		}
+		const id = this.single.get(step);
+		if (id) return { id, shift: false };
+		if (step.startsWith("Shift+")) {
+			const base = this.single.get(step.slice(6));
+			if (base && shortcut(base).shiftRange) return { id: base, shift: true };
+		}
+		return null;
+	}
+}
+
+const CAPS: Record<string, string> = {
+	ArrowUp: "↑", ArrowDown: "↓", ArrowLeft: "←", ArrowRight: "→", Enter: "↵", Escape: "Esc", Backspace: "⌫",
+	Delete: "Del", Space: "Space", Tab: "Tab", PageUp: "PgUp", PageDown: "PgDn", Home: "Home", End: "End",
+};
+
+/** Keycaps for a binding: "Mod+Enter" is ["⌘", "↵"] on a Mac and ["Ctrl", "↵"] elsewhere. A sequence's steps are joined. */
+export function keycaps(binding: string, mac: boolean): string[] {
+	return binding.split(" ").flatMap((step) => {
+		const m = STEP.exec(step);
+		if (!m) return [step];
+		const mods = m[1].split("+").filter(Boolean).map((mod) => (mod === "Mod" ? (mac ? "⌘" : "Ctrl") : mod === "Shift" ? (mac ? "⇧" : "Shift") : mac ? "⌥" : "Alt"));
+		const key = CAPS[m[2]] ?? (m[2].length === 1 ? m[2].toUpperCase() : m[2]);
+		return [...mods, key];
+	});
+}
+
+/** A binding as tooltip text, "(⌘K)" style without the parentheses: "⌘K", "Ctrl+K", "G I". */
+export function keyText(binding: string, mac: boolean): string {
+	return binding.split(" ").map((step) => {
+		const caps = keycaps(step, mac);
+		return mac ? caps.join("") : caps.join("+");
+	}).join(" ");
+}

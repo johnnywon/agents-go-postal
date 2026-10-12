@@ -21,12 +21,20 @@ function fakeBucket() {
 }
 
 test("cleanPrefs keeps valid fields, takes the rest from base and drops unknown ones", () => {
-	assert.deepEqual(cleanPrefs({ theme: "light", keys: false, markRead: false, images: "never", replyFrom: false }), { theme: "light", keys: false, markRead: false, images: "never", replyFrom: false });
+	assert.deepEqual(cleanPrefs({ theme: "light", keys: false, markRead: false, images: "never", replyFrom: false }), { theme: "light", keys: false, markRead: false, images: "never", replyFrom: false, shortcuts: {} });
 	assert.deepEqual(cleanPrefs({ theme: "neon", keys: "yes", images: 3, extra: 1 }), DEFAULT_PREFS);
 	assert.deepEqual(cleanPrefs(null), DEFAULT_PREFS);
 	assert.deepEqual(cleanPrefs({ images: "always" }, { ...DEFAULT_PREFS, theme: "system" }), { ...DEFAULT_PREFS, theme: "system", images: "always" });
 	assert.ok(samePrefs(cleanPrefs({}), DEFAULT_PREFS));
 	assert.ok(!samePrefs({ ...DEFAULT_PREFS, keys: false }, DEFAULT_PREFS));
+});
+
+test("cleanPrefs keeps rebound shortcuts that can be bound and drops the rest", () => {
+	const prefs = cleanPrefs({ shortcuts: { archive: ["y", "Escape", 3], help: ["h"], nope: ["q"], star: [] } });
+	assert.deepEqual(prefs.shortcuts, { archive: ["y"], star: [] });
+	assert.deepEqual(cleanPrefs({ theme: "light" }, prefs).shortcuts, prefs.shortcuts);
+	assert.ok(!samePrefs(prefs, DEFAULT_PREFS));
+	assert.ok(samePrefs(cleanPrefs({ shortcuts: { archive: ["y"], star: [] } }), prefs));
 });
 
 test("a deployment with nothing saved reports the defaults as unsaved", async () => {

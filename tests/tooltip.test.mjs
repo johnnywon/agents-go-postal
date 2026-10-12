@@ -20,3 +20,11 @@ test("long parentheses stay in the label", () => {
 	assert.equal(parseTip("Archive (everything older than a year)").label, "Archive (everything older than a year)");
 	assert.equal(parseTip("  "), null);
 });
+
+test("keys off a Mac and sequences split into keycaps", () => {
+	assert.deepEqual(splitKeys("Ctrl+K"), ["Ctrl", "K"]);
+	assert.deepEqual(splitKeys("Ctrl+⇧K"), ["Ctrl", "⇧", "K"]);
+	assert.deepEqual(splitKeys("G I"), ["G", "I"]);
+	assert.deepEqual(splitKeys("#"), ["#"]);
+	assert.deepEqual(parseTip("Search (Ctrl+Shift+K)"), { label: "Search", keys: ["Ctrl", "Shift", "K"], hint: undefined });
+});

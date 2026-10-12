@@ -10,7 +10,7 @@ How the app works day to day. Back to the [README](../README.md).
 - **Signatures.** One per address, set in Settings > Signatures. None is added unless you turn on "Add by default"; the signature button in the composer adds or removes it on any message.
 - **Scheduled send.** Pick tomorrow morning, Monday morning or any future time. The message waits in Drafts until it goes out.
 - **Labels and bulk actions.** Select many conversations to archive, delete, mark read, star, label or move. Undo is available after each action. Rename, recolour and delete labels in Settings > Labels, or from Manage labels in the sidebar.
-- **Keyboard shortcuts** for navigation and actions.
+- **Keyboard shortcuts** for navigation and actions. Press `?` for the list; rebind them in Settings > Shortcuts.
 - **Per-address isolation.** Every address has its own Durable Object, database and prompt settings.
 - **AI agent.** A side panel that can read, search, label, draft and send using Workers AI, or any OpenRouter model with your own key. It searches and labels across every address at once (`search_all_mail`, `label_matching`, up to 500 conversations per call). "Draft reply" in either composer (or "Draft" in a new message) asks it for a first draft. Labels the agent has applied are marked with a sparkle. It sends a draft with `send_draft` when you ask it to. Automatic drafting of new mail is off by default (`AUTO_DRAFT_ENABLED`); it only drafts, and skips mailing lists, bulk mail, auto-replies and no-reply senders.
 - **MCP server** for connecting outside agents, including `send_draft`.
@@ -21,9 +21,9 @@ How the app works day to day. Back to the [README](../README.md).
 
 The mail view is a three-column workspace: mailboxes on the left, the list and reader in the middle, the agent on the right. Both side columns collapse to rails. Below 1300px the agent overlays the reader; at phone widths the app shows one pane at a time.
 
-Settings are saved to your deployment, so they follow you to any browser. General (theme, key hints, mark-as-read, remote images and reply-from-receiving-address) is in R2 at `config/prefs.json`, beside the agent model. Each browser keeps a copy so the theme is right before the page finishes loading; the deployment's copy wins. Choose System for the theme to let each device follow its own light or dark setting. Display names, signatures and the agent prompt are stored with each mailbox, and labels with the mail. Only the open or collapsed side columns and recent searches stay in each browser.
+Settings are saved to your deployment, so they follow you to any browser. General (theme, key hints, mark-as-read, remote images and reply-from-receiving-address) and rebound shortcuts are in R2 at `config/prefs.json`, beside the agent model. Each browser keeps a copy so the theme is right before the page finishes loading; the deployment's copy wins. Choose System for the theme to let each device follow its own light or dark setting. Display names, signatures and the agent prompt are stored with each mailbox, and labels with the mail. Only the open or collapsed side columns and recent searches stay in each browser.
 
-Keyboard: `j`/`k` move, `e` archive, `x` select, `r` reply, `a` reply all, `f` forward, `c` new email, `z` undo, `/` or `⌘K` search, `⌘↵` send, `⌘J` agent, `Esc` close.
+Keyboard: `j`/`k` move, `e` archive, `#` trash, `s` star, `u` read or unread, `l` label, `x` select (`Shift+x` a range), `r` reply, `a` reply all, `f` forward, `c` new email, `z` undo, `/` or `⌘K` search, `g` then `i`, `s`, `d` or `t` for Inbox, Starred, Drafts or Sent, `⌘↵` send, `⌘J` agent, `Esc` close, `?` this list. They work while focus is in a message too. Every shortcut is defined once in [`shared/shortcuts.ts`](../shared/shortcuts.ts); the mail view's handler, tooltips, key hints and the `?` list all read it. Settings > Shortcuts rebinds the mail-view keys: click a shortcut's keys and press the new one. A key already in use moves to the shortcut you are changing. `Esc`, `g`, `?`, `Tab`, `Enter` and Space are kept for the app, and on Windows and Linux `⌘` is `Ctrl`.
 
 ## Search
 

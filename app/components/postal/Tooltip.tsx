@@ -29,16 +29,24 @@ export interface TipContent {
 
 const MODIFIERS = new Set(["⌘", "⇧", "⌥", "⌃"]);
 
-/** Split "⌘↵" into ["⌘", "↵"] and "Esc" into ["Esc"]. */
+/** Split "⌘↵" into ["⌘", "↵"], "Ctrl+K" into ["Ctrl", "K"], "G I" into ["G", "I"] and "Esc" into ["Esc"]. */
 export function splitKeys(keys: string): string[] {
-	const out: string[] = [];
-	let rest = keys.trim();
-	while (rest && MODIFIERS.has(rest[0])) {
-		out.push(rest[0]);
-		rest = rest.slice(1);
-	}
-	if (rest) out.push(rest);
-	return out;
+	return keys.trim().split(/\s+/).flatMap((step) => {
+		const out: string[] = [];
+		let rest = step;
+		for (;;) {
+			const word = /^(Ctrl|Alt|Shift)\+(.+)$/.exec(rest);
+			if (word) {
+				out.push(word[1]);
+				rest = word[2];
+			} else if (rest.length > 1 && MODIFIERS.has(rest[0])) {
+				out.push(rest[0]);
+				rest = rest.slice(1);
+			} else break;
+		}
+		if (rest) out.push(rest);
+		return out;
+	});
 }
 
 /** "Select (X) · shift-click for a range" → label, keycaps, hint. */
@@ -46,7 +54,7 @@ export function parseTip(text: string, extraHint?: string | null): TipContent | 
 	const [head, ...rest] = text.split(" · ");
 	const main = head.trim();
 	if (!main) return null;
-	const match = /^(.*\S)\s*\(([^()]{1,8})\)$/.exec(main);
+	const match = /^(.*\S)\s*\(([^()]{1,12})\)$/.exec(main);
 	const hint = [rest.join(" · ").trim(), extraHint?.trim()].filter(Boolean).join(". ");
 	return {
 		label: match ? match[1] : main,

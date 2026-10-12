@@ -2,6 +2,18 @@
 
 Versions follow [semantic versioning](https://semver.org). Before 1.0, a minor version can break things. Each entry names any new D1 migration: apply it with `wrangler d1 migrations apply <db> --remote` before you deploy that version.
 
+## 0.1.4
+
+- Keyboard shortcuts are one system. `shared/shortcuts.ts` defines every shortcut once; the mail view's key handler, tooltips, key hints and the new lists read it, so a hint can't name a key that does nothing.
+- Press `?` for every shortcut, grouped. Settings has a Shortcuts tab with the same list, where each mail-view shortcut can be rebound: click its keys, press the new one. A key already in use moves over. Rebound keys are saved with the other prefs in `config/prefs.json` (`shortcuts`).
+- New shortcuts: `#` trash, `s` star, `u` read or unread, `l` label, and `g` then `s`, `d` or `t` for Starred, Drafts and Sent.
+- Shortcuts work while focus is inside a message, including `Shift+x`, `⌘J` and `?`. The message frame used to pass up a fixed list of keys, some with no shortcut behind them.
+- Off a Mac, hints show `Ctrl` instead of `⌘`.
+- The empty list's "Clear search" button no longer shows the `G I` hint, which goes to the Inbox.
+- Settings > General's "Show keyboard shortcuts" is now "Show key hints".
+
+No D1 migration.
+
 ## 0.1.3
 
 - Settings holds everything: the Labels page and the Mail index page are now the Labels and Storage tabs of the Settings dialog. `/settings` and `/settings/index` redirect there. The open tab is in the URL (`?settings=labels`), and Back closes the dialog. Storage shows per-address counts on D1 and the index comparison and Rebuild on Durable Objects.

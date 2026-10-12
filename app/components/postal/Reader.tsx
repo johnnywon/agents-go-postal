@@ -19,6 +19,7 @@ import { Composer } from "./ComposeWindow";
 import { AddressText, type Identities, LabelChip, LabelTag, Swatch } from "./identity";
 import { formatSize, fullDate, type MailAction, nameFromHeaders } from "./model";
 import type { Prefs } from "./prefs";
+import { useShortcuts } from "./shortcuts";
 
 type Sender = ReturnType<typeof useMailSender>;
 
@@ -49,6 +50,8 @@ export interface ReaderProps {
 	onEditSignatures: () => void;
 	draftWithAgent: (state: ComposeState) => Promise<DraftResult>;
 	replyRequest: { mode: Exclude<ComposeMode, "new">; id: number } | null;
+	/** Changes when the label shortcut asks for the label picker. */
+	labelRequest: number;
 }
 
 function sortAsc(list: Email[]) {
@@ -65,12 +68,13 @@ export function Reader(props: ReaderProps) {
 	const [pickerLeft, setPickerLeft] = useState(8);
 	const labelBtn = useRef<HTMLButtonElement>(null);
 	const sectionRef = useRef<HTMLElement>(null);
-	const openPicker = () => {
+	const openPicker = (force = false) => {
 		const b = labelBtn.current?.getBoundingClientRect();
 		const r = sectionRef.current?.getBoundingClientRect();
 		if (b && r) setPickerLeft(Math.max(8, Math.min(b.left - r.left, r.width - 268)));
-		setPickerOpen((v) => !v);
+		setPickerOpen((v) => force || !v);
 	};
+	const { tip } = useShortcuts();
 	const [source, setSource] = useState<Email | null>(null);
 	const marked = useRef<string | null>(null);
 	const scrollRef = useRef<HTMLDivElement>(null);
@@ -108,6 +112,11 @@ export function Reader(props: ReaderProps) {
 	useEffect(() => {
 		if (props.replyRequest && original) props.startReply(props.replyRequest.mode, original);
 	}, [props.replyRequest]); // eslint-disable-line react-hooks/exhaustive-deps
+
+	// l from the keyboard.
+	useEffect(() => {
+		if (props.labelRequest && row) openPicker(true);
+	}, [props.labelRequest]); // eslint-disable-line react-hooks/exhaustive-deps
 
 	if (!open) {
 		return (
@@ -148,23 +157,23 @@ export function Reader(props: ReaderProps) {
 				<div style={{ display: "flex", alignItems: "center", gap: 8, flex: 1, minWidth: 0 }}>
 					<button type="button" className="pg-icon-btn pg-back" onClick={props.onBack} aria-label="Back to list"><CaretLeftIcon size={16} weight="bold" /></button>
 					<div className="pg-group">
-						<button type="button" className="pg-icon-btn" title="Reply (R)" aria-label="Reply" onClick={() => reply("reply")} disabled={!original}><ArrowBendUpLeftIcon size={16} /></button>
-						<button type="button" className="pg-icon-btn" title="Reply all (A)" aria-label="Reply all" onClick={() => reply("reply-all")} disabled={!original}><ArrowBendDoubleUpLeftIcon size={16} /></button>
-						<button type="button" className="pg-icon-btn" title="Forward (F)" aria-label="Forward" onClick={() => reply("forward")} disabled={!original}><ArrowBendUpRightIcon size={16} /></button>
+						<button type="button" className="pg-icon-btn" title={tip("reply", "Reply")} aria-label="Reply" onClick={() => reply("reply")} disabled={!original}><ArrowBendUpLeftIcon size={16} /></button>
+						<button type="button" className="pg-icon-btn" title={tip("replyAll", "Reply all")} aria-label="Reply all" onClick={() => reply("reply-all")} disabled={!original}><ArrowBendDoubleUpLeftIcon size={16} /></button>
+						<button type="button" className="pg-icon-btn" title={tip("forward", "Forward")} aria-label="Forward" onClick={() => reply("forward")} disabled={!original}><ArrowBendUpRightIcon size={16} /></button>
 					</div>
 					<div className="pg-group">
 						{props.canRestore && <button type="button" className="pg-icon-btn" title="Move to Inbox" aria-label="Move to Inbox" onClick={() => props.onAction("restore")} disabled={!row}><TrayArrowUpIcon size={16} /></button>}
-						<button type="button" className="pg-icon-btn" title="Archive (E) · Out of the inbox, kept in Archive" aria-label="Archive" onClick={() => props.onAction("archive")} disabled={!row}><ArchiveIcon size={16} /></button>
-						<button type="button" className="pg-icon-btn" title="Move to trash · Recoverable from Trash" aria-label="Move to trash" onClick={() => props.onAction("trash")} disabled={!row || !props.canTrash}><TrashIcon size={16} /></button>
+						<button type="button" className="pg-icon-btn" title={tip("archive", "Archive", "Out of the inbox, kept in Archive")} aria-label="Archive" onClick={() => props.onAction("archive")} disabled={!row}><ArchiveIcon size={16} /></button>
+						<button type="button" className="pg-icon-btn" title={tip("trash", "Move to trash", "Recoverable from Trash")} aria-label="Move to trash" onClick={() => props.onAction("trash")} disabled={!row || !props.canTrash}><TrashIcon size={16} /></button>
 					</div>
 					<div className="pg-group" style={{ position: "relative" }}>
-						<button type="button" className="pg-icon-btn" title={unread ? "Mark read" : "Mark unread"} aria-label={unread ? "Mark read" : "Mark unread"} onClick={() => props.onAction("read")} disabled={!row}>
+						<button type="button" className="pg-icon-btn" title={tip("read", unread ? "Mark read" : "Mark unread")} aria-label={unread ? "Mark read" : "Mark unread"} onClick={() => props.onAction("read")} disabled={!row}>
 							{unread ? <EnvelopeOpenIcon size={16} /> : <EnvelopeSimpleIcon size={16} />}
 						</button>
-						<button type="button" className="pg-icon-btn" title={starred ? "Unstar" : "Star"} aria-label={starred ? "Unstar" : "Star"} aria-pressed={starred} onClick={() => props.onAction("star")} disabled={!row}>
+						<button type="button" className="pg-icon-btn" title={tip("star", starred ? "Unstar" : "Star")} aria-label={starred ? "Unstar" : "Star"} aria-pressed={starred} onClick={() => props.onAction("star")} disabled={!row}>
 							<StarIcon size={16} weight={starred ? "fill" : "regular"} color={starred ? "var(--pg-yellow)" : undefined} />
 						</button>
-						<button ref={labelBtn} type="button" className="pg-icon-btn" title="Label · Labels are shared by every address" aria-label="Label" aria-expanded={pickerOpen} onClick={openPicker} disabled={!row}><TagIcon size={16} /></button>
+						<button ref={labelBtn} type="button" className="pg-icon-btn" title={tip("label", "Label", "Labels are shared by every address")} aria-label="Label" aria-expanded={pickerOpen} onClick={() => openPicker()} disabled={!row}><TagIcon size={16} /></button>
 					</div>
 					<div style={{ flex: 1 }} />
 					<button type="button" className="pg-icon-btn" title="View source · The raw message with all headers" aria-label="View source" onClick={() => head && setSource(head)} disabled={!head}><CodeIcon size={16} /></button>
