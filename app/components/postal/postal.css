@@ -832,14 +832,15 @@ html:has(.postal), html:has(.postal) body { background: var(--pg-base, #141518);
   .pg-cw-foot .pg-agent-label, .pg-cw-foot .pg-save-label { display: none; }
   .pg-cw-foot .pg-btn { padding: 0 10px; }
   .pg-format { flex-wrap: nowrap; overflow-x: auto; }
-  .pg-reader-bar > div { overflow-x: auto; scrollbar-width: none; }
-  .pg-reader-bar > div::-webkit-scrollbar { display: none; }
+  /* Every action stays in view: the toolbar wraps to a second row instead of scrolling. */
+  .pg-reader-bar > div { flex-wrap: wrap; row-gap: 4px; }
 }
 @media (max-width: 600px), (pointer: coarse) {
   .pg-icon-btn, .pg-head-btn, .pg-tool-btn, .pg-new-btn, .pg-search .pg-clear, .pg-modal-x, .pg-row-checkonly > button, .pg-bulk-bar .pg-tool, .pg-format button, .pg-cw-head .pg-cw-btn, .pg-chip > button, .pg-file button, .pg-toast .pg-x { min-width: 44px; min-height: 44px; }
   .pg-nav-item, .pg-nav-small, .pg-nav-domain, .pg-nav-address, .pg-nav-folder, .pg-nav-label, .pg-menu-item, .pg-foot-btn, .pg-tabs button { min-height: 44px; }
   .pg-btn, .pg-send-split, .pg-toast .pg-undo { min-height: 44px; }
-  .pg-search, .pg-rail-head, .pg-list-head, .pg-reader-bar { height: 52px; }
+  .pg-search, .pg-rail-head, .pg-list-head { height: 52px; }
+  .pg-reader-bar { height: auto; min-height: 52px; padding-block: 4px; }
   .pg-group { padding: 0; }
   .pg-switch { min-height: 20px; }
 }

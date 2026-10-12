@@ -240,7 +240,9 @@ h1, h2, h3 { font-family: var(--font-display); }
   .label-color { width: 44px; height: 44px; }
   .label-row-main input, .label-new input { height: 40px; font-size: 16px; }
 }
-.index-settings-header { gap: 12px; }
+.index-settings-header { gap: 12px; flex-wrap: wrap; }
+.settings-nav { display: flex; flex-wrap: wrap; gap: 4px 14px; }
+.settings-nav .mail-link[aria-current="page"] { color: var(--ink); text-decoration: none; font-weight: 600; }
 
 @media (pointer: coarse) {
 

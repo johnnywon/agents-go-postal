@@ -6,7 +6,7 @@ import { Button, Loader, useKumoToastManager } from "@cloudflare/kumo";
 import { ArrowsClockwiseIcon } from "@phosphor-icons/react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import DeckBrand from "~/components/DeckBrand";
+import SettingsHeader from "~/components/SettingsHeader";
 import api, { type CopyStatusResponse, type IndexCounts, type IndexStatusResponse } from "~/services/api";
 import { pageTitle } from "~/lib/brand";
 
@@ -147,9 +147,7 @@ export default function IndexSettingsRoute() {
 
 	return (
 		<div className="index-settings">
-			<header className="index-settings-header">
-				<DeckBrand />
-			</header>
+			<SettingsHeader />
 			<main className="settings-page index-settings-page">
 				<h1 className="text-lg font-semibold">Mail index</h1>
 				<p className="index-settings-lede">

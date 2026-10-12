@@ -208,6 +208,14 @@ function PostalApp({ addresses, domains, autoDraft }: PostalProps) {
 		[write, mobile, narrow],
 	);
 
+	// An address that isn't configured, such as an old /mailbox/ link, goes back to the Inbox.
+	useEffect(() => {
+		const scope = scopeOf(filter);
+		if (!scope?.includes("@") || !addresses.length || addresses.includes(scope.toLowerCase())) return;
+		write({ ...HOME, chips: [] }, null, true, "");
+		showToast({ text: `${scope} isn't one of your addresses.`, icon: <WarningIcon size={ICON} /> });
+	}, [filter, addresses, write, showToast]);
+
 	const openConversation = useCallback(
 		(row: Conversation, auto = false) => {
 			setCurrentKey(row.thread_key);
