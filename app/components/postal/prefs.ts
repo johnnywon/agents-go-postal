@@ -19,8 +19,27 @@ export interface Layout {
 
 const DEFAULT_LAYOUT: Layout = { nav: null, panel: null, mailboxesOpen: true, labelsOpen: true };
 
-const PREFS_KEY = "agp-prefs";
-const LAYOUT_KEY = "agp-layout";
+const PREFS_KEY = "omr-prefs";
+const LAYOUT_KEY = "omr-layout";
+/** The shortcut keys this browser last showed, so a change made elsewhere gets a toast once. */
+export const SEEN_SHORTCUTS_KEY = "omr-shortcuts-seen";
+// Keys from before 0.4.0. Read once, copied to the new key, then removed.
+const LEGACY_KEYS: Record<string, string> = { "agp-prefs": PREFS_KEY, "agp-layout": LAYOUT_KEY, "agp-shortcuts-seen": SEEN_SHORTCUTS_KEY };
+
+export function migrateStorageKeys(): void {
+	if (typeof window === "undefined") return;
+	try {
+		for (const [old, next] of Object.entries(LEGACY_KEYS)) {
+			const value = window.localStorage.getItem(old);
+			if (value !== null && window.localStorage.getItem(next) === null) window.localStorage.setItem(next, value);
+			window.localStorage.removeItem(old);
+		}
+	} catch {
+		// Blocked storage: nothing to carry over.
+	}
+}
+
+migrateStorageKeys();
 
 export function readJson<T>(key: string, fallback: T): T {
 	if (typeof window === "undefined") return fallback;
