@@ -4,10 +4,10 @@
 
 import { routeAgentRequest } from "agents";
 import { Hono } from "hono";
-import { jwtVerify, createRemoteJWKSet } from "jose";
+import { jwtVerify } from "jose";
 import { createRequestHandler } from "react-router";
 import { runCron } from "./cron";
-import { accessConfigured } from "./lib/access-config";
+import { accessConfigError, accessJwks, getAccessUrls } from "./lib/access-config";
 import { errorResponse } from "./lib/error-page";
 import { foreignOrigin } from "./lib/csrf";
 import { withSecurityHeaders } from "./lib/security-headers";
@@ -34,17 +34,6 @@ const requestHandler = createRequestHandler(
 	import.meta.env.MODE,
 );
 
-function getAccessUrls(teamDomain: string) {
-	const certsPath = "/cdn-cgi/access/certs";
-	const teamUrl = new URL(teamDomain);
-	const issuer = teamUrl.origin;
-	const certsUrl = teamUrl.pathname.endsWith(certsPath)
-		? teamUrl
-		: new URL(certsPath, issuer);
-
-	return { issuer, certsUrl };
-}
-
 // Main app that wraps the API and adds React Router fallback
 const app = new Hono<{ Bindings: Env }>();
 app.use("*", async (c, next) => {
@@ -62,9 +51,10 @@ app.use("*", async (c, next) => {
 	const { POLICY_AUD, TEAM_DOMAIN } = c.env;
 
 	// Fail closed in production if Access is not configured, or still has the deploy button's placeholders.
-	if (!accessConfigured({ POLICY_AUD, TEAM_DOMAIN })) {
+	const configError = accessConfigError({ POLICY_AUD, TEAM_DOMAIN });
+	if (configError) {
 		return errorResponse(c.req.raw, 500, "Access is not set up",
-			"Cloudflare Access must be configured in production. Set POLICY_AUD and TEAM_DOMAIN.");
+			configError);
 	}
 
 	const token = c.req.header("cf-access-jwt-assertion");
@@ -74,10 +64,10 @@ app.use("*", async (c, next) => {
 
 	try {
 		const { issuer, certsUrl } = getAccessUrls(TEAM_DOMAIN);
-		const JWKS = createRemoteJWKSet(certsUrl);
-		await jwtVerify(token, JWKS, {
+		await jwtVerify(token, accessJwks(certsUrl), {
 			issuer,
 			audience: POLICY_AUD,
+			algorithms: ["RS256"],
 		});
 	} catch {
 		return errorResponse(c.req.raw, 403, "Sign in again", "Invalid or expired Access token");
