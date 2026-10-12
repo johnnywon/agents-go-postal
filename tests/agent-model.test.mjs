@@ -124,3 +124,44 @@ test("typed ids go to the provider they look like, and names read well", () => {
 	assert.equal(s.makerOf({ provider: "openrouter", id: "x-ai/grok-4.7" }).label, "xAI");
 	assert.equal(s.makerOf({ provider: "workers-ai", id: "@cf/zai-org/glm-5.2" }).label, "Z.ai");
 });
+
+test("free models are never offered or accepted", () => {
+	assert.equal(s.isFree({ id: "maker/model:free", price: { input: 1, output: 1 } }), true);
+	assert.equal(s.isFree({ id: "maker/model", price: { input: 0, output: 0 } }), true);
+	assert.equal(s.isFree({ id: "maker/model", price: null }), false);
+	assert.equal(s.validModelId("openrouter", "maker/model:free"), false);
+	assert.ok("error" in m.mergeAgentModelConfig({ keys: { openrouter: "sk-or-x" } }, { selected: { provider: "openrouter", id: "maker/model:free" } }));
+});
+
+test("OpenRouter lists only zero retention models, priced at their cheapest such endpoint", () => {
+	const all = s.modelsFromOpenRouter([
+		{ id: "a/kept", pricing: { prompt: "0.000001", completion: "0.000002" } },
+		{ id: "a/private", pricing: { prompt: "0.000001", completion: "0.000002" } },
+		{ id: "a/gratis", pricing: { prompt: "0", completion: "0" } },
+	]);
+	const zdr = s.zdrOnly(all, [
+		{ model_id: "a/private", pricing: { prompt: "0.000003", completion: "0.000009" } },
+		{ model_id: "a/private", pricing: { prompt: "0.000002", completion: "0.000004" } },
+		{ model_id: "a/gratis", pricing: { prompt: "0", completion: "0" } },
+	]);
+	assert.deepEqual(zdr.map((x) => x.id), ["a/private"]);
+	assert.deepEqual(zdr[0].price, { input: 2, output: 4 });
+});
+
+test("every OpenRouter request asks for zero retention and no data collection", async () => {
+	const real = globalThis.fetch;
+	let sent;
+	globalThis.fetch = async (_url, init) => { sent = JSON.parse(init.body); return new Response("{}"); };
+	try {
+		await m.zeroRetentionFetch("https://openrouter.ai/api/v1/chat/completions", { method: "POST", body: JSON.stringify({ model: "a/b", provider: { order: ["x"] } }) });
+	} finally {
+		globalThis.fetch = real;
+	}
+	assert.deepEqual(sent.provider, { order: ["x"], zdr: true, data_collection: "deny" });
+});
+
+test("suggestions that need a key go through a zero retention provider", () => {
+	for (const pick of s.SUGGESTED_MODELS) {
+		if (pick.provider !== "workers-ai") assert.ok(s.PROVIDER_INFO[pick.provider].zdr, pick.id);
+	}
+});

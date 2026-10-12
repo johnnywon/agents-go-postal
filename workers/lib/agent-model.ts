@@ -18,9 +18,9 @@ import { createXai } from "@ai-sdk/xai";
 import type { LanguageModel } from "ai";
 import { createWorkersAI } from "workers-ai-provider";
 import {
-	type CatalogModel, chatModelsOnly, directFromOpenRouter, enrich, isProvider, KEYED_PROVIDERS, type KeyedProvider,
+	type CatalogModel, chatModelsOnly, directFromOpenRouter, enrich, isFree, isProvider, KEYED_PROVIDERS, type KeyedProvider,
 	type ModelRef, modelsFromOpenRouter, modelsFromWorkersAi, type OpenRouterEntry, PROVIDER_INFO, type ProviderId,
-	prettyName, RECOMMENDED_MODEL, validModelId, type WorkersAiEntry,
+	prettyName, RECOMMENDED_MODEL, validModelId, type WorkersAiEntry, type ZdrEndpoint, zdrOnly,
 } from "../../shared/models";
 import type { Env } from "../types";
 
@@ -131,11 +131,33 @@ export function mergeAgentModelConfig(current: AgentModelConfig, update: AgentMo
 	return selected ? { selected, keys } : { keys };
 }
 
+/**
+ * Every OpenRouter request asks for zero data retention endpoints only and
+ * refuses providers that store or train on prompts. A model with no such
+ * endpoint fails instead of falling back to one that keeps the mail.
+ */
+export const OPENROUTER_PRIVACY = { zdr: true, data_collection: "deny" } as const;
+
+export const zeroRetentionFetch: typeof fetch = (input, init) => {
+	if (init?.method === "POST" && typeof init.body === "string") {
+		try {
+			const body = JSON.parse(init.body) as { provider?: Record<string, unknown> };
+			body.provider = { ...body.provider, ...OPENROUTER_PRIVACY };
+			init = { ...init, body: JSON.stringify(body) };
+		} catch {
+			// Not JSON: send as is.
+		}
+	}
+	return fetch(input, init);
+};
+
 /** A language model for any provider. */
 export function languageModel(env: Env, ref: ModelRef, key?: string): LanguageModel {
 	switch (ref.provider) {
 		case "openrouter":
-			return createOpenAICompatible({ name: "openrouter", baseURL: OPENROUTER_BASE, apiKey: key, headers: { "X-Title": "Agents Go Postal" } }).chatModel(ref.id);
+			return createOpenAICompatible({
+				name: "openrouter", baseURL: OPENROUTER_BASE, apiKey: key, headers: { "X-Title": "Agents Go Postal" }, fetch: zeroRetentionFetch,
+			}).chatModel(ref.id);
 		case "anthropic":
 			return createAnthropic({ apiKey: key })(ref.id);
 		case "openai":
@@ -220,19 +242,31 @@ async function loadWorkersAi(env: Env): Promise<ProviderCatalog> {
 			entries.push(...batch);
 			if (batch.length < 100) break;
 		}
-		const models = modelsFromWorkersAi(entries);
+		const models = modelsFromWorkersAi(entries).filter((m) => !isFree(m));
 		return models.length ? { source: "live", models } : { source: "none", models: [], error: "Cloudflare's catalog came back empty." };
 	} catch (e) {
 		return { source: "none", models: [], error: `Cloudflare's catalog couldn't be read: ${(e as Error).message}` };
 	}
 }
 
+/** OpenRouter's whole catalog, for prices and context of the direct providers' models. */
 async function loadOpenRouter(): Promise<ProviderCatalog> {
 	try {
 		const data = (await fetchJson(`${OPENROUTER_BASE}/models`)) as { data?: OpenRouterEntry[] };
-		return { source: "live", models: modelsFromOpenRouter(data.data ?? []) };
+		return { source: "live", models: modelsFromOpenRouter(data.data ?? []).filter((m) => !isFree(m)) };
 	} catch (e) {
 		return { source: "none", models: [], error: `OpenRouter's catalog couldn't be read: ${(e as Error).message}` };
+	}
+}
+
+/** What the OpenRouter tab lists: only models with a zero retention endpoint. */
+async function loadOpenRouterZdr(all: ProviderCatalog): Promise<ProviderCatalog> {
+	if (all.source === "none") return all;
+	try {
+		const data = (await fetchJson(`${OPENROUTER_BASE}/endpoints/zdr`)) as { data?: ZdrEndpoint[] };
+		return { source: "live", models: zdrOnly(all.models, data.data ?? []) };
+	} catch (e) {
+		return { source: "none", models: [], error: `OpenRouter's zero retention list couldn't be read: ${(e as Error).message}` };
 	}
 }
 
@@ -253,13 +287,13 @@ async function loadDirect(provider: KeyedProvider, key: string): Promise<Catalog
 export async function catalogFor(env: Env, provider: ProviderId, keys: Keys): Promise<ProviderCatalog> {
 	if (provider === "workers-ai") return cached("workers-ai", () => loadWorkersAi(env));
 	const openrouter = await cached("openrouter", loadOpenRouter);
-	if (provider === "openrouter") return openrouter;
+	if (provider === "openrouter") return cached("openrouter-zdr", () => loadOpenRouterZdr(openrouter));
 	const fallback = directFromOpenRouter(provider, openrouter.models);
 	const key = keys[provider];
 	if (!key) return { source: fallback.length ? "openrouter" : "none", models: fallback };
 	return cached(`${provider}:${key.slice(-6)}`, async () => {
 		try {
-			return { source: "live", models: enrich(await loadDirect(provider, key), fallback) };
+			return { source: "live", models: enrich(await loadDirect(provider, key), fallback).filter((m) => !isFree(m)) };
 		} catch (e) {
 			return { source: fallback.length ? "openrouter" : "none", models: fallback, error: `${PROVIDER_INFO[provider].label} didn't list models: ${(e as Error).message}` };
 		}

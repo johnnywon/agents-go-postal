@@ -1,4 +1,4 @@
-import { ArrowLeftIcon, ArrowSquareOutIcon, CaretRightIcon, CheckIcon, MagnifyingGlassIcon, WarningIcon } from "@phosphor-icons/react";
+import { ArrowLeftIcon, ArrowSquareOutIcon, CaretRightIcon, CheckIcon, MagnifyingGlassIcon, ShieldCheckIcon, WarningIcon } from "@phosphor-icons/react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRef, useState } from "react";
 import api, { type ModelCatalog } from "~/services/api";
@@ -137,6 +137,7 @@ function ProviderRow({ provider, draft, count, open, highlight, onToggle }: {
 				<b>{info.label}</b>
 				<span className="pg-prov-status" data-on={connected}>{status}</span>
 				<span className="pg-prov-count">{count} models</span>
+				<span className="pg-prov-data" data-zdr={info.zdr}>{info.data}</span>
 				{keyed && (
 					<button type="button" className="pg-btn pg-btn-sm" onClick={onToggle} aria-expanded={open}>
 						{open ? "Done" : saved?.set || pendingKey ? "Manage" : "Add key"}
@@ -274,7 +275,9 @@ function ModelPicker({ catalog, draft, onPick, onBack }: {
 						<span className="pg-model-check is-custom" aria-hidden="true" />
 						<span className="pg-model-name">
 							<span className="pg-model-title"><b>Use <code>{typed}</code></b></span>
-							<span className="pg-model-sub">{customValid ? `Sent to ${PROVIDER_INFO[customTarget].label} as typed` : `${PROVIDER_INFO[customTarget].label} ids look like ${PROVIDER_INFO[customTarget].idExample}`}</span>
+							<span className="pg-model-sub">{customValid ? `Sent to ${PROVIDER_INFO[customTarget].label} as typed`
+								: typed.endsWith(":free") ? "Free models aren't offered. Free endpoints can keep and train on prompts."
+								: `${PROVIDER_INFO[customTarget].label} ids look like ${PROVIDER_INFO[customTarget].idExample}`}</span>
 						</span>
 					</button>
 					<select className="pg-select" value={customTarget} aria-label="Provider for this model id" onChange={(e) => setCustomProvider(e.target.value as ProviderId)}>
@@ -298,7 +301,11 @@ function ModelPicker({ catalog, draft, onPick, onBack }: {
 								title={m.id}
 								onClick={() => onPick({ provider: m.provider, id: m.id })}
 							>
-								<span className="pg-pick-role">{role}{selected && <CheckIcon size={13} weight="bold" />}</span>
+								<span className="pg-pick-role">
+									{role}
+									{PROVIDER_INFO[m.provider].zdr && <span className="pg-zdr"><ShieldCheckIcon size={12} /> Zero retention</span>}
+									{selected && <CheckIcon size={13} weight="bold" />}
+								</span>
 								<b>{m.name}</b>
 								<ModelSub model={m} needsKey={!draft.hasKey(m.provider)} />
 								<span className="pg-pick-stats">
@@ -319,6 +326,7 @@ function ModelPicker({ catalog, draft, onPick, onBack }: {
 						<span>$ per 1M, in / out</span>
 					</div>
 					{error && <p className="pg-models-warn">{error}</p>}
+					{single && !words.length && <p className="pg-models-note" data-zdr={PROVIDER_INFO[filter].zdr}>{PROVIDER_INFO[filter].zdr && <ShieldCheckIcon size={13} />}{PROVIDER_INFO[filter].data}</p>}
 					{missingKey && <p className="pg-models-warn">No {PROVIDER_INFO[filter].label} key yet. Pick a model, then add the key.</p>}
 					{rows.slice(0, limit).map((m) => (
 						<ModelRow
@@ -347,6 +355,7 @@ function ModelPicker({ catalog, draft, onPick, onBack }: {
 							<button key={p} type="button" className="pg-browse-row" onClick={() => setFilter(p)}>
 								<ProviderMark provider={p} />
 								<span className="pg-model-sub">
+									{PROVIDER_INFO[p].zdr && <span className="pg-zdr"><ShieldCheckIcon size={12} /> Zero retention</span>}
 									{pc?.source === "openrouter" && <span>Prices via OpenRouter</span>}
 									{!draft.hasKey(p) && <span className="pg-model-needs">Needs key</span>}
 								</span>
@@ -413,6 +422,9 @@ export function AgentModelSection({ draft }: { draft: AgentModelDraft }) {
 					</span>
 					<ModelSub model={model} needsKey={false} />
 					<code>{effective.id}</code>
+					<span className="pg-model-data" data-zdr={PROVIDER_INFO[effective.provider].zdr}>
+						{PROVIDER_INFO[effective.provider].zdr && <ShieldCheckIcon size={13} />}{PROVIDER_INFO[effective.provider].data}
+					</span>
 				</div>
 				<dl className="pg-model-card-stats">
 					<div><dt>Context</dt><dd>{formatContext(model.context)}</dd></div>

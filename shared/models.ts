@@ -23,14 +23,33 @@ export interface ProviderInfo {
 	keyUrl: string | null;
 	/** What a model id looks like, for typed-in ids. */
 	idExample: string;
+	/** What happens to prompts sent there, in one line. */
+	data: string;
+	/** True when every request is sent with zero data retention. */
+	zdr: boolean;
 }
 
 export const PROVIDER_INFO: Record<ProviderId, ProviderInfo> = {
-	"workers-ai": { id: "workers-ai", label: "Cloudflare", hue: 55, keyHint: null, keyUrl: null, idExample: "@cf/author/model" },
-	openrouter: { id: "openrouter", label: "OpenRouter", hue: 265, keyHint: "sk-or-…", keyUrl: "https://openrouter.ai/settings/keys", idExample: "maker/model" },
-	anthropic: { id: "anthropic", label: "Anthropic", hue: 35, keyHint: "sk-ant-…", keyUrl: "https://console.anthropic.com/settings/keys", idExample: "claude-…" },
-	openai: { id: "openai", label: "OpenAI", hue: 160, keyHint: "sk-…", keyUrl: "https://platform.openai.com/api-keys", idExample: "gpt-…" },
-	xai: { id: "xai", label: "xAI", hue: 235, keyHint: "xai-…", keyUrl: "https://console.x.ai", idExample: "grok-…" },
+	"workers-ai": {
+		id: "workers-ai", label: "Cloudflare", hue: 55, keyHint: null, keyUrl: null, idExample: "@cf/author/model", zdr: false,
+		data: "Runs in your Cloudflare account. Not used for training.",
+	},
+	openrouter: {
+		id: "openrouter", label: "OpenRouter", hue: 265, keyHint: "sk-or-…", keyUrl: "https://openrouter.ai/settings/keys", idExample: "maker/model", zdr: true,
+		data: "Zero data retention. Only endpoints that keep nothing are listed and used.",
+	},
+	anthropic: {
+		id: "anthropic", label: "Anthropic", hue: 35, keyHint: "sk-ant-…", keyUrl: "https://console.anthropic.com/settings/keys", idExample: "claude-…", zdr: false,
+		data: "Kept up to 30 days unless your org has a zero retention agreement.",
+	},
+	openai: {
+		id: "openai", label: "OpenAI", hue: 160, keyHint: "sk-…", keyUrl: "https://platform.openai.com/api-keys", idExample: "gpt-…", zdr: false,
+		data: "Kept up to 30 days unless your org is approved for zero retention.",
+	},
+	xai: {
+		id: "xai", label: "xAI", hue: 235, keyHint: "xai-…", keyUrl: "https://console.x.ai", idExample: "grok-…", zdr: false,
+		data: "Kept under xAI's API terms unless your team has zero retention.",
+	},
 };
 
 export function isProvider(value: unknown): value is ProviderId {
@@ -71,10 +90,11 @@ export const SUGGESTED_MODELS: SuggestedModel[] = [
 	{ provider: "workers-ai", id: "@cf/moonshotai/kimi-k2.6", role: "Recommended", recommended: true },
 	// Built in, the lowest output price of the tool-calling models, 1M context.
 	{ provider: "workers-ai", id: "@cf/zai-org/glm-5.3-flash", role: "Cheapest" },
-	// Strong drafting and tool use at a fifth of the top model's price.
-	{ provider: "anthropic", id: "claude-sonnet-5-5", role: "Balanced" },
-	// The most capable, for hard threads, at the highest price.
-	{ provider: "anthropic", id: "claude-fable-5-1", role: "Best quality" },
+	// Claude through OpenRouter's zero retention endpoints (Bedrock, Google), so
+	// one key covers both and no provider keeps the mail. Claude Fable has no
+	// zero retention endpoint, so Opus is the quality pick.
+	{ provider: "openrouter", id: "anthropic/claude-sonnet-5.5", role: "Balanced" },
+	{ provider: "openrouter", id: "anthropic/claude-opus-5.5", role: "Best quality" },
 ];
 
 const recommended = SUGGESTED_MODELS.find((m) => m.recommended)!;
@@ -96,7 +116,7 @@ export function guessProvider(id: string): ProviderId {
 
 /** The shape check a model id must pass for its provider. Anything shaped right is allowed. */
 export function validModelId(provider: ProviderId, id: string): boolean {
-	if (!id || id.length > 200 || /\s/.test(id)) return false;
+	if (!id || id.length > 200 || /\s/.test(id) || id.endsWith(":free")) return false;
 	if (provider === "workers-ai") return /^@(cf|hf)\/[\w.-]+\/[\w.:-]+$/.test(id);
 	if (provider === "openrouter") return /^[\w.-]+\/[\w.:~-]+$/.test(id);
 	return /^[\w.:-]+$/.test(id);
@@ -198,6 +218,41 @@ function perMillion(value: string | undefined): number | undefined {
 }
 
 /** OpenRouter's catalog. Prices there are per token; here they are per million. */
+/**
+ * Free models are left out everywhere: free endpoints pay for themselves with
+ * your prompts, and the agent reads private mail.
+ */
+export function isFree(m: Pick<CatalogModel, "id" | "price">): boolean {
+	return m.id.endsWith(":free") || (!!m.price && m.price.input === 0 && m.price.output === 0);
+}
+
+/** One endpoint from OpenRouter's /endpoints/zdr list. */
+export interface ZdrEndpoint {
+	model_id?: string;
+	pricing?: { prompt?: string; completion?: string };
+}
+
+/**
+ * OpenRouter's models that have at least one zero retention endpoint, free ones
+ * left out, priced at the cheapest of those endpoints: requests only go there.
+ */
+export function zdrOnly(models: CatalogModel[], endpoints: ZdrEndpoint[]): CatalogModel[] {
+	const best = new Map<string, ModelPrice | null>();
+	for (const e of endpoints) {
+		if (!e.model_id) continue;
+		const input = perMillion(e.pricing?.prompt);
+		const output = perMillion(e.pricing?.completion);
+		const price = input === undefined || output === undefined ? null : { input, output };
+		const seen = best.get(e.model_id);
+		if (!best.has(e.model_id) || (price && (!seen || price.output < seen.output))) best.set(e.model_id, price);
+	}
+	return models.flatMap((m) => {
+		if (!best.has(m.id)) return [];
+		const priced = { ...m, price: best.get(m.id) ?? m.price };
+		return isFree(priced) ? [] : [priced];
+	});
+}
+
 export function modelsFromOpenRouter(entries: OpenRouterEntry[]): CatalogModel[] {
 	return entries.filter((e) => typeof e.id === "string").map((e) => {
 		const input = perMillion(e.pricing?.prompt);

@@ -77,7 +77,14 @@ Every model each provider lists is offered, in one search with a filter per prov
 
 Nothing is limited to the lists. Type any model id in the search and choose "Use" to send it to the provider it looks like (`@cf/…` to Cloudflare, `maker/model` to OpenRouter, `claude-…` to Anthropic, `grok-…` to xAI, anything else to OpenAI), or pick the provider yourself. The id only has to be shaped right for that provider. Test sends one short prompt to the picked model before you save.
 
-The four suggested models, one per need (Recommended, Cheapest, Balanced, Best quality), are in [`shared/models.ts`](../shared/models.ts). Until you pick a model the agent follows the recommended one, so a new default reaches you with an update. A picked model whose key you remove falls back to the recommended one, and so does a Workers AI model Cloudflare stops listing. The chat panel, Draft reply, auto-draft and Turn into a search use the picked model; the prompt-injection check and the draft cleanup on incoming mail stay on Workers AI.
+The agent reads your mail, so where prompts go matters:
+
+- **Cloudflare** runs in your own account and Cloudflare doesn't train on it.
+- **OpenRouter** is held to zero data retention. Settings lists only models with a zero retention endpoint ([`/endpoints/zdr`](https://openrouter.ai/api/v1/endpoints/zdr)), priced at the cheapest of those endpoints, and every request carries `provider: { zdr: true, data_collection: "deny" }`. A model with no such endpoint fails rather than fall back to one that keeps data.
+- **Anthropic, OpenAI and xAI** keep API traffic for a period for abuse checks unless your organisation has a zero retention agreement with them. Settings says so on each provider.
+- **Free models are never offered or accepted**, on any provider: free endpoints can keep and train on prompts.
+
+The four suggested models, one per need (Recommended, Cheapest, Balanced, Best quality), are in [`shared/models.ts`](../shared/models.ts). The two that need a key are Claude Sonnet 5.5 and Claude Opus 5.5 through OpenRouter's zero retention endpoints, so one OpenRouter key covers both. Until you pick a model the agent follows the recommended one, so a new default reaches you with an update. A picked model whose key you remove falls back to the recommended one, and so does a Workers AI model Cloudflare stops listing. The chat panel, Draft reply, auto-draft and Turn into a search use the picked model; the prompt-injection check and the draft cleanup on incoming mail stay on Workers AI.
 
 Keys and the pick are stored in R2 at `config/agent-model.json`, which no route serves. The API returns only each key's last four characters. Anyone who can open the app can replace or remove them, so keep the app behind Access. `GET /api/v1/agent-model/catalog` returns every provider's list; `PUT /api/v1/agent-model` takes `{ selected, keys }`.
 
