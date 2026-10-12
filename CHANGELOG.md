@@ -2,7 +2,7 @@
 
 Versions follow [semantic versioning](https://semver.org). Before 1.0, a minor version can break things. Each entry names any new D1 migration: apply it with `wrangler d1 migrations apply <db> --remote` before you deploy that version.
 
-## 0.1.4
+## 0.2.0
 
 - Keyboard shortcuts are one system. `shared/shortcuts.ts` defines every shortcut once; the mail view's key handler, tooltips, key hints and the new lists read it, so a hint can't name a key that does nothing.
 - Press `?` for a map of the mail view drawn like the real one: the sidebar with its Go to keys and `⌘B` on its collapse button, J and K above and below the open conversation, each toolbar key under its button's icon, `⌘J` on the agent's collapse button. Keys pressed all day are drawn larger. The map is built from the registry, so a new shortcut places itself.
