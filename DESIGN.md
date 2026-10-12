@@ -1,6 +1,6 @@
-# Agents Go Postal design
+# Open Mailroom design
 
-Agents Go Postal has one mail view, the postal view, described here. Everything else opens over it: Settings as a dialog, errors as a page in the same look.
+Open Mailroom has one mail view, the postal view, described here. Everything else opens over it: Settings as a dialog, errors as a page in the same look.
 
 ## Postal
 
