@@ -1,4 +1,9 @@
-# Agents Go Postal
+<h1>
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="public/brand/logo-stacked-dark.svg">
+    <img src="public/brand/logo-stacked.svg" alt="Agents Go Postal" width="320">
+  </picture>
+</h1>
 
 **One inbox for every address on your domains, with an agent that can read and send.**
 
@@ -54,42 +59,70 @@ An agent panel inside the app that searches, labels, drafts and sends when you a
 
 ## How it works
 
-```mermaid
-flowchart LR
-    sender([Sender]) --> routing[Email Routing]
-    routing -->|email handler| worker[Worker<br/>Hono API + React Router]
-    you([You, in a browser]) -->|Cloudflare Access| worker
-    mcp([Claude Code, Cursor,<br/>other MCP clients]) -->|/mcp| worker
-    worker --> store[(Mail store<br/>D1, or one Durable Object<br/>per address + an index)]
-    worker --> r2[(R2<br/>attachments, large bodies)]
-    worker <--> agent[Agent<br/>Durable Object]
-    agent --> ai[Workers AI<br/>or OpenRouter]
-    worker -->|send_email| sending[Email Service] --> recipient([Recipient])
-    cron([Cron, every minute]) -.->|scheduled sends,<br/>attachment text| worker
+```text
+   Sender           You, in a browser    Claude Code, Cursor,   Cron, every
+     |                    |              other MCP clients      minute
+     v                    v                    |                  |
++---------------+  +-----------------+         | /mcp             | scheduled
+| Email Routing |  | Cloudflare      |         |                  | sends,
++---------------+  | Access          |         |                  | attachment
+     | email()     +-----------------+         |                  | text
+     v                    v                    v                  v
++----------------------------------------------------------------------+
+|                Worker: Hono API + React Router UI                    |
++----------------------------------------------------------------------+
+     |                 |                  |                    |
+     v                 v                  v                    v
++-------------+  +-------------+  +----------------+  +---------------+
+| Mail store  |  | R2          |  | Agent          |  | Email Service |
+| D1, or one  |  | attachments,|  | Durable Object |  | send_email    |
+| DO per      |  | large bodies|  +----------------+  +---------------+
+| address     |  +-------------+          |                    |
+| + an index  |                           v                    v
++-------------+                   Workers AI or            Recipient
+                                  OpenRouter
 ```
 
 Everything runs in one Worker on your account. Mail is stored either in D1 (one database for every address) or in a Durable Object per address with a combined index. D1 is where the project is heading; see the roadmap.
 
 What happens when a message arrives:
 
-```mermaid
-sequenceDiagram
-    participant S as Sender
-    participant R as Email Routing
-    participant W as Worker
-    participant B as R2
-    participant M as Mail store
-    participant A as Agent
-    S->>R: Message to hello@example.com
-    R->>W: email() event
-    W->>W: Parse, check the address is configured
-    W->>B: Save attachments
-    W->>M: Save the message, thread it
-    opt AUTO_DRAFT_ENABLED
-        W->>A: Draft a reply (skips lists and no-reply senders)
-    end
-    Note over M: It appears in the one list, under its address
+```text
+Sender
+  |  message to hello@example.com
+  v
+Email Routing
+  |  email() event
+  v
+Worker
+  1. Parse it. Mail to an address that isn't configured is dropped.
+  2. Attachments ---------------------------------> R2
+  3. The message, threaded into its conversation --> Mail store
+  4. With AUTO_DRAFT_ENABLED, ask for a reply -----> Agent
+     (skips mailing lists and no-reply senders)
+  |
+  v
+It appears in the one list, under its address.
 ```
+
+What happens when you send:
+
+```text
+You, the in-app agent, or an MCP client
+  |  send as billing@example.com
+  v
+Worker
+  1. Claim the send key, so a retried request can't send twice.
+  2. Check the From address is the mailbox's own address.
+  3. Thread it onto the conversation it replies to.
+  4. send_email ---------> Email Service ---------> Recipient
+                           (SPF, DKIM and DMARC
+                            on your domain)
+  5. Attachments --------> R2
+  6. The Sent copy ------> Mail store
+```
+
+A scheduled send waits in the store; the cron runs these same steps when its time comes.
 
 ## Quick start
 
