@@ -132,12 +132,14 @@ export default function EmailIframe({ body, autoSize, remoteImages = true, paddi
 			: "";
 
 		// Mail shortcuts keep working while focus is inside the message. The
-		// parent accepts only these keys, and only from its own frames.
+		// frame passes every key up; the parent matches it against the
+		// shortcuts and accepts it only from its own frames.
 		const keyScript = `<script>
 			document.addEventListener("keydown", function (e) {
-				if (e.metaKey || e.ctrlKey || e.altKey || e.isComposing) return;
-				if (["j", "k", "/", "?", "Escape", "x", "l", "e", "#", "s", "u", "r", "a", "f", "c", "z"].indexOf(e.key) < 0) return;
-				parent.postMessage({ __emailIframeKey: true, key: e.key }, "*");
+				if (e.isComposing) return;
+				var t = e.target;
+				if (t && t.closest && t.closest("input, textarea, select, [contenteditable]")) return;
+				parent.postMessage({ __emailIframeKey: true, key: e.key, shiftKey: e.shiftKey, metaKey: e.metaKey, ctrlKey: e.ctrlKey, altKey: e.altKey }, "*");
 			});
 		<\/script>`;
 

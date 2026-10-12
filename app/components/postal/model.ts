@@ -28,7 +28,7 @@ const FILTER_KEYS = ["view", "sort", "dir", "address", "from", "label", "is", "h
 export const HOME: MailFilter = { view: "inbox", chips: [], sort: "date", dir: "desc" };
 
 /** What the row, bulk and reader toolbars can do to a conversation. */
-export type MailAction = "archive" | "trash" | "read" | "star" | "restore";
+export type MailAction = "archive" | "trash" | "read" | "star" | "restore" | "spam";
 
 /** Views whose mail can move back to the Inbox. */
 export const RESTORABLE: ReadonlySet<string> = new Set(["archive", "spam", "trash"]);

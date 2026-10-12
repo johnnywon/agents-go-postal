@@ -82,9 +82,27 @@ test("the server lists every tool", async () => {
 	const { tools } = await client.listTools();
 	assert.deepEqual(tools.map((t) => t.name).sort(), [
 		"create_draft", "create_label", "delete_email", "delete_label", "draft_reply", "get_email", "get_thread",
-		"label_conversation", "label_matching", "list_emails", "list_labels", "list_mailboxes", "mark_email_read",
-		"move_email", "rename_label", "search_all_mail", "search_emails", "send_draft", "update_draft",
+		"label_conversation", "label_matching", "list_emails", "list_labels", "list_mailboxes", "list_shortcuts", "mark_email_read",
+		"move_email", "rename_label", "reset_shortcuts", "search_all_mail", "search_emails", "send_draft", "set_shortcut", "update_draft",
 	]);
+});
+
+test("shortcuts can be listed, rebound and reset", async () => {
+	const keysOf = async (id) => (await ok("list_shortcuts")).shortcuts.find((s) => s.id === id).keys;
+	assert.deepEqual(await keysOf("archive"), ["e"]);
+
+	const saved = await ok("set_shortcut", { shortcut: "Archive", keys: ["S"] });
+	assert.deepEqual(saved.keys, ["s"]);
+	assert.deepEqual(saved.takenFrom.map((t) => t.id), ["star"]);
+	assert.deepEqual(await keysOf("archive"), ["s"]);
+	assert.deepEqual(await keysOf("star"), []);
+
+	const refused = await call("set_shortcut", { shortcut: "help", keys: ["h"] });
+	assert.equal(refused.isError, true);
+
+	await ok("reset_shortcuts", {});
+	assert.deepEqual(await keysOf("archive"), ["e"]);
+	assert.deepEqual(await keysOf("star"), ["s"]);
 });
 
 test("read tools return the seeded mail", async () => {

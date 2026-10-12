@@ -5,13 +5,14 @@
 import {
 	ArchiveIcon, ArrowsClockwiseIcon, CaretDownIcon, CheckIcon, ClockIcon, EnvelopeOpenIcon, EnvelopeSimpleIcon,
 	FileIcon, FunnelSimpleIcon, MagnifyingGlassIcon, PaperclipIcon, PaperPlaneTiltIcon, PencilSimpleLineIcon, SortAscendingIcon,
-	SortDescendingIcon, StarIcon, TrashIcon, TrayArrowUpIcon, TrayIcon, WarningIcon, XIcon,
+	SortDescendingIcon, StarIcon, TrashIcon, TrayArrowUpIcon, TrayIcon, WarningIcon, WarningOctagonIcon, XIcon,
 } from "@phosphor-icons/react";
 import { Fragment, useEffect, useRef, useState } from "react";
 import type { MailFilter } from "~/lib/mail-filter";
 import type { Conversation, Label, MailFacets, ScheduledSend } from "~/services/api";
 import { AddressText, type Identities, LabelChip, LabelTag, Swatch } from "./identity";
 import { AllAddressesIcon } from "./NavIcons";
+import { Keys, useShortcuts } from "./shortcuts";
 import { marks, snippetMarkup } from "./search-window";
 import { dayKey, dayLabel, filterCount, hasChip, labelOf, type MailAction, RESTORABLE, scopeOf, sendTimeLabel, timeLabel, toggleChip, withoutKinds } from "./model";
 
@@ -73,6 +74,7 @@ function Highlighted({ text, terms }: { text: string; terms: string[] }) {
 
 export function ListPane(props: ListPaneProps) {
 	const { identities, filter, go, rows } = props;
+	const { tip } = useShortcuts();
 	const scope = scopeOf(filter);
 	const labelView = labelOf(filter);
 	const [scopeOpen, setScopeOpen] = useState(false);
@@ -185,7 +187,7 @@ export function ListPane(props: ListPaneProps) {
 				{filter.view === "trash" && props.rows.length > 0 && (
 					<button type="button" className="pg-btn pg-btn-sm pg-btn-outline" onClick={props.onEmptyTrash} title="Delete everything in Trash forever">Empty Trash</button>
 				)}
-				<button type="button" className="pg-new-btn" onClick={props.onNew} title="New email (C)" aria-label="New email">
+				<button type="button" className="pg-new-btn" onClick={props.onNew} title={tip("compose", "New email")} aria-label="New email">
 					<PencilSimpleLineIcon size={16} />
 				</button>
 				<div className="pg-group">
@@ -303,7 +305,7 @@ export function ListPane(props: ListPaneProps) {
 						<p>{empty.body}</p>
 						<button type="button" className="pg-btn" onClick={props.searching ? props.onClearSearch : props.onHome}>
 							{props.searching ? "Clear search" : "Back to Inbox"}
-							<span className="pg-keyhint pg-mono" style={{ fontSize: 10, color: "var(--pg-text-8)" }}>G I</span>
+							{!props.searching && <Keys id="goInbox" className="pg-keyhint pg-mono" style={{ fontSize: 10, color: "var(--pg-text-8)" }} />}
 						</button>
 					</div>
 				)}
@@ -377,14 +379,14 @@ export function ListPane(props: ListPaneProps) {
 									)}
 								</div>
 								<div className="pg-row-tools" onClick={(e) => e.stopPropagation()}>
-									<button type="button" title="Select (X) · shift-click for a range" aria-label="Select" aria-pressed={checked} onClick={(e) => props.onCheck(row, e.shiftKey)}>
+									<button type="button" title={tip("select", "Select", "shift-click for a range")} aria-label="Select" aria-pressed={checked} onClick={(e) => props.onCheck(row, e.shiftKey)}>
 										<span className="pg-check" data-on={checked}>{checked && <CheckIcon size={10} weight="bold" />}</span>
 									</button>
 									<span className="pg-sep" />
 									{RESTORABLE.has(filter.view) && (
 										<button type="button" title="Move to Inbox" aria-label="Move to Inbox" onClick={() => props.onRowAction(row, "restore")}><TrayArrowUpIcon size={15} /></button>
 									)}
-									<button type="button" title="Archive (E)" aria-label="Archive" onClick={() => props.onRowAction(row, "archive")}><ArchiveIcon size={15} /></button>
+									<button type="button" title={tip("archive", "Archive")} aria-label="Archive" onClick={() => props.onRowAction(row, "archive")}><ArchiveIcon size={15} /></button>
 									<button type="button" title={row.starred ? "Unstar" : "Star"} aria-label={row.starred ? "Unstar" : "Star"} onClick={() => props.onRowAction(row, "star")}>
 										<StarIcon size={15} weight={row.starred ? "fill" : "regular"} />
 									</button>
@@ -396,7 +398,7 @@ export function ListPane(props: ListPaneProps) {
 									)}
 								</div>
 								<div className="pg-row-checkonly" onClick={(e) => e.stopPropagation()}>
-									<button type="button" title="Select (X) · shift-click for a range" aria-label="Select" aria-pressed={checked} onClick={(e) => props.onCheck(row, e.shiftKey)}>
+									<button type="button" title={tip("select", "Select", "shift-click for a range")} aria-label="Select" aria-pressed={checked} onClick={(e) => props.onCheck(row, e.shiftKey)}>
 										<span className="pg-check" data-on={checked}>{checked && <CheckIcon size={10} weight="bold" />}</span>
 									</button>
 								</div>
@@ -416,8 +418,9 @@ export function ListPane(props: ListPaneProps) {
 							<button type="button" className="pg-tool" title="Read" aria-label="Mark read" onClick={() => props.onBulk("read")}><EnvelopeOpenIcon size={15} /></button>
 							<button type="button" className="pg-tool" title="Star" aria-label="Star" onClick={() => props.onBulk("star")}><StarIcon size={15} /></button>
 							{filter.view !== "trash" && <button type="button" className="pg-tool" title="Trash" aria-label="Move to trash" onClick={() => props.onBulk("trash")}><TrashIcon size={15} /></button>}
+							{filter.view !== "spam" && <button type="button" className="pg-tool" title={tip("spam", "Report spam")} aria-label="Report spam" onClick={() => props.onBulk("spam")}><WarningOctagonIcon size={15} /></button>}
 							<span className="pg-sep" />
-							<button type="button" className="pg-tool" title="Clear selection (Esc)" aria-label="Clear selection" onClick={props.onClearSelection} style={{ color: "var(--pg-text-6)" }}><XIcon size={14} /></button>
+							<button type="button" className="pg-tool" title={tip("back", "Clear selection")} aria-label="Clear selection" onClick={props.onClearSelection} style={{ color: "var(--pg-text-6)" }}><XIcon size={14} /></button>
 						</div>
 					</div>
 				)}

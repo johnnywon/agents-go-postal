@@ -2,7 +2,7 @@
 // Licensed under the Apache 2.0 license found in the LICENSE file or at:
 //     https://opensource.org/licenses/Apache-2.0
 
-export const SETTINGS_TABS = ["general", "addresses", "signatures", "labels", "agent", "model", "storage"] as const;
+export const SETTINGS_TABS = ["general", "addresses", "signatures", "labels", "shortcuts", "agent", "model", "storage"] as const;
 export type SettingsTab = (typeof SETTINGS_TABS)[number];
 
 /** The tab named by ?settings=, or null. "index" is the old name of Storage. */

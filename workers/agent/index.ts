@@ -33,6 +33,10 @@ import {
 	toolDiscardDraft,
 	toolSendDraft,
 	toolListLabels,
+	toolListShortcuts,
+	toolSetShortcut,
+	toolResetShortcuts,
+	SHORTCUT_TOOL_DESCRIPTIONS,
 	toolLabelConversation,
 	toolLabelMatching,
 	toolSearchAllMail,
@@ -98,6 +102,9 @@ Use the name the person gives in their email body / signature. That's their name
 
 ## Labels
 Labels are tags shared by every mailbox. Use list_labels to see them. When the operator asks to label mail and no fitting label exists, create one with create_label. The operator's mail spans several addresses: unless they name one, a request like "label my receipts" means every address. Use search_all_mail to find the mail, then label_matching with the same search to label all of it in one call. Use label_conversation (with the result's mailboxId) for a single conversation. Prefer an existing label over a near-duplicate. Use rename_label to rename one. Use delete_label only when the operator asks to delete that specific label: it comes off every conversation and cannot be undone. Before deleting, say which label and how many conversations carry it.
+
+## Keyboard shortcuts
+The operator can ask you to change the app's keyboard shortcuts. Use list_shortcuts to see them, set_shortcut to rebind one and reset_shortcuts to restore defaults. A rebound key is taken from the shortcut that had it: say which. The change applies for everyone on this deployment and shows in the app within a minute, or at once after a reload.
 
 ## Draft Management
 Use discard_draft to delete drafts that the operator rejects or that are no longer needed.`;
@@ -315,6 +322,29 @@ function createEmailTools(env: Env, bound: string | null, { crossAddress = false
 			execute: async ({ label, name }): Promise<unknown> => {
 				return toolRenameLabel(env, { label, name });
 			},
+		}),
+
+		list_shortcuts: defineTool({
+			description: SHORTCUT_TOOL_DESCRIPTIONS.list,
+			parameters: z.object({}),
+			execute: async (): Promise<unknown> => toolListShortcuts(env),
+		}),
+
+		set_shortcut: defineTool({
+			description: SHORTCUT_TOOL_DESCRIPTIONS.set,
+			parameters: z.object({
+				shortcut: z.string().describe(SHORTCUT_TOOL_DESCRIPTIONS.shortcut),
+				keys: z.array(z.string()).max(2).describe(SHORTCUT_TOOL_DESCRIPTIONS.keys),
+			}),
+			execute: async ({ shortcut, keys }): Promise<unknown> => toolSetShortcut(env, { shortcut, keys }),
+		}),
+
+		reset_shortcuts: defineTool({
+			description: SHORTCUT_TOOL_DESCRIPTIONS.reset,
+			parameters: z.object({
+				shortcut: z.string().optional().describe(SHORTCUT_TOOL_DESCRIPTIONS.shortcut),
+			}),
+			execute: async ({ shortcut }): Promise<unknown> => toolResetShortcuts(env, { shortcut }),
 		}),
 
 		delete_label: defineTool({
