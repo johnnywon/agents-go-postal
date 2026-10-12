@@ -10,6 +10,7 @@ import { runCron } from "./cron";
 import { accessConfigured } from "./lib/access-config";
 import { errorResponse } from "./lib/error-page";
 import { foreignOrigin } from "./lib/csrf";
+import { withSecurityHeaders } from "./lib/security-headers";
 import { app as apiApp, receiveEmail } from "./index";
 import { EmailMCP } from "./mcp";
 import type { Env } from "./types";
@@ -46,6 +47,10 @@ function getAccessUrls(teamDomain: string) {
 
 // Main app that wraps the API and adds React Router fallback
 const app = new Hono<{ Bindings: Env }>();
+app.use("*", async (c, next) => {
+	await next();
+	c.res = withSecurityHeaders(c.res);
+});
 
 // Cloudflare Access JWT validation middleware (production only)
 app.use("*", async (c, next) => {
@@ -87,9 +92,11 @@ app.use("*", async (c, next) => {
 // Must be before API routes and React Router catch-all
 const mcpHandler = EmailMCP.serve("/mcp", { binding: "EMAIL_MCP" });
 app.all("/mcp", async (c) => {
+	if (foreignOrigin(c.req.raw)) return c.text("Cross-origin request refused", 403);
 	return mcpHandler.fetch(c.req.raw, c.env, c.executionCtx as ExecutionContext);
 });
 app.all("/mcp/*", async (c) => {
+	if (foreignOrigin(c.req.raw)) return c.text("Cross-origin request refused", 403);
 	return mcpHandler.fetch(c.req.raw, c.env, c.executionCtx as ExecutionContext);
 });
 

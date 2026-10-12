@@ -79,10 +79,12 @@ app.use("/api/*", cors({
 		// Same-origin requests have no Origin header — allow them.
 		if (!origin) return origin;
 		// In development, allow localhost for Vite dev server.
-		try {
-			const url = new URL(origin);
-			if (url.hostname === "localhost" || url.hostname === "127.0.0.1") return origin;
-		} catch { /* invalid origin */ }
+		if (import.meta.env?.DEV) {
+			try {
+				const url = new URL(origin);
+				if (url.hostname === "localhost" || url.hostname === "127.0.0.1") return origin;
+			} catch { /* invalid origin */ }
+		}
 		// Block all other cross-origin requests. The app is served from the
 		// same origin as the API, so legitimate browser requests never send
 		// an Origin header. Returning undefined omits Access-Control-Allow-Origin.
@@ -603,6 +605,8 @@ app.get("/api/v1/mailboxes/:mailboxId/emails/:emailId/attachments/:attachmentId"
 	if (!obj) return c.json({ error: "Attachment file not found" }, 404);
 	const headers = new Headers();
 	headers.set("Content-Type", attachment.mimetype);
+	headers.set("X-Content-Type-Options", "nosniff");
+	headers.set("Content-Security-Policy", "sandbox");
 	const sanitized = attachment.filename.replace(/[\x00-\x1f"\\]/g, "_");
 	headers.set("Content-Disposition", `attachment; filename="${sanitized}"; filename*=UTF-8''${encodeURIComponent(attachment.filename)}`);
 	return new Response(obj.body, { headers });
