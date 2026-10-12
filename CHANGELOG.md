@@ -9,7 +9,7 @@ Versions follow [semantic versioning](https://semver.org). Before 1.0, a minor v
 - Build env vars are `OMR_WRANGLER_CONFIG` and `OMR_PUBLIC_DIR`. `AGP_*` still work.
 - Browser prefs move from `agp-*` to `omr-*` keys on first load. Nothing to do.
 - The default worker and R2 bucket names in `wrangler.jsonc` are `open-mailroom`. An existing deployment keeps its own names; don't change them, or Cloudflare creates a new worker and an empty bucket.
-- README screenshots reshot.
+- README screenshots reshot, with light versions for readers on a light theme.
 
 No D1 migration.
 

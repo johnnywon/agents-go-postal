@@ -14,7 +14,10 @@ Needs a domain on Cloudflare, R2 and Cloudflare Access. Sending needs the Worker
 
 **v0.4.0, ready to deploy.** One production deployment has handled real mail on it every day since May 2026. Before 1.0, an upgrade can need a step, such as a D1 migration or a config change, and the [changelog](CHANGELOG.md) names it in every release. Pin a [release](https://github.com/johnnywon/open-mailroom/releases) tag to choose when you upgrade.
 
-![The inbox: every address in one list, a conversation open, the agent on the right](docs/images/inbox.jpg)
+<picture>
+  <source media="(prefers-color-scheme: light)" srcset="docs/images/inbox-light.jpg">
+  <img src="docs/images/inbox.jpg" alt="The inbox: every address in one list, a conversation open, the agent on the right">
+</picture>
 
 ## What you can run on it
 
@@ -24,21 +27,37 @@ Needs a domain on Cloudflare, R2 and Cloudflare Access. Sending needs the Worker
 
 ## Product tour
 
-![Search with operators, top results and filters that narrow them](docs/images/search.jpg)
+<picture>
+  <source media="(prefers-color-scheme: light)" srcset="docs/images/search-light.jpg">
+  <img src="docs/images/search.jpg" alt="Search with operators, top results and filters that narrow them">
+</picture>
 
 **Search every address at once.** Operators, phrases and `OR`, ranked by relevance. The same query works in the URL, the agent and every MCP tool.
 
-![Replying from the address the message reached, with the original quoted](docs/images/compose.jpg)
+<picture>
+  <source media="(prefers-color-scheme: light)" srcset="docs/images/compose-light.jpg">
+  <img src="docs/images/compose.jpg" alt="Replying from the address the message reached, with the original quoted">
+</picture>
 
 **Reply from the right address.** Replies go out from the address the message reached. Drafts the agent writes open in the same composer for you to review and send.
 
-<p align="center"><img src="docs/images/mcp.jpg" alt="The MCP panel: the server URL and its tools" width="560"></p>
+<p align="center">
+<picture>
+  <source media="(prefers-color-scheme: light)" srcset="docs/images/mcp-light.jpg">
+  <img src="docs/images/mcp.jpg" alt="The MCP panel: the server URL and its tools" width="560">
+</picture>
+</p>
 
 **Plug in any agent over MCP.** 22 tools to read, search, draft, send, label and move, behind the same Cloudflare Access login as the app.
 
 Also: an in-app agent on Workers AI or zero data retention OpenRouter models, attachments, bulk actions with undo, scheduled send, signatures, Gmail-style keyboard shortcuts and a phone layout.
 
-<p align="center"><img src="docs/images/mobile.jpg" alt="The list and a receipt on a phone" width="620"></p>
+<p align="center">
+<picture>
+  <source media="(prefers-color-scheme: light)" srcset="docs/images/mobile-light.jpg">
+  <img src="docs/images/mobile.jpg" alt="The list and a receipt on a phone" width="620">
+</picture>
+</p>
 
 ## Why not something else
 
