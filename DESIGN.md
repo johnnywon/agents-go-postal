@@ -24,7 +24,7 @@ One radius: 6px, from the global rule in `app/index.css`. The exceptions, enforc
 
 - Circles (`50%`): switch knobs and the agent's activity dot. Round is reserved for the agent and controls; domains never use it.
 - 2px: domain swatches and search-highlight marks.
-- 0: scrollbar thumbs, the full-screen mobile composer, and the logo.
+- 0: scrollbar thumbs, the full-screen mobile composer, the logo, and anything with a border on one side only (row and table dividers, headers, footers, the side columns). A radius would curl a divider's ends, and dividers are straight. The `.postal :is(...)` rule near the top of `postal.css` lists them, and the design test fails when a new one is missing.
 - Split controls may square their inner corners (`6px 0 0 6px`).
 
 ### Domain identity
@@ -63,7 +63,7 @@ Mail renders in the sandboxed iframe. Plain mail (no tables, images, colours or 
 
 ### Settings
 
-Settings is a dialog over the mail, with tabs: General, Addresses, Signatures, Labels, Agent, Model & key, Storage. The open tab is in the URL (`?settings=labels`), so a link opens it and Back closes it; `/settings` and `/settings/index` redirect to the Labels and Storage tabs. Most tabs save with Save changes. Labels and Storage act at once and say so. Tables (`.pg-table`) use mono headers on the well colour, right-aligned numbers, and a rose tint for rows that disagree. Below 600px the dialog fills the screen and the tabs scroll sideways.
+Settings is a dialog over the mail, with tabs: General, Addresses, Signatures, Labels, Agent, Model & key, Storage. The open tab is in the URL (`?settings=labels`), so a link opens it and Back closes it; `/settings` and `/settings/index` redirect to the Labels and Storage tabs. Most tabs save with Save changes. Labels and Storage act at once and say so. Tables (`.pg-table`) use mono headers with no fill, right-aligned numbers at 13px with zeros dimmed, addresses in the short `AddressText` form, and a rose tint for rows that disagree. Below 600px the dialog fills the screen and the tabs scroll sideways.
 
 ### Error pages
 

@@ -27,6 +27,49 @@ html:has(.postal), html:has(.postal) body { background: var(--pg-base, #141518);
   outline-offset: -2px;
 }
 .postal .pg-mono { font-family: var(--pg-mono); }
+/* Dividers are straight. An element whose border is on one side only never takes the global 6px radius,
+   which would curl the line up at both ends. tests/design-rules.test.mjs keeps this list complete. */
+.postal :is(
+  .pg-nav,
+  .pg-rail-head,
+  .pg-nav-foot,
+  .pg-navrail,
+  .pg-rail-foot,
+  .pg-search,
+  .pg-sw,
+  .pg-sw-foot,
+  .pg-list-col,
+  .pg-list-head,
+  .pg-flt-foot,
+  .pg-gap,
+  .pg-row,
+  .pg-order,
+  .pg-skel,
+  .pg-reader-bar,
+  .pg-error,
+  .pg-format,
+  .pg-cw-head,
+  .pg-cw-row,
+  .pg-files,
+  .pg-warn,
+  .pg-cw-foot,
+  .pg-agent,
+  .pg-agent-sub,
+  .pg-answer th,
+  .pg-answer td,
+  .pg-agentrail,
+  .pg-modal-head,
+  .pg-modal-foot,
+  .pg-tabs,
+  .pg-setting,
+  .pg-addr-row,
+  .pg-sig-row,
+  .pg-label-new,
+  .pg-label-row,
+  .pg-table th,
+  .pg-table td,
+  .pg-tools-list div
+) { border-radius: 0 !important; }
 .postal .pg-sr { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 .postal .pg-flex { flex: 1; min-width: 0; }
 .postal .pg-ellipsis { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -168,10 +211,8 @@ html:has(.postal), html:has(.postal) body { background: var(--pg-base, #141518);
 .postal[data-theme="light"] mark { background: oklch(0.85 0.14 85 / .55); }
 
 /* ── Side column (mailboxes) ───────────────────────────────────────── */
-/* The app and its outer columns meet the browser edge, so their top corners on that side are square. */
+/* The app meets the browser edge at the top, so its top corners are square. Its columns are square too (see the divider rule). */
 .postal { border-radius: 0 0 6px 6px !important; }
-.postal :is(.pg-nav, .pg-navrail, .pg-nav > .pg-rail-head, .pg-navrail > .pg-rail-head) { border-radius: 0 6px 6px 6px !important; }
-.postal :is(.pg-agent, .pg-agentrail, .pg-agent > .pg-rail-head, .pg-agentrail > .pg-rail-head) { border-radius: 6px 0 6px 6px !important; }
 .pg-nav { width: 236px; flex: none; display: flex; flex-direction: column; border-right: 1px solid var(--pg-line); background: var(--pg-rail); min-height: 0; }
 .pg-rail-head {
   height: 38px; flex: none; display: flex; align-items: center; gap: 8px; width: 100%;
@@ -799,11 +840,14 @@ html:has(.postal), html:has(.postal) body { background: var(--pg-base, #141518);
 .pg-table-note { margin: 14px 0 6px; font-size: var(--pg-t-12); color: var(--pg-text-6); }
 .pg-table-scroll { overflow-x: auto; border: 1px solid var(--pg-line); }
 .pg-table { width: 100%; border-collapse: collapse; font-size: var(--pg-t-12); font-variant-numeric: tabular-nums; }
-.pg-table th, .pg-table td { padding: 7px 10px; text-align: left; white-space: nowrap; border-bottom: 1px solid var(--pg-line-soft); }
+.pg-table th, .pg-table td { padding: 9px 10px; text-align: left; white-space: nowrap; border-bottom: 1px solid var(--pg-line-soft); }
 .pg-table tr:last-child > * { border-bottom: 0; }
-.pg-table thead th { font: 500 var(--pg-t-11) var(--pg-mono); color: var(--pg-text-6); background: var(--pg-well); }
-.pg-table tbody th { font-weight: 400; color: var(--pg-text-3); }
-.pg-table td { color: var(--pg-text-4); }
+/* Headers sit on the table's own surface: a fill per cell would round into separate pills under the global radius. */
+.pg-table thead th { padding-top: 8px; padding-bottom: 8px; font: 500 var(--pg-t-11) var(--pg-mono); color: var(--pg-text-7); border-bottom-color: var(--pg-line); }
+.pg-table tbody th { font-weight: 400; font-size: var(--pg-t-13); color: var(--pg-text-3); }
+.pg-table td { font-size: var(--pg-t-13); color: var(--pg-text-2); }
+.pg-table td.is-zero { color: var(--pg-text-8); }
+.pg-table tbody tr:hover { background: var(--pg-hover); }
 .pg-table .is-num { text-align: right; }
 .pg-table tr.is-off { background: color-mix(in oklch, var(--pg-danger) 8%, transparent); }
 .pg-table td.is-off { color: var(--pg-danger-text); font-weight: 600; }

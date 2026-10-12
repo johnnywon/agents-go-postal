@@ -1070,6 +1070,26 @@ test("postal styles use the 6px radius, with only the documented exceptions (DES
 	assert.deepEqual(problems, [], `Radius outside the rule:\n  ${problems.join("\n  ")}`);
 });
 
+// A one-sided border under the global radius curls at both ends, so every divider is square.
+test("postal dividers are straight: one-sided borders opt out of the radius (DESIGN.md)", () => {
+	const blocks = cssBlocks(POSTAL_CSS);
+	const square = blocks.find(({ selector, decls }) => selector.startsWith(".postal :is(") && decls.some(([p, v]) => p === "border-radius" && /^0\s*!important$/.test(v)));
+	assert.ok(square, "missing the .postal :is(...) { border-radius: 0 !important } rule");
+	const listed = new Set(square.selector.replace(/^\.postal :is\(/, "").replace(/\)$/, "").split(",").map((s) => s.trim()));
+	// A selector with its own radius rule sets its corners itself (the send split's caret squares its divider side).
+	const ownRadius = new Set(blocks.filter(({ decls }) => decls.some(([p]) => p === "border-radius")).flatMap(({ selector }) => selector.split(",").map((s) => s.trim().replace(/^\.postal\s+/, ""))));
+	const missing = [];
+	for (const { selector, decls } of blocks) {
+		const oneSide = decls.some(([p, v]) => /^border-(top|right|bottom|left)$/.test(p) && !/^(0|none)\b/.test(v));
+		const zeroedSides = decls.filter(([p, v]) => /^border-(top|right|bottom|left)$/.test(p) && /^(0|none)\b/.test(v)).length;
+		if (!oneSide && zeroedSides < 3) continue;
+		for (const part of selector.split(",").map((s) => s.trim())) {
+			if (!listed.has(part) && !ownRadius.has(part)) missing.push(part);
+		}
+	}
+	assert.deepEqual(missing, [], `Add these to the square-divider rule in postal.css:\n  ${missing.join("\n  ")}`);
+});
+
 test("postal domain shapes come from clip-path on .pg-shape-* only, and none is round", () => {
 	const problems = [];
 	const shapes = new Set();

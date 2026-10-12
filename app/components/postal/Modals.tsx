@@ -414,7 +414,7 @@ export function SettingsModal({ tab, onTab, prefs, setPrefs, addresses, identiti
 					)}
 					{tab === "model" && <AgentModelSection draft={agentModel} />}
 					{tab === "labels" && <LabelsTab />}
-					{tab === "storage" && <StorageTab />}
+					{tab === "storage" && <StorageTab identities={identities} />}
 				</div>
 			</div>
 			<div className="pg-modal-foot">

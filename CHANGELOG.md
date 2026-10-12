@@ -5,6 +5,8 @@ Versions follow [semantic versioning](https://semver.org). Before 1.0, a minor v
 ## 0.1.3
 
 - Settings holds everything: the Labels page and the Mail index page are now the Labels and Storage tabs of the Settings dialog. `/settings` and `/settings/index` redirect there. The open tab is in the URL (`?settings=labels`), and Back closes the dialog. Storage shows per-address counts on D1 and the index comparison and Rebuild on Durable Objects.
+- Dividers are straight: anything with a border on one side only (rows, headers, footers, table cells, the side columns) has square corners. A design test keeps it that way.
+- A signature with text no longer shows the "No signature" placeholder over it.
 - The brushed-metal settings styles, `SettingsHeader`, `DeckBrand` and the Oxanium font are gone.
 
 No D1 migration.

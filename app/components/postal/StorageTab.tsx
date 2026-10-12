@@ -6,6 +6,7 @@ import { ArrowsClockwiseIcon, DatabaseIcon } from "@phosphor-icons/react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import api, { type CopyStatusResponse, type IndexCounts, type IndexStatusResponse } from "~/services/api";
+import { AddressText, type Identities } from "./identity";
 
 const STATE_COLUMNS = [
 	["inbox", "Inbox"],
@@ -114,7 +115,7 @@ function CopyToD1({ copy }: { copy: CopyStatusResponse }) {
 }
 
 /** Where the mail lives, per-address counts, the index rebuild (Durable Objects only) and the copy to D1. */
-export function StorageTab() {
+export function StorageTab({ identities }: { identities: Identities }) {
 	const queryClient = useQueryClient();
 	const status = useQuery({
 		queryKey: ["index-status"],
@@ -180,18 +181,18 @@ export function StorageTab() {
 									<tr key={row.mailboxId} className={ok ? undefined : "is-off"}>
 										<th scope="row">
 											{!d1 && <span className="pg-parity-mark" aria-label={ok ? "Matches" : "Does not match"}>{ok ? "✓" : "≠"}</span>}
-											<span className="pg-mono">{row.mailboxId}</span>
+											<span title={row.mailboxId}><AddressText address={row.mailboxId} identity={identities.of(row.mailboxId)} short /></span>
 										</th>
 										{row.error ? (
 											<td colSpan={shown.length + (d1 ? 0 : 1)}>{row.error}</td>
 										) : (
 											<>
 												{columns(row).filter((c) => c.shown).map((c) => (
-													<td key={c.label} className={c.source === c.index || d1 ? "is-num" : "is-num is-off"}>
+													<td key={c.label} className={c.source === c.index || d1 ? (c.source === 0 ? "is-num is-zero" : "is-num") : "is-num is-off"}>
 														{c.source === c.index || d1 ? c.source.toLocaleString() : `${c.source.toLocaleString()} ≠ ${c.index.toLocaleString()}`}
 													</td>
 												))}
-												{!d1 && <td className="is-num">{(row.source?.pending ?? 0).toLocaleString()}</td>}
+												{!d1 && <td className={(row.source?.pending ?? 0) === 0 ? "is-num is-zero" : "is-num"}>{(row.source?.pending ?? 0).toLocaleString()}</td>}
 											</>
 										)}
 									</tr>
