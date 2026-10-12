@@ -528,8 +528,8 @@ html:has(.postal), html:has(.postal) body { background: var(--pg-base, #141518);
 /* Error pages (404, crashes) share the empty reader's look: watermark, one line, a way back. */
 .pg-fault { min-height: 100vh; min-height: 100dvh; display: flex; background: var(--pg-base); color: var(--pg-text-3); font-family: var(--pg-font); }
 .pg-fault-main { margin: auto; width: 100%; max-width: 440px; padding: 48px 24px; display: flex; flex-direction: column; align-items: center; text-align: center; gap: 10px; }
-.pg-fault-logo { width: 160px; height: auto; opacity: .35; margin-bottom: 14px; }
-.postal[data-theme="light"] .pg-fault-logo { opacity: .45; }
+.pg-fault .pg-fault-logo { width: 112px; height: auto; opacity: .16; margin-bottom: 18px; }
+.postal[data-theme="light"] .pg-fault-logo { opacity: .24; }
 .pg-fault-code { margin: 0; font: 500 var(--pg-t-11) var(--pg-mono); letter-spacing: .08em; color: var(--pg-text-7); }
 .pg-fault h1 { margin: 0; font-size: var(--pg-t-22); font-weight: 600; color: var(--pg-text-1); }
 .pg-fault-text { margin: 0; font-size: var(--pg-t-13); line-height: 1.5; color: var(--pg-text-6); overflow-wrap: anywhere; }

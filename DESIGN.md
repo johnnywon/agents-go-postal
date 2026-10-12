@@ -63,7 +63,7 @@ Mail renders in the sandboxed iframe. Plain mail (no tables, images, colours or 
 
 ### Error pages
 
-Every error the app shows uses one layout (`ErrorPage.tsx`): the postal surface and theme, the watermark as on the empty reader, the status code in mono, a 22px heading, one line, and Back to mail (plus Reload when a retry can help). The 404 page, the root error boundary and the Worker's Access errors all use it; the Worker's version is static HTML in `workers/lib/error-page.ts` that follows the system theme. A developer stack trace shows only in dev builds. API clients still get plain text.
+Every error the app shows uses one layout (`ErrorPage.tsx`): the postal surface and theme, a small, faint watermark (112px, the sidebar watermark's opacity), the status code in mono, a 22px heading, one line, and Back to mail (plus Reload when a retry can help). The 404 page, the root error boundary and the Worker's Access errors all use it; the Worker's version is static HTML in `workers/lib/error-page.ts` that follows the system theme. A developer stack trace shows only in dev builds. API clients still get plain text.
 
 ## Settings pages
 
