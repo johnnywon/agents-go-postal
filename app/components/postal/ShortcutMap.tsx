@@ -12,6 +12,7 @@
 
 import {
 	ArchiveIcon, ArrowBendDoubleUpLeftIcon, ArrowBendUpLeftIcon, ArrowBendUpRightIcon, ArrowCounterClockwiseIcon,
+	ArrowsClockwiseIcon, ArrowsCounterClockwiseIcon,
 	CaretDoubleLeftIcon, CaretDoubleRightIcon, EnvelopeOpenIcon, EnvelopeSimpleIcon, type Icon, MagnifyingGlassIcon, PaperPlaneTiltIcon,
 	PencilSimpleLineIcon, SquareIcon, StarIcon, TagIcon, TrashIcon, TrayIcon, WarningOctagonIcon,
 } from "@phosphor-icons/react";
@@ -27,7 +28,7 @@ type AnyIcon = Icon | React.ComponentType<{ size?: number }>;
 
 /** The icon of the button a shortcut presses, as the app draws it. */
 const ICONS: Partial<Record<ShortcutId, AnyIcon>> = {
-	goInbox: InboxIcon, goStarred: StarredIcon, goDrafts: DraftsIcon, goSent: SentIcon, goAll: TrayIcon,
+	goInbox: InboxIcon, goStarred: StarredIcon, goDrafts: DraftsIcon, goSent: SentIcon, goAll: TrayIcon, nextView: ArrowsClockwiseIcon, prevView: ArrowsCounterClockwiseIcon,
 	reply: ArrowBendUpLeftIcon, replyAll: ArrowBendDoubleUpLeftIcon, forward: ArrowBendUpRightIcon,
 	archive: ArchiveIcon, trash: TrashIcon, spam: WarningOctagonIcon, markRead: EnvelopeOpenIcon, markUnread: EnvelopeSimpleIcon, star: StarIcon, label: TagIcon,
 	compose: PencilSimpleLineIcon, select: SquareIcon, send: PaperPlaneTiltIcon, undo: ArrowCounterClockwiseIcon,

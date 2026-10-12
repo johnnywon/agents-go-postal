@@ -71,6 +71,8 @@ export const SHORTCUTS = [
 	{ id: "goDrafts", group: "Navigate", label: "Go to Drafts", keys: ["g d"], scope: "mail", fixed: true, area: "go", short: "Drafts" },
 	{ id: "goSent", group: "Navigate", label: "Go to Sent", keys: ["g t"], scope: "mail", fixed: true, area: "go", short: "Sent" },
 	{ id: "goAll", group: "Navigate", label: "Go to All mail", keys: ["g a"], scope: "mail", fixed: true, area: "go", short: "All mail" },
+	{ id: "nextView", group: "Navigate", label: "Next view", keys: ["`"], scope: "mail", hint: "Inbox, Unread, Starred, Drafts", area: "go", short: "Next view" },
+	{ id: "prevView", group: "Navigate", label: "Previous view", keys: ["~"], scope: "mail", hint: "Drafts, Starred, Unread, Inbox", area: "go", short: "Previous view" },
 	{ id: "back", group: "Navigate", label: "Clear selection or back to the list", keys: ["Escape", "u"], scope: "mail", fixed: true, area: "more", short: "Close" },
 
 	{ id: "archive", group: "Conversation", label: "Archive", keys: ["e"], scope: "mail", area: "toolbar", primary: true, cluster: 2 },
@@ -159,6 +161,15 @@ export function stepOf(e: KeyLike): string | null {
 	if (e.altKey) mods += "Alt+";
 	if (e.shiftKey && (letter || named)) mods += "Shift+";
 	return mods + key;
+}
+
+/** The views nextView and prevView step through, in order. From any other view, nextView goes to the first and prevView to the last. */
+export const CYCLE_VIEWS = ["inbox", "unread", "starred", "drafts"] as const;
+
+export function cycleView(view: string, step: 1 | -1): (typeof CYCLE_VIEWS)[number] {
+	const i = (CYCLE_VIEWS as readonly string[]).indexOf(view);
+	const n = CYCLE_VIEWS.length;
+	return CYCLE_VIEWS[i < 0 ? (step > 0 ? 0 : n - 1) : (i + step + n) % n];
 }
 
 /** Whether a string is a step the matcher understands. */

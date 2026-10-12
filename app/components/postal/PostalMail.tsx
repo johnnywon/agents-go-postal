@@ -7,7 +7,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router";
 import { LABEL_COLORS } from "shared/label-colors";
-import { cleanOverrides, describeChanges, KeyMatcher, type KeyLike, type MailShortcutId, ownerOf, resolveBindings, type ShortcutOverrides, stepOf } from "shared/shortcuts";
+import { cleanOverrides, cycleView, describeChanges, KeyMatcher, type KeyLike, type MailShortcutId, ownerOf, resolveBindings, type ShortcutOverrides, stepOf } from "shared/shortcuts";
 import { type BulkAction, applyAction, readToggle, starToggle } from "~/lib/bulk-optimistic";
 import { type MailFilter, type OpenRef, filterToParams, openParam, parseOpen, VIEW_LABELS } from "~/lib/mail-filter";
 import * as sel from "~/lib/selection";
@@ -26,7 +26,7 @@ import { buildIdentities } from "./identity";
 import { ListPane } from "./ListPane";
 import { LogoutModal, McpModal, SettingsModal, ShortcutsModal, Toast, type ToastState } from "./Modals";
 import { type SettingsTab, settingsTabFrom } from "./settings-tabs";
-import { conversations, HOME, labelOf, type MailAction, parsePostalFilter, RESTORABLE, scopeOf, searchErrors, searchTerms, withSearch } from "./model";
+import { conversations, HOME, labelOf, type MailAction, parsePostalFilter, RESTORABLE, scoped, scopeOf, searchErrors, searchTerms, withSearch } from "./model";
 import { withOrder } from "./search-window";
 import { useDeleteSavedSearch, useSavedSearches, useSaveSearch, useSuggest } from "~/queries/search";
 import { readJson, useLayout, usePrefs, useResolvedTheme, useWidth, writeJson } from "./prefs";
@@ -445,6 +445,8 @@ function PostalApp({ addresses, domains, autoDraft }: PostalProps) {
 			goDrafts: () => goTo("drafts"),
 			goSent: () => goTo("sent"),
 			goAll: () => goTo("all"),
+			nextView: () => (go(scoped(cycleView(labelOf(filter) ? "all" : filter.view, 1), scopeOf(filter), HOME)), true),
+			prevView: () => (go(scoped(cycleView(labelOf(filter) ? "all" : filter.view, -1), scopeOf(filter), HOME)), true),
 			back: () => {
 				if (checked.keys.size) setSelection(sel.EMPTY_SELECTION);
 				else if (mobile && navTemp) setNavTemp(false);

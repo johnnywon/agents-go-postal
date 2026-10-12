@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { loadTs } from "./helpers/sqlite.mjs";
 
-const { SHORTCUTS, KeyMatcher, cannotBind, describeChanges, cleanOverrides, describeShortcuts, findShortcut, keycaps, keyText, parseBinding, rebind, resolveBindings, setShortcut, stepOf, tidy, validStep } = await loadTs("shared/shortcuts.ts");
+const { SHORTCUTS, KeyMatcher, cannotBind, cycleView, describeChanges, cleanOverrides, describeShortcuts, findShortcut, keycaps, keyText, parseBinding, rebind, resolveBindings, setShortcut, stepOf, tidy, validStep } = await loadTs("shared/shortcuts.ts");
 
 test("ids are unique and every default key is a valid step", () => {
 	const ids = SHORTCUTS.map((s) => s.id);
@@ -137,4 +137,16 @@ test("a change made elsewhere is described for the toast", () => {
 	assert.deepEqual(describeChanges({}, setShortcut({}, "archive", ["s"]).overrides, true), ["Archive is now S", "Star or unstar is off"]);
 	assert.deepEqual(describeChanges(after, after, true), []);
 	assert.deepEqual(describeChanges({}, { search: ["Mod+e"] }, false), ["Search is now Ctrl+E"]);
+});
+
+test("` and ~ step through Inbox, Unread, Starred and Drafts", () => {
+	assert.equal(stepOf({ key: "`" }), "`");
+	assert.equal(stepOf({ key: "~", shiftKey: true }), "~");
+	const m = new KeyMatcher(resolveBindings());
+	assert.deepEqual(m.match("`", 0), { id: "nextView", shift: false });
+	assert.deepEqual(m.match("~", 0), { id: "prevView", shift: false });
+	assert.deepEqual(["inbox", "unread", "starred", "drafts"].map((v) => cycleView(v, 1)), ["unread", "starred", "drafts", "inbox"]);
+	assert.equal(cycleView("inbox", -1), "drafts");
+	assert.equal(cycleView("sent", 1), "inbox");
+	assert.equal(cycleView("sent", -1), "drafts");
 });

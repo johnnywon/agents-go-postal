@@ -12,7 +12,7 @@ Versions follow [semantic versioning](https://semver.org). Before 1.0, a minor v
 - When shortcuts change somewhere else (the agent, MCP, another browser), a toast says what changed ("Archive is now Y") with Undo, once per browser.
 - The agent and MCP can rebind shortcuts: `list_shortcuts`, `set_shortcut` (keys as text such as `"y"`, `"shift+y"`, `"cmd+k"`) and `reset_shortcuts`. The app refreshes its keys when the agent's turn ends.
 - Adding a shortcut is one registry entry plus its action; `shared/shortcuts.ts` and `CLAUDE.md` say how.
-- Shortcuts follow Gmail: `#` trash (and Outlook's `Delete`), `!` report spam, `s` star, `⇧I` mark read, `⇧U` mark unread, `l` label, `u` back, and `g` then `s`, `d`, `t` or `a` for Starred, Drafts, Sent and All mail. `⌘B` toggles the sidebar, `⌘J` the agent panel and `\` both.
+- Shortcuts follow Gmail: `#` trash (and Outlook's `Delete`), `!` report spam, `s` star, `⇧I` mark read, `⇧U` mark unread, `l` label, `u` back, and `g` then `s`, `d`, `t` or `a` for Starred, Drafts, Sent and All mail. `` ` `` steps through Inbox, Unread, Starred and Drafts, and `~` steps back, as Gmail does with inbox sections. `⌘B` toggles the sidebar, `⌘J` the agent panel and `\` both.
 - Shortcuts work while focus is inside a message, including `Shift+x`, `⌘J` and `?`. The message frame used to pass up a fixed list of keys, some with no shortcut behind them.
 - Off a Mac, hints show `Ctrl` instead of `⌘`.
 - The empty list's "Clear search" button no longer shows the `G I` hint, which goes to the Inbox.
