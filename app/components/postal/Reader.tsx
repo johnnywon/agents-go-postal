@@ -123,7 +123,6 @@ export function Reader(props: ReaderProps) {
 		return (
 			<section className="pg-reader" aria-label="Message">
 				<div className="pg-idle">
-					<img className="deck-brand-logo" src="/brand/watermark.svg" alt="" width={741} height={282} />
 					<p>Pick a conversation.</p>
 				</div>
 			</section>

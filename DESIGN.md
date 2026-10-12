@@ -11,7 +11,7 @@ A dark, quiet workspace for many addresses on many domains. Mail content comes f
 - Tokens live on `.postal` in `app/index.css`, for a dark theme (default) and a real light theme (`data-theme="light"`), not a CSS invert. Components in `app/components/postal/postal.css` read only these variables.
 - Dark neutrals: base `#141518`, sidebar and rails `#121316`, raised `#1c1d21`, modal `#16171a`, input `#17181b`, hover `#1f2025` on base and `#24262b` on raised, dividers `#26282d` and `#2a2c31`.
 - Text, brightest to faintest: `#f0f0ed`, `#e4e4e1`, `#d5d5d2`, `#c9c9c5`, `#a3a4a0`, `#8b8d93`, `#7f8187`, `#6f7177`. `#7f8187` is the faintest colour allowed for body text (4.5:1). Fainter values are for glyphs, separators and placeholders.
-- Accents, each with one job, taken from the logo (orange threads are mail, green cursors are the agent): mail orange `oklch(0.76 0.16 58)` (selection, focus, the accent in the mail nav icons), agent green `oklch(0.82 0.17 152)` (anything the agent does, the robot's eyes), yellow `oklch(0.87 0.15 95)` (stars, warnings, search highlights), danger rose `oklch(0.64 0.19 15)` (log out). Blue is not an accent; it stays only as the cool cast in the neutrals and for links.
+- Accents, each with one job (orange is mail, green is the agent): mail orange `oklch(0.76 0.16 58)` (selection, focus, the accent in the mail nav icons), agent green `oklch(0.82 0.17 152)` (anything the agent does, the robot's eyes), yellow `oklch(0.87 0.15 95)` (stars, warnings, search highlights), danger rose `oklch(0.64 0.19 15)` (log out). Blue is not an accent; it stays only as the cool cast in the neutrals and for links.
 - Type: Space Grotesk for the interface, JetBrains Mono for metadata: dates, addresses, counts, captions and key hints. Sizes 10, 11, 12, 13, 15 and 22px. Oxanium is not used in this view.
 - Icons: Phosphor at 10, 12, 14 and 16px, 20px in empty states.
 - Navigation icons are drawn like the robot, in `NavIcons.tsx`: a 24 grid with a 20px live area, 2px round strokes, 3px corners on bodies and 1.5 on small parts. Mail icons (All addresses, Inbox, Unread, By address, Drafts) carry one solid mail-orange accent, the robot's eye block where it fits; folder icons and Labels stay plain. By address runs 28 wide so the cursor block can follow the @.
@@ -25,7 +25,7 @@ One radius: 6px, from the global rule in `app/index.css`. The exceptions, enforc
 - Circles (`50%`): switch knobs and the agent's activity dot.
 - Pills: the switch track, 36×20 with a 10px radius, holding a 14px knob 3px in from each edge. Round is reserved for the agent and controls; domains never use it.
 - 2px: domain swatches and search-highlight marks.
-- 0: scrollbar thumbs, the full-screen mobile composer, the logo, and anything with a border on one side only (row and table dividers, headers, footers, the side columns). A radius would curl a divider's ends, and dividers are straight. The `.postal :is(...)` rule near the top of `postal.css` lists them, and the design test fails when a new one is missing.
+- 0: scrollbar thumbs, the full-screen mobile composer, and anything with a border on one side only (row and table dividers, headers, footers, the side columns). A radius would curl a divider's ends, and dividers are straight. The `.postal :is(...)` rule near the top of `postal.css` lists them, and the design test fails when a new one is missing.
 - Split controls may square their inner corners (`6px 0 0 6px`).
 
 ### Domain identity
@@ -38,7 +38,7 @@ An address always renders as **bold handle**, muted `@`, then the domain in its 
 
 - Left column 236px (collapses to a 52px rail), centre, and the agent column 328px (collapses to a 44px "AGENT" rail). Both rail states persist per browser.
 - Every column starts with a 38px header bar on one line: ALL ADDRESSES, the search bar, AGENT.
-- The logo is a faint background watermark at the bottom left, just above Settings: flat monochrome grey, no accent colours. It sits behind the expanded nav and takes no space. The collapsed rail has no logo, and there is no top-left logo.
+- There is no logo in the app. The name appears only in the page title.
 - The list column is `clamp(280px, 30vw, 430px)`. Nothing may overflow at 280px.
 - At 1100 to 1300px the left column starts as its rail and opens as an overlay; the agent panel overlays the reader.
 - At 600px and below: one pane at a time with a Back control, the left column as a drawer, the agent as a bottom sheet, the composer full screen, 44px targets and 16px inputs.
@@ -68,6 +68,6 @@ Settings is a dialog over the mail, with tabs: General, Addresses, Signatures, L
 
 ### Error pages
 
-Every error the app shows uses one layout (`ErrorPage.tsx`): the postal surface and theme, the status code in mono, a 22px heading, one line, Back to mail (plus Reload when a retry can help), and below them a small, faint watermark (112px, the sidebar watermark's opacity). The 404 page, the root error boundary and the Worker's Access errors all use it; the Worker's version is static HTML in `workers/lib/error-page.ts` that follows the system theme. A developer stack trace shows only in dev builds. API clients still get plain text.
+Every error the app shows uses one layout (`ErrorPage.tsx`): the postal surface and theme, the status code in mono, a 22px heading, one line, and Back to mail (plus Reload when a retry can help). The 404 page, the root error boundary and the Worker's Access errors all use it; the Worker's version is static HTML in `workers/lib/error-page.ts` that follows the system theme. A developer stack trace shows only in dev builds. API clients still get plain text.
 
 Validation: `npm test`, `npm run typecheck`, and `npm run build`.
