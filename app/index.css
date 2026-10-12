@@ -129,7 +129,6 @@ h1, h2, h3 { font-family: var(--font-display); }
 .index-settings-header { display: flex; align-items: center; min-height: 54px; padding: 6px 12px; background: var(--chassis-surface); }
 .index-settings-header .deck-brand { width: 156px; padding: 6px; background: var(--silver-surface); box-shadow: 0 1px 3px #0003; }
 .index-settings-page { max-width: none; background: #fff; margin: 6px; }
-.not-found-logo { max-width: 200px; margin-bottom: 20px; opacity: .55; }
 .index-settings-lede { margin-bottom: 12px; font-size: 13px; color: var(--muted); }
 .index-settings-summary { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: space-between; margin-bottom: 12px; font-size: 13px; }
 .index-parity-scroll { overflow-x: auto; border: 1px solid #c9d1d6; }

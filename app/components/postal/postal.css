@@ -525,6 +525,17 @@ html:has(.postal), html:has(.postal) body { background: var(--pg-base, #141518);
 .pg-idle { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; color: var(--pg-text-6); }
 .pg-idle img { width: 160px; height: auto; opacity: .35; }
 .postal[data-theme="light"] .pg-idle img { opacity: .45; }
+/* Error pages (404, crashes) share the empty reader's look: watermark, one line, a way back. */
+.pg-fault { min-height: 100vh; min-height: 100dvh; display: flex; background: var(--pg-base); color: var(--pg-text-3); font-family: var(--pg-font); }
+.pg-fault-main { margin: auto; width: 100%; max-width: 440px; padding: 48px 24px; display: flex; flex-direction: column; align-items: center; text-align: center; gap: 10px; }
+.pg-fault-logo { width: 160px; height: auto; opacity: .35; margin-bottom: 14px; }
+.postal[data-theme="light"] .pg-fault-logo { opacity: .45; }
+.pg-fault-code { margin: 0; font: 500 var(--pg-t-11) var(--pg-mono); letter-spacing: .08em; color: var(--pg-text-7); }
+.pg-fault h1 { margin: 0; font-size: var(--pg-t-22); font-weight: 600; color: var(--pg-text-1); }
+.pg-fault-text { margin: 0; font-size: var(--pg-t-13); line-height: 1.5; color: var(--pg-text-6); overflow-wrap: anywhere; }
+.pg-fault-text code { font: var(--pg-t-12) var(--pg-mono); color: var(--pg-text-4); }
+.pg-fault-detail { margin: 6px 0 0; width: 100%; max-height: 240px; overflow: auto; padding: 10px 12px; text-align: left; white-space: pre-wrap; background: var(--pg-well); border: 1px solid var(--pg-line); font: var(--pg-t-11)/1.5 var(--pg-mono); color: var(--pg-text-5); }
+.pg-fault-actions { display: flex; gap: 8px; margin-top: 8px; }
 .pg-back { display: none !important; }
 
 /* ── Inline composer ───────────────────────────────────────────────── */

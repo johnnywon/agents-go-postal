@@ -61,6 +61,10 @@ The reader reads like a mail client: subject, then a sender row with a 36px squa
 
 Mail renders in the sandboxed iframe. Plain mail (no tables, images, colours or backgrounds of its own, see `isPlainHtml`) takes the reader's text colours on the reader surface, indented under the sender's name. Designed HTML mail keeps its white page inside a 1px-bordered card; on mobile the card runs edge to edge. Text-only bodies keep their line breaks. Remote images are blocked until the reader allows them (Settings: Ask, Always, Never).
 
+### Error pages
+
+Every error the app shows uses one layout (`ErrorPage.tsx`): the postal surface and theme, the watermark as on the empty reader, the status code in mono, a 22px heading, one line, and Back to mail (plus Reload when a retry can help). The 404 page, the root error boundary and the Worker's Access errors all use it; the Worker's version is static HTML in `workers/lib/error-page.ts` that follows the system theme. A developer stack trace shows only in dev builds. API clients still get plain text.
+
 ## Settings pages
 
 `/settings` and `/settings/index` keep the brushed titanium and graphite look.

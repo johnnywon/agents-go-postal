@@ -4,7 +4,8 @@ Versions follow [semantic versioning](https://semver.org). Before 1.0, a minor v
 
 ## 0.1.2
 
-- Unknown paths answer HTTP 404 instead of 200. The "Page not found" page is unchanged.
+- Unknown paths answer HTTP 404 instead of 200.
+- Error pages (404, crashes, Access errors in a browser) use the mail view's look and theme instead of the settings shell, Kumo's empty state or plain text. API clients still get plain text.
 
 No D1 migration.
 

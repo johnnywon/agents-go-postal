@@ -8,6 +8,7 @@ import { jwtVerify, createRemoteJWKSet } from "jose";
 import { createRequestHandler } from "react-router";
 import { runCron } from "./cron";
 import { accessConfigured } from "./lib/access-config";
+import { errorResponse } from "./lib/error-page";
 import { foreignOrigin } from "./lib/csrf";
 import { app as apiApp, receiveEmail } from "./index";
 import { EmailMCP } from "./mcp";
@@ -57,15 +58,13 @@ app.use("*", async (c, next) => {
 
 	// Fail closed in production if Access is not configured, or still has the deploy button's placeholders.
 	if (!accessConfigured({ POLICY_AUD, TEAM_DOMAIN })) {
-		return c.text(
-			"Cloudflare Access must be configured in production. Set POLICY_AUD and TEAM_DOMAIN.",
-			500,
-		);
+		return errorResponse(c.req.raw, 500, "Access is not set up",
+			"Cloudflare Access must be configured in production. Set POLICY_AUD and TEAM_DOMAIN.");
 	}
 
 	const token = c.req.header("cf-access-jwt-assertion");
 	if (!token) {
-		return c.text("Missing required CF Access JWT", 403);
+		return errorResponse(c.req.raw, 403, "Not signed in", "Missing required CF Access JWT");
 	}
 
 	try {
@@ -76,7 +75,7 @@ app.use("*", async (c, next) => {
 			audience: POLICY_AUD,
 		});
 	} catch {
-		return c.text("Invalid or expired Access token", 403);
+		return errorResponse(c.req.raw, 403, "Sign in again", "Invalid or expired Access token");
 	}
 
 	// Authorization model note: once a teammate passes the shared Cloudflare

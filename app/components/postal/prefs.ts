@@ -61,6 +61,11 @@ function useStored<T extends object>(key: string, fallback: T) {
 	return [value, update] as const;
 }
 
+/** Stored prefs, for pages rendered on the server that apply them after hydration. */
+export function readPrefs(): Prefs {
+	return readJson<Prefs>(PREFS_KEY, DEFAULT_PREFS);
+}
+
 export function usePrefs() {
 	return useStored<Prefs>(PREFS_KEY, DEFAULT_PREFS);
 }

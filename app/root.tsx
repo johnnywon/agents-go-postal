@@ -3,14 +3,11 @@
 //     https://opensource.org/licenses/Apache-2.0
 
 import {
-	Button,
-	Empty,
 	LinkProvider,
 	Loader,
 	Toasty,
 	TooltipProvider,
 } from "@cloudflare/kumo";
-import { WarningIcon } from "@phosphor-icons/react";
 import { MutationCache, QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { forwardRef, useState } from "react";
 import {
@@ -24,6 +21,7 @@ import {
 	useRouteLoaderData,
 } from "react-router";
 import type { Route } from "./+types/root";
+import ErrorPage from "~/components/ErrorPage";
 import { DEFAULT_APP_NAME } from "~/lib/brand";
 import { shouldLogMutationError } from "~/lib/mutation-errors";
 import { ApiError } from "~/services/api";
@@ -156,41 +154,12 @@ export default function App() {
 }
 
 export function ErrorBoundary({ error }: { error: unknown }) {
-	let title = "Something went wrong";
-	let description = "An unexpected error occurred. Please try again.";
-	let status: number | null = null;
-
 	if (isRouteErrorResponse(error)) {
-		status = error.status;
 		if (error.status === 404) {
-			title = "Page not found";
-			description =
-				"The page you're looking for doesn't exist or has been moved.";
-		} else {
-			title = `Error ${error.status}`;
-			description = error.statusText || description;
+			return <ErrorPage status={404} title="Page not found">Nothing lives here.</ErrorPage>;
 		}
-	} else if (error instanceof Error && import.meta.env.DEV) {
-		description = error.message;
+		return <ErrorPage status={error.status} title={error.statusText || "Something went wrong"} reload>Reload the page, or go back to mail.</ErrorPage>;
 	}
-
-	return (
-		<div className="flex items-center justify-center min-h-screen p-8">
-			<Empty
-				icon={<WarningIcon size={48} className="text-kumo-inactive" />}
-				title={status === 404 ? "404 — Page not found" : title}
-				description={description}
-				contents={
-					<Button
-						variant="primary"
-						onClick={() => {
-							window.location.href = "/";
-						}}
-					>
-						Go Home
-					</Button>
-				}
-			/>
-		</div>
-	);
+	const detail = error instanceof Error && import.meta.env.DEV ? error.stack || error.message : undefined;
+	return <ErrorPage title="Something went wrong" detail={detail} reload>Reload the page, or go back to mail.</ErrorPage>;
 }
