@@ -11,6 +11,7 @@ Versions follow [semantic versioning](https://semver.org). Before 1.0, a minor v
 - The prompt injection check runs on `@cf/meta/llama-3.1-8b-instruct-fp8`. Cloudflare deprecated `llama-3.1-8b-instruct-fast`, which it used. An empty or unclear answer from the check now skips auto-draft, the same as an error; before, it let the email through.
 - `config/agent-model.json` now holds `{ selected, keys }`. The older OpenRouter-only file is read as before. `GET /api/v1/agent-model/catalog` replaces `/models` and `/workers-ai-models`; `PUT /api/v1/agent-model` takes `{ selected, keys }`.
 - The README roadmap is reordered: a faster start now (one-command setup, mail import, starting on Workers Free), agent control next (scoped access, an approval queue with an activity log, rules in plain words), then shared inboxes, Queue events, search by meaning and offline. Model choice moves to Shipped.
+- The README states the version and where the project stands up top, and a Before you deploy section lists what you can rely on and what to know first: Email Sending is in public beta, agents can send without an approval step, there's no export yet, and there's no IMAP or SMTP. Release and CI badges.
 
 No D1 migration.
 

@@ -12,10 +12,14 @@ Every message to your domain arrives in a Worker you deploy, and Email Service s
 Cloudflare doesn't include a mail client. Agents Go Postal is one: every address on every domain in one list, on desktop or phone, with an agent that can search, label, draft and send. It runs entirely on your Cloudflare account.
 
 [![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/johnnywon/agents-go-postal)
+[![Version 0.3.0](https://img.shields.io/badge/version-0.3.0-blue)](https://github.com/johnnywon/agents-go-postal/releases)
+[![CI](https://github.com/johnnywon/agents-go-postal/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/johnnywon/agents-go-postal/actions/workflows/ci.yml)
 [![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
 [![Runs on Cloudflare Workers](https://img.shields.io/badge/runs%20on-Cloudflare%20Workers-f38020?logo=cloudflare&logoColor=white)](https://developers.cloudflare.com/workers/)
 
-Needs a domain on Cloudflare, R2 and Cloudflare Access. Sending needs the Workers Paid plan. See the [quick start](#quick-start).
+Needs a domain on Cloudflare, R2 and Cloudflare Access. Sending needs the Workers Paid plan and Cloudflare Email Sending, which is in public beta. See the [quick start](#quick-start).
+
+**v0.3.0, ready to deploy.** One production deployment has handled real mail on it every day since May 2026. Before 1.0, an upgrade can need a step, such as a D1 migration or a config change, and the [changelog](CHANGELOG.md) names it in every release. Pin a [release](https://github.com/johnnywon/agents-go-postal/releases) tag to choose when you upgrade. See [Before you deploy](#before-you-deploy).
 
 ![The inbox: every address in one list, a conversation open, the agent on the right](docs/images/inbox.jpg)
 
@@ -131,6 +135,25 @@ Worker
 
 A scheduled send waits in the store until its time. On D1 the cron sends it; on Durable Objects the mailbox's alarm does. Either way it runs these same steps.
 
+## Before you deploy
+
+**What you can rely on**
+
+- Your mail stays in your Cloudflare account: Durable Objects or D1, with attachments in R2. No outside service sees it unless you choose an OpenRouter model, and those are limited to zero data retention endpoints.
+- The Worker refuses every request until Cloudflare Access is set up.
+- A send goes out once. A retried request, a double click or the scheduler can't send it twice.
+- Storage classes and migrations are append-only, so an upgrade doesn't drop stored mail.
+- Tests, a typecheck and a build must pass before anything merges to main.
+
+**What to know first**
+
+- Sending runs on Cloudflare Email Sending, in public beta since April 2026 and only on Workers Paid. New accounts start with a low daily sending quota that grows with your sending record. A message can have up to 50 recipients and be up to 5 MiB with attachments. Receiving runs on Email Routing, which isn't in beta and works on Workers Free.
+- Agents can send. The in-app agent and MCP clients send a draft when you ask them to, with no approval step yet; that's next on the [roadmap](#roadmap). Automatic drafting only drafts.
+- There's no mail export or import yet. On D1, `wrangler d1 time-travel` restores the database to any minute in the last 30 days.
+- It's a web app and an MCP server. There's no IMAP or SMTP, so Apple Mail or Thunderbird can't connect.
+- Everyone who passes Access sees every address. Per-person access is on the roadmap.
+- The agent's model usage is billed per token by Workers AI or OpenRouter. Settings shows each model's price.
+
 ## Quick start
 
 Requirements: a domain on Cloudflare, R2, and the Workers Paid plan to send mail. On Workers Free, Email Service only sends to addresses verified in your own account.
@@ -146,7 +169,7 @@ This starts on Durable Object storage. For attachment search and every search op
 
 ## Roadmap
 
-**Status.** It runs on real mail daily and changes often. Pin a [release](https://github.com/johnnywon/agents-go-postal/releases) if you deploy it and read the [changelog](CHANGELOG.md) before upgrading.
+Where it stands and what to know before deploying is in [Before you deploy](#before-you-deploy).
 
 Shipped: one list for every address, one search language with ranked results, the in-app agent and the MCP server, a choice of agent model limited to providers that don't keep or train on your mail, labels and bulk actions with undo, scheduled send, D1 storage with attachment search, and keyboard shortcuts that people and agents can rebind.
 
