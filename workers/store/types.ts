@@ -30,6 +30,7 @@ export type MailboxStore = Pick<
 	| "moveEmail"
 	| "getAttachment"
 	| "findThreadBySubject"
+	| "findThreadByMessageIds"
 	// Folder import (folders to labels)
 	| "folderImportCounts"
 	| "folderEmailIds"

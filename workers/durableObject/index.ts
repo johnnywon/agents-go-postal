@@ -59,6 +59,15 @@ import {
 	type ScheduleMode,
 } from "../lib/scheduled-send";
 import { claimSendKey, finishSendKey, releaseSendKey, type SendKeyClaim } from "../lib/send-keys";
+import {
+	MAX_REFERENCED_IDS,
+	SUBJECT_JOIN_WINDOW_MS,
+	type SubjectRow,
+	hasReplyPrefix,
+	normalizeThreadSubject,
+	pickReferencedThread,
+	pickSubjectThread,
+} from "../lib/threading";
 
 /** Folders whose mail may be hard-deleted. Everywhere else, Delete moves mail to Trash. */
 const HARD_DELETE_FOLDERS: readonly string[] = [Folders.TRASH, Folders.DRAFT];
@@ -873,50 +882,31 @@ export class MailboxDO extends DurableObject<Env> {
 
 	// ── Threading helpers (raw SQL) ────────────────────────────────
 
+	/** The thread of the nearest message in this mailbox whose Message-ID is one of `ids` (workers/lib/threading.ts). */
+	async findThreadByMessageIds(ids: string[]): Promise<string | null> {
+		const wanted = ids.slice(0, MAX_REFERENCED_IDS);
+		if (wanted.length === 0) return null;
+		const rows = this.ctx.storage.sql.exec(
+			`SELECT message_id, thread_id FROM emails
+			 WHERE thread_id IS NOT NULL AND message_id IN (${wanted.map(() => "?").join(", ")})`,
+			...wanted,
+		).toArray();
+		return pickReferencedThread(wanted, rows);
+	}
+
+	/** A recent thread a header-less reply belongs to (workers/lib/threading.ts). */
 	async findThreadBySubject(subject: string, senderAddress?: string): Promise<string | null> {
-		const normalized = subject
-			.replace(/^(?:(?:re|fwd?|fw|aw|wg|r[eé]f|sv)\s*:\s*)+/i, "")
-			.trim()
-			.toLowerCase();
-
-		if (!normalized) return null;
-
-		const result = this.ctx.storage.sql.exec(
-			`SELECT thread_id, subject,
-			        GROUP_CONCAT(DISTINCT LOWER(sender)) as senders,
-			        GROUP_CONCAT(DISTINCT LOWER(recipient)) as recipients
+		if (!hasReplyPrefix(subject) || !normalizeThreadSubject(subject) || !senderAddress) return null;
+		const rows = this.ctx.storage.sql.exec(
+			`SELECT thread_id, subject, LOWER(sender) AS sender, LOWER(recipient) AS recipient, folder_id, date
 			 FROM emails
-			 WHERE thread_id IS NOT NULL
-			   AND thread_id != id
-			   AND date >= ?1
-			 GROUP BY thread_id
-			 ORDER BY MAX(date) DESC
-			 LIMIT 50`,
+			 WHERE thread_id IS NOT NULL AND folder_id != 'draft' AND date >= ?
+			 ORDER BY date DESC
+			 LIMIT 500`,
 			// Dates are ISO strings; compare with one, not with datetime(), whose space sorts before "T".
-			new Date(Date.now() - 7 * 86_400_000).toISOString(),
-		);
-
-		const normalizedSender = senderAddress?.toLowerCase().trim();
-
-		for (const row of result) {
-			const rowSubject = String((row as any).subject || "")
-				.replace(/^(?:(?:re|fwd?|fw|aw|wg|r[eé]f|sv)\s*:\s*)+/i, "")
-				.trim()
-				.toLowerCase();
-			if (rowSubject !== normalized) continue;
-
-			if (normalizedSender) {
-				const threadSenders = String((row as any).senders || "");
-				const threadRecipients = String((row as any).recipients || "");
-				const allParticipants = `${threadSenders},${threadRecipients}`;
-				if (!allParticipants.includes(normalizedSender)) {
-					continue;
-				}
-			}
-
-			return String((row as any).thread_id);
-		}
-		return null;
+			new Date(Date.now() - SUBJECT_JOIN_WINDOW_MS).toISOString(),
+		).toArray();
+		return pickSubjectThread(rows as unknown as SubjectRow[], subject, senderAddress);
 	}
 
 	// ── Rate limiting (raw SQL) ────────────────────────────────────
