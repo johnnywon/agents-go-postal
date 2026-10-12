@@ -1,6 +1,6 @@
 {
 	"name": "open-mailroom",
-	"version": "0.5.0",
+	"version": "0.5.1",
 	"private": true,
 	"license": "Apache-2.0",
 	"type": "module",
@@ -31,7 +31,7 @@
 	"scripts": {
 		"build": "react-router build",
 		"cf-typegen": "wrangler types",
-		"deploy": "[ -f build/server/wrangler.json ] || (echo 'Run npm run build first.' >&2; exit 1) && wrangler d1 migrations apply DB --remote && wrangler deploy",
+		"deploy": "[ -f build/server/wrangler.json ] || (echo 'Run npm run build first.' >&2; exit 1) && wrangler d1 migrations apply DB --remote -c \"${OMR_WRANGLER_CONFIG:-wrangler.jsonc}\" && wrangler deploy",
 		"smoke": "bash scripts/smoke.sh",
 		"dev": "react-router dev",
 		"dev:local": "OMR_WRANGLER_CONFIG=wrangler.local.jsonc react-router dev",

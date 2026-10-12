@@ -2,6 +2,12 @@
 
 Versions follow [semantic versioning](https://semver.org). Before 1.0, a minor version can break things. Each entry names any new D1 migration. `npm run deploy` applies it; if you deploy another way, run `wrangler d1 migrations apply DB --remote` before you deploy that version.
 
+## 0.5.1
+
+- `npm run deploy` applies D1 migrations with the config in `OMR_WRANGLER_CONFIG`. In 0.5.0 it read the repo's example `wrangler.jsonc`, so a deployment with its own config stopped at the migration step and nothing deployed. With more than one Cloudflare account, set `CLOUDFLARE_ACCOUNT_ID`; `wrangler d1` does not read `account_id` from the config.
+
+No D1 migration.
+
 ## 0.5.0
 
 D1 by default.
