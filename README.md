@@ -7,7 +7,7 @@
 
 **An email UI for Cloudflare Email Routing/Service.**
 
-Every message to your domain arrives in a Worker you deploy, and Email Service sends replies from the same Worker with SPF, DKIM and DMARC already in place.
+Every message to your domain arrives in a Worker you deploy, and Email Service sends replies from the same Worker, with SPF and DKIM set up when you enable Email Sending.
 
 Cloudflare doesn't include a mail client. Agents Go Postal is one: every address on every domain in one list, on desktop or phone, with an agent that can search, label, draft and send. It runs entirely on your Cloudflare account.
 
@@ -24,8 +24,8 @@ Cloudflare doesn't include a mail client. Agents Go Postal is one: every address
 - **A startup with several arms.** The company domain, the product domain and the docs domain each have `sales@`, `support@`, `billing@` and `press@`. All of it lands in one list. The agent drafts support replies and files invoices, and every reply leaves from the address that received the mail.
 - **A consultant or agency with mail per client.** Each engagement gets an address on its own domain. One inbox, a label per client, and `to:` narrows the list to one client.
 - **An indie developer with a shelf of side projects.** `hello@`, `abuse@` and app store contact addresses for ten small products, without ten mailbox plans or forwarding everything to a personal account.
-- **Agents that need their own address.** Give a support agent `support@` and a finance agent `receipts@`. They read, label and draft through MCP. You see every message and every draft in the same list.
-- **Finance and ops across several companies.** Invoices, receipts and alerts from every entity in one place. With attachment search on, `INV-2207` finds the invoice even when the number only appears inside the PDF.
+- **Agents working your mail.** Connect a support agent or a finance agent over MCP. They search, label, draft and send across your addresses, and every message and draft shows up in the same list. Limiting an agent to chosen addresses is on the [roadmap](#roadmap).
+- **Finance and ops across several companies.** Invoices, receipts and alerts from every entity in one place. On D1 with attachment search on, `INV-2207` finds the invoice even when the number only appears inside the PDF.
 
 ## Product tour
 
@@ -62,7 +62,7 @@ An agent panel inside the app that searches, labels, drafts and sends when you a
 ```text
    Sender           You, in a browser    Claude Code, Cursor,   Cron, every
      |                    |              other MCP clients      minute
-     v                    v                    |                  |
+     v                    v                    |                  | on D1:
 +---------------+  +-----------------+         | /mcp             | scheduled
 | Email Routing |  | Cloudflare      |         |                  | sends,
 +---------------+  | Access          |         |                  | attachment
@@ -77,13 +77,13 @@ An agent panel inside the app that searches, labels, drafts and sends when you a
 | Mail store  |  | R2          |  | Agent          |  | Email Service |
 | D1, or one  |  | attachments,|  | Durable Object |  | send_email    |
 | DO per      |  | large bodies|  +----------------+  +---------------+
-| address     |  +-------------+          |                    |
-| + an index  |                           v                    v
+| address     |  | on D1       |          |                    |
+| + an index  |  +-------------+          v                    v
 +-------------+                   Workers AI or            Recipient
                                   OpenRouter
 ```
 
-Everything runs in one Worker on your account. Mail is stored either in D1 (one database for every address) or in a Durable Object per address with a combined index. D1 is where the project is heading; see the roadmap.
+Everything runs in one Worker on your account. Mail is stored either in a Durable Object per address with a combined index, which is what a fresh deploy uses, or in D1, one database for every address. D1 adds attachment search, the `filename:`, `cc:`, `has:pdf`, `has:image`, `has:link` and `is:scheduled` operators, and large bodies in R2, and its cron sends scheduled mail. On Durable Objects, each mailbox's own alarm sends its scheduled mail. D1 is where the project is heading; see [Moving to D1](docs/setup.md#moving-to-d1) and the roadmap.
 
 What happens when a message arrives:
 
@@ -116,13 +116,13 @@ Worker
   2. Check the From address is the mailbox's own address.
   3. Thread it onto the conversation it replies to.
   4. send_email ---------> Email Service ---------> Recipient
-                           (SPF, DKIM and DMARC
+                           (SPF and DKIM
                             on your domain)
   5. Attachments --------> R2
   6. The Sent copy ------> Mail store
 ```
 
-A scheduled send waits in the store; the cron runs these same steps when its time comes.
+A scheduled send waits in the store until its time. On D1 the cron sends it; on Durable Objects the mailbox's alarm does. Either way it runs these same steps.
 
 ## Quick start
 
@@ -133,13 +133,13 @@ Requirements: a domain on Cloudflare, the Workers Paid plan (for sending) and R2
 3. Turn on Cloudflare Access for the Worker and save its two values as secrets.
 4. Route each address to the Worker with Email Routing, and enable Email Sending.
 
-Each step, with commands, is in [docs/setup.md](docs/setup.md). To run it locally with sample mail, see [docs/development.md](docs/development.md).
+This starts on Durable Object storage. For attachment search and every search operator, [move to D1](docs/setup.md#moving-to-d1). Each step, with commands, is in [docs/setup.md](docs/setup.md). To run it locally with sample mail, see [docs/development.md](docs/development.md).
 
 <p align="center"><img src="docs/images/mobile.jpg" alt="The list and a receipt on a phone" width="620"></p>
 
 ## Roadmap
 
-Shipped: one list for every address, labels and bulk actions with undo, scheduled send, the in-app agent, the MCP server, one search language, D1 storage with ranked and attachment search, Move to Inbox and Empty Trash.
+Shipped: one list for every address, labels and bulk actions with undo, scheduled send, the in-app agent, the MCP server, one search language with ranked results, D1 storage with attachment search, Move to Inbox and Empty Trash.
 
 These are the directions under consideration. [Open an issue](https://github.com/johnnywon/agents-go-postal/issues) to argue for one or propose another.
 
