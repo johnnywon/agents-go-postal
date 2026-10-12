@@ -15,7 +15,7 @@ Cloudflare doesn't include a mail client. Agents Go Postal is one: every address
 [![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
 [![Runs on Cloudflare Workers](https://img.shields.io/badge/runs%20on-Cloudflare%20Workers-f38020?logo=cloudflare&logoColor=white)](https://developers.cloudflare.com/workers/)
 
-Needs a domain on Cloudflare, the Workers Paid plan and Cloudflare Access. See the [quick start](#quick-start).
+Needs a domain on Cloudflare, R2 and Cloudflare Access. Sending needs the Workers Paid plan. See the [quick start](#quick-start).
 
 ![The inbox: every address in one list, a conversation open, the agent on the right](docs/images/inbox.jpg)
 
@@ -132,7 +132,7 @@ A scheduled send waits in the store until its time. On D1 the cron sends it; on 
 
 ## Quick start
 
-Requirements: a domain on Cloudflare, the Workers Paid plan (for sending) and R2.
+Requirements: a domain on Cloudflare, R2, and the Workers Paid plan to send mail. On Workers Free, Email Service only sends to addresses verified in your own account.
 
 1. Click **Deploy to Cloudflare** above. It copies the repo to your GitHub, creates the storage and deploys.
 2. The deploy form has no field for your addresses, so set `DOMAINS` and `EMAIL_ADDRESSES` in `wrangler.jsonc` in the new repo and push.
