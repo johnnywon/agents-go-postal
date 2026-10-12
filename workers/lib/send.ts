@@ -17,6 +17,7 @@ import {
 	SenderValidationError,
 	validateSender,
 } from "./email-helpers";
+import { hasHeaderLineBreaks } from "./schemas";
 import type { EmailFull, SendEmailRequestSchema } from "./schemas";
 import { SEND_KEY_PENDING_ERROR, type SendKeyClaim } from "./send-keys";
 import { Folders } from "../../shared/folders";
@@ -121,6 +122,9 @@ async function sendOnce(
 		inReplyTo = body.in_reply_to || null;
 		references = body.references || [];
 		threadId = body.thread_id || body.in_reply_to || null;
+	}
+	if (hasHeaderLineBreaks(subject, inReplyTo, ...references)) {
+		return { ok: false, status: 400, error: "Email headers must not contain line breaks" };
 	}
 
 	let toStr: string, fromEmail: string, fromDomain: string;

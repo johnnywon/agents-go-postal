@@ -10,7 +10,9 @@ import {
 	stepCountIs,
 } from "ai";
 import { z } from "zod";
-import { verifyDraft } from "../lib/ai";
+import { HeaderValueSchema } from "../lib/schemas";
+import type { EmailFull, EmailMetadata } from "../lib/schemas";
+import { verifyDraft, isPromptInjection } from "../lib/ai";
 import { agentModel } from "../lib/agent-model";
 import { textToHtml } from "../lib/email-helpers";
 import { mailStore } from "../store";
@@ -200,8 +202,7 @@ function createEmailTools(env: Env, bound: string | null, { crossAddress = false
 			parameters: z.object({
 				...where("The address to send from."),
 				to: z.string().email().describe("Recipient email address"),
-				subject: z
-					.string()
+				subject: HeaderValueSchema
 					.describe("Subject line"),
 				body: z
 					.string()
@@ -228,8 +229,7 @@ function createEmailTools(env: Env, bound: string | null, { crossAddress = false
 					.string()
 					.describe("The ID of the email being replied to"),
 				to: z.string().email().describe("Recipient email address"),
-				subject: z
-					.string()
+				subject: HeaderValueSchema
 					.describe("Subject line (usually 'Re: ...')"),
 				body: z
 					.string()

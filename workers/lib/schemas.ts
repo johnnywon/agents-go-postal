@@ -54,6 +54,15 @@ const RecipientFieldSchema = z.union([
 	z.array(z.string().email()).min(1),
 ]);
 
+export const HeaderSafeStringSchema = z.string().max(998).refine((value) => !/[\r\n]/.test(value), {
+	message: "must not contain line breaks",
+});
+export const HeaderValueSchema = HeaderSafeStringSchema;
+
+export function hasHeaderLineBreaks(...values: (string | null | undefined)[]): boolean {
+	return values.some((value) => value != null && /[\r\n]/.test(value));
+}
+
 export const ErrorResponseSchema = z.object({
 	error: z.string(),
 });
@@ -67,7 +76,7 @@ export const SendEmailRequestSchema = z
 			z.string().email(),
 			z.object({ email: z.string().email(), name: z.string() }),
 		]),
-		subject: z.string(),
+		subject: HeaderValueSchema,
 		html: z.string().optional(),
 		text: z.string().optional(),
 		attachments: z
@@ -81,9 +90,9 @@ export const SendEmailRequestSchema = z
 				}),
 			)
 			.optional(),
-		in_reply_to: z.string().optional(),
-		references: z.array(z.string()).optional(),
-		thread_id: z.string().optional(),
+		in_reply_to: HeaderValueSchema.optional(),
+		references: z.array(HeaderValueSchema).max(100).optional(),
+		thread_id: HeaderValueSchema.optional(),
 	})
 	.refine((data) => data.html || data.text, {
 		message: "Either 'html' or 'text' must be provided",

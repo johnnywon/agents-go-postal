@@ -17,6 +17,7 @@ import { handleReplyEmail, handleForwardEmail, handleSendEmail } from "./routes/
 import { Folders } from "../shared/folders";
 import type { Env } from "./types";
 import { interpretSearch, MAX_REQUEST_LENGTH } from "./lib/search-interpret";
+import { HeaderValueSchema } from "./lib/schemas";
 import { readPrefs, writePrefs } from "./lib/prefs";
 import { catalogFor, clearCatalogCache, languageModel, mergeAgentModelConfig, quickModel, readAgentModelConfig, viewOf, writeAgentModelConfig } from "./lib/agent-model";
 import { KEYED_PROVIDERS, PROVIDERS, PROVIDER_INFO, RECOMMENDED_MODEL, SUGGESTED_MODELS, validModelId } from "../shared/models";
@@ -47,10 +48,10 @@ const DraftBody = z.object({
 	to: z.string().optional(),
 	cc: z.string().optional(),
 	bcc: z.string().optional(),
-	subject: z.string().optional(),
+	subject: HeaderValueSchema.optional(),
 	body: z.string(),
-	in_reply_to: z.string().optional(),
-	thread_id: z.string().optional(),
+	in_reply_to: HeaderValueSchema.optional(),
+	thread_id: HeaderValueSchema.optional(),
 	draft_id: z.string().optional(),
 });
 
