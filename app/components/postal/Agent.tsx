@@ -7,6 +7,7 @@ import { AgentIcon } from "./AgentIcon";
 import { useQueryClient } from "@tanstack/react-query";
 import type { UIMessage } from "ai";
 import type { ComposeState } from "./compose";
+import { Keys, useShortcuts } from "./shortcuts";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -109,9 +110,10 @@ function Reading({ subject }: { subject: string | null }) {
 
 export function AgentPanel(props: AgentPanelProps) {
 	const { hooks, error } = useAgentHooks();
+	const { tip } = useShortcuts();
 	return (
 		<aside className="pg-agent" aria-label="Agent" data-overlay={props.overlay || undefined}>
-			<button type="button" className="pg-rail-head" onClick={props.onCollapse} title="Collapse agent panel">
+			<button type="button" className="pg-rail-head" onClick={props.onCollapse} title={tip("agent", "Collapse agent panel")}>
 				<CaretDoubleRightIcon size={14} weight="bold" />
 				<span className="pg-head-label">AGENT</span>
 				<AgentIcon size={14} weight="fill" color="var(--pg-green)" />
@@ -151,8 +153,8 @@ function AgentChat({ hooks, open, reading, prefill, onOpenDraft, onBusy }: Agent
 
 	useEffect(() => {
 		onBusy(busy);
-		// Agent tools label, move and draft mail; refresh when a turn ends.
-		if (was.current && !busy) for (const queryKey of [["mail"], ["mail-facets"], ["emails"], ["labels"]]) queryClient.invalidateQueries({ queryKey });
+		// Agent tools label, move and draft mail and rebind shortcuts; refresh when a turn ends.
+		if (was.current && !busy) for (const queryKey of [["mail"], ["mail-facets"], ["emails"], ["labels"], ["prefs"]]) queryClient.invalidateQueries({ queryKey });
 		was.current = busy;
 	}, [busy]); // eslint-disable-line react-hooks/exhaustive-deps
 	useEffect(() => () => onBusy(false), []); // eslint-disable-line react-hooks/exhaustive-deps
@@ -327,8 +329,9 @@ export function stepHistory(length: number, at: number | null, delta: -1 | 1): n
 }
 
 export function AgentRail({ onOpen, busy }: { onOpen: () => void; busy: boolean }) {
+	const { tip } = useShortcuts();
 	return (
-		<button type="button" className="pg-agentrail" onClick={onOpen} title="Open agent chat (⌘J)" aria-label="Open agent chat">
+		<button type="button" className="pg-agentrail" onClick={onOpen} title={tip("agent", "Open agent chat")} aria-label="Open agent chat">
 			<span className="pg-rail-head"><CaretDoubleLeftIcon size={12} weight="bold" /></span>
 			<span className="pg-vert">
 				<AgentIcon size={16} weight="fill" />
@@ -336,7 +339,7 @@ export function AgentRail({ onOpen, busy }: { onOpen: () => void; busy: boolean 
 				{busy && <span className="pg-dot pg-round" title="Agent working" />}
 			</span>
 			<span style={{ flex: 1 }} />
-			<span className="pg-kbd">⌘J</span>
+			<Keys id="agent" />
 		</button>
 	);
 }

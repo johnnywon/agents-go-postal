@@ -20,6 +20,7 @@ import { Editor, FormatBar } from "./Editor";
 import { AddressText, buildIdentities, type Identities, Swatch } from "./identity";
 import { formatSize, sendTimeLabel } from "./model";
 import { usePrefs, useResolvedTheme } from "./prefs";
+import { useShortcuts } from "./shortcuts";
 import { TooltipLayer } from "./Tooltip";
 
 type Sender = ReturnType<typeof useMailSender>;
@@ -172,6 +173,7 @@ function QuotePreview({ head, body }: { head: string; body: string }) {
 
 /** One composer for new mail, replies and forwards, wherever it appears. */
 export function Composer(props: ComposerProps) {
+	const { tip } = useShortcuts();
 	const { identities, info, sender, variant } = props;
 	const [state, setState] = useState<ComposeState>(props.initial);
 	const [mode, setMode] = useState<"normal" | "min" | "max">(props.maximised ? "max" : "normal");
@@ -488,7 +490,7 @@ export function Composer(props: ComposerProps) {
 					<FormatBar editor={editor} />
 					<div className="pg-cw-foot">
 						<div className="pg-send-split">
-							<button type="button" className="pg-send" title="Send (⌘↵)" onClick={() => send()} disabled={busy}>
+							<button type="button" className="pg-send" title={tip("send", "Send")} onClick={() => send()} disabled={busy}>
 								Send<PaperPlaneRightIcon size={12} weight="bold" />
 							</button>
 							<button type="button" className="pg-caret" title="Schedule send · Waits in Drafts until the time you pick" aria-label="Schedule send" aria-expanded={schedOpen} onClick={() => { setSchedOpen((v) => !v); setCustom(false); }}>

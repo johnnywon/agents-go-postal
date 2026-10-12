@@ -3,13 +3,14 @@
 //     https://opensource.org/licenses/Apache-2.0
 
 import {
-	BookmarkSimpleIcon, CaretDoubleLeftIcon, CaretDoubleRightIcon, CaretDownIcon, CaretRightIcon, GearSixIcon,
+	BookmarkSimpleIcon, CaretDoubleLeftIcon, KeyboardIcon, CaretDoubleRightIcon, CaretDownIcon, CaretRightIcon, GearSixIcon,
 	PencilSimpleIcon, PlugsConnectedIcon, PlusIcon, SignOutIcon,
 } from "@phosphor-icons/react";
 import { AgentIcon } from "./AgentIcon";
 import {
 	AllAddressesIcon, ArchiveIcon, ByAddressIcon, DraftsIcon, InboxIcon, LabelsIcon, SentIcon, SpamIcon, StarredIcon, TrashIcon, UnreadIcon,
 } from "./NavIcons";
+import { useShortcuts } from "./shortcuts";
 import { type FormEvent, useState } from "react";
 import type { MailFilter } from "~/lib/mail-filter";
 import type { Label, SavedSearch } from "~/services/api";
@@ -49,6 +50,7 @@ export interface SidebarProps {
 	/** Opens Settings on its Labels tab. */
 	onManageLabels: () => void;
 	onLogout: () => void;
+	onShortcuts: () => void;
 	overlay?: boolean;
 	drawer?: "open" | "closed";
 }
@@ -74,9 +76,10 @@ export function Sidebar(props: SidebarProps) {
 		setNewLabel(null);
 	};
 
+	const { tip } = useShortcuts();
 	return (
 		<nav className="pg-nav" aria-label="Mail" data-overlay={props.overlay || undefined} data-drawer={props.drawer}>
-			<button type="button" className="pg-rail-head" onClick={props.onCollapse} title="Collapse sidebar">
+			<button type="button" className="pg-rail-head" onClick={props.onCollapse} title={tip("sidebar", "Collapse sidebar")}>
 				<AllAddressesIcon size={14} />
 				<span className="pg-flex" style={{ lineHeight: 1, textAlign: "left" }}>ALL ADDRESSES</span>
 				<CaretDoubleLeftIcon size={14} weight="bold" />
@@ -271,6 +274,9 @@ export function Sidebar(props: SidebarProps) {
 					<span>Settings</span>
 				</button>
 				<div className="pg-flex" />
+				<button type="button" className="pg-foot-btn is-square" onClick={props.onShortcuts} title={tip("help", "Keyboard shortcuts")} aria-label="Keyboard shortcuts">
+					<KeyboardIcon size={14} />
+				</button>
 				<button type="button" className="pg-foot-btn is-square" onClick={props.onLogout} title="Log out" aria-label="Log out">
 					<SignOutIcon size={14} />
 				</button>
@@ -280,8 +286,8 @@ export function Sidebar(props: SidebarProps) {
 }
 
 export function NavRail({
-	identities, filter, go, allUnread, unreadByAddress, onExpand, onLabels, onMcp, onSettings, onLogout,
-}: Pick<SidebarProps, "identities" | "filter" | "go" | "allUnread" | "unreadByAddress" | "onMcp" | "onSettings" | "onLogout"> & {
+	identities, filter, go, allUnread, unreadByAddress, onExpand, onLabels, onMcp, onSettings, onLogout, onShortcuts,
+}: Pick<SidebarProps, "identities" | "filter" | "go" | "allUnread" | "unreadByAddress" | "onMcp" | "onSettings" | "onLogout" | "onShortcuts"> & {
 	onExpand: () => void;
 	onLabels: () => void;
 }) {
@@ -289,9 +295,10 @@ export function NavRail({
 	const globalView = !scope && !labelOf(filter) ? filter.view : null;
 	const domainUnread = (domain: string) =>
 		[...unreadByAddress.entries()].reduce((sum, [address, n]) => (address.endsWith(`@${domain}`) ? sum + n : sum), 0);
+	const { tip } = useShortcuts();
 	return (
 		<nav className="pg-navrail" aria-label="Mail">
-			<button type="button" className="pg-rail-head" onClick={onExpand} title="Expand sidebar" aria-label="Expand sidebar">
+			<button type="button" className="pg-rail-head" onClick={onExpand} title={tip("sidebar", "Expand sidebar")} aria-label="Expand sidebar">
 				<AllAddressesIcon size={14} />
 				<CaretDoubleRightIcon size={10} weight="bold" />
 			</button>
@@ -340,6 +347,7 @@ export function NavRail({
 			<div className="pg-rail-foot">
 				<button type="button" onClick={onMcp} title="MCP" aria-label="MCP"><PlugsConnectedIcon size={16} /></button>
 				<button type="button" onClick={onSettings} title="Settings" aria-label="Settings"><GearSixIcon size={16} /></button>
+				<button type="button" onClick={onShortcuts} title={tip("help", "Keyboard shortcuts")} aria-label="Keyboard shortcuts"><KeyboardIcon size={16} /></button>
 				<button type="button" onClick={onLogout} title="Log out" aria-label="Log out"><SignOutIcon size={16} /></button>
 			</div>
 		</nav>

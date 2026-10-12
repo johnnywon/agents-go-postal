@@ -7,6 +7,7 @@ import { AgentIcon } from "./AgentIcon";
 import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
 import type { Conversation, SavedSearch, Suggestions } from "~/services/api";
 import type { Identities } from "./identity";
+import { Keys } from "./shortcuts";
 import {
 	addRecent,
 	appendTerm,
@@ -392,7 +393,7 @@ export const SearchBar = forwardRef<HTMLInputElement, SearchBarProps>(function S
 						</button>
 					</>
 				)}
-				<span className="pg-kbd pg-desktop-only">/</span>
+				<Keys id="search" className="pg-kbd pg-desktop-only" />
 				<button type="button" className="pg-icon-btn pg-mobile-only" onClick={props.onAgent} aria-label="Open agent">
 					<AgentIcon size={16} weight="fill" />
 				</button>

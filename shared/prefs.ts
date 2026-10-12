@@ -2,6 +2,8 @@
 // Licensed under the Apache 2.0 license found in the LICENSE file or at:
 //     https://opensource.org/licenses/Apache-2.0
 
+import { cleanOverrides, sameOverrides, type ShortcutOverrides } from "./shortcuts";
+
 /** Settings > General. Saved to the deployment (R2 config/prefs.json); each browser keeps a copy for a fast first paint. */
 export interface Prefs {
 	theme: "dark" | "light" | "system";
@@ -10,9 +12,11 @@ export interface Prefs {
 	markRead: boolean;
 	images: "ask" | "always" | "never";
 	replyFrom: boolean;
+	/** Rebound keyboard shortcuts; anything not here keeps its default keys. */
+	shortcuts: ShortcutOverrides;
 }
 
-export const DEFAULT_PREFS: Prefs = { theme: "dark", keys: true, markRead: true, images: "ask", replyFrom: true };
+export const DEFAULT_PREFS: Prefs = { theme: "dark", keys: true, markRead: true, images: "ask", replyFrom: true, shortcuts: {} };
 
 const THEMES = ["dark", "light", "system"] as const;
 const IMAGES = ["ask", "always", "never"] as const;
@@ -28,9 +32,10 @@ export function cleanPrefs(input: unknown, base: Prefs = DEFAULT_PREFS): Prefs {
 		markRead: bool(o.markRead, base.markRead),
 		images: pick(o.images, IMAGES, base.images),
 		replyFrom: bool(o.replyFrom, base.replyFrom),
+		shortcuts: o.shortcuts === undefined ? base.shortcuts : cleanOverrides(o.shortcuts),
 	};
 }
 
 export function samePrefs(a: Prefs, b: Prefs): boolean {
-	return a.theme === b.theme && a.keys === b.keys && a.markRead === b.markRead && a.images === b.images && a.replyFrom === b.replyFrom;
+	return a.theme === b.theme && a.keys === b.keys && a.markRead === b.markRead && a.images === b.images && a.replyFrom === b.replyFrom && sameOverrides(a.shortcuts, b.shortcuts);
 }

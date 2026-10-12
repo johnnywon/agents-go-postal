@@ -3,8 +3,8 @@
 //     https://opensource.org/licenses/Apache-2.0
 
 import {
-	ArrowCounterClockwiseIcon, AtIcon, CheckIcon, CopyIcon, DatabaseIcon, DesktopIcon, GearSixIcon, MoonIcon,
-	KeyIcon, PlugsConnectedIcon, SignatureIcon, SignOutIcon, SlidersHorizontalIcon, SunIcon, TagIcon, WrenchIcon, XIcon,
+	ArrowCounterClockwiseIcon, AtIcon, CheckIcon, CopyIcon, DatabaseIcon, DesktopIcon, GearSixIcon, KeyboardIcon, MoonIcon,
+	KeyIcon, MagnifyingGlassIcon, PlugsConnectedIcon, SignatureIcon, SignOutIcon, SlidersHorizontalIcon, SunIcon, TagIcon, WrenchIcon, XIcon,
 } from "@phosphor-icons/react";
 import { AgentIcon } from "./AgentIcon";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -21,6 +21,10 @@ import { LabelsTab } from "./LabelsTab";
 import type { SettingsTab } from "./settings-tabs";
 import { StorageTab } from "./StorageTab";
 import type { Prefs } from "./prefs";
+import { ShortcutMap } from "./ShortcutMap";
+import { samePrefs } from "shared/prefs";
+import { Keys } from "./shortcuts";
+import { ShortcutList } from "./ShortcutsTab";
 
 function Modal({ className = "", label, onClose, children }: { className?: string; label: string; onClose: () => void; children: React.ReactNode }) {
 	const ref = useRef<HTMLDivElement>(null);
@@ -63,13 +67,13 @@ function Modal({ className = "", label, onClose, children }: { className?: strin
 	);
 }
 
-function Head({ icon, title, sub, onClose, danger }: { icon: React.ReactNode; title: string; sub: string; onClose: () => void; danger?: boolean }) {
+function Head({ icon, title, sub, onClose, danger }: { icon: React.ReactNode; title: string; sub?: string; onClose: () => void; danger?: boolean }) {
 	return (
 		<div className="pg-modal-head">
 			<span className={`pg-modal-icon${danger ? " is-danger" : ""}`}>{icon}</span>
 			<div className="pg-modal-title">
 				<h2>{title}</h2>
-				<span>{sub}</span>
+				{sub && <span>{sub}</span>}
 			</div>
 			<button type="button" className="pg-modal-x" title="Close (Esc)" aria-label="Close" onClick={onClose}><XIcon size={16} /></button>
 		</div>
@@ -123,7 +127,7 @@ export function SettingsModal({ tab, onTab, prefs, setPrefs, addresses, identiti
 	const agentModel = useAgentModelDraft();
 	const { data: catalog } = useModelCatalog(tab === "agent");
 
-	const dirty = JSON.stringify(draft) !== JSON.stringify(prefs)
+	const dirty = !samePrefs(draft, prefs)
 		|| addresses.some((a) => (names[a] ?? "") !== (initialNames[a] ?? ""))
 		|| prompt.trim() !== initialPrompt.trim()
 		|| addresses.some(sigChanged)
@@ -151,7 +155,7 @@ export function SettingsModal({ tab, onTab, prefs, setPrefs, addresses, identiti
 				};
 				return [api.updateMailbox(a, settings)];
 			});
-			if (JSON.stringify(draft) !== JSON.stringify(prefs)) writes.push(setPrefs(draft));
+			if (!samePrefs(draft, prefs)) writes.push(setPrefs(draft));
 			if (agentModel.dirty) writes.push(agentModel.save());
 			await Promise.all(writes);
 			for (const a of addresses) queryClient.invalidateQueries({ queryKey: queryKeys.mailboxes.detail(a) });
@@ -169,6 +173,7 @@ export function SettingsModal({ tab, onTab, prefs, setPrefs, addresses, identiti
 		{ id: "addresses", label: "Addresses", icon: <AtIcon size={16} /> },
 		{ id: "signatures", label: "Signatures", icon: <SignatureIcon size={16} /> },
 		{ id: "labels", label: "Labels", icon: <TagIcon size={16} /> },
+		{ id: "shortcuts", label: "Shortcuts", icon: <KeyboardIcon size={16} /> },
 		{ id: "agent", label: "Agent", icon: <AgentIcon size={16} /> },
 		{ id: "model", label: "Model & key", icon: <KeyIcon size={16} /> },
 		{ id: "storage", label: "Storage", icon: <DatabaseIcon size={16} /> },
@@ -198,8 +203,8 @@ export function SettingsModal({ tab, onTab, prefs, setPrefs, addresses, identiti
 									]}
 								/>
 							</Setting>
-							<Setting title="Show keyboard shortcuts" sub="Key hints like ⌘K and E next to buttons. Shortcuts still work when hidden.">
-								<Switch label="Show keyboard shortcuts" on={draft.keys} onChange={(keys) => setDraft({ ...draft, keys })} />
+							<Setting title="Show key hints" sub="Keys like ⌘K and E next to buttons. Shortcuts work either way.">
+								<Switch label="Show key hints" on={draft.keys} onChange={(keys) => setDraft({ ...draft, keys })} />
 							</Setting>
 							<Setting title="Mark as read when opened" sub="Otherwise mail stays unread until you mark it read or archive it.">
 								<Switch label="Mark as read when opened" on={draft.markRead} onChange={(markRead) => setDraft({ ...draft, markRead })} />
@@ -299,6 +304,7 @@ export function SettingsModal({ tab, onTab, prefs, setPrefs, addresses, identiti
 					)}
 					{tab === "model" && <AgentModelSection draft={agentModel} />}
 					{tab === "labels" && <LabelsTab />}
+					{tab === "shortcuts" && <ShortcutList overrides={draft.shortcuts} onChange={(shortcuts) => setDraft({ ...draft, shortcuts })} />}
 					{tab === "storage" && <StorageTab identities={identities} />}
 				</div>
 			</div>
@@ -332,6 +338,9 @@ const MCP_TOOLS = [
 	["search_all_mail", "Search every address at once"],
 	["label_matching", "Label every conversation a search matches"],
 	["delete_email", "Move email to Trash"],
+	["list_shortcuts", "List keyboard shortcuts"],
+	["set_shortcut", "Rebind a keyboard shortcut"],
+	["reset_shortcuts", "Restore default shortcut keys"],
 ] as const;
 
 export function McpModal({ onClose }: { onClose: () => void }) {
@@ -388,6 +397,22 @@ export function McpModal({ onClose }: { onClose: () => void }) {
 	);
 }
 
+export function ShortcutsModal({ onClose, onEdit }: { onClose: () => void; onEdit: () => void }) {
+	return (
+		<Modal className="is-shortcuts" label="Keyboard shortcuts" onClose={onClose}>
+			<Head icon={<KeyboardIcon size={16} />} title="Keyboard shortcuts" onClose={onClose} />
+			<div className="pg-keys-scroll">
+				<ShortcutMap onAll={onEdit} />
+			</div>
+			<div className="pg-modal-foot">
+				<div className="pg-flex" />
+				<button type="button" className="pg-btn" onClick={onEdit}>Change keys</button>
+				<button type="button" className="pg-btn pg-btn-primary" onClick={onClose} data-autofocus>Done</button>
+			</div>
+		</Modal>
+	);
+}
+
 export function LogoutModal({ onClose }: { onClose: () => void }) {
 	return (
 		<Modal className="is-small" label="Log out" onClose={onClose}>
@@ -428,7 +453,7 @@ export function Toast({ toast, onClose }: { toast: ToastState | null; onClose: (
 			{toast.onUndo && (
 				<>
 					<span className="pg-sep" />
-					<button type="button" className="pg-undo" onClick={toast.onUndo}>Undo<span className="pg-kbd">Z</span></button>
+					<button type="button" className="pg-undo" onClick={toast.onUndo}>Undo<Keys id="undo" /></button>
 				</>
 			)}
 			<button type="button" className="pg-x" aria-label="Dismiss" onClick={onClose} style={toast.onUndo ? undefined : { marginLeft: 6 }}><XIcon size={13} /></button>

@@ -2,11 +2,12 @@
 // Licensed under the Apache 2.0 license found in the LICENSE file or at:
 //     https://opensource.org/licenses/Apache-2.0
 
-import { ArchiveIcon, BookmarkSimpleIcon, ClockIcon, EnvelopeOpenIcon, EnvelopeSimpleIcon, FileIcon, PaperPlaneTiltIcon, StarIcon, TagIcon, TrashIcon, WarningIcon } from "@phosphor-icons/react";
+import { ArchiveIcon, BookmarkSimpleIcon, ClockIcon, EnvelopeOpenIcon, EnvelopeSimpleIcon, FileIcon, KeyboardIcon, PaperPlaneTiltIcon, StarIcon, TagIcon, TrashIcon, WarningIcon } from "@phosphor-icons/react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router";
 import { LABEL_COLORS } from "shared/label-colors";
+import { cleanOverrides, cycleView, describeChanges, KeyMatcher, type KeyLike, type MailShortcutId, ownerOf, resolveBindings, type ShortcutOverrides, stepOf } from "shared/shortcuts";
 import { type BulkAction, applyAction, readToggle, starToggle } from "~/lib/bulk-optimistic";
 import { type MailFilter, type OpenRef, filterToParams, openParam, parseOpen, VIEW_LABELS } from "~/lib/mail-filter";
 import * as sel from "~/lib/selection";
@@ -23,17 +24,20 @@ import {
 import { ComposePopout, Composer } from "./ComposeWindow";
 import { buildIdentities } from "./identity";
 import { ListPane } from "./ListPane";
-import { LogoutModal, McpModal, SettingsModal, Toast, type ToastState } from "./Modals";
+import { LogoutModal, McpModal, SettingsModal, ShortcutsModal, Toast, type ToastState } from "./Modals";
 import { type SettingsTab, settingsTabFrom } from "./settings-tabs";
-import { conversations, HOME, labelOf, type MailAction, parsePostalFilter, RESTORABLE, scopeOf, searchErrors, searchTerms, withSearch } from "./model";
+import { conversations, HOME, labelOf, type MailAction, parsePostalFilter, RESTORABLE, scoped, scopeOf, searchErrors, searchTerms, withSearch } from "./model";
 import { withOrder } from "./search-window";
 import { useDeleteSavedSearch, useSavedSearches, useSaveSearch, useSuggest } from "~/queries/search";
-import { useLayout, usePrefs, useResolvedTheme, useWidth } from "./prefs";
+import { readJson, useLayout, usePrefs, useResolvedTheme, useWidth, writeJson } from "./prefs";
 import { Reader } from "./Reader";
 import { SearchBar, type FilterSuggestion } from "./SearchBar";
 import { NavRail, Sidebar } from "./Sidebar";
+import { isMac, ShortcutsProvider } from "./shortcuts";
 import { TooltipLayer } from "./Tooltip";
 
+/** The shortcut keys this browser last showed, so a change made elsewhere gets a toast once. */
+const SEEN_SHORTCUTS_KEY = "agp-shortcuts-seen";
 const EDITABLE = "input, textarea, select, [contenteditable=''], [contenteditable='true']";
 const ICON = 15;
 
@@ -197,7 +201,6 @@ function PostalApp({ addresses, domains, autoDraft }: PostalProps) {
 	const [replyRequest, setReplyRequest] = useState<{ mode: Exclude<ComposeMode, "new">; id: number } | null>(null);
 	const { draftWithAgent, runner: draftRunner } = useDraftWithAgent();
 	const searchRef = useRef<HTMLInputElement>(null);
-	const lastG = useRef(0);
 
 	const showToast = useCallback((t: Omit<ToastState, "id">) => setToast({ ...t, id: Date.now() }), []);
 	const closeToast = useCallback(() => setToast(null), []);
@@ -209,6 +212,16 @@ function PostalApp({ addresses, domains, autoDraft }: PostalProps) {
 	const togglePanel = () => {
 		if (mobile || narrow) setPanelTemp((v) => !v);
 		else setLayout({ panel: !panelOpen });
+	};
+	// Both side columns: closes both when either is open, else opens both. Below 1300px they overlay, so it only closes.
+	const toggleBoth = () => {
+		if (mobile || narrow) {
+			setNavTemp(false);
+			setPanelTemp(false);
+		} else {
+			const open = !(navOpen || panelOpen);
+			setLayout({ nav: open, panel: open });
+		}
 	};
 
 	// Reset inline composer when the open conversation changes.
@@ -317,6 +330,7 @@ function PostalApp({ addresses, domains, autoDraft }: PostalProps) {
 	};
 
 	const canTrash = filter.view !== "trash";
+	const canSpam = filter.view !== "spam";
 	const canRestore = RESTORABLE.has(filter.view);
 	const act = (kind: MailAction, override?: Conversation[] | null) => {
 		const list = targets(override);
@@ -324,6 +338,7 @@ function PostalApp({ addresses, domains, autoDraft }: PostalProps) {
 		if (kind === "archive") run({ type: "archive" }, override);
 		else if (kind === "restore") canRestore && run({ type: "restore" }, override);
 		else if (kind === "trash") canTrash && run({ type: "trash" }, override);
+		else if (kind === "spam") canSpam && run({ type: "move", folder: "spam" }, override);
 		else if (kind === "star") run(starToggle(list), override);
 		else run(readToggle(list), override);
 	};
@@ -405,67 +420,124 @@ function PostalApp({ addresses, domains, autoDraft }: PostalProps) {
 	};
 
 	// ── Keyboard ───────────────────────────────────────────────────
-	const togglePanelRef = useRef(togglePanel);
-	togglePanelRef.current = togglePanel;
-	const keys = useRef<(key: string, e?: KeyboardEvent) => boolean>(() => false);
-	keys.current = (key, e) => {
-		switch (key) {
-			case "/": searchRef.current?.focus(); return true;
-			case "c": openCompose(); return true;
-			case "r": case "a": case "f":
-				if (!open) return false;
-				setReplyRequest({ mode: key === "r" ? "reply" : key === "a" ? "reply-all" : "forward", id: Date.now() });
-				return true;
-			case "z": if (toast?.onUndo) { toast.onUndo(); return true; } return false;
-			case "e": act("archive"); return true;
-			case "x":
-				if (activeKey && rowKeys.includes(activeKey)) setSelection((s) => (e?.shiftKey ? sel.range(s, activeKey, rowKeys) : sel.toggle(s, activeKey)));
-				return true;
-			case "j": case "ArrowDown": move(1); return true;
-			case "k": case "ArrowUp": move(-1); return true;
-			case "Escape":
+	// Keys come from shared/shortcuts.ts, rebound by Settings > Shortcuts.
+	const bindings = useMemo(() => resolveBindings(prefs.shortcuts), [prefs.shortcuts]);
+	const matcher = useMemo(() => new KeyMatcher(bindings), [bindings]);
+	const matcherRef = useRef(matcher);
+	matcherRef.current = matcher;
+	const runShortcut = useRef<(id: MailShortcutId, shift: boolean) => boolean>(() => false);
+	runShortcut.current = (id, shift) => {
+		const reply = (mode: Exclude<ComposeMode, "new">) => {
+			if (!open) return false;
+			setReplyRequest({ mode, id: Date.now() });
+			return true;
+		};
+		const goTo = (view: MailFilter["view"]) => {
+			go({ ...HOME, view, chips: [] });
+			return true;
+		};
+		const actions: Record<MailShortcutId, () => boolean> = {
+			next: () => (move(1), true),
+			prev: () => (move(-1), true),
+			search: () => (searchRef.current?.focus(), true),
+			goInbox: () => goTo("inbox"),
+			goStarred: () => goTo("starred"),
+			goDrafts: () => goTo("drafts"),
+			goSent: () => goTo("sent"),
+			goAll: () => goTo("all"),
+			nextView: () => (go(scoped(cycleView(labelOf(filter) ? "all" : filter.view, 1), scopeOf(filter), HOME)), true),
+			prevView: () => (go(scoped(cycleView(labelOf(filter) ? "all" : filter.view, -1), scopeOf(filter), HOME)), true),
+			back: () => {
 				if (checked.keys.size) setSelection(sel.EMPTY_SELECTION);
 				else if (mobile && navTemp) setNavTemp(false);
 				else if ((mobile || narrow) && panelTemp) setPanelTemp(false);
 				else if (mobile && open) closeConversation();
 				else return false;
 				return true;
-			case "g": lastG.current = Date.now(); return true;
-			case "i":
-				if (Date.now() - lastG.current < 1000) {
-					go({ ...HOME, chips: [] });
-					return true;
-				}
-				return false;
-		}
-		return false;
+			},
+			archive: () => (act("archive"), true),
+			trash: () => (act("trash"), true),
+			spam: () => (act("spam"), true),
+			star: () => (act("star"), true),
+			markRead: () => (run({ type: "read" }), true),
+			markUnread: () => (run({ type: "unread" }), true),
+			label: () => {
+				if (!openRow) return false;
+				setLabelRequest(Date.now());
+				return true;
+			},
+			select: () => {
+				if (activeKey && rowKeys.includes(activeKey)) setSelection((s) => (shift ? sel.range(s, activeKey, rowKeys) : sel.toggle(s, activeKey)));
+				return true;
+			},
+			undo: () => {
+				if (!toast?.onUndo) return false;
+				toast.onUndo();
+				return true;
+			},
+			compose: () => (openCompose(), true),
+			reply: () => reply("reply"),
+			replyAll: () => reply("reply-all"),
+			forward: () => reply("forward"),
+			agent: () => (togglePanelRef.current(), true),
+			sidebar: () => (toggleNav(), true),
+			panels: () => (toggleBoth(), true),
+			help: () => (setHelpOpen(true), true),
+		};
+		return actions[id]();
 	};
+	const togglePanelRef = useRef(togglePanel);
+	togglePanelRef.current = togglePanel;
+	const [helpOpen, setHelpOpen] = useState(false);
+
+	// Keys rebound elsewhere (the agent, MCP, another browser), now or since this browser last looked, get a toast
+	// with Undo. Edits in Settings don't.
+	const [seenAtLoad] = useState<ShortcutOverrides>(() => {
+		const stored = readJson<object | null>(SEEN_SHORTCUTS_KEY, null);
+		return stored ? cleanOverrides(stored) : prefs.shortcuts;
+	});
+	const seenShortcuts = useRef(seenAtLoad);
+	useEffect(() => {
+		const before = seenShortcuts.current;
+		seenShortcuts.current = prefs.shortcuts;
+		writeJson(SEEN_SHORTCUTS_KEY, prefs.shortcuts);
+		if (settingsTab || before === prefs.shortcuts) return;
+		const lines = describeChanges(before, prefs.shortcuts, isMac());
+		if (!lines.length) return;
+		const text = lines.length > 2 ? `${lines.slice(0, 2).join(". ")}, and ${lines.length - 2} more` : lines.join(". ");
+		showToast({ text, icon: <KeyboardIcon size={ICON} />, onUndo: () => {
+			setToast(null);
+			seenShortcuts.current = before;
+			writeJson(SEEN_SHORTCUTS_KEY, before);
+			void setPrefs({ shortcuts: before });
+		} });
+	}, [prefs.shortcuts]); // eslint-disable-line react-hooks/exhaustive-deps
+	const [labelRequest, setLabelRequest] = useState(0);
 
 	useEffect(() => {
 		const onKey = (e: KeyboardEvent) => {
 			if (e.defaultPrevented || e.isComposing) return;
+			const step = stepOf(e);
+			if (!step || document.querySelector(".pg-modal-scrim")) return;
 			const target = e.target as Element | null;
 			const inCompose = !!target?.closest?.(".pg-cw");
-			if ((e.metaKey || e.ctrlKey) && !e.altKey) {
-				const k = e.key.toLowerCase();
-				if (k === "k" && !inCompose) {
-					e.preventDefault();
-					searchRef.current?.focus();
-				} else if (k === "j") {
-					e.preventDefault();
-					togglePanelRef.current();
-				}
-				return;
-			}
-			if (e.altKey || document.querySelector(".pg-modal-scrim")) return;
-			if (target?.closest?.(EDITABLE) || inCompose || target?.closest?.("[data-mail-popover]")) return;
-			if (keys.current(e.key, e)) e.preventDefault();
+			const typing = inCompose || !!target?.closest?.(EDITABLE) || !!target?.closest?.("[data-mail-popover]");
+			// While typing only ⌘ keys count, and in the composer not the ones it uses itself (⌘K is a link there).
+			if (typing && !step.startsWith("Mod+")) return;
+			if (inCompose && ownerOf(bindings, step, "compose")) return;
+			const hit = matcherRef.current.match(step);
+			if (hit === "pending") e.preventDefault();
+			else if (hit && runShortcut.current(hit.id, hit.shift)) e.preventDefault();
 		};
+		// A message frame passes its keys up; the parent accepts them only from its own frames.
 		const onMessage = (event: MessageEvent) => {
-			const data = event.data as { __emailIframeKey?: boolean; key?: string } | null;
+			const data = event.data as ({ __emailIframeKey?: boolean } & KeyLike) | null;
 			if (!data || data.__emailIframeKey !== true || typeof data.key !== "string") return;
 			if (![...document.querySelectorAll("iframe")].some((f) => f.contentWindow === event.source)) return;
-			keys.current(data.key);
+			if (document.querySelector(".pg-modal-scrim")) return;
+			const step = stepOf(data);
+			const hit = step ? matcherRef.current.match(step) : null;
+			if (hit && hit !== "pending") runShortcut.current(hit.id, hit.shift);
 		};
 		document.addEventListener("keydown", onKey);
 		window.addEventListener("message", onMessage);
@@ -473,7 +545,7 @@ function PostalApp({ addresses, domains, autoDraft }: PostalProps) {
 			document.removeEventListener("keydown", onKey);
 			window.removeEventListener("message", onMessage);
 		};
-	}, []);
+	}, [bindings]);
 	// ── Derived display ────────────────────────────────────────────
 	const scope = scopeOf(filter);
 	const labelView = labelOf(filter);
@@ -514,215 +586,229 @@ function PostalApp({ addresses, domains, autoDraft }: PostalProps) {
 		onSettings: () => openSettings(),
 		onManageLabels: () => openSettings("labels"),
 		onLogout: () => setModal("logout"),
+		onShortcuts: () => setHelpOpen(true),
 	};
 
 	return (
-		<div className="postal" data-theme={theme} data-keys={prefs.keys ? "on" : "off"} data-pane={mobile && open ? "reader" : "list"}>
-			<TooltipLayer />
-			<div className="pg-body">
-				{/* Below 1300px the rail stays in place and the full column overlays it. */}
-				{!mobile && (!navOpen || narrow) && (
-					<NavRail
-						{...sidebarProps}
-						onExpand={toggleNav}
-						onLabels={() => {
-							setLayout({ labelsOpen: true });
-							toggleNav();
-						}}
-					/>
-				)}
-				{(mobile || navOpen) && (
-					<Sidebar {...sidebarProps} overlay={!mobile && narrow} drawer={mobile ? (navTemp ? "open" : "closed") : undefined} />
-				)}
-				{(mobile || narrow) && navTemp && <div className="pg-drawer-scrim" onClick={() => setNavTemp(false)} aria-hidden />}
-				<div className="pg-center">
-					<SearchBar
-						ref={searchRef}
-						value={search}
-						onChange={setSearchText}
-						onOpenFirst={() => rows[0] && openConversation(rows[0])}
-						onOpenResult={(row) => openConversation(row)}
-						onMove={move}
-						resultCount={searching && !list.isPending ? total : null}
-						results={searching ? serverRows : []}
-						resultsFor={debounced}
-						resultsLoading={list.isFetching}
-						terms={terms}
-						error={searchError}
-						filters={suggestions}
-						suggest={suggest.data}
-						suggestFor={suggestText}
-						onCursor={setSuggestAt}
-						saved={saved.data ?? []}
-						onSave={(text) =>
-							saveSearch.mutate({ query: text }, {
-								onSuccess: () => showToast({ text: "Search saved", icon: <BookmarkSimpleIcon size={ICON} /> }),
-								onError: (e) => showToast({ text: (e as Error).message, icon: <WarningIcon size={ICON} /> }),
-							})
-						}
-						onDeleteSaved={(s) =>
-							deleteSaved.mutate(s.id, { onError: (e) => showToast({ text: (e as Error).message, icon: <WarningIcon size={ICON} /> }) })
-						}
-						labels={labels.map((l) => ({ name: l.name, count: l.count }))}
-						onInterpret={(text) => api.interpretSearch(text)}
-						onAsk={(text) => {
-							if (!panelOpen) togglePanel();
-							if (text) setPrefill({ text, id: Date.now() });
-						}}
-						addresses={addresses.map((a) => ({ address: a, count: addressFacet.get(a) }))}
-						identities={identities}
-						onMenu={() => setNavTemp(true)}
-						onAgent={togglePanel}
-						onFocusChange={setSearchFocus}
-					/>
-					<main className="pg-panes">
-						<ListPane
-							identities={identities}
-							filter={filter}
-							go={go}
-							title={title}
-							searching={searching}
-							allUnread={counts.unread}
-							unreadByAddress={unreadByAddress}
-							onNew={() => openCompose()}
-							onRefresh={() => {
-								queryClient.invalidateQueries({ queryKey: ["mail"] });
-								queryClient.invalidateQueries({ queryKey: ["mail-facets"] });
+		<ShortcutsProvider overrides={prefs.shortcuts}>
+			<div className="postal" data-theme={theme} data-keys={prefs.keys ? "on" : "off"} data-pane={mobile && open ? "reader" : "list"}>
+				<TooltipLayer />
+				<div className="pg-body">
+					{/* Below 1300px the rail stays in place and the full column overlays it. */}
+					{!mobile && (!navOpen || narrow) && (
+						<NavRail
+							{...sidebarProps}
+							onExpand={toggleNav}
+							onLabels={() => {
+								setLayout({ labelsOpen: true });
+								toggleNav();
 							}}
-							refreshing={list.isFetching && !list.isFetchingNextPage}
-							facets={listFacets.data}
-							onFacets={setFacetsWanted}
-							labels={labels}
-							labelsById={labelsById}
-							rows={rows}
-							total={total}
-							loading={list.isPending}
-							error={list.error}
-							onRetry={() => list.refetch()}
-							hasNextPage={!!list.hasNextPage}
-							fetchingNext={list.isFetchingNextPage}
-							fetchNext={() => list.fetchNextPage()}
-							currentKey={activeKey}
-							onOpen={(row) => openConversation(row)}
-							checked={checked.keys}
-							onCheck={(row, range) => setSelection((s) => (range ? sel.range(s, row.thread_key, rowKeys) : sel.toggle(s, row.thread_key)))}
-							onSelectAll={() => setSelection((s) => sel.selectAll(s, rowKeys))}
-							onClearSelection={() => setSelection(sel.EMPTY_SELECTION)}
-							onRowAction={(row, action) => act(action, [row])}
-							onBulk={(action) => act(action)}
-							onEmptyTrash={emptyTrash}
+						/>
+					)}
+					{(mobile || navOpen) && (
+						<Sidebar {...sidebarProps} overlay={!mobile && narrow} drawer={mobile ? (navTemp ? "open" : "closed") : undefined} />
+					)}
+					{(mobile || narrow) && navTemp && <div className="pg-drawer-scrim" onClick={() => setNavTemp(false)} aria-hidden />}
+					<div className="pg-center">
+						<SearchBar
+							ref={searchRef}
+							value={search}
+							onChange={setSearchText}
+							onOpenFirst={() => rows[0] && openConversation(rows[0])}
+							onOpenResult={(row) => openConversation(row)}
+							onMove={move}
+							resultCount={searching && !list.isPending ? total : null}
+							results={searching ? serverRows : []}
+							resultsFor={debounced}
+							resultsLoading={list.isFetching}
 							terms={terms}
-							order={rankable ? (pages[0]?.order === "relevance" ? "relevance" : "date") : undefined}
-							rankSkipped={!!pages[0]?.rankSkipped}
-							onOrder={(next) => setSearchText(withOrder(search, next, next === "relevance" && !!pages[0]?.rankSkipped))}
-							scheduled={scheduled}
-							onCancelScheduled={async (s) => {
-								try {
-									await api.cancelScheduled(s.mailboxId, s.emailId);
-									queryClient.invalidateQueries({ queryKey: ["scheduled"] });
-									showToast({ text: "Schedule cancelled. The draft stays in Drafts.", icon: <ClockIcon size={ICON} /> });
-								} catch (e) {
-									showToast({ text: `Could not cancel. ${(e as Error).message}`, icon: <WarningIcon size={ICON} /> });
-								}
+							error={searchError}
+							filters={suggestions}
+							suggest={suggest.data}
+							suggestFor={suggestText}
+							onCursor={setSuggestAt}
+							saved={saved.data ?? []}
+							onSave={(text) =>
+								saveSearch.mutate({ query: text }, {
+									onSuccess: () => showToast({ text: "Search saved", icon: <BookmarkSimpleIcon size={ICON} /> }),
+									onError: (e) => showToast({ text: (e as Error).message, icon: <WarningIcon size={ICON} /> }),
+								})
+							}
+							onDeleteSaved={(s) =>
+								deleteSaved.mutate(s.id, { onError: (e) => showToast({ text: (e as Error).message, icon: <WarningIcon size={ICON} /> }) })
+							}
+							labels={labels.map((l) => ({ name: l.name, count: l.count }))}
+							onInterpret={(text) => api.interpretSearch(text)}
+							onAsk={(text) => {
+								if (!panelOpen) togglePanel();
+								if (text) setPrefill({ text, id: Date.now() });
 							}}
-							onClearSearch={() => setSearchText("")}
-							onHome={() => go({ ...HOME, chips: [] })}
-						/>
-						<Reader
-							row={openRow}
-							open={open}
-							autoOpened={!!openRow && openRow.thread_key === autoOpenedKey}
+							addresses={addresses.map((a) => ({ address: a, count: addressFacet.get(a) }))}
 							identities={identities}
-							info={info}
-							addresses={addresses}
-							prefs={prefs}
-							labels={labels}
-							labelsById={labelsById}
-							canTrash={canTrash}
-							canRestore={canRestore}
-							onBack={closeConversation}
-							onAction={(a) => act(a, openRow ? [openRow] : null)}
-							onLabel={(label, add) => toggleLabel(label, add)}
-							onCreateLabel={(name) => newLabel(name, openRow ? [openRow] : undefined)}
-							inline={inline}
-							onInlineClosed={(message) => {
-								setInline(null);
-								if (message) showToast({ text: message, icon: message.startsWith("Draft") ? <FileIcon size={ICON} /> : message.startsWith("Scheduled") ? <ClockIcon size={ICON} /> : <PaperPlaneTiltIcon size={ICON} /> });
-							}}
-							startReply={startReply}
-							sender={sender}
-							onPopOut={(state) => {
-								popOut(state, () => openCompose(state));
-								setInline(null);
-							}}
-							onEditSignatures={() => openSettings("signatures")}
-							onEditDraft={(draft) => open && editDraft(open.mailboxId, draft.id, draft)}
-							draftWithAgent={draftWithAgent}
-							replyRequest={replyRequest}
+							onMenu={() => setNavTemp(true)}
+							onAgent={togglePanel}
+							onFocusChange={setSearchFocus}
 						/>
-					</main>
+						<main className="pg-panes">
+							<ListPane
+								identities={identities}
+								filter={filter}
+								go={go}
+								title={title}
+								searching={searching}
+								allUnread={counts.unread}
+								unreadByAddress={unreadByAddress}
+								onNew={() => openCompose()}
+								onRefresh={() => {
+									queryClient.invalidateQueries({ queryKey: ["mail"] });
+									queryClient.invalidateQueries({ queryKey: ["mail-facets"] });
+								}}
+								refreshing={list.isFetching && !list.isFetchingNextPage}
+								facets={listFacets.data}
+								onFacets={setFacetsWanted}
+								labels={labels}
+								labelsById={labelsById}
+								rows={rows}
+								total={total}
+								loading={list.isPending}
+								error={list.error}
+								onRetry={() => list.refetch()}
+								hasNextPage={!!list.hasNextPage}
+								fetchingNext={list.isFetchingNextPage}
+								fetchNext={() => list.fetchNextPage()}
+								currentKey={activeKey}
+								onOpen={(row) => openConversation(row)}
+								checked={checked.keys}
+								onCheck={(row, range) => setSelection((s) => (range ? sel.range(s, row.thread_key, rowKeys) : sel.toggle(s, row.thread_key)))}
+								onSelectAll={() => setSelection((s) => sel.selectAll(s, rowKeys))}
+								onClearSelection={() => setSelection(sel.EMPTY_SELECTION)}
+								onRowAction={(row, action) => act(action, [row])}
+								onBulk={(action) => act(action)}
+								onEmptyTrash={emptyTrash}
+								terms={terms}
+								order={rankable ? (pages[0]?.order === "relevance" ? "relevance" : "date") : undefined}
+								rankSkipped={!!pages[0]?.rankSkipped}
+								onOrder={(next) => setSearchText(withOrder(search, next, next === "relevance" && !!pages[0]?.rankSkipped))}
+								scheduled={scheduled}
+								onCancelScheduled={async (s) => {
+									try {
+										await api.cancelScheduled(s.mailboxId, s.emailId);
+										queryClient.invalidateQueries({ queryKey: ["scheduled"] });
+										showToast({ text: "Schedule cancelled. The draft stays in Drafts.", icon: <ClockIcon size={ICON} /> });
+									} catch (e) {
+										showToast({ text: `Could not cancel. ${(e as Error).message}`, icon: <WarningIcon size={ICON} /> });
+									}
+								}}
+								onClearSearch={() => setSearchText("")}
+								onHome={() => go({ ...HOME, chips: [] })}
+							/>
+							<Reader
+								row={openRow}
+								open={open}
+								autoOpened={!!openRow && openRow.thread_key === autoOpenedKey}
+								identities={identities}
+								info={info}
+								addresses={addresses}
+								prefs={prefs}
+								labels={labels}
+								labelsById={labelsById}
+								canTrash={canTrash}
+								canSpam={canSpam}
+								canRestore={canRestore}
+								onBack={closeConversation}
+								onAction={(a) => act(a, openRow ? [openRow] : null)}
+								onLabel={(label, add) => toggleLabel(label, add)}
+								onCreateLabel={(name) => newLabel(name, openRow ? [openRow] : undefined)}
+								inline={inline}
+								onInlineClosed={(message) => {
+									setInline(null);
+									if (message) showToast({ text: message, icon: message.startsWith("Draft") ? <FileIcon size={ICON} /> : message.startsWith("Scheduled") ? <ClockIcon size={ICON} /> : <PaperPlaneTiltIcon size={ICON} /> });
+								}}
+								startReply={startReply}
+								sender={sender}
+								onPopOut={(state) => {
+									popOut(state, () => openCompose(state));
+									setInline(null);
+								}}
+								onEditSignatures={() => openSettings("signatures")}
+								onEditDraft={(draft) => open && editDraft(open.mailboxId, draft.id, draft)}
+								draftWithAgent={draftWithAgent}
+								replyRequest={replyRequest}
+								labelRequest={labelRequest}
+							/>
+						</main>
+					</div>
+					{panelOpen ? (
+						<>
+							{mobile && <div className="pg-drawer-scrim" onClick={() => setPanelTemp(false)} aria-hidden />}
+							<AgentPanel
+								open={open}
+								reading={open ? openRow?.subject ?? "" : null}
+								onCollapse={togglePanel}
+								overlay={!mobile && narrow}
+								prefill={prefill}
+								onOpenDraft={(mailboxId, draftId) => editDraft(mailboxId, draftId)}
+								onBusy={setAgentBusy}
+							/>
+						</>
+					) : (
+						!mobile && <AgentRail onOpen={togglePanel} busy={agentBusy} />
+					)}
 				</div>
-				{panelOpen ? (
-					<>
-						{mobile && <div className="pg-drawer-scrim" onClick={() => setPanelTemp(false)} aria-hidden />}
-						<AgentPanel
-							open={open}
-							reading={open ? openRow?.subject ?? "" : null}
-							onCollapse={togglePanel}
-							overlay={!mobile && narrow}
-							prefill={prefill}
-							onOpenDraft={(mailboxId, draftId) => editDraft(mailboxId, draftId)}
-							onBusy={setAgentBusy}
-						/>
-					</>
-				) : (
-					!mobile && <AgentRail onOpen={togglePanel} busy={agentBusy} />
+				{cw && (
+					<Composer
+						key={cw.key}
+						variant="floating"
+						initial={cw.initial}
+						maximised={cw.max}
+						lockFrom={prefs.replyFrom}
+						onEditSignatures={() => openSettings("signatures")}
+						addresses={addresses}
+						identities={identities}
+						info={info}
+						sender={sender}
+						draftWithAgent={draftWithAgent}
+						onClosed={(message) => {
+							// The open draft is gone once it is sent, scheduled anew or discarded.
+							if (open && cw.initial.draftId === open.emailId && message && !message.startsWith("Draft saved")) closeConversation();
+							setCw(null);
+							if (message) showToast({ text: message, icon: message.startsWith("Scheduled") ? <ClockIcon size={ICON} /> : message.startsWith("Draft") ? <FileIcon size={ICON} /> : <PaperPlaneTiltIcon size={ICON} /> });
+						}}
+						onPopOut={(state) => {
+							if (popOut(state, () => setCw({ key: Date.now(), initial: state }))) setCw(null);
+						}}
+					/>
+				)}
+				{draftRunner}
+				<Toast toast={toast} onClose={closeToast} />
+				{settingsTab && (
+					<SettingsModal
+						// A link can open Settings before each address's settings load; it starts again as they arrive so it compares against them.
+						key={`${addresses.length}:${[...info.values()].filter((i) => i.mailbox).length}`}
+						tab={settingsTab}
+						onTab={openSettings}
+						prefs={prefs}
+						setPrefs={setPrefs}
+						addresses={addresses}
+						identities={identities}
+						info={info}
+						autoDraft={autoDraft}
+						onClose={closeSettings}
+						onSaved={(text) => showToast({ text })}
+					/>
+				)}
+				{modal === "mcp" && <McpModal onClose={() => setModal(null)} />}
+				{modal === "logout" && <LogoutModal onClose={() => setModal(null)} />}
+				{helpOpen && (
+					<ShortcutsModal
+						onClose={() => setHelpOpen(false)}
+						onEdit={() => {
+							setHelpOpen(false);
+							openSettings("shortcuts");
+						}}
+					/>
 				)}
 			</div>
-			{cw && (
-				<Composer
-					key={cw.key}
-					variant="floating"
-					initial={cw.initial}
-					maximised={cw.max}
-					lockFrom={prefs.replyFrom}
-					onEditSignatures={() => openSettings("signatures")}
-					addresses={addresses}
-					identities={identities}
-					info={info}
-					sender={sender}
-					draftWithAgent={draftWithAgent}
-					onClosed={(message) => {
-						// The open draft is gone once it is sent, scheduled anew or discarded.
-						if (open && cw.initial.draftId === open.emailId && message && !message.startsWith("Draft saved")) closeConversation();
-						setCw(null);
-						if (message) showToast({ text: message, icon: message.startsWith("Scheduled") ? <ClockIcon size={ICON} /> : message.startsWith("Draft") ? <FileIcon size={ICON} /> : <PaperPlaneTiltIcon size={ICON} /> });
-					}}
-					onPopOut={(state) => {
-						if (popOut(state, () => setCw({ key: Date.now(), initial: state }))) setCw(null);
-					}}
-				/>
-			)}
-			{draftRunner}
-			<Toast toast={toast} onClose={closeToast} />
-			{settingsTab && (
-				<SettingsModal
-					// A link can open Settings before each address's settings load; it starts again as they arrive so it compares against them.
-					key={`${addresses.length}:${[...info.values()].filter((i) => i.mailbox).length}`}
-					tab={settingsTab}
-					onTab={openSettings}
-					prefs={prefs}
-					setPrefs={setPrefs}
-					addresses={addresses}
-					identities={identities}
-					info={info}
-					autoDraft={autoDraft}
-					onClose={closeSettings}
-					onSaved={(text) => showToast({ text })}
-				/>
-			)}
-			{modal === "mcp" && <McpModal onClose={() => setModal(null)} />}
-			{modal === "logout" && <LogoutModal onClose={() => setModal(null)} />}
-		</div>
+		</ShortcutsProvider>
 	);
 }
