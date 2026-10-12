@@ -1,11 +1,11 @@
 {
-	"name": "agents-go-postal",
+	"name": "open-mailroom",
 	"version": "0.3.0",
 	"private": true,
 	"license": "Apache-2.0",
 	"type": "module",
 	"cloudflare": {
-		"label": "Agents Go Postal",
+		"label": "Open Mailroom",
 		"products": [
 			"Workers",
 			"Durable Objects",

@@ -1,7 +1,7 @@
 {
   "id": "/",
-  "name": "Agents Go Postal",
-  "short_name": "AGP",
+  "name": "Open Mailroom",
+  "short_name": "Mailroom",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",

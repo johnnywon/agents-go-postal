@@ -12,8 +12,8 @@ const bundle = await build({
 	entryPoints: ["app/routes/settings-redirect.tsx"], bundle: true, platform: "node", format: "esm", write: false,
 	jsx: "automatic", packages: "external", alias: { "~": "./app", shared: "./shared" },
 });
-const out = "node_modules/.cache/agp-tests/settings-redirect.mjs";
-mkdirSync("node_modules/.cache/agp-tests", { recursive: true });
+const out = "node_modules/.cache/omr-tests/settings-redirect.mjs";
+mkdirSync("node_modules/.cache/omr-tests", { recursive: true });
 writeFileSync(out, bundle.outputFiles[0].text);
 const redirect = await import(new URL(`../${out}`, import.meta.url).href);
 
