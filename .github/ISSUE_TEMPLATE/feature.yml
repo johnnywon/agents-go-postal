@@ -6,6 +6,7 @@ body:
     attributes:
       value: |
         An agent may build this with no one around to ask. Write it so they can finish without questions.
+        Add the `agent` label to hand it off.
         Use example.com, example.org and example.net for any address or domain. No real deployment details.
   - type: textarea
     id: what
