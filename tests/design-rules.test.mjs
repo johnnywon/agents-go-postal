@@ -1094,6 +1094,6 @@ test("the postal logo watermark is never clipped, masked or rounded", () => {
 			if (prop === "border-radius") assert.match(value, /^0/);
 		}
 	}
-	const search = readFileSync(join(ROOT, "app/components/postal/SearchBar.tsx"), "utf8");
-	assert.match(search, /className="deck-brand-logo pg-watermark"/, "the watermark keeps the logo's radius opt-out class");
+	const sidebar = readFileSync(join(ROOT, "app/components/postal/Sidebar.tsx"), "utf8");
+	assert.match(sidebar, /className="deck-brand-logo pg-watermark"/, "the watermark keeps the logo's radius opt-out class");
 });

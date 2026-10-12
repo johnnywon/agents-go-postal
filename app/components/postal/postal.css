@@ -183,7 +183,7 @@ html:has(.postal), html:has(.postal) body { background: var(--pg-base, #141518);
 .pg-nav-scroll {
   flex: 1; min-height: 0; overflow-y: auto; scrollbar-gutter: stable;
   display: grid; grid-template-columns: minmax(0, 1fr); align-content: start; grid-auto-rows: max-content;
-  padding: 10px 1px 10px 8px; gap: 2px;
+  padding: 10px 1px 76px 8px; gap: 2px;
 }
 .pg-nav-item {
   display: flex; align-items: center; gap: 9px; height: 30px; padding: 0 9px; width: 100%;
@@ -236,6 +236,15 @@ html:has(.postal), html:has(.postal) body { background: var(--pg-base, #141518);
 .pg-nav-new { display: flex; align-items: center; gap: 9px; height: 28px; padding: 0 9px 0 22px; color: var(--pg-text-8); font-size: 12px; width: 100%; text-align: left; }
 .pg-nav-new:hover { background: var(--pg-hover); color: var(--pg-text-4); }
 .pg-nav-new-input { margin: 2px 0 2px 13px; height: 28px; padding: 0 9px; width: calc(100% - 13px); border: 1px solid var(--pg-line-2); background: var(--pg-input); color: var(--pg-text-2); outline: none; font-size: 12px; }
+/* The logo is a flat, faint monochrome watermark, painted behind the expanded nav
+   just above its foot. It takes no space; the nav list's bottom padding lets its last item scroll clear of it. It is never clipped. */
+.pg-nav { position: relative; z-index: 0; }
+.pg-nav-foot { position: relative; }
+.postal .pg-watermark {
+  position: absolute; left: 14px; bottom: calc(100% + 10px); z-index: -1; display: block; height: 44px; width: auto; max-width: none; opacity: .16;
+  pointer-events: none; user-select: none;
+}
+.postal[data-theme="light"] .pg-watermark { opacity: .24; }
 .pg-nav-foot { flex: none; display: flex; align-items: center; gap: 6px; padding: 8px; border-top: 1px solid var(--pg-line); }
 .pg-foot-btn {
   display: flex; align-items: center; gap: 6px; height: 26px; padding: 0 9px; white-space: nowrap;
@@ -282,12 +291,6 @@ html:has(.postal), html:has(.postal) body { background: var(--pg-base, #141518);
 .pg-search .pg-search-error { flex: 0 1 auto; min-width: 0; max-width: 45%; font: 11px var(--pg-mono); color: var(--pg-danger-text); }
 .pg-search .pg-clear { width: 24px; height: 24px; flex: none; display: flex; align-items: center; justify-content: center; color: var(--pg-text-6); }
 .pg-search .pg-clear:hover { background: var(--pg-hover-raised); color: var(--pg-text-2); }
-/* The logo is a faint watermark in the accent colours: mail-orange @, agent-green cursor. It is never clipped. */
-.postal .pg-watermark {
-  flex: none; display: block; height: 28px; width: auto; max-width: none; opacity: .45;
-  pointer-events: none; user-select: none; margin-right: 10px;
-}
-.postal[data-theme="light"] .pg-watermark { opacity: .55; }
 .pg-mobile-only { display: none !important; }
 /* The search window spans the bar. Below 768px it fills the screen under it. */
 .pg-sw {
@@ -817,7 +820,6 @@ html:has(.postal), html:has(.postal) body { background: var(--pg-base, #141518);
   .pg-search { padding: 0 6px; }
   .pg-search .pg-search-error { max-width: 30%; }
   .pg-search input, .pg-agent-input textarea, .pg-chips input, .pg-cw-subject, .pg-field input, .pg-input, .pg-textarea, .pg-label-picker input, .pg-sched-custom input, .pg-editor .ProseMirror { font-size: 16px; }
-  .pg-search .pg-watermark { display: none; }
   .pg-toast { bottom: 16px; }
   .pg-modal-scrim { padding: 0; }
   .pg-modal { width: 100%; height: 100%; border: 0; }
