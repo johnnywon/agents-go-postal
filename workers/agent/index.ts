@@ -10,13 +10,9 @@ import {
 	stepCountIs,
 } from "ai";
 import { z } from "zod";
-import type { EmailFull, EmailMetadata } from "../lib/schemas";
-import { verifyDraft, isPromptInjection } from "../lib/ai";
+import { verifyDraft } from "../lib/ai";
 import { agentModel } from "../lib/agent-model";
-import {
-	stripHtmlToText,
-	textToHtml,
-} from "../lib/email-helpers";
+import { textToHtml } from "../lib/email-helpers";
 import { mailStore } from "../store";
 import {
 	toolDeleteLabel,
@@ -48,7 +44,7 @@ import { Folders, FOLDER_TOOL_DESCRIPTION, MOVE_FOLDER_TOOL_DESCRIPTION } from "
 import { SHARED_AGENT, resolveMailbox, sharedAgentNote, type AgentContext } from "../../shared/agent";
 import type { Env } from "../types";
 import { defineTool } from "./tool-def";
-import { autoDraftRecipient, createAutoDraftTools } from "./auto-draft";
+import { autoDraftPrompt, createAutoDraftTools, prepareAutoDraft } from "./auto-draft";
 
 /**
  * Default system prompt used when no custom prompt is configured for a mailbox.
@@ -428,6 +424,14 @@ function crossAddressTools(env: Env) {
 	};
 }
 
+/** A user line and an assistant line for the agent's chat history. */
+function autoLog(userText: string, assistantText: string) {
+	return [
+		{ id: crypto.randomUUID(), role: "user" as const, content: userText, createdAt: new Date(), parts: [{ type: "text" as const, text: userText }] },
+		{ id: crypto.randomUUID(), role: "assistant" as const, content: assistantText, createdAt: new Date(), parts: [{ type: "text" as const, text: assistantText }] },
+	];
+}
+
 // Use `any` for the Env generic to avoid type conflicts between the custom
 // SEND_EMAIL binding shape and the AIChatAgent constraint.  The actual env
 // is fully typed inside the tools via the closure.
@@ -497,132 +501,32 @@ export class EmailAgent extends AIChatAgent<any> {
 		threadId: string;
 	}) {
 		const env = this.env as Env;
+
+		// Read the email and its whole thread once and scan everything the
+		// model will see. Any doubt skips the draft (auto-draft.ts).
+		const stub = mailStore(env).mailbox(emailData.mailboxId);
+		const prepared = await prepareAutoDraft(env.AI, stub, emailData);
+		if (!prepared.ok) {
+			console.warn(`Auto-draft skipped for ${emailData.emailId}: ${prepared.reason}`);
+			// The subject is left out: it may be what failed the scan, and chat history reaches the chat agent.
+			await this.persistMessages([
+				...this.messages,
+				...autoLog(`[Auto-triggered] New email from ${emailData.sender}`, `Skipped auto-draft: ${prepared.reason}.`),
+			]);
+			return { status: "skipped", reason: prepared.reason };
+		}
+		const context = prepared.context;
+
 		const model = await agentModel(env);
 		const systemPrompt = await getSystemPrompt(env, emailData.mailboxId);
-
-		// Pre-read the email and thread so the agent has full context
-		// without needing to waste tool calls discovering it
-		const stub = mailStore(env).mailbox(emailData.mailboxId);
-		const email = (await stub.getEmail(emailData.emailId).catch(() => null)) as EmailFull | null;
-		// The reply goes to the inbound message's Reply-To or sender, whatever the mail says.
-		const replyTo = email ? autoDraftRecipient(email) : emailData.sender.toLowerCase();
-		if (!replyTo) {
-			console.warn("Auto-draft skipped: no address to reply to:", emailData.emailId);
-			return { status: "skipped", reason: "no reply address" };
-		}
+		const replyTo = context.replyTo;
 		const tools = createAutoDraftTools(env, {
 			mailboxId: emailData.mailboxId,
 			emailId: emailData.emailId,
 			threadId: emailData.threadId,
 			to: replyTo,
-		});
-
-		let emailBody = "";
-		let threadContext = "";
-		try {
-			if (email?.body) {
-				const isInjection = await isPromptInjection(env.AI, email.body);
-				if (isInjection) {
-					console.warn("Skipping auto-draft due to detected prompt injection:", emailData.emailId);
-					
-					// Log to agent chat so the user knows why it skipped
-					const newMessages = [
-						{
-							id: crypto.randomUUID(),
-							role: "user" as const,
-							content: `[Auto-triggered] New email from ${emailData.sender}: "${emailData.subject}"`,
-							createdAt: new Date(),
-							parts: [{ type: "text" as const, text: `[Auto-triggered] New email from ${emailData.sender}: "${emailData.subject}"` }],
-						},
-						{
-							id: crypto.randomUUID(),
-							role: "assistant" as const,
-							content: "⚠️ Blocked auto-draft creation: the email appears to contain prompt injection or malicious instructions.",
-							createdAt: new Date(),
-							parts: [{ type: "text" as const, text: "⚠️ Blocked auto-draft creation: the email appears to contain prompt injection or malicious instructions." }],
-						},
-					];
-					await this.persistMessages([...this.messages, ...newMessages]);
-					
-					return;
-				}
-				
-				emailBody = stripHtmlToText(email.body);
-			}
-
-		// Load thread for conversation context
-		const threadEmails = (await stub.getEmails({ thread_id: emailData.threadId })) as EmailMetadata[];
-		if (threadEmails.length > 1) {
-			const fullThread = await Promise.all(
-				threadEmails.map(async (e) => {
-					const full = (await stub.getEmail(e.id)) as EmailFull | null;
-					const text = full?.body ? stripHtmlToText(full.body) : "";
-					return { id: e.id, sender: e.sender, recipient: e.recipient, subject: e.subject, date: e.date, folder_id: e.folder_id, body_text: text };
-				}),
-			);
-			fullThread.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-			threadContext = fullThread
-				.map((e) => `[${e.date}] ${e.sender} → ${e.recipient} (${e.folder_id}): ${e.body_text.substring(0, 500)}`)
-				.join("\n\n");
-
-			// Scan thread context for prompt injection too -- an attacker
-			// could plant an injection in an earlier email in the thread
-			// that gets included in the agent's prompt.
-			if (threadContext) {
-				const threadInjection = await isPromptInjection(env.AI, threadContext);
-				if (threadInjection) {
-					console.warn("Skipping auto-draft due to prompt injection in thread context:", emailData.threadId);
-					const newMessages = [
-						{
-							id: crypto.randomUUID(),
-							role: "user" as const,
-							content: `[Auto-triggered] New email from ${emailData.sender}: "${emailData.subject}"`,
-							createdAt: new Date(),
-							parts: [{ type: "text" as const, text: `[Auto-triggered] New email from ${emailData.sender}: "${emailData.subject}"` }],
-						},
-						{
-							id: crypto.randomUUID(),
-							role: "assistant" as const,
-							content: "Blocked auto-draft creation: the thread context appears to contain prompt injection or malicious instructions.",
-							createdAt: new Date(),
-							parts: [{ type: "text" as const, text: "Blocked auto-draft creation: the thread context appears to contain prompt injection or malicious instructions." }],
-						},
-					];
-					await this.persistMessages([...this.messages, ...newMessages]);
-					return;
-				}
-			}
-		}
-		} catch (e) {
-			console.warn("Pre-read failed, agent will use tools:", (e as Error).message);
-		}
-
-		let autoPrompt = `A new email just arrived. Draft an appropriate response using draft_reply.
-
-Email details:
-- Mailbox: ${emailData.mailboxId}
-- Email ID: ${emailData.emailId}
-- From: ${emailData.sender}
-- Subject: ${emailData.subject}
-- Thread ID: ${emailData.threadId}
-
-Email body:
-${emailBody || "(could not pre-read — use get_email to read it)"}`;
-
-		if (threadContext) {
-			autoPrompt += `
-
-Full thread history (${emailData.threadId}):
-${threadContext}`;
-		} else {
-			autoPrompt += `
-
-This is the first message in the thread (no prior conversation).`;
-		}
-
-		autoPrompt += `
-
-Based on the email content and thread context above, draft a reply using draft_reply. If you need more context, use get_thread.`;
+		}, context);
+		const autoPrompt = autoDraftPrompt(emailData.mailboxId, emailData.threadId, context);
 
 		// Fresh context for auto-draft -- don't include prior chat history
 		// to avoid confusing the model with old messages and tool calls
@@ -658,9 +562,9 @@ Based on the email content and thread context above, draft a reply using draft_r
 				} else {
 					const draftId = crypto.randomUUID();
 					const draftStub = mailStore(env).mailbox(emailData.mailboxId);
-					const reSubject = emailData.subject.startsWith("Re:")
-						? emailData.subject
-						: `Re: ${emailData.subject}`;
+					const reSubject = context.email.subject.startsWith("Re:")
+						? context.email.subject
+						: `Re: ${context.email.subject}`;
 					await draftStub.createEmail(
 						Folders.DRAFT,
 						{
@@ -687,38 +591,14 @@ Based on the email content and thread context above, draft a reply using draft_r
 			// Persist the conversation into the agent's chat history
 			// If it called the tool, we just log a simple success message so the chat isn't cluttered
 			// with conversational slop.
-			const assistantText = draftToolCalled 
-				? `Created draft reply to ${emailData.sender}.`
+			const assistantText = draftToolCalled
+				? `Created draft reply to ${replyTo}.`
 				: result.text;
 
-			const newMessages = [
-				{
-					id: crypto.randomUUID(),
-					role: "user" as const,
-					content: `[Auto-triggered] New email from ${emailData.sender}: "${emailData.subject}"`,
-					createdAt: new Date(),
-					parts: [
-						{
-							type: "text" as const,
-							text: `[Auto-triggered] New email from ${emailData.sender}: "${emailData.subject}"`,
-						},
-					],
-				},
-				{
-					id: crypto.randomUUID(),
-					role: "assistant" as const,
-					content: assistantText,
-					createdAt: new Date(),
-					parts: [
-						{
-							type: "text" as const,
-							text: assistantText,
-						},
-					],
-				},
-			];
-
-			await this.persistMessages([...this.messages, ...newMessages]);
+			await this.persistMessages([
+				...this.messages,
+				...autoLog(`[Auto-triggered] New email from ${emailData.sender}: "${context.email.subject}"`, assistantText),
+			]);
 
 			return { status: "draft_generated", text: result.text };
 		} catch (e) {
