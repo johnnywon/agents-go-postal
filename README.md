@@ -1,191 +1,150 @@
 # Agents Go Postal
 
-Self-hosted email for several addresses and domains, with an AI agent, running on your own Cloudflare account.
+**One inbox for every address. Built for AI.**
 
-Mail arrives through Cloudflare Email Routing. Each address gets its own Durable Object with SQLite storage, and attachments go to R2. A mail index combines every address into one list, so the address is a filter rather than a separate inbox. The agent reads, searches, drafts and sends.
+Email is older than the web, and for most of that time it has lived in someone else's house. You rented an inbox from Google or Microsoft and took what they gave you.
 
-Derived from [cloudflare/agentic-inbox](https://github.com/cloudflare/agentic-inbox). See `NOTICE`.
+Cloudflare Email Routing hands that mail to your own code instead. Every message to your domain arrives in a Worker you deploy, and Email Service sends replies from the same Worker with SPF, DKIM and DMARC already in place.
 
-## Features
+What Cloudflare doesn't give you is somewhere to read it. Agents Go Postal is that inbox: every address on every domain in one list, on desktop or phone, with an agent that can search, label, draft and send. It runs entirely on your Cloudflare account.
 
-- **One list for every address.** Filter by address, domain, sender, label, date and status. Each domain gets its own colour and shape, so you can tell at a glance which address a message reached.
-- **Full mail client.** Rich-text compose, reply, reply all, forward, drafts, attachments, folders, stars, search and message source view.
-- **One composer.** New mail, replies and forwards share the same layout. Replies and forwards quote the original as HTML, with its styles and scripts removed.
-- **Signatures.** One per address, set in Settings > Signatures. None is added unless you turn on "Add by default"; the signature button in the composer adds or removes it on any message.
-- **Scheduled send.** Pick tomorrow morning, Monday morning or any future time. The message waits in Drafts until it goes out.
-- **Labels and bulk actions.** Select many conversations to archive, delete, mark read, star, label or move. Undo is available after each action.
-- **Keyboard shortcuts** for navigation and actions.
-- **Per-address isolation.** Every address has its own Durable Object, database and prompt settings.
-- **AI agent.** A side panel that can read, search, label, draft and send using Workers AI, or any OpenRouter model with your own key. It searches and labels across every address at once (`search_all_mail`, `label_matching`, up to 500 conversations per call). "Draft reply" in either composer (or "Draft" in a new message) asks it for a first draft. Labels the agent has applied are marked with a sparkle. It sends a draft with `send_draft` when you ask it to. Automatic drafting of new mail is off by default (`AUTO_DRAFT_ENABLED`); it only drafts, and skips mailing lists, bulk mail, auto-replies and no-reply senders.
-- **MCP server** for connecting outside agents, including `send_draft`.
-- **Sends go out once.** Each send can carry an `Idempotency-Key` header. A retry with the same key returns the first send instead of sending again. The composer sets one per message, and every way of sending a saved draft uses `draft:<id>`, so a draft is sent once whether you, the agent or the schedule sends it.
-- **Cloudflare Access required.** Outside local development the Worker refuses every request until Access is configured.
+> **Work in progress.** It handles real mail every day and changes every week. Pin a commit if you deploy it, and see the [roadmap](#roadmap).
 
-## Stack
+[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/johnnywon/agents-go-postal)
+[![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
+[![Runs on Cloudflare Workers](https://img.shields.io/badge/runs%20on-Cloudflare%20Workers-f38020?logo=cloudflare&logoColor=white)](https://developers.cloudflare.com/workers/)
 
-- **Frontend:** React 19, React Router v7 (server rendered), Tailwind CSS, TanStack Query, Zustand, TipTap, `@cloudflare/kumo`
-- **Backend:** Hono, Cloudflare Workers, Durable Objects (SQLite), R2, Email Routing, Email Sending
-- **Agent:** Cloudflare Agents SDK, AI SDK v6, Workers AI or OpenRouter
-- **Auth:** Cloudflare Access JWT validation
+![The inbox: every address in one list, a conversation open, the agent on the right](docs/images/inbox.jpg)
 
-## Setup
+## What you can run on it
 
-Requirements: a domain on Cloudflare, R2, and Workers Paid for outbound email. The `email` commands below need Wrangler 4.149 or later, so they run through `npx wrangler@latest`.
+- **A startup with several arms.** The company domain, the product domain and the docs domain each have `sales@`, `support@`, `billing@` and `press@`. All of it lands in one list. The agent drafts support replies and files invoices, and every reply leaves from the address that received the mail.
+- **A consultant or agency with mail per client.** Each engagement gets an address on its own domain. One inbox, a label per client, and `to:` narrows the list to one client.
+- **An indie developer with a shelf of side projects.** `hello@`, `abuse@` and app store contact addresses for ten small products, without ten mailbox plans or a tangle of forwards into one personal account.
+- **Agents that need their own address.** Give a support agent `support@` and a finance agent `receipts@`. They read, label and draft through MCP. You see every message and every draft in the same list.
+- **Finance and ops across several companies.** Invoices, receipts and alerts from every entity in one place. With attachment search on, `INV-2207` finds the invoice even when the number only appears inside the PDF.
 
-1. **Install and sign in.** `npm install`, then `npx wrangler login`.
-2. **Configure `wrangler.jsonc`.** Set `name`, `account_id`, `vars.APP_NAME`, `vars.DOMAINS`, `vars.EMAIL_ADDRESSES` and the route `pattern`. Every address must belong to a domain in `DOMAINS`.
-3. **Create the R2 bucket** named in `r2_buckets`: `npx wrangler r2 bucket create agents-go-postal`
-4. **Deploy.** `npm run deploy`. Until step 5 is done, every request returns an error asking for Access.
-5. **Turn on Cloudflare Access** for the Worker under Settings > Domains & Routes ([one-click Access](https://developers.cloudflare.com/changelog/post/2025-10-03-one-click-access-for-workers/)). Copy the values the modal shows into Worker secrets:
-   ```sh
-   npx wrangler secret put POLICY_AUD
-   npx wrangler secret put TEAM_DOMAIN
-   ```
-   `TEAM_DOMAIN` may be the team URL or the full `/cdn-cgi/access/certs` URL.
-6. **Route mail to the Worker.** Enable Email Routing for the domain, then add one rule per address in `EMAIL_ADDRESSES`:
-   ```sh
-   npx wrangler@latest email routing enable example.com
-   npx wrangler@latest email routing rules create example.com \
-     --match-type literal --match-field to --match-value hello@example.com \
-     --action-type worker --action-value agents-go-postal
-   ```
-   `email routing enable` adds and locks Cloudflare MX records at the root of the domain. If that domain already receives mail elsewhere, such as Google Workspace, use a subdomain instead: add it under Email Routing > Settings > Subdomains in the dashboard, since Wrangler only enables whole domains. Rules for subdomain addresses are created on the parent domain.
-7. **Enable Email Sending** so the Worker can send replies. Cloudflare adds the SPF, DKIM and DMARC records:
-   ```sh
-   npx wrangler@latest email sending enable example.com
-   ```
-   This works for a subdomain too, for example `mail.example.com`.
-8. **Check it.** `npm run smoke` expects every request to redirect to the Access login. Then send a message to one of your addresses. A configured address gets its mailbox on first delivery, so mail is kept even if nobody has opened the app yet.
+## Product tour
 
-### Troubleshooting Access
+### 1. Search every address at once
 
-- `Invalid or expired Access token`: `POLICY_AUD` or `TEAM_DOMAIN` is wrong. Turn Access off and on for the Worker to see the values again, then reset both secrets.
-- `Cloudflare Access must be configured in production`: the secrets are missing. The Worker fails closed on purpose.
+![Search with operators, top results and filters that narrow them](docs/images/search.jpg)
 
-## Configuration
+Operators, phrases, exclusions and `OR`, with results ranked by relevance and filters that narrow them as you type. A plain request like "unread newsletters this week" becomes a search you can see and edit.
 
-| Setting | Where | Purpose |
-| --- | --- | --- |
-| `APP_NAME` | `vars` | Name in the header, status bar and page titles |
-| `DOMAINS` | `vars` | Comma-separated domains that receive mail |
-| `EMAIL_ADDRESSES` | `vars` | Addresses that get a mailbox. Mail to other addresses is rejected. |
-| `INDEX_SYNC_ENABLED` | `vars` | `false` pauses updates to the combined index; changes queue in each mailbox |
-| `AUTO_DRAFT_ENABLED` | `vars` | `true` drafts a reply to each new message, except list, bulk and automated mail |
-| `ATTACHMENT_SEARCH` | `vars` | `true` makes attachment text searchable (D1 only). Uses one Workers AI `toMarkdown` call per PDF, Word or Excel file. |
-| `POLICY_AUD`, `TEAM_DOMAIN` | secrets | Cloudflare Access verification |
+**For developers:** one parser ([`shared/search-query.ts`](shared/search-query.ts)) compiles to one full-text query. The same string works in the URL (`?search=`), in the agent's `search_all_mail` and in every MCP search tool. Test a query in the UI, then hand it to an agent unchanged.
 
-To rebrand a deployment, set `APP_NAME` and replace the files listed in `public/brand/README.md`.
+### 2. Reply from the right address
 
-### The postal view
+![Replying from the address the message reached, with the original quoted](docs/images/compose.jpg)
 
-The mail view is a three-column workspace: mailboxes on the left, the list and reader in the middle, the agent on the right. Both side columns collapse to rails. Below 1300px the agent overlays the reader; at phone widths the app shows one pane at a time.
+Replies go out from the address the message reached, with the original quoted. Drafts the agent writes open in the same composer, so you review and send.
 
-Preferences such as theme (dark, light or system), key hints, mark-as-read, remote images and reply-from-receiving-address are stored per browser. Display names and the agent prompt are stored with each mailbox.
+**For developers:** sends go through Cloudflare's `send_email` binding. Each send carries an idempotency key, and a saved draft always sends with `draft:<id>`, so a draft goes out once whether a person, the agent or the scheduler sends it. Retries are safe by construction.
 
-Keyboard: `j`/`k` move, `e` archive, `x` select, `r` reply, `a` reply all, `f` forward, `c` new email, `z` undo, `/` or `⌘K` search, `⌘↵` send, `⌘J` agent, `Esc` close.
+### 3. Plug in any agent over MCP
 
-### Search
+<p align="center"><img src="docs/images/mcp.jpg" alt="The MCP panel: the server URL and 19 tools" width="560"></p>
 
-The search bar, the agent's `search_all_mail` and `search_emails`, and the MCP tools share one search language (`shared/search-query.ts`). Words match any field by prefix. `"wire transfer"` matches a phrase, `-word` or `-from:example.com` excludes, and `a OR b` matches either.
+The MCP panel gives you the server URL and lists every tool: read, search, draft, send, label and move, across every address.
 
-| Operator | Matches |
+**For developers:** 19 tools over the same store the UI uses, behind the same Cloudflare Access login. Point Claude Code, Cursor or your own agent at `/mcp`. `search_all_mail` and `label_matching` act on every address in one call, so a triage workflow needs a prompt and nothing else to host.
+
+### Also in the box
+
+An agent panel inside the app that searches, labels, drafts and sends when you ask, on Workers AI or any OpenRouter model with your key. Drafts, attachments, stars, archive, bulk actions with undo, scheduled send, signatures, keyboard shortcuts and a phone layout. The Worker refuses every request until Cloudflare Access is set up, and incoming HTML is sanitised, sandboxed and shown without remote images until you ask.
+
+## How it works
+
+```mermaid
+flowchart LR
+    sender([Sender]) --> routing[Email Routing]
+    routing -->|email handler| worker[Worker<br/>Hono API + React Router]
+    you([You, in a browser]) -->|Cloudflare Access| worker
+    mcp([Claude Code, Cursor,<br/>other MCP clients]) -->|/mcp| worker
+    worker --> store[(Mail store<br/>D1, or one Durable Object<br/>per address + an index)]
+    worker --> r2[(R2<br/>attachments, large bodies)]
+    worker <--> agent[Agent<br/>Durable Object]
+    agent --> ai[Workers AI<br/>or OpenRouter]
+    worker -->|send_email| sending[Email Service] --> recipient([Recipient])
+    cron([Cron, every minute]) -.->|scheduled sends,<br/>attachment text| worker
+```
+
+Everything runs in one Worker on your account. Mail is stored either in D1 (one database for every address) or in a Durable Object per address with a combined index. D1 is where the project is heading; see the roadmap.
+
+What happens when a message arrives:
+
+```mermaid
+sequenceDiagram
+    participant S as Sender
+    participant R as Email Routing
+    participant W as Worker
+    participant B as R2
+    participant M as Mail store
+    participant A as Agent
+    S->>R: Message to hello@example.com
+    R->>W: email() event
+    W->>W: Parse, check the address is configured
+    W->>B: Save attachments
+    W->>M: Save the message, thread it
+    opt AUTO_DRAFT_ENABLED
+        W->>A: Draft a reply (skips lists and no-reply senders)
+    end
+    Note over M: It appears in the one list, under its address
+```
+
+## Quick start
+
+Requirements: a domain on Cloudflare, the Workers Paid plan (for sending) and R2.
+
+1. Click **Deploy to Cloudflare** above. It copies the repo to your GitHub, creates the storage and deploys.
+2. Set your addresses in `wrangler.jsonc` (`DOMAINS`, `EMAIL_ADDRESSES`) and push.
+3. Turn on Cloudflare Access for the Worker and save its two values as secrets.
+4. Route each address to the Worker with Email Routing, and enable Email Sending.
+
+Each step, with commands, is in [docs/setup.md](docs/setup.md). To run it locally with sample mail, see [docs/development.md](docs/development.md).
+
+<p align="center"><img src="docs/images/mobile.jpg" alt="The list and a receipt on a phone" width="620"></p>
+
+## Roadmap
+
+Shipped: one list for every address, labels and bulk actions with undo, scheduled send, the in-app agent, the MCP server, one search language, D1 storage with ranked and attachment search, Move to Inbox and Empty Trash.
+
+These are the directions under consideration. [Open an issue](https://github.com/johnnywon/agents-go-postal/issues) to argue for one or propose another.
+
+### Now: make it easy to run
+
+- [ ] **One-command setup.** A CLI that creates the Email Routing rule for each address, enables Email Sending, turns on Access and writes the secrets. Setting up a new address becomes one command.
+- [ ] **D1 as the only store.** Finish the migration and remove the Durable Object mail path, so there is one storage model to learn and test.
+- [ ] **CI on every pull request.** Run tests, typecheck and build in GitHub Actions, plus a browser smoke test against a seeded dev server.
+- [ ] **Import existing mail.** Bring in an mbox or IMAP export so a new deployment starts with history.
+
+### Next: agents you can trust with an inbox
+
+- [ ] **Approval queue.** Agent sends and bulk changes can wait for one-click approval, with a log of every action an agent took and why.
+- [ ] **Scoped access for agents.** MCP tokens limited to chosen addresses, read-only or draft-only, so a support agent never sees billing mail.
+- [ ] **Rules in plain words.** "File receipts under Receipts" or "draft replies for support@" runs on each new message, shown as a readable rule you can edit.
+- [ ] **Events for other Workers.** Publish new-mail and label events to Cloudflare Queues, so your own code can react without polling.
+
+### Later: teams and depth
+
+- [ ] **Per-person access.** People see only the addresses they are given, with assignment and internal notes for shared inboxes.
+- [ ] **Search by meaning.** Opt-in Vectorize search alongside full-text, for "the email where they offered a discount".
+- [ ] **Notifications and offline.** Web push for new mail and an installable app that reads cached mail offline.
+- [ ] **Delete one message forever** from Trash, alongside Empty Trash.
+
+## Docs
+
+| | |
 |---|---|
-| `from:` `to:` | A name, address or domain. In the search bar, `to:` with one of your addresses picks that address. |
-| `cc:` | A copied recipient |
-| `subject:` `filename:` | Words in the subject or an attachment name |
-| `label:` | A label, by name |
-| `in:` | `inbox`, `unread`, `starred`, `drafts`, `sent`, `archive`, `spam`, `trash`, `all` (everything but spam and trash), `anywhere`, or a folder name |
-| `is:` | `unread`, `read`, `starred`, `scheduled`, `replied` |
-| `has:` | `attachment`, `pdf`, `image`, `draft`, `unsubscribe` |
-| `before:` `after:` | A date (`2026-01-31`, your local day) or an age (`30d`, `3w`, `2m`, `1y`) |
-| `newer:` `older:` | An age |
-| `larger:` `smaller:` | A size including attachments: `500k`, `5mb` |
-| `list:` | A mailing list id |
+| [Setup](docs/setup.md) | Deploy, Access, Email Routing and Sending, configuration, moving to D1 |
+| [Guide](docs/guide.md) | Every feature, keyboard shortcuts, the search language, the agent model |
+| [Development](docs/development.md) | Local dev with sample mail, tests and checks |
+| [Design](DESIGN.md) | The design system the UI follows |
 
-Unknown operators are searched as plain words. An operator with a value that doesn't parse, such as `before:soon`, is left out and named in the search bar. `cc:`, `filename:`, `larger:`, `smaller:`, `is:scheduled`, `has:pdf`, `has:image` and `has:link` need D1 storage (below).
+## Contributing
 
-On D1, a search with words lists the best match first: subject matches count most, body text least, and near-ties go to newer mail. Each row shows the text around the matched words and how many messages in the conversation matched. `sort:date`, or Newest above the list, puts newest first. Over 20,000 matching messages the list is newest first, since ranking that many takes too long; `sort:relevance` ranks it anyway. A word of three or more letters that matches no word is searched as part of a word in subjects, addresses, attachment names and attachment text, so `7731` finds `XK7731Q`. When nothing matches, the window suggests a spelling. On the Durable Object store results are newest first.
-
-With `ATTACHMENT_SEARCH` set to `true`, the text of PDF, Word, Excel, OpenDocument, text and CSV attachments up to 10 MB is searched with the body. The cron converts five files a minute, newest first, with Workers AI `toMarkdown` (text files are read directly) and keeps up to 64 KB of text per file. New mail is searchable as soon as it arrives and its attachments a minute or two later. Mail stored before the setting was on is converted the same way, newest first. When the match is in a file, the row shows the file's name and the text around the match. Turning the setting off stops new conversions; text already converted stays searchable.
-
-The window under the search box shows recent searches (kept in this browser), the people you get the most mail from, filters and addresses. While you type it shows the top six results and filters that narrow them, and with the cursor in an operator it completes the value. `↑` `↓` move, `Tab` completes, `↵` opens the highlighted row or the first result, `⌘↵` runs the search without opening anything, and `Esc` closes the window, then clears the box. `? Operators` in its footer lists every operator.
-
-When the text reads like a request ("unread newsletters from this week"), the window offers Turn into a search. That sends the text, today's date, your label names and your addresses, never mail, to the model once, and puts the search it makes in the box with a one-line explanation and Undo: `is:unread has:unsubscribe after:7d`. Nothing runs that you can't see. On Workers AI it uses `@cf/meta/llama-3.3-70b-instruct-fp8-fast`, because the default agent model took 10 to 27 seconds; with OpenRouter chosen in Settings it uses that model. If the call fails, the words are searched as typed. Ask the agent about it opens the agent panel with the text instead.
-
-`⌘S` or Save search in the window saves the search in the box. Saved searches appear in the window and the sidebar with the number of conversations each matches in All mail. The window's server side is `GET /api/v1/search/suggest` and `/api/v1/saved-searches`.
-
-### Scheduled send
-
-Choose a time from the arrow next to Send in the compose window. The message is saved to Drafts with a "Scheduled" badge, and the address's Durable Object sends it with an alarm at that time through the normal sending path. Cancel removes the schedule and keeps the draft. Editing or deleting the draft before the send time cancels it. A send that fails is retried every 15 minutes, up to three attempts; after that the draft stays in Drafts marked "Send failed". Attachments count toward a 1.5 MB limit per scheduled message.
-
-On D1 storage (below), a one-minute cron sends scheduled mail instead of the alarm, so a message can go out up to a minute after its time.
-
-### Moving to D1
-
-Mail is stored in one Durable Object per address, with a combined index in another. D1 storage keeps everything in one database instead. It is being built now (`docs/d1-migration-plan.md`); new deployments don't need it yet.
-
-To move a deployment that already holds mail:
-
-1. Create a D1 database, bind it as `DB` in your wrangler config with `"migrations_dir": "migrations"`, and run `npx wrangler d1 migrations apply <database> --remote`. Deploy. Nothing changes yet.
-2. Open Settings, then Mail index, and press Copy to D1. The copy runs a slice every minute from the cron. Mail stays where it is and the app keeps working. Changes made during the copy are copied again.
-3. When the page says the counts match, set `"STORAGE": "d1"` in `vars` and deploy. The first cron run after that makes a last pass, then D1 is the only store. The page says when it's done. A new cron trigger can take half an hour to start firing, so add the D1 binding and deploy (step 1) well before you switch.
-
-Pick a quiet hour for step 3. A change made on the old store in the minute before the deploy can overwrite the same message's change on D1 in the minute after it.
-
-Run `npx wrangler d1 migrations apply <database> --remote` before deploying a new version: new code writes columns that later migrations add (`0002_has_link.sql` adds `has_link`; `0003_attachment_text.sql` queues older attachments for `ATTACHMENT_SEARCH`; `0004_attachment_trigram.sql` adds substring search over their text). A search that finds no substring table fails, so apply `0004` before deploying a version that has it. Adding a column doesn't break the version already running.
-
-For two weeks after the switch, new inbound mail is also written to the old store. To move back, remove `STORAGE` and deploy. Mail received in those two weeks comes back with it. Read state, labels, moves, sends and scheduled sends made on D1 do not, and mail scheduled before the switch stays in Drafts unscheduled. Problems inside D1 itself are better fixed with Time Travel (`wrangler d1 time-travel`).
-
-### Agent model
-
-The agent runs on Workers AI (`@cf/moonshotai/kimi-k2.5`) by default. To use OpenRouter instead, open Settings, then Model & key, choose OpenRouter, paste an API key and pick a model. Only models that can call tools are listed. Test sends one short prompt to check the key. The chat panel, "Draft reply" and auto-draft then use that model and bill your OpenRouter account. The prompt-injection check and the draft cleanup on incoming mail stay on Workers AI.
-
-The key is stored in R2 at `config/agent-model.json`, which no route serves. The API returns only its last four characters. Anyone who can open the app can replace or remove it, so keep the app behind Access.
-
-### Keeping a deployment in its own repo
-
-A deployment can keep its config and brand files outside this checkout, for example in a private repo that includes this one as a submodule. Build with:
-
-```sh
-AGP_WRANGLER_CONFIG=../wrangler.jsonc AGP_PUBLIC_DIR=../public npm run build
-npx wrangler deploy
-```
-
-`AGP_WRANGLER_CONFIG` replaces `wrangler.jsonc`. Paths inside it, such as `main`, are relative to that file. `AGP_PUBLIC_DIR` replaces `public/`, so it must hold the full set of brand files. `wrangler deploy` then uses the config the build wrote to `build/server/`.
-
-## Local development
-
-```sh
-npm install
-npx wrangler login
-cp .dev.vars.example .dev.vars
-npm run dev
-```
-
-Set `account_id` in `wrangler.jsonc` first. Local development still connects to your Cloudflare account: Workers AI always runs remotely and may incur charges, and the `send_email` binding is remote. Access checks are skipped in development.
-
-To keep your account ID and test addresses out of `wrangler.jsonc`, copy it to `wrangler.local.jsonc` (gitignored), edit that copy, and run `npm run dev:local`.
-
-Open the app once so it creates the configured mailboxes, then fill them with sample mail:
-
-```sh
-curl -X POST http://localhost:5173/api/v1/dev/seed \
-  -H 'content-type: application/json' -H 'sec-fetch-site: same-origin' \
-  -d '{"perMailbox": 15}'
-```
-
-The seed route exists only in development builds.
-
-`vite.config.ts` pre-bundles the UI libraries so the first page load after a fresh start works. If a new dependency brings back "Invalid hook call" on a first load, the dev log names it under "new dependencies optimized": add it to `PREBUNDLE`.
-
-To test inbound mail locally, post a raw message to the dev server's email handler:
-
-```sh
-curl -X POST 'http://localhost:5173/cdn-cgi/handler/email?from=sender@example.net&to=hello@example.com' \
-  --data-binary @message.eml
-```
-
-## Checks
+Issues and pull requests are welcome. Before you open a PR:
 
 ```sh
 npm test
@@ -193,8 +152,8 @@ npm run typecheck
 npm run build
 ```
 
-Design rules live in `DESIGN.md`. `tests/design-rules.test.mjs` enforces the ones that can be checked.
+Keep changes small and focused. UI changes follow [DESIGN.md](DESIGN.md), and `tests/design-rules.test.mjs` checks the rules it can. Use `example.com`, `example.org` and `example.net` in config, docs and tests.
 
-## License
+## Credits and license
 
-Apache-2.0. See `LICENSE` and `NOTICE`.
+Derived from [cloudflare/agentic-inbox](https://github.com/cloudflare/agentic-inbox) by Cloudflare. Apache-2.0; see [LICENSE](LICENSE) and [NOTICE](NOTICE).
