@@ -7,7 +7,7 @@ import { DEFAULT_PREFS, readPrefs, useResolvedTheme } from "~/components/postal/
 
 /**
  * The one layout for every error the app renders: the postal surface and theme,
- * the watermark, a mono status code, a heading, one line, and a way back to mail.
+ * a mono status code, a heading, one line, a way back to mail, and the watermark below.
  */
 export default function ErrorPage({ status, title, children, detail, reload }: {
 	status?: number;
@@ -25,7 +25,6 @@ export default function ErrorPage({ status, title, children, detail, reload }: {
 	return (
 		<div className="postal pg-fault" data-theme={theme}>
 			<main className="pg-fault-main">
-				<img className="deck-brand-logo pg-fault-logo" src="/brand/watermark.svg" alt="" width={741} height={282} />
 				{status ? <p className="pg-fault-code">{status}</p> : null}
 				<h1>{title}</h1>
 				{children ? <p className="pg-fault-text">{children}</p> : null}
@@ -36,6 +35,7 @@ export default function ErrorPage({ status, title, children, detail, reload }: {
 						<button type="button" className="pg-btn pg-btn-outline pg-btn-sm" onClick={() => window.location.reload()}>Reload</button>
 					) : null}
 				</div>
+				<img className="deck-brand-logo pg-fault-logo" src="/brand/watermark.svg" alt="" width={741} height={282} />
 			</main>
 		</div>
 	);
