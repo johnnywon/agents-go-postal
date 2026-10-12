@@ -10,6 +10,7 @@ Versions follow [semantic versioning](https://semver.org). Before 1.0, a minor v
 - Any paid model id can be used: type it in the search and choose Use. Models a catalog marks as unable to call tools are tagged, not hidden.
 - The prompt injection check runs on `@cf/meta/llama-3.1-8b-instruct-fp8`. Cloudflare deprecated `llama-3.1-8b-instruct-fast`, which it used. An empty or unclear answer from the check now skips auto-draft, the same as an error; before, it let the email through.
 - `config/agent-model.json` now holds `{ selected, keys }`. The older OpenRouter-only file is read as before. `GET /api/v1/agent-model/catalog` replaces `/models` and `/workers-ai-models`; `PUT /api/v1/agent-model` takes `{ selected, keys }`.
+- The README roadmap is reordered: a faster start now (one-command setup, mail import, starting on Workers Free), agent control next (scoped access, an approval queue with an activity log, rules in plain words), then shared inboxes, Queue events, search by meaning and offline. Model choice moves to Shipped.
 
 No D1 migration.
 
