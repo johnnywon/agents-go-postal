@@ -103,7 +103,7 @@ app.get("/api/v1/config", (c) => {
 if (import.meta.env?.DEV) {
 	app.post("/api/v1/dev/seed", async (c) => {
 		const { perMailbox = 20 } = (await c.req.json().catch(() => ({}))) as { perMailbox?: number };
-		const senders = ["ann@stripe.com", "billing@github.com", "news@substack.com", "ops@cloudflare.com", "maria@golf.club", "noreply@linear.app"];
+		const senders = ["ann@store.example.com", "billing@code.example.com", "news@letters.example.net", "ops@cloud.example.org", "maria@golf.example.com", "noreply@tracker.example.net"];
 		const subjects = ["Invoice for October", "Your weekly digest", "Tee time confirmed", "Deploy finished", "Re: contract draft", "Security alert"];
 		const ids = await indexedMailboxIds(c.env);
 		let created = 0;
@@ -119,7 +119,7 @@ if (import.meta.env?.DEV) {
 					body: `<p>Sample message ${i} for ${mailboxId}. Quarterly numbers and a follow-up.</p>`,
 					read: i % 3 === 0, starred: i % 11 === 0, thread_id: id, message_id: `${id}@seed.local`,
 					raw_headers: JSON.stringify([{ key: "from", value: `"${sender.split("@")[0]}" <${sender}>` },
-						...(sender.startsWith("news") ? [{ key: "list-unsubscribe", value: "<https://substack.com/u>" }] : [])]),
+						...(sender.startsWith("news") ? [{ key: "list-unsubscribe", value: "<https://letters.example.net/u>" }] : [])]),
 				}, []);
 				created++;
 			}

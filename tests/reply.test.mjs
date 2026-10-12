@@ -45,7 +45,7 @@ const addrs = (list) => list.map((r) => r.addr).join(", ");
 
 const postalHeaders = (value) =>
 	JSON.stringify([
-		{ key: "from", originalKey: "From", value: "Globex.dev <news@updates.globex.dev>" },
+		{ key: "from", originalKey: "From", value: "Example.org <news@updates.example.org>" },
 		{ key: "reply-to", originalKey: "Reply-To", value },
 	]);
 
@@ -66,8 +66,8 @@ test("reads Reply-To from stored headers in array or object form", () => {
 });
 
 test("replies go to Reply-To when present and to the sender otherwise", () => {
-	assert.deepEqual(getReplyAddresses({ sender: "news@updates.globex.dev", raw_headers: postalHeaders("alex@example.com") }), ["alex@example.com"]);
-	assert.deepEqual(getReplyAddresses({ sender: "news@updates.globex.dev", raw_headers: null }), ["news@updates.globex.dev"]);
+	assert.deepEqual(getReplyAddresses({ sender: "news@updates.example.org", raw_headers: postalHeaders("alex@example.com") }), ["alex@example.com"]);
+	assert.deepEqual(getReplyAddresses({ sender: "news@updates.example.org", raw_headers: null }), ["news@updates.example.org"]);
 });
 
 test("extracts the marked quote with line breaks and decoded entities", () => {
@@ -84,31 +84,31 @@ test("extracts the marked quote with line breaks and decoded entities", () => {
 
 const inquiry = {
 	id: "m1",
-	sender: "news@updates.globex.dev",
-	recipient: "hello@globex.dev",
-	subject: "Globex.dev inquiry: Media",
+	sender: "news@updates.example.org",
+	recipient: "hello@example.org",
+	subject: "Example.org inquiry: Media",
 	date: "2026-10-08T14:26:51.000Z",
 	raw_headers: postalHeaders("Alex Reader <alex@example.com>"),
 	body: '<div>Media</div><table><tr><td data-reply-quote="message">How do I filter?<br>Line two &amp; more</td></tr></table><table><tr><td>Reference CONTACT-1 Ray ID abc</td></tr></table>',
 };
 
 test("Reply on an inquiry addresses the visitor and quotes only their message", () => {
-	const state = composeFor("reply", inquiry, "hello@globex.dev", "hello@globex.dev");
+	const state = composeFor("reply", inquiry, "hello@example.org", "hello@example.org");
 	assert.equal(addrs(state.to), "alex@example.com");
-	assert.equal(state.subject, "Re: Globex.dev inquiry: Media");
+	assert.equal(state.subject, "Re: Example.org inquiry: Media");
 	assert.match(state.quoteBody, /How do I filter\?<br>Line two &amp; more/);
 	assert.doesNotMatch(state.quoteBody, /CONTACT-1|Ray ID|news@updates/);
 });
 
 test("Reply All on an inquiry leaves out the mailbox itself", () => {
-	const state = composeFor("reply-all", inquiry, "hello@globex.dev", "hello@globex.dev");
+	const state = composeFor("reply-all", inquiry, "hello@example.org", "hello@example.org");
 	assert.equal(addrs(state.to), "alex@example.com");
 	assert.equal(addrs(state.cc), "");
 });
 
 test("Reply without Reply-To or a marker behaves as before", () => {
 	const plain = { ...inquiry, raw_headers: null, sender: "sam@example.net", body: "<p>Hello there</p>" };
-	const state = composeFor("reply", plain, "hello@globex.dev", "hello@globex.dev");
+	const state = composeFor("reply", plain, "hello@example.org", "hello@example.org");
 	assert.equal(addrs(state.to), "sam@example.net");
 	assert.match(state.quoteHead, /sam@example\.net wrote:/);
 	assert.match(state.quoteBody, /Hello there/);
@@ -116,8 +116,8 @@ test("Reply without Reply-To or a marker behaves as before", () => {
 
 test("Reply with Reply-To but no marker still quotes the whole message, attributed to the sender", () => {
 	const unmarked = { ...inquiry, body: "<p>Name: Alex Topic: Media</p>" };
-	const state = composeFor("reply", unmarked, "hello@globex.dev", "hello@globex.dev");
+	const state = composeFor("reply", unmarked, "hello@example.org", "hello@example.org");
 	assert.equal(addrs(state.to), "alex@example.com");
-	assert.match(state.quoteHead, /news@updates\.globex\.dev wrote:/);
+	assert.match(state.quoteHead, /news@updates\.example\.org wrote:/);
 	assert.match(state.quoteBody, /Name: Alex Topic: Media/);
 });

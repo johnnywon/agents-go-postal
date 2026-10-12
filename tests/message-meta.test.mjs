@@ -27,13 +27,13 @@ test("htmlToText keeps plain text and caps length", () => {
 test("parseSender reads the display name from the from header", () => {
 	const headers = JSON.stringify([{ key: "from", value: `"Ann B" <Ann@Example.org>` }]);
 	assert.deepEqual(parseSender("ann@example.org", headers), { addr: "ann@example.org", name: "Ann B", domain: "example.org" });
-	assert.deepEqual(parseSender("bob@x.dev", JSON.stringify([{ key: "from", value: "Bob Smith <bob@x.dev>" }])), { addr: "bob@x.dev", name: "Bob Smith", domain: "x.dev" });
+	assert.deepEqual(parseSender("bob@x.example.net", JSON.stringify([{ key: "from", value: "Bob Smith <bob@x.example.net>" }])), { addr: "bob@x.example.net", name: "Bob Smith", domain: "x.example.net" });
 });
 
 test("parseSender falls back to the stored sender", () => {
-	assert.deepEqual(parseSender("Bob@X.dev", null), { addr: "bob@x.dev", name: "", domain: "x.dev" });
-	assert.deepEqual(parseSender("bob@x.dev", "not json"), { addr: "bob@x.dev", name: "", domain: "x.dev" });
-	assert.deepEqual(parseSender("bob@x.dev", JSON.stringify([{ key: "from", value: "bob@x.dev" }])), { addr: "bob@x.dev", name: "", domain: "x.dev" });
+	assert.deepEqual(parseSender("Bob@X.example.net", null), { addr: "bob@x.example.net", name: "", domain: "x.example.net" });
+	assert.deepEqual(parseSender("bob@x.example.net", "not json"), { addr: "bob@x.example.net", name: "", domain: "x.example.net" });
+	assert.deepEqual(parseSender("bob@x.example.net", JSON.stringify([{ key: "from", value: "bob@x.example.net" }])), { addr: "bob@x.example.net", name: "", domain: "x.example.net" });
 });
 
 test("listHeaders extracts list id and unsubscribe targets", () => {

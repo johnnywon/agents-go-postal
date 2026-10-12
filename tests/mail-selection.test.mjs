@@ -48,7 +48,7 @@ test("prune drops rows that left the list", () => {
 });
 
 const row = (fields = {}) => ({
-	thread_key: "k", mailbox_id: "a@wayne.org", state: "inbox", sender_addr: "x@y.z", unread: true, starred: false,
+	thread_key: "k", mailbox_id: "a@example.com", state: "inbox", sender_addr: "x@y.z", unread: true, starred: false,
 	has_attachment: false, can_unsubscribe: false, labels: [], date: "2026-10-09", thread_unread_count: 1, ...fields,
 });
 const F = (view, chips = []) => ({ view, chips, sort: "date", dir: "desc" });

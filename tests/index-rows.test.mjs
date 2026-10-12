@@ -15,7 +15,7 @@ let n = 0;
 function insertEmail(exec, fields = {}) {
 	const id = fields.id ?? `e${String(++n).padStart(4, "0")}`;
 	const row = {
-		id, folder_id: "inbox", subject: "Hello", sender: "ann@example.org", recipient: "me@wayne.org", cc: null, bcc: null,
+		id, folder_id: "inbox", subject: "Hello", sender: "ann@example.org", recipient: "me@example.com", cc: null, bcc: null,
 		date: "2026-10-01T00:00:00Z", read: 0, starred: 0, body: "<p>Body</p>", in_reply_to: null, email_references: null,
 		thread_id: id, message_id: `${id}@mail`, raw_headers: null, ...fields,
 	};
@@ -66,7 +66,7 @@ test("readOutbox caps a batch at 99 emails, oldest change first", () => {
 test("buildIndexRows fills metadata from the stored email", () => {
 	const { exec } = mailbox();
 	const id = insertEmail(exec, {
-		folder_id: "archive", subject: "Re: Invoice", read: 1, starred: 1, cc: "Bob@x.dev",
+		folder_id: "archive", subject: "Re: Invoice", read: 1, starred: 1, cc: "Bob@x.example.net",
 		body: "<style>x{}</style><p>Paid &amp; done</p>",
 		raw_headers: JSON.stringify([
 			{ key: "from", value: '"Ann" <ann@example.org>' },
@@ -81,7 +81,7 @@ test("buildIndexRows fills metadata from the stored email", () => {
 		{
 			email_id: id, seq: 7, deleted: false, conversation_id: id, message_id: `${id}@mail`, state: "archive",
 			date: "2026-10-01T00:00:00Z", sender_addr: "ann@example.org", sender_name: "Ann", sender_domain: "example.org",
-			recipients: "me@wayne.org, bob@x.dev", subject: "Re: Invoice", subject_norm: "invoice", snippet: "Paid & done",
+			recipients: "me@example.com, bob@x.example.net", subject: "Re: Invoice", subject_norm: "invoice", snippet: "Paid & done",
 			unread: false, starred: true, has_attachment: true, list_id: null,
 			unsubscribe: JSON.stringify({ urls: ["https://example.org/u"], oneClick: false }),
 			body_text: undefined, labels: ["l1", "l2"],

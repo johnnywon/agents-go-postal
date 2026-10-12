@@ -9,17 +9,17 @@ const fi = await loadTs("workers/lib/folder-import.ts");
 
 test("the dry run merges folders by name, reuses existing labels and totals counts", () => {
 	const plan = fi.planFolderImport([
-		{ mailboxId: "b@globex.dev", imported: false, folders: [{ folderId: "receipts", name: "Receipts", count: 3 }] },
-		{ mailboxId: "a@wayne.org", imported: false, folders: [
+		{ mailboxId: "b@example.org", imported: false, folders: [{ folderId: "receipts", name: "Receipts", count: 3 }] },
+		{ mailboxId: "a@example.com", imported: false, folders: [
 			{ folderId: "receipts", name: "Receipts", count: 2 },
 			{ folderId: "travel", name: "Travel", count: 0 },
 			{ folderId: "tax", name: "Tax", count: 5 },
 		] },
-		{ mailboxId: "c@wayne.org", imported: false, folders: [] },
+		{ mailboxId: "c@example.com", imported: false, folders: [] },
 	], [{ id: "taxes", name: "tax" }, { id: "travel", name: "Trips" }]);
 
 	assert.deepEqual(plan.totals, { mailboxes: 2, folders: 4, messages: 10 });
-	assert.deepEqual(plan.mailboxes.map((m) => m.mailboxId), ["a@wayne.org", "b@globex.dev"]);
+	assert.deepEqual(plan.mailboxes.map((m) => m.mailboxId), ["a@example.com", "b@example.org"]);
 	assert.deepEqual(plan.labels, [
 		{ id: "taxes", name: "tax", exists: true, folders: 1, messages: 5 },
 		{ id: "receipts", name: "Receipts", exists: false, folders: 2, messages: 5 },
@@ -37,7 +37,7 @@ function fakeMailbox() {
 	let n = 0;
 	const add = (folder_id) => {
 		const id = `e${++n}`;
-		exec(`INSERT INTO emails (id, folder_id, subject, sender, recipient, date, body, thread_id) VALUES (?, ?, 's', 'x@y.z', 'a@wayne.org', '2026-10-01', '', ?)`, id, folder_id, id);
+		exec(`INSERT INTO emails (id, folder_id, subject, sender, recipient, date, body, thread_id) VALUES (?, ?, 's', 'x@y.z', 'a@example.com', '2026-10-01', '', ?)`, id, folder_id, id);
 		return id;
 	};
 	return {
@@ -60,7 +60,7 @@ function deps(box) {
 	let t = Date.parse("2026-10-09T12:00:00Z");
 	return {
 		labels, backups,
-		mailboxIds: async () => ["a@wayne.org"],
+		mailboxIds: async () => ["a@example.com"],
 		mailbox: () => box.stub,
 		listLabels: async () => labels.map((l) => ({ id: l.id, name: l.name, color: l.color })),
 		createLabel: async (input) => (labels.push(input), { label: input }),
@@ -82,7 +82,7 @@ test("a run backs up, labels, archives and marks the mailbox; a rerun changes no
 
 	const first = await fi.runFolderImport(d);
 	assert.match(first.backup, /^backups\/folder-import-2026-10-09T12-00-0\d-000Z\.json$/);
-	assert.deepEqual(d.backups[0].body.emails, { "a@wayne.org": { receipts: [a, b] } });
+	assert.deepEqual(d.backups[0].body.emails, { "a@example.com": { receipts: [a, b] } });
 	assert.deepEqual(d.labels.map((l) => [l.id, l.name, l.color]), [["receipts", "Receipts", "#c8372d"]]);
 	assert.deepEqual(first.results.map((r) => [r.labeled, r.archived]), [[2, 2]]);
 	assert.equal(box.exec(`SELECT folder_id FROM emails WHERE id = ?`, inbox)[0].folder_id, "inbox");

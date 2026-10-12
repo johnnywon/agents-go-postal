@@ -7,11 +7,11 @@ const { app } = await loadTs("workers/index.ts");
 const calls = [];
 function environment() {
 	return {
-		EMAIL_ADDRESSES: ["a@wayne.org"],
+		EMAIL_ADDRESSES: ["a@example.com"],
 		BUCKET: {
 			head: async () => ({}),
 			delete: async (keys) => calls.push(["r2.delete", keys]),
-			list: async () => ({ objects: [{ key: "mailboxes/a@wayne.org.json" }] }),
+			list: async () => ({ objects: [{ key: "mailboxes/a@example.com.json" }] }),
 		},
 		MAILBOX: {
 			idFromName: (name) => name,
@@ -65,12 +65,12 @@ const same = { ...json, "sec-fetch-site": "same-origin" };
 
 test("Delete moves to Trash, and deletes attachments only on a permanent delete", async () => {
 	calls.length = 0;
-	let response = await app.request("http://localhost/api/v1/mailboxes/a@wayne.org/emails/e1", { method: "DELETE", headers: same }, environment());
+	let response = await app.request("http://localhost/api/v1/mailboxes/a@example.com/emails/e1", { method: "DELETE", headers: same }, environment());
 	assert.deepEqual(await response.json(), { status: "trashed" });
-	response = await app.request("http://localhost/api/v1/mailboxes/a@wayne.org/emails/in-trash", { method: "DELETE", headers: same }, environment());
+	response = await app.request("http://localhost/api/v1/mailboxes/a@example.com/emails/in-trash", { method: "DELETE", headers: same }, environment());
 	assert.deepEqual(await response.json(), { status: "deleted" });
 	assert.deepEqual(calls, [["trashOrDelete", "e1"], ["trashOrDelete", "in-trash"], ["r2.delete", ["attachments/in-trash/att/f.pdf"]]]);
-	response = await app.request("http://localhost/api/v1/mailboxes/a@wayne.org/emails/missing", { method: "DELETE", headers: same }, environment());
+	response = await app.request("http://localhost/api/v1/mailboxes/a@example.com/emails/missing", { method: "DELETE", headers: same }, environment());
 	assert.equal(response.status, 404);
 });
 

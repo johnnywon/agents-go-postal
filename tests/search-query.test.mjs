@@ -18,9 +18,9 @@ test("words, phrases, exclusion and OR", () => {
 		[`"wire transfer" fee`, [`"wire transfer"`, "fee"]],
 		[`"unclosed phrase`, [`"unclosed phrase"`]],
 		[`""`, []],
-		["invoice -from:stripe.com", ["invoice", "-from:stripe.com"]],
+		["invoice -from:store.example.com", ["invoice", "-from:store.example.com"]],
 		[`-"out of office" -spam`, [`-"out of office"`, "-spam"]],
-		["from:stripe.com OR from:paddle.com", ["from:stripe.com OR from:paddle.com"]],
+		["from:store.example.com OR from:pay.example.net", ["from:store.example.com OR from:pay.example.net"]],
 		["a OR b OR c d", ["a OR b OR c", "d"]],
 		["a or b", ["a", "or", "b"], "only upper-case OR joins"],
 		["OR a", ["a"], "a leading OR is ignored"],
@@ -70,7 +70,7 @@ test("every operator", () => {
 });
 
 test("unknown operators stay words", () => {
-	assert.deepEqual(terms("ratio:4:3 email:foo@bar.com http://example.com"), ["ratio:4:3", "email:foo@bar.com", "http://example.com"]);
+	assert.deepEqual(terms("ratio:4:3 email:foo@bar.example.com http://example.com"), ["ratio:4:3", "email:foo@bar.example.com", "http://example.com"]);
 });
 
 test("values that don't parse are left out and reported", () => {
@@ -104,7 +104,7 @@ test("limits", () => {
 
 test("formatting round-trips", () => {
 	for (const input of [
-		`invoice -from:stripe.com "wire transfer" from:a.com OR from:b.com subject:"renewal notice" label:"Tax 2026"`,
+		`invoice -from:store.example.com "wire transfer" from:a.example.com OR from:b.example.com subject:"renewal notice" label:"Tax 2026"`,
 		"after:2026-01-01 before:30d larger:5mb smaller:2000 is:unread has:pdf in:anywhere filename:contract.pdf",
 	]) {
 		const once = q.formatSearch(q.parseSearch(input));

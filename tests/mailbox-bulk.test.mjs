@@ -17,7 +17,7 @@ let n = 0;
 function insertEmail(exec, fields = {}) {
 	const id = fields.id ?? `e${String(++n).padStart(4, "0")}`;
 	const row = {
-		id, folder_id: "inbox", subject: "Hello", sender: "ann@example.org", recipient: "me@wayne.org",
+		id, folder_id: "inbox", subject: "Hello", sender: "ann@example.org", recipient: "me@example.com",
 		date: "2026-10-01T00:00:00Z", read: 0, starred: 0, body: "<p>Body</p>", thread_id: id, ...fields,
 	};
 	const keys = Object.keys(row);

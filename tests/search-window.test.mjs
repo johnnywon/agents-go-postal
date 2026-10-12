@@ -10,8 +10,8 @@ const w = await loadTs("app/components/postal/search-window.ts");
 const DATA = {
 	addresses: ["billing@example.com", "ann@example.org"],
 	senders: [
-		{ value: "stripe.com", count: 42 },
-		{ value: "receipts@stripe.com", name: "Stripe", count: 30 },
+		{ value: "store.example.com", count: 42 },
+		{ value: "receipts@store.example.com", name: "Store", count: 30 },
 		{ value: "ann@example.net", name: "Ann Lee", count: 3 },
 	],
 	recipients: [{ value: "lee@example.net", count: 5 }, { value: "ANN@example.org", count: 2 }],
@@ -35,9 +35,9 @@ test("what the cursor completes", () => {
 });
 
 test("completions for each operator", () => {
-	assert.deepEqual(complete("from:st"), ["from:stripe.com", "from:receipts@stripe.com"], "prefix of the value or after @ and dots, most mail first");
+	assert.deepEqual(complete("from:st"), ["from:store.example.com", "from:receipts@store.example.com"], "prefix of the value or after @ and dots, most mail first");
 	assert.deepEqual(complete("from:ann"), ["from:ann@example.net"], "by name too");
-	assert.deepEqual(complete("-from:stripe"), ["-from:stripe.com", "-from:receipts@stripe.com"], "keeps the dash");
+	assert.deepEqual(complete("-from:store"), ["-from:store.example.com", "-from:receipts@store.example.com"], "keeps the dash");
 	assert.deepEqual(complete("to:"), ["to:billing@example.com", "to:ann@example.org", "to:lee@example.net"], "your addresses, then recipients");
 	assert.deepEqual(complete("cc:ann"), ["cc:ann@example.org"], "a recipient already listed as yours appears once");
 	assert.deepEqual(complete("-cc:lee"), ["-cc:lee@example.net"]);
@@ -56,8 +56,8 @@ test("completions for each operator", () => {
 
 test("applying a completion", () => {
 	const at = (text, cursor, insert) => w.applyCompletion(text, w.completionAt(text, cursor), insert);
-	assert.deepEqual(at("invoice from:st", 15, "from:stripe.com"), { text: "invoice from:stripe.com ", cursor: 24 });
-	assert.deepEqual(at("from:st invoice", 7, "from:stripe.com"), { text: "from:stripe.com invoice", cursor: 16 }, "mid-text keeps one space");
+	assert.deepEqual(at("invoice from:st", 15, "from:store.example.com"), { text: "invoice from:store.example.com ", cursor: 31 });
+	assert.deepEqual(at("from:st invoice", 7, "from:store.example.com"), { text: "from:store.example.com invoice", cursor: 23 }, "mid-text keeps one space");
 	assert.deepEqual(at("x:", 2, "label:"), { text: "label:", cursor: 6 }, "an operator leaves the cursor for its value");
 	assert.equal(w.appendTerm("invoice ", "is:unread"), "invoice is:unread ");
 	assert.equal(w.removeRange("a is:unread b", 2, 11), "a b");

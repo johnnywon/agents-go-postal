@@ -15,7 +15,7 @@ const run = (text, generate, o) => si.interpretSearch(text, ctx(o), generate);
 test("a good answer becomes search text", async () => {
 	const out = await run("receipts from stripe last month over $100", answer({
 		terms: [
-			{ field: "from", value: "stripe.com" },
+			{ field: "from", value: "store.example.com" },
 			{ field: "label", value: "Receipts" },
 			{ field: "after", value: "2026-09-01" },
 			{ field: "before", value: "2026-10-01" },
@@ -23,7 +23,7 @@ test("a good answer becomes search text", async () => {
 		],
 		explanation: "Receipts from Stripe in September. Amounts can't be searched.",
 	}));
-	assert.deepEqual(out, { query: "from:stripe.com label:Receipts after:2026-09-01 before:2026-10-01 receipt", explanation: "Receipts from Stripe in September. Amounts can't be searched." });
+	assert.deepEqual(out, { query: "from:store.example.com label:Receipts after:2026-09-01 before:2026-10-01 receipt", explanation: "Receipts from Stripe in September. Amounts can't be searched." });
 });
 
 test("phrases, exclusions, quoting and sort", async () => {

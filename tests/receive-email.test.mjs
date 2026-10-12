@@ -44,60 +44,60 @@ function freshEnvironment(addresses) {
 }
 
 async function deliveredMailbox(envelopeTo, headers) {
-	const { env, calls } = freshEnvironment(["hello@wayne.org", "support@globex.dev"]);
+	const { env, calls } = freshEnvironment(["hello@example.com", "support@example.org"]);
 	await receiveEmail({ to: envelopeTo, ...rawMessage(headers) }, env, { waitUntil: () => {} });
 	return calls.filter(([op]) => op === "createEmail").map(([, id]) => id);
 }
 
 test("a delivery to the second To address reaches its own mailbox", async () => {
 	assert.deepEqual(
-		await deliveredMailbox("support@globex.dev", "To: hello@wayne.org, support@globex.dev"),
-		["support@globex.dev"],
+		await deliveredMailbox("support@example.org", "To: hello@example.com, support@example.org"),
+		["support@example.org"],
 	);
 });
 
 test("a Bcc delivery reaches its envelope mailbox", async () => {
 	assert.deepEqual(
-		await deliveredMailbox("support@globex.dev", "To: someone@example.net"),
-		["support@globex.dev"],
+		await deliveredMailbox("support@example.org", "To: someone@example.net"),
+		["support@example.org"],
 	);
 });
 
 test("an unconfigured envelope recipient is ignored", async () => {
 	assert.deepEqual(
-		await deliveredMailbox("other@example.net", "To: hello@wayne.org"),
+		await deliveredMailbox("other@example.net", "To: hello@example.com"),
 		[],
 	);
 });
 
 test("the first delivery to a configured address creates its mailbox and keeps the message", async () => {
-	const { env, calls, objects } = freshEnvironment(["hello@wayne.org"]);
-	await receiveEmail({ to: "Hello@Wayne.org", ...rawMessage("To: hello@wayne.org", "Before anyone signed in") }, env, { waitUntil: () => {} });
-	assert.deepEqual(JSON.parse(objects.get("mailboxes/hello@wayne.org.json")).fromName, "hello");
+	const { env, calls, objects } = freshEnvironment(["hello@example.com"]);
+	await receiveEmail({ to: "Hello@Example.com", ...rawMessage("To: hello@example.com", "Before anyone signed in") }, env, { waitUntil: () => {} });
+	assert.deepEqual(JSON.parse(objects.get("mailboxes/hello@example.com.json")).fromName, "hello");
 	assert.deepEqual(calls.filter(([op]) => op !== "head"), [
-		["put", "mailboxes/hello@wayne.org.json"],
-		["setMailboxId", "hello@wayne.org", "hello@wayne.org"],
-		["createEmail", "hello@wayne.org", "inbox", "Before anyone signed in"],
+		["put", "mailboxes/hello@example.com.json"],
+		["setMailboxId", "hello@example.com", "hello@example.com"],
+		["createEmail", "hello@example.com", "inbox", "Before anyone signed in"],
 	]);
 });
 
 test("a later delivery leaves the existing mailbox settings alone", async () => {
-	const { env, calls, objects } = freshEnvironment(["hello@wayne.org"]);
-	objects.set("mailboxes/hello@wayne.org.json", JSON.stringify({ fromName: "Custom" }));
-	await receiveEmail({ to: "hello@wayne.org", ...rawMessage("To: hello@wayne.org") }, env, { waitUntil: () => {} });
-	assert.equal(JSON.parse(objects.get("mailboxes/hello@wayne.org.json")).fromName, "Custom");
+	const { env, calls, objects } = freshEnvironment(["hello@example.com"]);
+	objects.set("mailboxes/hello@example.com.json", JSON.stringify({ fromName: "Custom" }));
+	await receiveEmail({ to: "hello@example.com", ...rawMessage("To: hello@example.com") }, env, { waitUntil: () => {} });
+	assert.equal(JSON.parse(objects.get("mailboxes/hello@example.com.json")).fromName, "Custom");
 	assert.deepEqual(calls.filter(([op]) => op === "put" || op === "setMailboxId"), []);
 });
 
 test("without EMAIL_ADDRESSES, mail for a mailbox nobody created is ignored", async () => {
 	const { env, calls } = freshEnvironment([]);
-	await receiveEmail({ to: "anyone@wayne.org", ...rawMessage("To: anyone@wayne.org") }, env, { waitUntil: () => {} });
-	assert.deepEqual(calls, [["head", "mailboxes/anyone@wayne.org.json"]]);
+	await receiveEmail({ to: "anyone@example.com", ...rawMessage("To: anyone@example.com") }, env, { waitUntil: () => {} });
+	assert.deepEqual(calls, [["head", "mailboxes/anyone@example.com.json"]]);
 });
 
 test("an inbound message triggers the receiving agent through RPC", async () => {
 	const raw = new TextEncoder().encode(
-		"From: sender@example.net\r\nTo: jane@acme.com\r\nSubject: Draft me\r\n\r\nHello",
+		"From: sender@example.net\r\nTo: jane@example.org\r\nSubject: Draft me\r\n\r\nHello",
 	);
 	let savedEmail;
 	let agentInput;
@@ -112,13 +112,13 @@ test("an inbound message triggers the receiving agent through RPC", async () => 
 	};
 	await receiveEmail(
 		{
-			to: "jane@acme.com",
+			to: "jane@example.org",
 			rawSize: raw.length,
 			raw: new ReadableStream({ start(controller) { controller.enqueue(raw); controller.close(); } }),
 		},
 		{
 			AUTO_DRAFT_ENABLED: "true",
-			EMAIL_ADDRESSES: ["jane@acme.com"],
+			EMAIL_ADDRESSES: ["jane@example.org"],
 			BUCKET: { head: async () => ({}) },
 			MAILBOX: { idFromName: (name) => name, get: () => mailbox },
 			EMAIL_AGENT: { idFromName: (name) => name, get: () => agent },
@@ -128,7 +128,7 @@ test("an inbound message triggers the receiving agent through RPC", async () => 
 	await Promise.all(background);
 	assert.equal(savedEmail.subject, "Draft me");
 	assert.deepEqual(agentInput, {
-		mailboxId: "jane@acme.com",
+		mailboxId: "jane@example.org",
 		emailId: savedEmail.id,
 		sender: "sender@example.net",
 		subject: "Draft me",
@@ -138,19 +138,19 @@ test("an inbound message triggers the receiving agent through RPC", async () => 
 
 test("inbound mail is saved without triggering the agent when auto-drafting is off", async () => {
 	const raw = new TextEncoder().encode(
-		"From: sender@example.net\r\nTo: jane@acme.com\r\nSubject: No automatic draft\r\n\r\nHello",
+		"From: sender@example.net\r\nTo: jane@example.org\r\nSubject: No automatic draft\r\n\r\nHello",
 	);
 	let savedEmail;
 	const background = [];
 	await receiveEmail(
 		{
-			to: "jane@acme.com",
+			to: "jane@example.org",
 			rawSize: raw.length,
 			raw: new ReadableStream({ start(controller) { controller.enqueue(raw); controller.close(); } }),
 		},
 		{
 			AUTO_DRAFT_ENABLED: "false",
-			EMAIL_ADDRESSES: ["jane@acme.com"],
+			EMAIL_ADDRESSES: ["jane@example.org"],
 			BUCKET: { head: async () => ({}) },
 			MAILBOX: {
 				idFromName: (name) => name,
