@@ -18,7 +18,6 @@ export interface WorkersAiPrice {
 export interface WorkersAiModel {
 	id: string;
 	name: string;
-	note: string;
 	/** Tokens the model can take in at once. */
 	context: number | null;
 	price: WorkersAiPrice | null;
@@ -33,7 +32,6 @@ export const SUGGESTED_WORKERS_AI_MODELS: WorkersAiModel[] = [
 	{
 		id: "@cf/moonshotai/kimi-k2.6",
 		name: "Kimi K2.6",
-		note: "Reliable tool calls, and long threads fit. The default.",
 		context: 262_144,
 		price: { input: 0.95, output: 4 },
 		recommended: true,
@@ -42,7 +40,6 @@ export const SUGGESTED_WORKERS_AI_MODELS: WorkersAiModel[] = [
 	{
 		id: "@cf/zai-org/glm-5.3",
 		name: "GLM 5.3",
-		note: "Strongest listed. Costs the most.",
 		context: 1_048_576,
 		price: { input: 1.4, output: 4.4 },
 		suggested: true,
@@ -50,7 +47,6 @@ export const SUGGESTED_WORKERS_AI_MODELS: WorkersAiModel[] = [
 	{
 		id: "@cf/deepseek-ai/deepseek-v4-flash-0731",
 		name: "DeepSeek V4 Flash",
-		note: "Good quality for about a third of the price.",
 		context: 1_048_576,
 		price: { input: 0.44, output: 1.32 },
 		suggested: true,
@@ -58,7 +54,6 @@ export const SUGGESTED_WORKERS_AI_MODELS: WorkersAiModel[] = [
 	{
 		id: "@cf/openai/gpt-oss-120b",
 		name: "GPT-OSS 120B",
-		note: "Cheap and steady with tools.",
 		context: 128_000,
 		price: { input: 0.35, output: 0.75 },
 		suggested: true,
@@ -66,7 +61,6 @@ export const SUGGESTED_WORKERS_AI_MODELS: WorkersAiModel[] = [
 	{
 		id: "@cf/zai-org/glm-5.3-flash",
 		name: "GLM 5.3 Flash",
-		note: "Fastest and cheapest worth using.",
 		context: 1_048_576,
 		price: { input: 0.15, output: 0.5 },
 		suggested: true,
@@ -141,8 +135,7 @@ export function modelsFromCatalog(catalog: CatalogEntry[]): WorkersAiModel[] {
 		tools.set(entry.name, {
 			id: entry.name,
 			name: prettyName(entry.name),
-			note: "",
-			context: Number.isFinite(context) && context > 0 ? context : null,
+				context: Number.isFinite(context) && context > 0 ? context : null,
 			price: priceOf(props.get("price")),
 			suggested: false,
 		});

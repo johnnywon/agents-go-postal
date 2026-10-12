@@ -87,9 +87,8 @@ test("the catalog keeps text models that call tools, suggested ones first with l
 	]);
 	assert.deepEqual(models.map((x) => x.id), ["@cf/moonshotai/kimi-k2.6", "@cf/zai-org/glm-5.3", "@cf/zz/other"]);
 	assert.deepEqual(models[1].price, { input: 2, output: 5 });
-	assert.equal(models[1].note, w.SUGGESTED_WORKERS_AI_MODELS[1].note);
 	assert.deepEqual(models[0].price, w.SUGGESTED_WORKERS_AI_MODELS[0].price, "no live price keeps the saved one");
-	assert.deepEqual(models[2], { id: "@cf/zz/other", name: "Other", note: "", context: 32000, price: { input: 0.1, output: 0.2 }, suggested: false });
+	assert.deepEqual(models[2], { id: "@cf/zz/other", name: "Other", context: 32000, price: { input: 0.1, output: 0.2 }, suggested: false });
 });
 
 test("catalog ids read as names, and each maker gets a label and hue", () => {

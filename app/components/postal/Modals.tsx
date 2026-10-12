@@ -94,10 +94,10 @@ function Segmented<T extends string>({ value, options, onChange, label }: { valu
 	);
 }
 
-function Setting({ title, sub, children }: { title: string; sub: React.ReactNode; children: React.ReactNode }) {
+function Setting({ title, sub, children }: { title: string; sub?: React.ReactNode; children: React.ReactNode }) {
 	return (
 		<div className="pg-setting">
-			<div className="pg-setting-text"><b>{title}</b><span>{sub}</span></div>
+			<div className="pg-setting-text"><b>{title}</b>{sub && <span>{sub}</span>}</div>
 			{children}
 		</div>
 	);
@@ -178,14 +178,13 @@ function WorkersAiRow({ model, selected, recommended, onSelect }: { model: Worke
 					{recommended && <span className="pg-model-rec">Recommended</span>}
 				</span>
 				<code>{model.id}</code>
-				{model.note && <span className="pg-model-note">{model.note}</span>}
 			</span>
 			<span className="pg-model-ctx" data-label="Context">
 				<span className="pg-model-bar" aria-hidden="true"><i style={{ width: `${contextShare(model.context) * 100}%` }} /></span>
 				<span>{formatContext(model.context)}</span>
 			</span>
 			<span className="pg-model-price" data-tier={tier}>
-				{tier === "none" ? "No price listed" : <><span>{formatPrice(model.price?.input)}</span><span className="pg-model-slash">/</span><b>{formatPrice(model.price?.output)}</b></>}
+				{tier === "none" ? "No price" : <><span>{formatPrice(model.price?.input)}</span><span className="pg-model-slash">/</span><b>{formatPrice(model.price?.output)}</b></>}
 			</span>
 		</button>
 	);
@@ -197,7 +196,7 @@ function WorkersAiPicker({ draft }: { draft: AgentModelDraft }) {
 	const { data: list, isLoading } = useWorkersAiModels();
 	const [query, setQuery] = useState("");
 	const [sort, setSort] = useState<ModelSort>("suggested");
-	if (isLoading || !list) return <p className="pg-table-note">Loading Cloudflare's model list…</p>;
+	if (isLoading || !list) return <p className="pg-table-note">Loading…</p>;
 
 	const recommended = list.recommended;
 	const saved = draft.workersAiModel;
@@ -207,7 +206,7 @@ function WorkersAiPicker({ draft }: { draft: AgentModelDraft }) {
 
 	const words = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
 	const matches = list.models.filter((m) => {
-		const text = `${m.name} ${m.id} ${makerOf(m.id).label} ${m.note}`.toLowerCase();
+		const text = `${m.name} ${m.id} ${makerOf(m.id).label}`.toLowerCase();
 		return words.every((w) => text.includes(w));
 	});
 	const sorted = sort === "suggested" ? matches
@@ -225,7 +224,7 @@ function WorkersAiPicker({ draft }: { draft: AgentModelDraft }) {
 			<div className="pg-models-head">
 				<b>Agent model</b>
 				<span className="pg-models-legend">
-					Price per 1M tokens, in / out
+					$ per 1M tokens, in / out
 					<span data-tier="low">Low</span><span data-tier="mid">Mid</span><span data-tier="high">High</span>
 				</span>
 			</div>
@@ -240,7 +239,7 @@ function WorkersAiPicker({ draft }: { draft: AgentModelDraft }) {
 					<input
 						type="search"
 						value={query}
-						placeholder={`Search ${list.models.length} models: name, maker, "flash"`}
+						placeholder="Search models"
 						aria-label="Search Workers AI models"
 						spellCheck={false}
 						onChange={(e) => setQuery(e.target.value)}
@@ -266,22 +265,6 @@ function WorkersAiPicker({ draft }: { draft: AgentModelDraft }) {
 				))}
 				{sorted.length === 0 && <p className="pg-models-empty">No model matches "{query.trim()}".</p>}
 			</div>
-			<div className="pg-models-how">
-				<b>How this works</b>
-				<p>
-					The agent panel, Draft reply and auto-draft run on this model through the Worker's <code>AI</code> binding, billed to your Cloudflare account.
-					Context is how many tokens the model reads at once; a long thread with attachments can use 50K or more.
-					Price colours go by output price, which is most of an agent's bill: low is $0.60 or less per million, mid up to $2, high above.
-					Only models that can call tools are listed, because the agent reads, labels and drafts through tools.
-					{list.live
-						? " Prices and context sizes come from Cloudflare's catalog."
-						: ` Cloudflare's catalog couldn't be read, so these are the suggested models with prices from ${list.snapshotDate}.`}
-				</p>
-				<p>
-					The prompt-injection check on incoming mail and Turn into a search always run on Workers AI. If Cloudflare retires the model you chose, the agent switches to the recommended one.
-					The suggested list is in <code>shared/workers-ai-models.ts</code>.
-				</p>
-			</div>
 		</div>
 	);
 }
@@ -306,10 +289,10 @@ function AgentModelSection({ draft }: { draft: AgentModelDraft }) {
 	return (
 		<>
 			<Setting
-				title="Model"
+				title="Provider"
 				sub={openrouter
 					? "Chat and auto-draft run on OpenRouter and bill your OpenRouter account. Safety checks on incoming mail stay on Workers AI."
-					: "Workers AI runs on your Cloudflare account. No key needed."}
+					: null}
 			>
 				<Segmented<AgentProvider>
 					label="Agent model provider"
