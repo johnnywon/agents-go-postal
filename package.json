@@ -1,6 +1,6 @@
 {
 	"name": "open-mailroom",
-	"version": "0.4.2",
+	"version": "0.5.0",
 	"private": true,
 	"license": "Apache-2.0",
 	"type": "module",
@@ -9,10 +9,20 @@
 		"products": [
 			"Workers",
 			"Durable Objects",
+			"D1",
 			"R2",
 			"Workers AI"
 		],
 		"bindings": {
+			"EMAIL_ADDRESSES": {
+				"description": "The addresses that get a mailbox, comma-separated (e.g. `hello@example.com,billing@example.com`). Each must belong to a domain in `DOMAINS`. Mail to any other address bounces."
+			},
+			"POLICY_AUD": {
+				"description": "Cloudflare Access application audience tag. Leave the placeholder for now: turn on Access for the Worker after the deploy and set the value it shows. Every request is refused until then."
+			},
+			"TEAM_DOMAIN": {
+				"description": "Your Cloudflare Access team URL, with `https://`. Leave the placeholder for now and set it with `POLICY_AUD` after the deploy."
+			},
 			"DOMAINS": {
 				"description": "Your domain with [Email Routing](https://developers.cloudflare.com/email-routing/) enabled (e.g. `example.com`). After deploying, create a catch-all Email Routing rule pointing to this Worker."
 			}
@@ -21,7 +31,7 @@
 	"scripts": {
 		"build": "react-router build",
 		"cf-typegen": "wrangler types",
-		"deploy": "[ -f build/server/wrangler.json ] || (echo 'Run npm run build first.' >&2; exit 1) && wrangler deploy",
+		"deploy": "[ -f build/server/wrangler.json ] || (echo 'Run npm run build first.' >&2; exit 1) && wrangler d1 migrations apply DB --remote && wrangler deploy",
 		"smoke": "bash scripts/smoke.sh",
 		"dev": "react-router dev",
 		"dev:local": "OMR_WRANGLER_CONFIG=wrangler.local.jsonc react-router dev",

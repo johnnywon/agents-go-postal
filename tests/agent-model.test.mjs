@@ -29,14 +29,8 @@ test("with nothing saved the agent runs the recommended Workers AI model", async
 	assert.equal(new Set(roles).size, roles.length);
 });
 
-test("the older one-provider file still reads", () => {
-	assert.deepEqual(m.parseAgentModelConfig({ provider: "openrouter", model: "a/b", apiKey: "sk-or-1234567890" }), {
-		selected: { provider: "openrouter", id: "a/b" }, keys: { openrouter: "sk-or-1234567890" },
-	});
-	assert.deepEqual(m.parseAgentModelConfig({ provider: "workers-ai", model: "a/b", apiKey: "sk-or-1234567890", workersAiModel: "@cf/zai-org/glm-5.3" }), {
-		selected: { provider: "workers-ai", id: "@cf/zai-org/glm-5.3" }, keys: { openrouter: "sk-or-1234567890" },
-	});
-	assert.deepEqual(m.parseAgentModelConfig({ provider: "workers-ai" }), { keys: {} });
+test("the older one-provider file is not read", () => {
+	assert.deepEqual(m.parseAgentModelConfig({ provider: "openrouter", model: "a/b", apiKey: "sk-or-1234567890" }), { keys: {} });
 });
 
 test("the view never carries a key, only its last four characters", () => {
@@ -182,9 +176,6 @@ test("free models are refused in any case, and an old free pick is dropped", () 
 	assert.equal(s.isFree({ id: "a/b:Free", price: { input: 1, output: 1 } }), true);
 	const merged = m.mergeAgentModelConfig({ keys: { openrouter: "sk-or-1234567890" } }, { selected: { provider: "openrouter", id: "a/b:FREE" } });
 	assert.ok("error" in merged && /Free models/.test(merged.error));
-	const old = m.parseAgentModelConfig({ provider: "openrouter", apiKey: "sk-or-1234567890", model: "meta-llama/llama-3.3-70b-instruct:free" });
-	assert.equal(old.selected, undefined);
-	assert.deepEqual(m.activeModel(old), s.RECOMMENDED_MODEL);
 	const saved = m.parseAgentModelConfig({ selected: { provider: "openrouter", id: "a/b:free" }, keys: { openrouter: "sk-or-1234567890" } });
 	assert.deepEqual(m.activeModel(saved), s.RECOMMENDED_MODEL);
 });

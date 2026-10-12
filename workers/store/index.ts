@@ -14,7 +14,6 @@ import { D1AllMail } from "./d1/all-mail";
 import { D1Mailbox } from "./d1/mailbox";
 import { d1Registry } from "./d1/registry";
 import { extractAttachmentText, workersAiMarkdown } from "./d1/attachment-text";
-import { backfillLinks } from "./d1/backfill";
 import { sendDueScheduled } from "./d1/scheduled";
 import { d1IndexStatus } from "./d1/status";
 import type { SearchEngine } from "./search";
@@ -107,11 +106,6 @@ export function durableObjectInternals(env: Env) {
 /** The mail index status page when mail is on D1 (see d1/status.ts). */
 export function d1Status(env: Env, mailboxIds: string[]) {
 	return d1IndexStatus(d1Sql(env.DB!), mailboxIds);
-}
-
-/** One batch of the has:link backfill on D1, run by the cron (see d1/backfill.ts). */
-export function backfillLinkColumn(env: Env) {
-	return backfillLinks(d1Sql(env.DB!));
 }
 
 /** One batch of attachment text on D1, run by the cron when ATTACHMENT_SEARCH is on (see d1/attachment-text.ts). */

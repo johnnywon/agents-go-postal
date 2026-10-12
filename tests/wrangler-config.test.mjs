@@ -43,3 +43,10 @@ test("the worker entry exports every bound Durable Object class", () => {
 		assert.match(entry, new RegExp(`export \\{ ${class_name} \\}`), class_name);
 	}
 });
+
+test("a fresh deploy stores mail on D1", () => {
+	const { vars, d1_databases } = readConfig();
+	assert.equal(vars.STORAGE, "d1");
+	const db = d1_databases?.find((d) => d.binding === "DB");
+	assert.equal(db?.migrations_dir, "migrations");
+});

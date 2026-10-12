@@ -126,7 +126,7 @@ button:disabled {
 .mail-label-swatch { flex: none; display: inline-block; width: 10px; height: 10px; overflow: visible; }
 
 /* ── Postal tokens ──────────────────────────────────────────────────
-   MAIL_UI=postal. Dark first, with a real light palette. Components in
+   Dark first, with a real light palette. Components in
    app/components/postal/postal.css read only these variables. */
 .postal {
   color-scheme: dark;

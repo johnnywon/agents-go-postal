@@ -8,12 +8,15 @@ Back to the [README](../README.md).
 npm install
 npx wrangler login
 cp .dev.vars.example .dev.vars
+npx wrangler d1 migrations apply DB --local
 npm run dev
 ```
 
 Set `account_id` in `wrangler.jsonc` first. Local development still connects to your Cloudflare account: Workers AI always runs remotely and may incur charges, and the `send_email` binding is remote. Access checks are skipped in development.
 
-To keep your account ID and test addresses out of `wrangler.jsonc`, copy it to `wrangler.local.jsonc` (gitignored), edit that copy, and run `npm run dev:local`.
+To keep your account ID and test addresses out of `wrangler.jsonc`, copy it to `wrangler.local.jsonc` (gitignored), edit that copy, and run `npm run dev:local`. Apply the migrations with `-c wrangler.local.jsonc`.
+
+Mail is stored in a local D1 database under `.wrangler/state`. Run the migrations command again after pulling a new migration. To run on the Durable Object store instead, set `"STORAGE": "do"`.
 
 Open the app once so it creates the configured mailboxes, then fill them with sample mail:
 

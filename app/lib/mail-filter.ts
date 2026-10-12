@@ -223,40 +223,6 @@ export function chipValues(filter: MailFilter, kind: ChipKind): string[] {
 	return filter.chips.filter((c) => c.kind === kind).map((c) => c.value);
 }
 
-// ── Legacy redirects ───────────────────────────────────────────────
-
-const FOLDER_VIEWS: Record<string, string> = { inbox: "inbox", sent: "sent", draft: "drafts", archive: "archive", trash: "trash", spam: "spam" };
-
-/**
- * Map an old per-mailbox `/mailbox/...` URL to the mail view, or null if it
- * is not one. A custom folder converted to a label (same id) opens that label in
- * All mail.
- */
-export function legacyRedirect(pathname: string, search: string, labelIds: ReadonlySet<string> = new Set()): string | null {
-	const match = pathname.match(/^\/mailbox\/([^/]+)(?:\/(emails)\/([^/]+)|\/(search|settings))?\/?$/);
-	if (!match) return null;
-	const mailboxId = decodeURIComponent(match[1]).toLowerCase();
-	const old = new URLSearchParams(search);
-	if (match[4] === "settings") return `/?address=${encodeURIComponent(mailboxId)}`;
-	const params = new URLSearchParams();
-	const folder = match[2] ? decodeURIComponent(match[3]) : null;
-	const asLabel = folder !== null && !FOLDER_VIEWS[folder] && labelIds.has(folder);
-	if (folder !== null) params.set("view", FOLDER_VIEWS[folder] ?? (asLabel ? "all" : `folder:${folder}`));
-	params.append("address", mailboxId);
-	if (asLabel) params.append("label", folder);
-	if (match[4] === "search") {
-		const q = old.get("q")?.trim();
-		if (q) {
-			const filter = applySearch({ view: params.get("view") ?? "inbox", chips: [{ kind: "address", value: mailboxId }], sort: "date", dir: "desc" }, q);
-			return `/${toSearch(filter)}`;
-		}
-	}
-	const email = old.get("email");
-	if (email) params.set("open", `${mailboxId}:${email}`);
-	if (old.get("compose") === "new") params.set("compose", "new");
-	return `/?${params}`;
-}
-
 // ── Client-side matching ───────────────────────────────────────────
 
 export interface MatchableRow {

@@ -11,8 +11,8 @@ import tsconfigPaths from "vite-tsconfig-paths";
 
 // A deployment kept in another repo can point at its own Wrangler config and
 // public/ folder (brand files) without copying them into this checkout.
-const wranglerConfig = process.env.OMR_WRANGLER_CONFIG ?? process.env.AGP_WRANGLER_CONFIG;
-const publicDir = process.env.OMR_PUBLIC_DIR ?? process.env.AGP_PUBLIC_DIR;
+const wranglerConfig = process.env.OMR_WRANGLER_CONFIG;
+const publicDir = process.env.OMR_PUBLIC_DIR;
 
 // Dependencies Vite otherwise discovers only after the first request. Re-optimizing them
 // mid-load gives the open page a second copy of React ("Invalid hook call").

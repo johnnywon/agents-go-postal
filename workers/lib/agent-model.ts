@@ -42,7 +42,7 @@ export interface AgentModelView {
 	keys: Record<KeyedProvider, { set: boolean; hint: string }>;
 }
 
-/** Reads the current file, and the older one-provider shape ({ provider, model, apiKey, workersAiModel }). */
+/** Reads the saved file. */
 export function parseAgentModelConfig(raw: unknown): AgentModelConfig {
 	const r = (raw && typeof raw === "object" ? raw : {}) as Record<string, unknown>;
 	const str = (v: unknown) => (typeof v === "string" && v.trim() ? v.trim() : undefined);
@@ -57,14 +57,6 @@ export function parseAgentModelConfig(raw: unknown): AgentModelConfig {
 	const sel = r.selected as Record<string, unknown> | undefined;
 	if (sel && isProvider(sel.provider) && str(sel.id)) selected = { provider: sel.provider, id: str(sel.id)! };
 
-	if (!r.keys && !r.selected) {
-		const apiKey = str(r.apiKey);
-		if (apiKey) keys.openrouter = apiKey;
-		const model = str(r.model);
-		const workersAiModel = str(r.workersAiModel);
-		if (r.provider === "openrouter" && apiKey && model) selected = { provider: "openrouter", id: model };
-		else if (workersAiModel) selected = { provider: "workers-ai", id: workersAiModel };
-	}
 	// A model saved before the free-model rule (an old ":free" pick) is dropped, so the recommended one runs.
 	if (selected && !validModelId(selected.provider, selected.id)) selected = undefined;
 	return selected ? { selected, keys } : { keys };

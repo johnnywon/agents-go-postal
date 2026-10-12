@@ -1,6 +1,20 @@
 # Changelog
 
-Versions follow [semantic versioning](https://semver.org). Before 1.0, a minor version can break things. Each entry names any new D1 migration: apply it with `wrangler d1 migrations apply <db> --remote` before you deploy that version.
+Versions follow [semantic versioning](https://semver.org). Before 1.0, a minor version can break things. Each entry names any new D1 migration. `npm run deploy` applies it; if you deploy another way, run `wrangler d1 migrations apply DB --remote` before you deploy that version.
+
+## 0.5.0
+
+D1 by default.
+
+- A new deployment stores mail in D1. `wrangler.jsonc` binds a `DB` database and sets `"STORAGE": "d1"`. The Deploy to Cloudflare button creates the database; by hand, run `npx wrangler d1 create open-mailroom` and copy the id into `d1_databases`.
+- **Upgrading a deployment that still stores mail in Durable Objects:** set `"STORAGE": "do"` in `vars` before you deploy 0.5.0, or the app opens on an empty D1 database. Nothing is lost; setting `do` and deploying brings the mail back. Then move with [Moving to D1](docs/setup.md#moving-to-d1). The Durable Object store is removed in 0.6.
+- `npm run deploy` applies D1 migrations before it deploys.
+- Each address has its own agent prompt. Settings > Agent edits one address at a time, with "Use for every address" to copy one. Draft reply and auto-draft use their address's prompt; the chat panel uses the prompt of the address whose mail is open, or the default when nothing is open.
+- The deploy button's form asks for `EMAIL_ADDRESSES` and explains the Access placeholders. `EMAIL_ADDRESSES` can be a list or a comma-separated string.
+- Removed: the `AGP_WRANGLER_CONFIG` and `AGP_PUBLIC_DIR` build vars (use `OMR_*`), the copy of `agp-*` browser prefs (a browser last opened before 0.4.0 starts with default prefs), the pre-0.3.0 agent model file shape (pick the model again in Settings > Model & key), the `/mailbox/...` and `/settings` redirects, and the cron that filled `has_link` on older D1 mail. A D1 deployment that applied `0002_has_link.sql` before 0.5.0 has had a minute per 200 messages to fill it; check with `SELECT count(*) FROM messages WHERE has_link IS NULL`.
+- Removed dead code: the `MAIL_UI` leftovers, `formatEmailDate`, and the phase 0 D1 bench.
+
+No D1 migration.
 
 ## 0.4.2
 

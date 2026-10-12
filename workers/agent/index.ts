@@ -42,7 +42,7 @@ import {
 } from "../lib/tools";
 import { DATE_TOKENS, VIEWS } from "../lib/mail-index-sql";
 import { Folders, FOLDER_TOOL_DESCRIPTION, MOVE_FOLDER_TOOL_DESCRIPTION } from "../../shared/folders";
-import { SHARED_AGENT, resolveMailbox, sharedAgentNote, type AgentContext } from "../../shared/agent";
+import { SHARED_AGENT, customPrompt, promptAddress, resolveMailbox, sharedAgentNote, type AgentContext } from "../../shared/agent";
 import type { Env } from "../types";
 import { defineTool } from "./tool-def";
 import { autoDraftPrompt, createAutoDraftTools, prepareAutoDraft } from "./auto-draft";
@@ -95,19 +95,16 @@ The operator can ask you to change the app's keyboard shortcuts. Use list_shortc
 Use discard_draft to delete drafts that the operator rejects or that are no longer needed.`;
 
 /**
- * Fetch the custom system prompt from a mailbox's settings.
- * Falls back to DEFAULT_SYSTEM_PROMPT if none is configured.
+ * The address's own prompt from its settings. No address, no prompt saved,
+ * or a failed read gives DEFAULT_SYSTEM_PROMPT.
  */
-async function getSystemPrompt(env: Env, mailboxId: string): Promise<string> {
+async function getSystemPrompt(env: Env, mailboxId: string | null): Promise<string> {
+	if (!mailboxId) return DEFAULT_SYSTEM_PROMPT;
 	try {
-		const settings = await mailStore(env).mailboxes.get(mailboxId);
-		if (typeof settings?.agentSystemPrompt === "string" && settings.agentSystemPrompt.trim()) {
-			return settings.agentSystemPrompt;
-		}
+		return customPrompt(await mailStore(env).mailboxes.get(mailboxId)) ?? DEFAULT_SYSTEM_PROMPT;
 	} catch {
-		// Fall through to default
+		return DEFAULT_SYSTEM_PROMPT;
 	}
-	return DEFAULT_SYSTEM_PROMPT;
 }
 
 /**
@@ -442,8 +439,8 @@ export class EmailAgent extends AIChatAgent<any> {
 		const known = (await mailStore(env).mailboxes.list()).map((m) => m.id.toLowerCase());
 		const model = await agentModel(env);
 		const tools = createEmailTools(env, bound, { crossAddress: true, known });
-		// The settings screen saves one prompt to every address, so any address's copy will do.
-		const prompt = await getSystemPrompt(env, bound ?? known[0] ?? "");
+		// Each address has its own prompt. The shared panel uses the open mail's address.
+		const prompt = await getSystemPrompt(env, promptAddress(bound, options?.body, known));
 		const systemPrompt = bound ? prompt : `${prompt}\n\n${sharedAgentNote(known, options?.body)}`;
 
 		const result = streamText({

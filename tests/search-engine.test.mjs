@@ -2,19 +2,17 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { D1_SCHEMA } from "./helpers/d1-schema.mjs";
 import { statements } from "./helpers/schema.mjs";
-import { openSql } from "./helpers/sql.mjs";
 import { loadTs, openDb } from "./helpers/sqlite.mjs";
 
 // The search engine on D1 (S4): ranking with the count-first rule, match
-// counts, Worker-built snippets, the substring fallback, "Did you mean",
-// and the has:link backfill. Mail is stored through the real D1 row writer.
+// counts, Worker-built snippets, the substring fallback, "Did you mean"
+// and has:link. Mail is stored through the real D1 row writer.
 
 const idx = await loadTs("workers/lib/mail-index-sql.ts");
 const eng = await loadTs("workers/lib/search-engine-sql.ts");
 const snip = await loadTs("workers/lib/snippets.ts");
 const sg = await loadTs("workers/lib/search-suggest-sql.ts");
 const rows = await loadTs("workers/store/d1/rows.ts");
-const backfill = await loadTs("workers/store/d1/backfill.ts");
 
 const A = "a@example.com";
 const NOW = Date.parse("2026-10-11T12:00:00Z");
@@ -153,19 +151,8 @@ test("Did you mean", () => {
 	assert.equal(out.didYouMean.text, "invoice");
 });
 
-test("has:link is set when mail is stored, and the cron checks older mail", async () => {
+test("has:link is set when mail is stored", () => {
 	assert.deepEqual(ids(list("has:link")), ["m3"]);
-	const { sql } = openSql();
-	for (const s of statements(D1_SCHEMA)) await sql.run(s);
-	await sql.run(`INSERT INTO mailboxes (id, created_at) VALUES (?, 'x')`, A);
-	await sql.run(`INSERT INTO folders (mailbox_id, id, name) VALUES (?, 'inbox', 'inbox')`, A);
-	for (const [n, body] of [[1, "<a href='https://example.com'>x</a>"], [2, "plain"], [3, null]]) {
-		await sql.run(`INSERT INTO messages (email_id, mailbox_id, folder_id, conversation_id, date, body, body_key) VALUES (?, ?, 'inbox', ?, 'd', ?, ?)`, `e${n}`, A, `c${n}`, body, body ? null : "bodies/e3.html");
-	}
-	assert.equal(await backfill.backfillLinks(sql, 2), 2);
-	assert.equal(await backfill.backfillLinks(sql, 2), 1);
-	assert.equal(await backfill.backfillLinks(sql, 2), 0);
-	assert.deepEqual((await sql.all(`SELECT email_id, has_link FROM messages ORDER BY email_id`)).map((r) => r.has_link), [1, 0, 0]);
 });
 
 test("facets with words count the newest matches on D1", () => {

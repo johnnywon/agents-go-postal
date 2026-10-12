@@ -21,9 +21,12 @@
 		"AUTO_DRAFT_ENABLED": "false",
 		// Kill switch for mailbox pushes to MailIndexDO. "false" stops pushes; changes queue in each mailbox outbox.
 		"INDEX_SYNC_ENABLED": "true",
-		"EMAIL_ADDRESSES": ["hello@example.com"]
+		"EMAIL_ADDRESSES": ["hello@example.com"],
+		// Mail lives in the DB database. A deployment whose mail is still in Durable Objects sets "do"
+		// until it has copied its mail (docs/setup.md, Moving to D1).
+		"STORAGE": "d1"
 	},
-	// Sends scheduled mail when STORAGE is "d1". On the Durable Object store each run returns at once.
+	// Sends scheduled mail and runs search upkeep on D1. On the Durable Object store each run returns at once.
 	"triggers": {
 		"crons": ["* * * * *"]
 	},
@@ -40,6 +43,15 @@
 			"binding": "BUCKET",
 			"bucket_name": "open-mailroom",
 			"preview_bucket_name": "open-mailroom"
+		}
+	],
+	// npm run deploy applies the migrations before it deploys. The Deploy to Cloudflare button
+	// creates the database and fills in database_id; by hand, run npx wrangler d1 create open-mailroom.
+	"d1_databases": [
+		{
+			"binding": "DB",
+			"database_name": "open-mailroom",
+			"migrations_dir": "migrations"
 		}
 	],
 	"ai": {

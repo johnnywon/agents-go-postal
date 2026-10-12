@@ -5,14 +5,14 @@
 Cloudflare receives and sends your domain's mail but doesn't include a mail client. Open Mailroom is one: every address on every domain in one list, on desktop or phone, with an agent that can search, label, draft and send. It runs entirely in your Cloudflare account.
 
 [![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/johnnywon/open-mailroom)
-[![Version 0.4.2](https://img.shields.io/badge/version-0.4.2-blue)](https://github.com/johnnywon/open-mailroom/releases)
+[![Version 0.5.0](https://img.shields.io/badge/version-0.5.0-blue)](https://github.com/johnnywon/open-mailroom/releases)
 [![CI](https://github.com/johnnywon/open-mailroom/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/johnnywon/open-mailroom/actions/workflows/ci.yml)
 [![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
 [![Runs on Cloudflare Workers](https://img.shields.io/badge/runs%20on-Cloudflare%20Workers-f38020?logo=cloudflare&logoColor=white)](https://developers.cloudflare.com/workers/)
 
 Needs a domain on Cloudflare, R2 and Cloudflare Access. Sending needs the Workers Paid plan and Cloudflare Email Sending, which is in public beta.
 
-**v0.4.0, ready to deploy.** One production deployment has handled real mail on it every day since May 2026. Before 1.0, an upgrade can need a step, such as a D1 migration or a config change, and the [changelog](CHANGELOG.md) names it in every release. Pin a [release](https://github.com/johnnywon/open-mailroom/releases) tag to choose when you upgrade.
+**v0.5.0, ready to deploy.** One production deployment has handled real mail on it every day since May 2026. Before 1.0, an upgrade can need a step, such as a D1 migration or a config change, and the [changelog](CHANGELOG.md) names it in every release. Pin a [release](https://github.com/johnnywon/open-mailroom/releases) tag to choose when you upgrade.
 
 <picture>
   <source media="(prefers-color-scheme: light)" srcset="docs/images/inbox-light.jpg">
@@ -92,7 +92,7 @@ Also: an in-app agent on Workers AI or zero data retention OpenRouter models, at
                                   data retention)
 ```
 
-One Worker in your account. Mail is stored in a Durable Object per address, or in D1 for attachment search and every search operator. How mail arrives and leaves is in [Architecture](docs/architecture.md).
+One Worker in your account. Mail is stored in D1, one database for every address. How mail arrives and leaves is in [Architecture](docs/architecture.md).
 
 ## Before you deploy
 
@@ -107,15 +107,14 @@ One Worker in your account. Mail is stored in a Durable Object per address, or i
 
 - Email Sending is in public beta and needs Workers Paid. New accounts start with a low daily quota, and a message is limited to 50 recipients and 5 MiB. Receiving uses Email Routing, which isn't in beta and works on Workers Free.
 - Agents can send when you ask them to. There's no approval step yet; it's the first item on the [roadmap](#roadmap).
-- There's no mail export, IMAP or SMTP yet. On D1, `wrangler d1 time-travel` restores the last 30 days.
+- There's no mail export, IMAP or SMTP yet. `wrangler d1 time-travel` restores the last 30 days.
 - Everyone who passes Access sees every address.
 
 ## Quick start
 
-1. Click **Deploy to Cloudflare** above. It copies the repo to your GitHub, creates the storage and deploys.
-2. Set `DOMAINS` and `EMAIL_ADDRESSES` in `wrangler.jsonc` in the new repo and push.
-3. Turn on Cloudflare Access for the Worker and save its two values as secrets.
-4. Route each address to the Worker with Email Routing, and enable Email Sending.
+1. Click **Deploy to Cloudflare** above and enter your domain and addresses. It copies the repo to your GitHub, creates the storage and deploys.
+2. Turn on Cloudflare Access for the Worker and save its two values as secrets.
+3. Route each address to the Worker with Email Routing, and enable Email Sending.
 
 Each step, with commands, is in [docs/setup.md](docs/setup.md).
 

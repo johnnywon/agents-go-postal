@@ -32,6 +32,7 @@ import { advanceCopy, copyStartError, copyStatus, mirrorInbound, startCopy } fro
 import { MOVE_FOLDERS } from "./lib/mail-bulk-sql";
 import { automatedMailReason } from "./lib/message-meta";
 import { resolveThreadId } from "./lib/threading";
+import { configuredAddresses } from "./lib/addresses";
 import { dryRunFolderImport, importDeps, runFolderImport } from "./lib/folder-import";
 
 type AppContext = Context<MailboxContext>;
@@ -103,7 +104,7 @@ app.use("/api/v1/mailboxes/:mailboxId/*", requireMailbox);
 app.get("/api/v1/config", (c) => {
 	const domainsRaw = c.env.DOMAINS || "";
 	const domains = domainsRaw.split(",").map((d) => d.trim()).filter(Boolean);
-	const emailAddresses = c.env.EMAIL_ADDRESSES ?? [];
+	const emailAddresses = configuredAddresses(c.env);
 	const autoDraft = String(c.env.AUTO_DRAFT_ENABLED ?? "") === "true";
 	return c.json({ domains, emailAddresses, autoDraft });
 });
@@ -244,7 +245,7 @@ app.post("/api/v1/mailboxes", async (c) => {
 	if (!parsed.success) return c.json({ error: parsed.error.issues[0]?.message ?? "Invalid request body" }, 400);
 	const { name, settings, email: rawEmail } = parsed.data;
 	const email = rawEmail.toLowerCase();
-	const allowedAddresses = (c.env.EMAIL_ADDRESSES ?? []) as string[];
+	const allowedAddresses = configuredAddresses(c.env);
 	if (allowedAddresses.length > 0 && !allowedAddresses.map((a) => a.toLowerCase()).includes(email)) {
 		return c.json({ error: "Mailbox creation is restricted to configured EMAIL_ADDRESSES" }, 403);
 	}
@@ -643,7 +644,7 @@ async function streamToArrayBuffer(stream: ReadableStream, streamSize: number) {
 }
 
 async function receiveEmail(event: { to: string; raw: ReadableStream; rawSize: number; setReject(reason: string): void }, env: Env, ctx: ExecutionContext) {
-	const allowedAddresses = ((env.EMAIL_ADDRESSES ?? []) as string[]).map((a) => a.toLowerCase());
+	const allowedAddresses = configuredAddresses(env).map((a) => a.toLowerCase());
 	const mailboxId = event.to?.toLowerCase();
 	if (!mailboxId) throw new Error("received email with no envelope recipient");
 	if (allowedAddresses.length > 0 && !allowedAddresses.includes(mailboxId)) {

@@ -13,7 +13,6 @@ test("config lists domains and addresses and says whether auto-draft is on", asy
 		domains: ["example.com", "example.org"], emailAddresses: ["a@example.com"], autoDraft: false,
 	});
 	assert.equal((await config({ AUTO_DRAFT_ENABLED: "true" })).autoDraft, true);
-	assert.equal("mailUi" in (await config({ MAIL_UI: "classic" })), false);
 });
 
 test("the dev seed route does not exist outside local development", async () => {
