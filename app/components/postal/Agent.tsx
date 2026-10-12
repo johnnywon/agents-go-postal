@@ -152,8 +152,8 @@ function AgentChat({ hooks, open, reading, prefill, onOpenDraft, onBusy }: Agent
 
 	useEffect(() => {
 		onBusy(busy);
-		// Agent tools label, move and draft mail; refresh when a turn ends.
-		if (was.current && !busy) for (const queryKey of [["mail"], ["mail-facets"], ["emails"], ["labels"]]) queryClient.invalidateQueries({ queryKey });
+		// Agent tools label, move and draft mail and rebind shortcuts; refresh when a turn ends.
+		if (was.current && !busy) for (const queryKey of [["mail"], ["mail-facets"], ["emails"], ["labels"], ["prefs"]]) queryClient.invalidateQueries({ queryKey });
 		was.current = busy;
 	}, [busy]); // eslint-disable-line react-hooks/exhaustive-deps
 	useEffect(() => () => onBusy(false), []); // eslint-disable-line react-hooks/exhaustive-deps

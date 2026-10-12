@@ -4,22 +4,41 @@
 
 /**
  * Every keyboard shortcut, defined once. The mail view's key handler, the
- * tooltips, the key hints, Settings > Shortcuts and the ? list all read this.
+ * tooltips, the key hints, the ? map, Settings > Shortcuts and the agent's
+ * shortcut tools all read this.
  *
  * A binding is a step like "e", "Shift+x", "Mod+k" or "ArrowDown", or two
  * steps for a sequence ("g i"). Mod is ⌘ on a Mac and Ctrl elsewhere. A
  * letter is always lower case; Shift is written out. A symbol carries its own
- * shift: "?" and "#", never "Shift+/".
+ * shift: "?" and "#", never "Shift+/". parseBinding() turns looser text
+ * ("cmd+K", "ctrl+shift+k", "⌘↵", "down") into this form.
  *
- * Mail-scope shortcuts that are not fixed can be rebound in Settings. The
- * rest are listed so the list is complete, but the composer, the editor and
- * the search box handle them on their own.
+ * Mail-scope shortcuts that are not fixed can be rebound, in Settings or by
+ * the agent and MCP (list_shortcuts, set_shortcut, reset_shortcuts). The rest
+ * are listed so the list is complete, but the composer, the editor and the
+ * search box handle them on their own.
+ *
+ * Adding a shortcut:
+ * 1. Add an entry to SHORTCUTS: id, group, label, keys, scope and the map
+ *    area. Use primary for a key people press all day.
+ * 2. For scope "mail", add its action to the `actions` map in
+ *    app/components/postal/PostalMail.tsx. Typecheck fails until you do.
+ * 3. Give the button it triggers a title from useShortcuts().tip(id, label)
+ *    so its tooltip shows the key, rebound or not.
+ * tests/shortcuts.test.mjs checks the defaults don't clash.
  */
 
 export type ShortcutGroup = "Navigate" | "Conversation" | "Write" | "Search" | "App";
 
 /** Where a shortcut works: the mail view's handler, the composer, or the search box. */
 export type ShortcutScope = "mail" | "compose" | "search";
+
+/**
+ * Where the ? map draws a shortcut: on the search bar, the sidebar's Go to
+ * list, the message list, the message toolbar, the agent column, the
+ * composer, or in the quiet "more" line under the map.
+ */
+export type ShortcutArea = "search" | "go" | "list" | "toolbar" | "agent" | "composer" | "more";
 
 export interface ShortcutDef {
 	id: string;
@@ -32,46 +51,53 @@ export interface ShortcutDef {
 	/** Shift plus the key does the ranged version (Shift+x selects a range). */
 	shiftRange?: boolean;
 	hint?: string;
+	area: ShortcutArea;
+	/** A key people press all day: drawn larger on the map. */
+	primary?: boolean;
+	/** Toolbar keys sit in the reader's button groups; a new cluster starts a new group. */
+	cluster?: number;
+	/** A shorter name for the map. */
+	short?: string;
 }
 
 export const SHORTCUTS = [
-	{ id: "next", group: "Navigate", label: "Next conversation", keys: ["j", "ArrowDown"], scope: "mail" },
-	{ id: "prev", group: "Navigate", label: "Previous conversation", keys: ["k", "ArrowUp"], scope: "mail" },
-	{ id: "search", group: "Navigate", label: "Search", keys: ["/", "Mod+k"], scope: "mail" },
-	{ id: "goInbox", group: "Navigate", label: "Go to Inbox", keys: ["g i"], scope: "mail", fixed: true },
-	{ id: "goStarred", group: "Navigate", label: "Go to Starred", keys: ["g s"], scope: "mail", fixed: true },
-	{ id: "goDrafts", group: "Navigate", label: "Go to Drafts", keys: ["g d"], scope: "mail", fixed: true },
-	{ id: "goSent", group: "Navigate", label: "Go to Sent", keys: ["g t"], scope: "mail", fixed: true },
-	{ id: "back", group: "Navigate", label: "Clear selection or close", keys: ["Escape"], scope: "mail", fixed: true },
+	{ id: "next", group: "Navigate", label: "Next conversation", keys: ["j", "ArrowDown"], scope: "mail", area: "list", primary: true, short: "Next" },
+	{ id: "prev", group: "Navigate", label: "Previous conversation", keys: ["k", "ArrowUp"], scope: "mail", area: "list", primary: true, short: "Previous" },
+	{ id: "search", group: "Navigate", label: "Search", keys: ["/", "Mod+k"], scope: "mail", area: "search", primary: true },
+	{ id: "goInbox", group: "Navigate", label: "Go to Inbox", keys: ["g i"], scope: "mail", fixed: true, area: "go", short: "Inbox" },
+	{ id: "goStarred", group: "Navigate", label: "Go to Starred", keys: ["g s"], scope: "mail", fixed: true, area: "go", short: "Starred" },
+	{ id: "goDrafts", group: "Navigate", label: "Go to Drafts", keys: ["g d"], scope: "mail", fixed: true, area: "go", short: "Drafts" },
+	{ id: "goSent", group: "Navigate", label: "Go to Sent", keys: ["g t"], scope: "mail", fixed: true, area: "go", short: "Sent" },
+	{ id: "back", group: "Navigate", label: "Clear selection or close", keys: ["Escape"], scope: "mail", fixed: true, area: "more", short: "Close" },
 
-	{ id: "archive", group: "Conversation", label: "Archive", keys: ["e"], scope: "mail" },
-	{ id: "trash", group: "Conversation", label: "Move to trash", keys: ["#"], scope: "mail" },
-	{ id: "star", group: "Conversation", label: "Star or unstar", keys: ["s"], scope: "mail" },
-	{ id: "read", group: "Conversation", label: "Mark read or unread", keys: ["u"], scope: "mail" },
-	{ id: "label", group: "Conversation", label: "Label", keys: ["l"], scope: "mail" },
-	{ id: "select", group: "Conversation", label: "Select", keys: ["x"], scope: "mail", shiftRange: true, hint: "With Shift, selects a range" },
-	{ id: "undo", group: "Conversation", label: "Undo", keys: ["z"], scope: "mail" },
+	{ id: "archive", group: "Conversation", label: "Archive", keys: ["e"], scope: "mail", area: "toolbar", primary: true, cluster: 2 },
+	{ id: "trash", group: "Conversation", label: "Move to trash", keys: ["#"], scope: "mail", area: "toolbar", primary: true, cluster: 2, short: "Trash" },
+	{ id: "read", group: "Conversation", label: "Mark read or unread", keys: ["u"], scope: "mail", area: "toolbar", cluster: 3, short: "Read" },
+	{ id: "star", group: "Conversation", label: "Star or unstar", keys: ["s"], scope: "mail", area: "toolbar", cluster: 3, short: "Star" },
+	{ id: "label", group: "Conversation", label: "Label", keys: ["l"], scope: "mail", area: "toolbar", cluster: 3 },
+	{ id: "select", group: "Conversation", label: "Select", keys: ["x"], scope: "mail", shiftRange: true, hint: "With Shift, selects a range", area: "list" },
+	{ id: "undo", group: "Conversation", label: "Undo", keys: ["z"], scope: "mail", area: "more" },
 
-	{ id: "compose", group: "Write", label: "New email", keys: ["c"], scope: "mail" },
-	{ id: "reply", group: "Write", label: "Reply", keys: ["r"], scope: "mail" },
-	{ id: "replyAll", group: "Write", label: "Reply all", keys: ["a"], scope: "mail" },
-	{ id: "forward", group: "Write", label: "Forward", keys: ["f"], scope: "mail" },
-	{ id: "send", group: "Write", label: "Send", keys: ["Mod+Enter"], scope: "compose", fixed: true },
-	{ id: "minimise", group: "Write", label: "Minimise or close the composer", keys: ["Escape"], scope: "compose", fixed: true },
-	{ id: "bold", group: "Write", label: "Bold", keys: ["Mod+b"], scope: "compose", fixed: true },
-	{ id: "italic", group: "Write", label: "Italic", keys: ["Mod+i"], scope: "compose", fixed: true },
-	{ id: "underline", group: "Write", label: "Underline", keys: ["Mod+u"], scope: "compose", fixed: true },
-	{ id: "link", group: "Write", label: "Link", keys: ["Mod+k"], scope: "compose", fixed: true },
+	{ id: "compose", group: "Write", label: "New email", keys: ["c"], scope: "mail", area: "list" },
+	{ id: "reply", group: "Write", label: "Reply", keys: ["r"], scope: "mail", area: "toolbar", primary: true, cluster: 1 },
+	{ id: "replyAll", group: "Write", label: "Reply all", keys: ["a"], scope: "mail", area: "toolbar", primary: true, cluster: 1, short: "All" },
+	{ id: "forward", group: "Write", label: "Forward", keys: ["f"], scope: "mail", area: "toolbar", primary: true, cluster: 1 },
+	{ id: "send", group: "Write", label: "Send", keys: ["Mod+Enter"], scope: "compose", fixed: true, area: "composer", primary: true },
+	{ id: "minimise", group: "Write", label: "Minimise or close the composer", keys: ["Escape"], scope: "compose", fixed: true, area: "composer" },
+	{ id: "bold", group: "Write", label: "Bold", keys: ["Mod+b"], scope: "compose", fixed: true, area: "composer" },
+	{ id: "italic", group: "Write", label: "Italic", keys: ["Mod+i"], scope: "compose", fixed: true, area: "composer" },
+	{ id: "underline", group: "Write", label: "Underline", keys: ["Mod+u"], scope: "compose", fixed: true, area: "composer" },
+	{ id: "link", group: "Write", label: "Link", keys: ["Mod+k"], scope: "compose", fixed: true, area: "composer" },
 
-	{ id: "searchMove", group: "Search", label: "Move through suggestions", keys: ["ArrowDown", "ArrowUp"], scope: "search", fixed: true },
-	{ id: "searchComplete", group: "Search", label: "Complete", keys: ["Tab"], scope: "search", fixed: true },
-	{ id: "searchOpen", group: "Search", label: "Open the first result", keys: ["Enter"], scope: "search", fixed: true },
-	{ id: "searchRun", group: "Search", label: "Search", keys: ["Mod+Enter"], scope: "search", fixed: true },
-	{ id: "searchSave", group: "Search", label: "Save search", keys: ["Mod+s"], scope: "search", fixed: true },
-	{ id: "searchClose", group: "Search", label: "Close suggestions, then clear", keys: ["Escape"], scope: "search", fixed: true },
+	{ id: "searchMove", group: "Search", label: "Move through suggestions", keys: ["ArrowDown", "ArrowUp"], scope: "search", fixed: true, area: "search" },
+	{ id: "searchComplete", group: "Search", label: "Complete", keys: ["Tab"], scope: "search", fixed: true, area: "search" },
+	{ id: "searchOpen", group: "Search", label: "Open the first result", keys: ["Enter"], scope: "search", fixed: true, area: "search" },
+	{ id: "searchRun", group: "Search", label: "Search", keys: ["Mod+Enter"], scope: "search", fixed: true, area: "search" },
+	{ id: "searchSave", group: "Search", label: "Save search", keys: ["Mod+s"], scope: "search", fixed: true, area: "search" },
+	{ id: "searchClose", group: "Search", label: "Close suggestions, then clear", keys: ["Escape"], scope: "search", fixed: true, area: "search" },
 
-	{ id: "agent", group: "App", label: "Agent panel", keys: ["Mod+j"], scope: "mail" },
-	{ id: "help", group: "App", label: "Keyboard shortcuts", keys: ["?"], scope: "mail", fixed: true },
+	{ id: "agent", group: "App", label: "Agent panel", keys: ["Mod+j"], scope: "mail", area: "agent", short: "Open or close" },
+	{ id: "help", group: "App", label: "Keyboard shortcuts", keys: ["?"], scope: "mail", fixed: true, area: "more", short: "This map" },
 ] as const satisfies readonly ShortcutDef[];
 
 type Def = (typeof SHORTCUTS)[number];
@@ -286,4 +312,111 @@ export function keyText(binding: string, mac: boolean): string {
 		const caps = keycaps(step, mac);
 		return mac ? caps.join("") : caps.join("+");
 	}).join(" ");
+}
+
+// ── For agents ───────────────────────────────────────────────────
+
+const KEY_ALIASES: Record<string, string> = {
+	esc: "Escape", escape: "Escape", enter: "Enter", return: "Enter", "↵": "Enter", tab: "Tab", space: "Space",
+	backspace: "Backspace", "⌫": "Backspace", delete: "Delete", del: "Delete", home: "Home", end: "End",
+	pageup: "PageUp", pgup: "PageUp", pagedown: "PageDown", pgdn: "PageDown",
+	up: "ArrowUp", arrowup: "ArrowUp", "↑": "ArrowUp", down: "ArrowDown", arrowdown: "ArrowDown", "↓": "ArrowDown",
+	left: "ArrowLeft", arrowleft: "ArrowLeft", "←": "ArrowLeft", right: "ArrowRight", arrowright: "ArrowRight", "→": "ArrowRight",
+};
+const MOD_ALIASES: Record<string, "Mod" | "Shift" | "Alt"> = {
+	mod: "Mod", cmd: "Mod", command: "Mod", meta: "Mod", ctrl: "Mod", control: "Mod", "⌘": "Mod", "⌃": "Mod",
+	shift: "Shift", "⇧": "Shift", alt: "Alt", option: "Alt", opt: "Alt", "⌥": "Alt",
+};
+
+/**
+ * A binding from loose text, or null: "E", "shift+x", "Cmd+K", "ctrl-enter",
+ * "⌘↵", "down", "g i". A capital letter alone means the letter, not Shift.
+ */
+export function parseBinding(text: string): string | null {
+	const steps = text.trim().split(/\s+(?:then\s+)?/i).filter(Boolean);
+	if (!steps.length || steps.length > 2) return null;
+	const out: string[] = [];
+	for (const raw of steps) {
+		const mods = new Set<string>();
+		let rest = raw;
+		// Symbol modifiers glued to the key: ⌘K, ⌘⇧K.
+		while (rest.length > 1 && MOD_ALIASES[rest[0]]) {
+			mods.add(MOD_ALIASES[rest[0]]);
+			rest = rest.slice(1);
+		}
+		const parts = rest.length > 1 ? rest.split(/[+-](?=.)/) : [rest];
+		const keyPart = parts.pop()!;
+		for (const p of parts) {
+			const mod = MOD_ALIASES[p.toLowerCase()];
+			if (!mod) return null;
+			mods.add(mod);
+		}
+		let key = KEY_ALIASES[keyPart.toLowerCase()] ?? keyPart;
+		if (key.length === 1) key = key.toLowerCase();
+		const prefix = ["Mod", "Alt", "Shift"].filter((m) => mods.has(m)).map((m) => `${m}+`).join("");
+		const step = prefix + key;
+		if (!validStep(step)) return null;
+		out.push(step);
+	}
+	return out.join(" ");
+}
+
+/** A shortcut named by id or label, any case ("archive", "Reply all", "replyAll"). */
+export function findShortcut(ref: string): ShortcutDef | null {
+	const r = ref.trim().toLowerCase().replace(/[\s_-]+/g, "");
+	return ALL.find((s) => s.id.toLowerCase() === r || s.label.toLowerCase().replace(/\s+/g, "") === r || s.short?.toLowerCase().replace(/\s+/g, "") === r) ?? null;
+}
+
+export interface ShortcutInfo {
+	id: ShortcutId;
+	label: string;
+	group: ShortcutGroup;
+	/** Where it works: the mail view, the composer or the search box. */
+	scope: ShortcutScope;
+	keys: string[];
+	defaultKeys: string[];
+	rebindable: boolean;
+}
+
+/** Every shortcut with the keys it answers to now, for list_shortcuts. */
+export function describeShortcuts(overrides: ShortcutOverrides = {}): ShortcutInfo[] {
+	const bindings = resolveBindings(overrides);
+	return ALL.map((s) => ({
+		id: s.id as ShortcutId,
+		label: s.label,
+		group: s.group,
+		scope: s.scope,
+		keys: bindings.get(s.id as ShortcutId) ?? [],
+		defaultKeys: [...s.keys],
+		rebindable: isRebindable(s.id),
+	}));
+}
+
+export type SetShortcutResult =
+	| { ok: true; overrides: ShortcutOverrides; id: RebindableId; keys: string[]; takenFrom: { id: ShortcutId; label: string; keys: string[] }[] }
+	| { ok: false; error: string };
+
+/**
+ * Give a shortcut new keys, as set_shortcut does. `keys` are loose text
+ * (parseBinding); an empty list turns the shortcut off; null restores its
+ * defaults. A key another shortcut had moves over, and the result says which.
+ */
+export function setShortcut(overrides: ShortcutOverrides, ref: string, keys: string[] | null): SetShortcutResult {
+	const def = findShortcut(ref);
+	if (!def) return { ok: false, error: `Unknown shortcut: ${ref}. Use list_shortcuts to see them.` };
+	if (!isRebindable(def.id)) return { ok: false, error: `${def.label} is fixed and can't be rebound.` };
+	const steps: string[] = [];
+	for (const text of keys ?? def.keys) {
+		const step = parseBinding(text);
+		if (!step) return { ok: false, error: `Can't read "${text}" as a key. Try "y", "shift+y", "cmd+k" or "down".` };
+		const reason = cannotBind(step);
+		if (reason) return { ok: false, error: `${text}: ${reason}` };
+		if (!steps.includes(step)) steps.push(step);
+	}
+	if (steps.length > MAX_KEYS) return { ok: false, error: `A shortcut takes at most ${MAX_KEYS} keys.` };
+	const before = resolveBindings(overrides);
+	const next = rebind(overrides, def.id, steps);
+	const takenFrom = [...before].filter(([id, had]) => id !== def.id && shortcut(id).scope === "mail" && had.some((k) => steps.includes(k)))
+		.map(([id, had]) => ({ id, label: shortcut(id).label, keys: had.filter((k) => steps.includes(k)) }));
+	return { ok: true, overrides: next, id: def.id, keys: steps, takenFrom };
 }

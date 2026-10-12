@@ -51,7 +51,7 @@ Replies go out from the address the message reached, with the original quoted. D
 
 The MCP panel gives you the server URL and lists every tool: read, search, draft, send, label and move, across every address.
 
-**For developers:** 19 tools over the same store the UI uses, behind the same Cloudflare Access login. Point Claude Code, Cursor or your own agent at `/mcp`. `search_all_mail` and `label_matching` act on every address in one call.
+**For developers:** 22 tools over the same store the UI uses, behind the same Cloudflare Access login. Point Claude Code, Cursor or your own agent at `/mcp`. `search_all_mail` and `label_matching` act on every address in one call. `set_shortcut` rebinds the app's keyboard shortcuts.
 
 ### Also in the box
 

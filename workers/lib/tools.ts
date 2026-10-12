@@ -30,6 +30,8 @@ import { verifyDraft } from "./ai";
 import { sendMail } from "./send";
 import { Folders } from "../../shared/folders";
 import { LABEL_COLORS } from "../../shared/label-colors";
+import { describeShortcuts, findShortcut, isRebindable, setShortcut, type ShortcutOverrides } from "../../shared/shortcuts";
+import { readPrefs, writePrefs } from "./prefs";
 import type { Env } from "../types";
 
 const splitList = (value: string | null | undefined) =>
@@ -359,6 +361,48 @@ export async function toolListLabels(env: Env) {
 	const labels = await mailStore(env).all().listLabels();
 	return { labels: labels.map(({ id, name, color, count }) => ({ id, name, color, conversations: count })) };
 }
+
+// ── Keyboard shortcuts ─────────────────────────────────────────────
+
+const KEY_FORMAT = 'Keys are written like "e", "shift+x", "cmd+k" (Ctrl off a Mac), "down" or "g i" for a sequence.';
+
+/** Every shortcut, with the keys it answers to now and its defaults. */
+export async function toolListShortcuts(env: Env) {
+	const { prefs } = await readPrefs(env);
+	return { shortcuts: describeShortcuts(prefs.shortcuts), note: `Only rebindable shortcuts can change. ${KEY_FORMAT}` };
+}
+
+/** Give a shortcut new keys, saved for the deployment. A key another shortcut had moves over. */
+export async function toolSetShortcut(env: Env, params: { shortcut: string; keys: string[] }) {
+	const { prefs } = await readPrefs(env);
+	const result = setShortcut(prefs.shortcuts, params.shortcut, params.keys);
+	if (!result.ok) return { error: result.error };
+	await writePrefs(env, { shortcuts: result.overrides });
+	return { status: "saved", shortcut: result.id, keys: result.keys, takenFrom: result.takenFrom };
+}
+
+/** Restore one shortcut's default keys, or every shortcut's when none is named. */
+export async function toolResetShortcuts(env: Env, params: { shortcut?: string }) {
+	const { prefs } = await readPrefs(env);
+	let overrides: ShortcutOverrides = {};
+	if (params.shortcut) {
+		const def = findShortcut(params.shortcut);
+		if (!def || !isRebindable(def.id)) return { error: `Unknown or fixed shortcut: ${params.shortcut}. Use list_shortcuts to see them.` };
+		const result = setShortcut(prefs.shortcuts, def.id, null);
+		if (!result.ok) return { error: result.error };
+		overrides = result.overrides;
+	}
+	await writePrefs(env, { shortcuts: overrides });
+	return { status: "reset", shortcut: params.shortcut ?? "all", shortcuts: describeShortcuts(overrides).filter((s) => s.rebindable).map(({ id, keys }) => ({ id, keys })) };
+}
+
+export const SHORTCUT_TOOL_DESCRIPTIONS = {
+	list: "List the app's keyboard shortcuts: id, label, where each works, its keys now and its default keys, and whether it can be rebound.",
+	set: `Rebind a keyboard shortcut for everyone on this deployment. ${KEY_FORMAT} A key another shortcut had moves to this one; the result says which. An empty list turns the shortcut off. Esc, g, ?, Tab, Enter, Space and Alt keys are kept for the app.`,
+	reset: "Restore a keyboard shortcut's default keys, or every shortcut's when no shortcut is named.",
+	shortcut: "The shortcut's id or label, e.g. archive or Reply all",
+	keys: "One or two keys, e.g. [\"y\"] or [\"j\", \"down\"]",
+};
 
 // ── create_label ───────────────────────────────────────────────────
 

@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { loadTs } from "./helpers/sqlite.mjs";
 
-const { SHORTCUTS, KeyMatcher, cannotBind, cleanOverrides, keycaps, keyText, rebind, resolveBindings, stepOf, tidy, validStep } = await loadTs("shared/shortcuts.ts");
+const { SHORTCUTS, KeyMatcher, cannotBind, cleanOverrides, describeShortcuts, findShortcut, keycaps, keyText, parseBinding, rebind, resolveBindings, setShortcut, stepOf, tidy, validStep } = await loadTs("shared/shortcuts.ts");
 
 test("ids are unique and every default key is a valid step", () => {
 	const ids = SHORTCUTS.map((s) => s.id);
@@ -77,3 +77,47 @@ test("keycaps follow the platform", () => {
 	assert.equal(keyText("g i", false), "G I");
 });
 
+
+test("every shortcut has a place on the map, and toolbar keys a group", () => {
+	const areas = new Set(["search", "go", "list", "toolbar", "agent", "composer", "more"]);
+	for (const s of SHORTCUTS) {
+		assert.ok(areas.has(s.area), `${s.id}: area`);
+		if (s.area === "toolbar") assert.ok(Number.isInteger(s.cluster), `${s.id}: cluster`);
+	}
+});
+
+test("loose key text becomes a binding", () => {
+	assert.equal(parseBinding("E"), "e");
+	assert.equal(parseBinding("shift+x"), "Shift+x");
+	assert.equal(parseBinding("Cmd+K"), "Mod+k");
+	assert.equal(parseBinding("ctrl-shift-k"), "Mod+Shift+k");
+	assert.equal(parseBinding("⌘↵"), "Mod+Enter");
+	assert.equal(parseBinding("⌘⇧K"), "Mod+Shift+k");
+	assert.equal(parseBinding("down"), "ArrowDown");
+	assert.equal(parseBinding("#"), "#");
+	assert.equal(parseBinding("g then i"), "g i");
+	assert.equal(parseBinding("hyper+k"), null);
+	assert.equal(parseBinding("a b c"), null);
+});
+
+test("shortcuts are found by id or label", () => {
+	assert.equal(findShortcut("replyAll").id, "replyAll");
+	assert.equal(findShortcut("Reply all").id, "replyAll");
+	assert.equal(findShortcut("reply-all").id, "replyAll");
+	assert.equal(findShortcut("nope"), null);
+});
+
+test("setShortcut rebinds, reports what it took, and refuses what it must", () => {
+	const r = setShortcut({}, "archive", ["S"]);
+	assert.equal(r.ok, true);
+	assert.deepEqual(r.overrides, { archive: ["s"], star: [] });
+	assert.deepEqual(r.takenFrom, [{ id: "star", label: "Star or unstar", keys: ["s"] }]);
+	assert.deepEqual(setShortcut(r.overrides, "star", null).overrides, { archive: [] });
+	assert.deepEqual(setShortcut({}, "archive", []).overrides, { archive: [] });
+	assert.match(setShortcut({}, "help", ["h"]).error, /fixed/);
+	assert.match(setShortcut({}, "archive", ["g"]).error, /Go to/);
+	assert.match(setShortcut({}, "archive", ["hyper+q"]).error, /Can't read/);
+	assert.match(setShortcut({}, "nope", ["q"]).error, /Unknown shortcut/);
+	const list = describeShortcuts(r.overrides);
+	assert.deepEqual(list.find((s) => s.id === "archive"), { id: "archive", label: "Archive", group: "Conversation", scope: "mail", keys: ["s"], defaultKeys: ["e"], rebindable: true });
+});

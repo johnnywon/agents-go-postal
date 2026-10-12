@@ -22,6 +22,10 @@ import {
 	toolMarkEmailRead,
 	toolMoveEmail,
 	toolListLabels,
+	toolListShortcuts,
+	toolSetShortcut,
+	toolResetShortcuts,
+	SHORTCUT_TOOL_DESCRIPTIONS,
 	toolLabelConversation,
 	toolLabelMatching,
 	toolSearchAllMail,
@@ -340,6 +344,24 @@ export class EmailMCP extends McpAgent<Env> {
 			"List labels with their ids, colours and conversation counts. Labels are tags shared by every mailbox.",
 			{},
 			async () => mcpText(await toolListLabels(env)),
+		);
+
+		// ── Keyboard shortcuts ─────────────────────────────────────
+		this.server.tool("list_shortcuts", SHORTCUT_TOOL_DESCRIPTIONS.list, {}, async () => mcpText(await toolListShortcuts(env)));
+		this.server.tool(
+			"set_shortcut",
+			SHORTCUT_TOOL_DESCRIPTIONS.set,
+			{
+				shortcut: z.string().describe(SHORTCUT_TOOL_DESCRIPTIONS.shortcut),
+				keys: z.array(z.string()).max(2).describe(SHORTCUT_TOOL_DESCRIPTIONS.keys),
+			},
+			async ({ shortcut, keys }) => mcpResult(await toolSetShortcut(env, { shortcut, keys })),
+		);
+		this.server.tool(
+			"reset_shortcuts",
+			SHORTCUT_TOOL_DESCRIPTIONS.reset,
+			{ shortcut: z.string().optional().describe(SHORTCUT_TOOL_DESCRIPTIONS.shortcut) },
+			async ({ shortcut }) => mcpResult(await toolResetShortcuts(env, { shortcut })),
 		);
 
 		// ── create_label ───────────────────────────────────────────

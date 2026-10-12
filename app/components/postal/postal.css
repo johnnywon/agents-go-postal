@@ -63,6 +63,7 @@ html:has(.postal), html:has(.postal) body { background: var(--pg-base, #141518);
   .pg-tabs,
   .pg-setting,
   .pg-keys-row,
+  .pg-map-more,
   .pg-keys-intro,
   .pg-addr-row,
   .pg-sig-row,
@@ -826,7 +827,32 @@ html:has(.postal), html:has(.postal) body { background: var(--pg-base, #141518);
 .pg-keys-or { font-size: 11px; color: var(--pg-text-7); }
 .pg-keys-none, .pg-keys-wait { font: 11px var(--pg-mono); color: var(--pg-text-7); }
 .pg-keys-wait { color: var(--pg-mail); }
-.pg-modal.is-shortcuts { width: min(600px, 100%); height: min(720px, 100%); }
+.pg-modal.is-shortcuts { width: min(880px, 100%); height: auto; max-height: min(760px, 100%); }
+.pg-map { display: flex; flex-direction: column; gap: 8px; padding-top: 16px; }
+.pg-map-search, .pg-map-col { border: 1px solid var(--pg-line-2); background: var(--pg-raised); }
+.pg-map-search { display: flex; align-items: center; gap: 8px; padding: 8px 10px; color: var(--pg-text-6); font-size: 13px; }
+.pg-map-cols { display: grid; grid-template-columns: minmax(0, .9fr) minmax(0, 1.1fr) minmax(0, 2.3fr) minmax(0, .8fr); gap: 8px; }
+.pg-map-col { display: flex; flex-direction: column; gap: 9px; padding: 10px; min-width: 0; }
+.pg-map-col h3, .pg-map-more h3 { margin: 0; font: 600 var(--pg-t-10) var(--pg-mono); letter-spacing: .08em; text-transform: uppercase; color: var(--pg-text-7); }
+.pg-map-row { display: flex; align-items: center; gap: 8px; min-width: 0; font-size: 12px; color: var(--pg-text-5); }
+.pg-map-row[data-primary] { color: var(--pg-text-2); font-size: 13px; }
+.pg-map-keys { display: inline-flex; align-items: center; gap: 3px; flex: none; }
+.pg-map-cap { display: inline-flex; align-items: center; justify-content: center; min-width: 22px; height: 22px; padding: 0 5px; border: 1px solid var(--pg-line-4); background: var(--pg-input); font: 500 11px var(--pg-mono); color: var(--pg-text-3); }
+.pg-map-cap[data-big] { min-width: 30px; height: 30px; font-size: 13px; color: var(--pg-text-1); }
+.pg-map-or { font-size: 11px; color: var(--pg-text-8); }
+.pg-map-none { font: 11px var(--pg-mono); color: var(--pg-text-8); }
+.pg-map-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 6px; border: 1px solid var(--pg-line); background: var(--pg-input); }
+.pg-map-group { display: flex; gap: 4px; }
+.pg-map-sep { width: 1px; align-self: stretch; background: var(--pg-line-2); }
+.pg-map-legend { display: flex; flex-wrap: wrap; gap: 2px 14px; font-size: 12px; color: var(--pg-text-5); }
+.pg-map-lines { display: flex; flex-direction: column; gap: 5px; margin-top: auto; }
+.pg-map-lines i { height: 5px; background: var(--pg-line-2); }
+.pg-map-lines i:nth-child(2) { width: 80%; }
+.pg-map-lines i:nth-child(3) { width: 90%; }
+.pg-map-composer { display: flex; align-items: center; gap: 6px; align-self: flex-end; margin-top: auto; padding: 5px 8px; border: 1px solid var(--pg-line-2); background: var(--pg-input); font-size: 12px; color: var(--pg-text-5); }
+.pg-map-more { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 18px; margin-top: 6px; padding-top: 12px; border-top: 1px solid var(--pg-line-soft); }
+.pg-map-all { font-size: 12px; color: var(--pg-text-6); text-decoration: underline; text-underline-offset: 3px; }
+.pg-map-all:hover { color: var(--pg-text-2); }
 .pg-keys-scroll { flex: 1; min-height: 0; overflow-y: auto; padding: 0 20px 20px; }
 .pg-addr-row { display: flex; align-items: center; gap: 12px; padding: 8px 0; border-bottom: 1px solid var(--pg-line-soft); }
 .pg-addr-row .pg-addr { width: 200px; flex: none; font-size: 12px; }
@@ -939,6 +965,9 @@ html:has(.postal), html:has(.postal) body { background: var(--pg-base, #141518);
   .pg-modal-scrim { padding: 0; }
   .pg-modal, .pg-modal.is-settings, .pg-modal.is-shortcuts { width: 100%; height: 100%; border: 0; }
   .pg-keys-row { min-height: 48px; }
+  .pg-map-cols { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  .pg-map-col[data-area="reader"] { grid-column: 1 / -1; order: -1; }
+  .pg-map-lines { display: none; }
   .pg-keys-edit { min-height: 44px; }
   .pg-modal-head { height: auto; min-height: 56px; padding-top: 8px; padding-bottom: 8px; }
   .pg-modal-title span { white-space: normal; }

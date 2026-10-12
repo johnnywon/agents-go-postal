@@ -5,7 +5,10 @@ Versions follow [semantic versioning](https://semver.org). Before 1.0, a minor v
 ## 0.1.4
 
 - Keyboard shortcuts are one system. `shared/shortcuts.ts` defines every shortcut once; the mail view's key handler, tooltips, key hints and the new lists read it, so a hint can't name a key that does nothing.
-- Press `?` for every shortcut, grouped. Settings has a Shortcuts tab with the same list, where each mail-view shortcut can be rebound: click its keys, press the new one. A key already in use moves over. Rebound keys are saved with the other prefs in `config/prefs.json` (`shortcuts`).
+- Press `?` for a map of the mail view with each key drawn where it acts: search on the search bar, J and K on the list, the reader's toolbar keys in its button groups, ⌘J on the agent column. Keys pressed all day are drawn larger. The map is built from the registry, so a new shortcut places itself.
+- Settings has a Shortcuts tab listing every shortcut by group, where each mail-view shortcut can be rebound: click its keys, press the new one. A key already in use moves over. Rebound keys are saved with the other prefs in `config/prefs.json` (`shortcuts`).
+- The agent and MCP can rebind shortcuts: `list_shortcuts`, `set_shortcut` (keys as text such as `"y"`, `"shift+y"`, `"cmd+k"`) and `reset_shortcuts`. The app refreshes its keys when the agent's turn ends.
+- Adding a shortcut is one registry entry plus its action; `shared/shortcuts.ts` and `CLAUDE.md` say how.
 - New shortcuts: `#` trash, `s` star, `u` read or unread, `l` label, and `g` then `s`, `d` or `t` for Starred, Drafts and Sent.
 - Shortcuts work while focus is inside a message, including `Shift+x`, `⌘J` and `?`. The message frame used to pass up a fixed list of keys, some with no shortcut behind them.
 - Off a Mac, hints show `Ctrl` instead of `⌘`.

@@ -19,7 +19,8 @@ import { AddressText, type Identities, Swatch } from "./identity";
 import { LabelsTab } from "./LabelsTab";
 import type { SettingsTab } from "./settings-tabs";
 import { StorageTab } from "./StorageTab";
-import { type Prefs, usePrefs } from "./prefs";
+import type { Prefs } from "./prefs";
+import { ShortcutMap } from "./ShortcutMap";
 import { samePrefs } from "shared/prefs";
 import { Keys } from "./shortcuts";
 import { ShortcutList } from "./ShortcutsTab";
@@ -600,6 +601,9 @@ const MCP_TOOLS = [
 	["search_all_mail", "Search every address at once"],
 	["label_matching", "Label every conversation a search matches"],
 	["delete_email", "Move email to Trash"],
+	["list_shortcuts", "List keyboard shortcuts"],
+	["set_shortcut", "Rebind a keyboard shortcut"],
+	["reset_shortcuts", "Restore default shortcut keys"],
 ] as const;
 
 export function McpModal({ onClose }: { onClose: () => void }) {
@@ -657,12 +661,11 @@ export function McpModal({ onClose }: { onClose: () => void }) {
 }
 
 export function ShortcutsModal({ onClose, onEdit }: { onClose: () => void; onEdit: () => void }) {
-	const [prefs] = usePrefs();
 	return (
 		<Modal className="is-shortcuts" label="Keyboard shortcuts" onClose={onClose}>
-			<Head icon={<KeyboardIcon size={16} />} title="Keyboard shortcuts" sub="Press ? to open this list" onClose={onClose} />
+			<Head icon={<KeyboardIcon size={16} />} title="Keyboard shortcuts" sub="Keys sit where they act" onClose={onClose} />
 			<div className="pg-keys-scroll">
-				<ShortcutList overrides={prefs.shortcuts} />
+				<ShortcutMap onAll={onEdit} />
 			</div>
 			<div className="pg-modal-foot">
 				<div className="pg-flex" />
