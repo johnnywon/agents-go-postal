@@ -21,6 +21,9 @@ Return ONLY "NO" if it is a normal email (even if angry, confused, or containing
 
 Respond with exactly one word: YES or NO.`;
 
+/** A small instruct model that answers directly. Reasoning models spend the 10-token reply thinking and return nothing. */
+export const INJECTION_MODEL = "@cf/meta/llama-3.1-8b-instruct-fp8";
+
 export async function isPromptInjection(ai: Ai, bodyHtml: string | null | undefined): Promise<boolean> {
 	if (!bodyHtml) return false;
 	
@@ -29,8 +32,7 @@ export async function isPromptInjection(ai: Ai, bodyHtml: string | null | undefi
 
 	try {
 		const response = (await ai.run(
-			// @ts-expect-error — model string not in generated union
-			"@cf/meta/llama-3.1-8b-instruct-fast",
+			INJECTION_MODEL,
 			{
 				messages: [
 					{ role: "system", content: INJECTION_PROMPT },
@@ -41,14 +43,17 @@ export async function isPromptInjection(ai: Ai, bodyHtml: string | null | undefi
 			},
 		)) as { response?: string };
 
-		const result = (response?.response || "NO").trim().toUpperCase();
+		const verdict = (response?.response ?? "").toUpperCase().match(/\b(YES|NO)\b/)?.[1];
 		
-		if (result.includes("YES")) {
+		if (verdict === "YES") {
 			console.warn("Prompt injection detected in incoming email, blocking auto-draft");
 			return true;
 		}
-		
-		return false;
+		if (verdict === "NO") return false;
+
+		// An empty or other answer is not a verdict. Fail closed, as below.
+		console.error("Prompt injection scanner gave no verdict, skipping auto-draft");
+		return true;
 	} catch (e) {
 		console.error("Prompt injection scanner failed, skipping auto-draft:", (e as Error).message);
 		// Fail closed: treat scanner failures as potential injection to avoid

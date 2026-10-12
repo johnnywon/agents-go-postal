@@ -5,7 +5,7 @@
 import type { BulkAction } from "~/lib/bulk-optimistic";
 import type { Email, Mailbox } from "~/types";
 import type { Prefs } from "shared/prefs";
-import type { WorkersAiModel } from "shared/workers-ai-models";
+import type { CatalogModel, KeyedProvider, ModelRef, ProviderId } from "shared/models";
 
 const REQUEST_TIMEOUT_MS = 30_000;
 
@@ -279,22 +279,25 @@ export interface CopyStatusResponse {
 	} | null;
 }
 
-export type AgentProvider = "workers-ai" | "openrouter";
 export interface AgentModelView {
-	provider: AgentProvider;
-	model: string;
-	keySet: boolean;
-	keyHint: string;
-	workersAiModel: string;
-	defaultModel: string;
+	selected: ModelRef | null;
+	recommended: ModelRef;
+	/** The model the agent runs right now. */
+	active: ModelRef;
+	keys: Record<KeyedProvider, { set: boolean; hint: string }>;
 }
 
-export interface WorkersAiModelList {
-	recommended: string;
-	/** False when Cloudflare's catalog couldn't be read and the saved prices are shown. */
-	live: boolean;
-	snapshotDate: string;
-	models: WorkersAiModel[];
+export interface ProviderCatalog {
+	source: "live" | "openrouter" | "none";
+	models: CatalogModel[];
+	error?: string;
+}
+
+export interface ModelCatalog {
+	recommended: ModelRef;
+	suggested: (ModelRef & { role: string })[];
+	providers: Record<ProviderId, ProviderCatalog>;
+	keyed: KeyedProvider[];
 }
 
 // ---------- API client ----------
@@ -308,12 +311,11 @@ const api = {
 	getPrefs: () => get<{ prefs: Prefs; saved: boolean }>("/api/v1/prefs"),
 	savePrefs: (prefs: Partial<Prefs>) => put<{ prefs: Prefs; saved: true }>("/api/v1/prefs", prefs),
 	getAgentModel: () => get<AgentModelView>("/api/v1/agent-model"),
-	updateAgentModel: (body: { provider?: AgentProvider; model?: string; apiKey?: string; workersAiModel?: string }) =>
+	updateAgentModel: (body: { selected?: ModelRef | null; keys?: Partial<Record<KeyedProvider, string>> }) =>
 		put<AgentModelView>("/api/v1/agent-model", body),
-	testAgentModel: (body: { model?: string; apiKey?: string }) =>
-		post<{ ok: boolean; reply?: string; error?: string }>("/api/v1/agent-model/test", body),
-	listWorkersAiModels: () => get<WorkersAiModelList>("/api/v1/agent-model/workers-ai-models"),
-	listAgentModels: () => get<{ models: { id: string; name: string }[] }>("/api/v1/agent-model/models"),
+	testAgentModel: (body: { provider: ProviderId; id: string; key?: string }) =>
+		post<{ ok: boolean; reply?: string; ms?: number; error?: string }>("/api/v1/agent-model/test", body),
+	getModelCatalog: () => get<ModelCatalog>("/api/v1/agent-model/catalog"),
 
 	// Mailboxes
 	listMailboxes: () => get<Mailbox[]>("/api/v1/mailboxes"),

@@ -12,7 +12,7 @@ How the app works day to day. Back to the [README](../README.md).
 - **Labels and bulk actions.** Select many conversations to archive, delete, mark read, star, label or move. Undo is available after each action. Rename, recolour and delete labels in Settings > Labels, or from Manage labels in the sidebar.
 - **Keyboard shortcuts** for navigation and actions. Press `?` for a map of where each key acts. Rebind them in Settings > Shortcuts, or ask the agent ("make archive Y").
 - **Per-address isolation.** Every address has its own Durable Object, database and prompt settings.
-- **AI agent.** A side panel that can read, search, label, draft and send using Workers AI, or any OpenRouter model with your own key. It searches and labels across every address at once (`search_all_mail`, `label_matching`, up to 500 conversations per call). "Draft reply" in either composer (or "Draft" in a new message) asks it for a first draft. Labels the agent has applied are marked with a sparkle. It sends a draft with `send_draft` when you ask it to. Automatic drafting of new mail is off by default (`AUTO_DRAFT_ENABLED`); it only drafts, and skips mailing lists, bulk mail, auto-replies and no-reply senders.
+- **AI agent.** A side panel that can read, search, label, draft and send on Workers AI, or on OpenRouter's zero data retention endpoints with your key. It searches and labels across every address at once (`search_all_mail`, `label_matching`, up to 500 conversations per call). "Draft reply" in either composer (or "Draft" in a new message) asks it for a first draft. Labels the agent has applied are marked with a sparkle. It sends a draft with `send_draft` when you ask it to. Automatic drafting of new mail is off by default (`AUTO_DRAFT_ENABLED`); it only drafts, and skips mailing lists, bulk mail, auto-replies and no-reply senders.
 - **MCP server** for connecting outside agents, including `send_draft`, and `list_shortcuts`, `set_shortcut` and `reset_shortcuts` for the keyboard shortcuts.
 - **Sends go out once.** Each send can carry an `Idempotency-Key` header. A retry with the same key returns the first send instead of sending again. The composer sets one per message, and every way of sending a saved draft uses `draft:<id>`, so a draft is sent once whether you, the agent or the schedule sends it.
 - **Cloudflare Access required.** Outside local development the Worker refuses every request until Access is configured.
@@ -51,7 +51,7 @@ With `ATTACHMENT_SEARCH` set to `true`, the text of PDF, Word, Excel, OpenDocume
 
 The window under the search box shows recent searches (kept in this browser), the people you get the most mail from, filters and addresses. While you type it shows the top six results and filters that narrow them, and with the cursor in an operator it completes the value. `↑` `↓` move, `Tab` completes, `↵` opens the highlighted row or the first result, `⌘↵` runs the search without opening anything, and `Esc` closes the window, then clears the box. `? Operators` in its footer lists every operator.
 
-When the text reads like a request ("unread newsletters from this week"), the window offers Turn into a search. That sends the text, today's date, your label names and your addresses, never mail, to the model once, and puts the search it makes in the box with a one-line explanation and Undo: `is:unread has:unsubscribe after:7d`. Nothing runs that you can't see. On Workers AI it uses `@cf/meta/llama-3.3-70b-instruct-fp8-fast`, because the default agent model took 10 to 27 seconds; with OpenRouter chosen in Settings it uses that model. If the call fails, the words are searched as typed. Ask the agent about it opens the agent panel with the text instead.
+When the text reads like a request ("unread newsletters from this week"), the window offers Turn into a search. That sends the text, today's date, your label names and your addresses, never mail, to the model once, and puts the search it makes in the box with a one-line explanation and Undo: `is:unread has:unsubscribe after:7d`. Nothing runs that you can't see. On Workers AI it uses `@cf/meta/llama-3.3-70b-instruct-fp8-fast`, because the default agent model took 10 to 27 seconds; with a model from another provider chosen in Settings it uses that model. If the call fails, the words are searched as typed. Ask the agent about it opens the agent panel with the text instead.
 
 `⌘S` or Save search in the window saves the search in the box. Saved searches appear in the window and the sidebar with the number of conversations each matches in All mail. The window's server side is `GET /api/v1/search/suggest` and `/api/v1/saved-searches`.
 
@@ -63,15 +63,32 @@ On D1 storage ([Moving to D1](setup.md#moving-to-d1)), a one-minute cron sends s
 
 ## Agent model
 
-The agent runs on Workers AI. Settings, then Model & key, lists the models Cloudflare offers that can call tools, with each one's context size (how many tokens it reads at once) and price per million input and output tokens, read live from Cloudflare's catalog. Five are suggested in [`shared/workers-ai-models.ts`](../shared/workers-ai-models.ts), and one is recommended: `@cf/moonshotai/kimi-k2.6`. Until you pick another, the agent follows the recommended model, so a new default reaches you with an update. If Cloudflare stops listing the model you picked, the agent uses the recommended one and Settings says so. Workers AI bills your Cloudflare account; no key is needed.
+The agent reads your mail, so a model that keeps or trains on it is a security risk. It runs only where prompts aren't kept:
 
-To use OpenRouter instead, open Settings, then Model & key, choose OpenRouter, paste an API key and pick a model. Only models that can call tools are listed. Test sends one short prompt to check the key. The chat panel, "Draft reply" and auto-draft then use that model and bill your OpenRouter account. The prompt-injection check and the draft cleanup on incoming mail stay on Workers AI.
+| Provider | Key | What happens to prompts |
+|---|---|---|
+| Cloudflare (Workers AI) | None; bills your Cloudflare account | Not used to train models or improve services ([data usage](https://developers.cloudflare.com/workers-ai/platform/data-usage/)). No zero retention promise; the mailbox is already stored on Cloudflare, so no new party sees it. |
+| OpenRouter | `sk-or-…` | Zero data retention endpoints only; OpenRouter doesn't log prompts unless you opt in ([ZDR](https://openrouter.ai/docs/guides/features/zdr)) |
 
-The key is stored in R2 at `config/agent-model.json`, which no route serves. The API returns only its last four characters. Anyone who can open the app can replace or remove it, so keep the app behind Access.
+Cloudflare's list is filtered too: it holds only text models with a listed price above zero that the catalog doesn't mark as `partner` (models served under a third party's terms; today those are image and speech models). Unpriced models, including Cloudflare's own preview ones, are left out. A typed `@cf/…` id outside that list is refused when you save or test it. The `terms` link some Cloudflare models carry is the license for the model weights, not a data policy; the weights don't learn from what you send.
+
+Nothing else can be connected. Anthropic, OpenAI, xAI and Google models are reached through OpenRouter's zero retention endpoints, not with their own keys, because their APIs keep traffic by default. Free models are never offered or accepted: free endpoints can keep and train on prompts.
+
+OpenRouter's list holds only models with a zero retention endpoint ([`/endpoints/zdr`](https://openrouter.ai/api/v1/endpoints/zdr)), priced at the cheapest of those endpoints. Every request carries `provider: { zdr: true, data_collection: "deny" }`, so a model with no such endpoint fails rather than fall back to one that keeps data. Keys saved for a direct provider by an earlier version are deleted from R2 the next time the config is read.
+
+These are the providers' own policies; nothing here can audit them. What the code does guarantee: requests go only to these two providers, every OpenRouter request carries `zdr: true` and `data_collection: "deny"` (tested in `tests/agent-model.test.mjs`), and a model without a zero retention endpoint is refused by OpenRouter rather than rerouted. OpenRouter counts in-memory prompt caching as not retaining, and marks any provider without a clear policy as retaining. For a second lock, turn on zero data retention in your OpenRouter account's privacy settings; the per-request flag can add enforcement but never removes the account's.
+
+The agent runs on Workers AI (`@cf/moonshotai/kimi-k2.6`) until you pick something else in Settings, then Model & key. The picker searches both lists, filters by provider or by maker (Anthropic, OpenAI, Google and xAI on OpenRouter) and sorts by price or context. Prices are per million input and output tokens. Models a catalog marks as unable to call tools carry a "No tools" tag; you can still pick them, but the agent reads, labels and drafts through tools.
+
+Type any paid model id in the search and choose "Use": `@cf/…` goes to Cloudflare, `maker/model` to OpenRouter. Test sends one short prompt to the picked model before you save.
+
+The four suggested models, one per need (Recommended, Cheapest, Balanced, Best quality), are in [`shared/models.ts`](../shared/models.ts). The two that need a key are Claude Sonnet 5.5 and Claude Opus 5.5 on OpenRouter, so one OpenRouter key covers both. Until you pick a model the agent follows the recommended one, so a new default reaches you with an update. A picked model whose key you remove falls back to the recommended one, and so does a Workers AI model Cloudflare stops listing. The chat panel, Draft reply, auto-draft and Turn into a search use the picked model; the prompt-injection check and the draft cleanup on incoming mail stay on Workers AI.
+
+Keys and the pick are stored in R2 at `config/agent-model.json`, which no route serves. The API returns only each key's last four characters. Anyone who can open the app can replace or remove them, so keep the app behind Access. `GET /api/v1/agent-model/catalog` returns both lists; `PUT /api/v1/agent-model` takes `{ selected, keys }`.
 
 ## Stack
 
 - **Frontend:** React 19, React Router v7 (server rendered), Tailwind CSS, TanStack Query, Zustand, TipTap, `@cloudflare/kumo`
 - **Backend:** Hono, Cloudflare Workers, Durable Objects (SQLite), R2, Email Routing, Email Sending
-- **Agent:** Cloudflare Agents SDK, AI SDK v6, Workers AI or OpenRouter
+- **Agent:** Cloudflare Agents SDK, AI SDK v6, Workers AI or OpenRouter (zero data retention)
 - **Auth:** Cloudflare Access JWT validation

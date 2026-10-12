@@ -10,8 +10,9 @@ import { AgentIcon } from "./AgentIcon";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 import { queryKeys } from "~/queries/keys";
-import api, { type AgentProvider, type WorkersAiModelList } from "~/services/api";
-import { makerOf, type WorkersAiModel } from "shared/workers-ai-models";
+import api from "~/services/api";
+import { AgentModelSection, modelName, useAgentModelDraft, useModelCatalog } from "./ModelTab";
+import { Segmented } from "./Segmented";
 import { type AddressInfo, textToParagraphs } from "./compose";
 import { Editor } from "./Editor";
 import { htmlToPlainText } from "~/lib/utils";
@@ -32,8 +33,9 @@ function Modal({ className = "", label, onClose, children }: { className?: strin
 		ref.current?.querySelector<HTMLElement>("[data-autofocus]")?.focus();
 		const onKey = (e: KeyboardEvent) => {
 			if (e.key === "Escape") {
-				// Escape in a search box with text clears the box; the box handles it.
+				// Escape in a search box with text clears the box, and a step inside the dialog can take Escape for itself.
 				if (e.target instanceof HTMLInputElement && e.target.type === "search" && e.target.value) return;
+				if (e.target instanceof Element && e.target.closest("[data-own-escape]")) return;
 				e.preventDefault();
 				onClose();
 			} else if (e.key === "Tab" && ref.current) {
@@ -86,275 +88,12 @@ function Switch({ on, onChange, label }: { on: boolean; onChange: (on: boolean) 
 	);
 }
 
-function Segmented<T extends string>({ value, options, onChange, label }: { value: T; options: { value: T; label: string; icon?: React.ReactNode }[]; onChange: (v: T) => void; label: string }) {
-	return (
-		<div className="pg-segmented" role="group" aria-label={label}>
-			{options.map((o) => (
-				<button key={o.value} type="button" aria-pressed={value === o.value} onClick={() => onChange(o.value)}>
-					{o.icon}{o.label}
-				</button>
-			))}
-		</div>
-	);
-}
-
 function Setting({ title, sub, children }: { title: string; sub?: React.ReactNode; children: React.ReactNode }) {
 	return (
 		<div className="pg-setting">
 			<div className="pg-setting-text"><b>{title}</b>{sub && <span>{sub}</span>}</div>
 			{children}
 		</div>
-	);
-}
-
-function useAgentModelDraft() {
-	const queryClient = useQueryClient();
-	const { data: stored } = useQuery({ queryKey: ["agent-model"], queryFn: api.getAgentModel });
-	const [provider, setProvider] = useState<AgentProvider | null>(null);
-	const [model, setModel] = useState<string | null>(null);
-	const [key, setKey] = useState("");
-	const [removeKey, setRemoveKey] = useState(false);
-	const [workersAiModel, setWorkersAiModel] = useState<string | null>(null);
-	const current = {
-		provider: provider ?? stored?.provider ?? "workers-ai",
-		model: model ?? stored?.model ?? "",
-		workersAiModel: workersAiModel ?? stored?.workersAiModel ?? "",
-	};
-	const dirty = !!stored && (
-		current.provider !== stored.provider || current.model.trim() !== stored.model || key.trim() !== "" || removeKey
-		|| current.workersAiModel !== stored.workersAiModel
-	);
-	const save = async () => {
-		const view = await api.updateAgentModel({
-			provider: current.provider,
-			model: current.model.trim(),
-			apiKey: removeKey ? "" : key.trim() || undefined,
-			workersAiModel: current.workersAiModel,
-		});
-		queryClient.setQueryData(["agent-model"], view);
-	};
-	return { stored, ...current, key, removeKey, dirty, save, setProvider, setModel, setKey, setRemoveKey, setWorkersAiModel };
-}
-
-type AgentModelDraft = ReturnType<typeof useAgentModelDraft>;
-
-function useWorkersAiModels(enabled = true) {
-	return useQuery({ queryKey: ["agent-model", "workers-ai"], queryFn: api.listWorkersAiModels, enabled, staleTime: 3_600_000 });
-}
-
-/** The display name of a Workers AI model id, from the list when it's there. */
-function workersAiName(list: WorkersAiModelList | undefined, id: string): string {
-	return list?.models.find((m) => m.id === id)?.name ?? id.split("/").pop() ?? id;
-}
-
-function formatContext(tokens: number | null): string {
-	if (!tokens) return "–";
-	return tokens >= 1_000_000 ? `${Math.round(tokens / 1_000_000)}M` : `${Math.round(tokens / 1000)}K`;
-}
-
-function formatPrice(usd: number | undefined): string {
-	return usd === undefined ? "–" : `$${usd.toFixed(2)}`;
-}
-
-/** Cost band by output price, which dominates an agent's bill. */
-function priceTier(model: WorkersAiModel): "low" | "mid" | "high" | "none" {
-	if (!model.price) return "none";
-	return model.price.output <= 0.6 ? "low" : model.price.output <= 2 ? "mid" : "high";
-}
-
-/** Context on a log scale from 8K to 1M tokens, as a share of the bar. */
-function contextShare(tokens: number | null): number {
-	if (!tokens) return 0;
-	const lo = Math.log(8_000), hi = Math.log(1_048_576);
-	return Math.min(1, Math.max(0.04, (Math.log(tokens) - lo) / (hi - lo)));
-}
-
-function WorkersAiRow({ model, selected, recommended, onSelect }: { model: WorkersAiModel; selected: boolean; recommended: boolean; onSelect: () => void }) {
-	const maker = makerOf(model.id);
-	const tier = priceTier(model);
-	return (
-		<button type="button" role="radio" aria-checked={selected} className="pg-model-row" onClick={onSelect}>
-			<span className="pg-model-check" aria-hidden="true">{selected && <CheckIcon size={12} weight="bold" />}</span>
-			<span className="pg-model-name">
-				<span className="pg-model-title">
-					<span className="pg-maker" style={{ "--pg-h": maker.hue } as React.CSSProperties}>{maker.label}</span>
-					<b>{model.name}</b>
-					{recommended && <span className="pg-model-rec">Recommended</span>}
-				</span>
-				<code>{model.id}</code>
-			</span>
-			<span className="pg-model-ctx" data-label="Context">
-				<span className="pg-model-bar" aria-hidden="true"><i style={{ width: `${contextShare(model.context) * 100}%` }} /></span>
-				<span>{formatContext(model.context)}</span>
-			</span>
-			<span className="pg-model-price" data-tier={tier}>
-				{tier === "none" ? "No price" : <><span>{formatPrice(model.price?.input)}</span><span className="pg-model-slash">/</span><b>{formatPrice(model.price?.output)}</b></>}
-			</span>
-		</button>
-	);
-}
-
-type ModelSort = "suggested" | "price" | "context";
-
-function WorkersAiPicker({ draft }: { draft: AgentModelDraft }) {
-	const { data: list, isLoading } = useWorkersAiModels();
-	const [query, setQuery] = useState("");
-	const [sort, setSort] = useState<ModelSort>("suggested");
-	if (isLoading || !list) return <p className="pg-table-note">Loading…</p>;
-
-	const recommended = list.recommended;
-	const saved = draft.workersAiModel;
-	const selected = saved || recommended;
-	const savedMissing = !!saved && list.live && !list.models.some((m) => m.id === saved);
-	const select = (id: string) => draft.setWorkersAiModel(id === recommended ? "" : id);
-
-	const words = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
-	const matches = list.models.filter((m) => {
-		const text = `${m.name} ${m.id} ${makerOf(m.id).label}`.toLowerCase();
-		return words.every((w) => text.includes(w));
-	});
-	const sorted = sort === "suggested" ? matches
-		: [...matches].sort(sort === "price"
-			? (a, b) => (a.price?.output ?? Infinity) - (b.price?.output ?? Infinity) || (a.price?.input ?? 0) - (b.price?.input ?? 0)
-			: (a, b) => (b.context ?? 0) - (a.context ?? 0) || (a.price?.output ?? Infinity) - (b.price?.output ?? Infinity));
-	const grouped = sort === "suggested" && words.length === 0;
-	const groups = grouped
-		? [{ title: "Suggested", rows: sorted.filter((m) => m.suggested) }, { title: "More from Cloudflare", rows: sorted.filter((m) => !m.suggested) }]
-		: [{ title: `${sorted.length} ${sorted.length === 1 ? "model" : "models"}`, rows: sorted }];
-	const row = (m: WorkersAiModel) => <WorkersAiRow key={m.id} model={m} selected={m.id === selected} recommended={m.id === recommended} onSelect={() => select(m.id)} />;
-
-	return (
-		<div className="pg-models">
-			<div className="pg-models-head">
-				<b>Agent model</b>
-				<span className="pg-models-legend">
-					$ per 1M tokens, in / out
-					<span data-tier="low">Low</span><span data-tier="mid">Mid</span><span data-tier="high">High</span>
-				</span>
-			</div>
-			{savedMissing && (
-				<p className="pg-models-warn">
-					Cloudflare no longer lists <code>{saved}</code>. The agent is using {workersAiName(list, recommended)} until you choose another model.
-				</p>
-			)}
-			<div className="pg-models-tools">
-				<label className="pg-models-search">
-					<MagnifyingGlassIcon size={14} aria-hidden="true" />
-					<input
-						type="search"
-						value={query}
-						placeholder="Search models"
-						aria-label="Search Workers AI models"
-						spellCheck={false}
-						onChange={(e) => setQuery(e.target.value)}
-						onKeyDown={(e) => { if (e.key === "Escape" && query) { e.preventDefault(); setQuery(""); } }}
-					/>
-				</label>
-				<Segmented<ModelSort>
-					label="Sort models"
-					value={sort}
-					onChange={setSort}
-					options={[{ value: "suggested", label: "Suggested" }, { value: "price", label: "Cheapest" }, { value: "context", label: "Most context" }]}
-				/>
-			</div>
-			<div className="pg-models-list" role="radiogroup" aria-label="Workers AI model">
-				{groups.map((g) => g.rows.length > 0 && (
-					<div key={g.title} className="pg-models-group">
-						<div className="pg-models-group-head">
-							<span>{g.title}</span>
-							{grouped && <span>{g.rows.length}</span>}
-						</div>
-						{g.rows.map(row)}
-					</div>
-				))}
-				{sorted.length === 0 && <p className="pg-models-empty">No model matches "{query.trim()}".</p>}
-			</div>
-		</div>
-	);
-}
-
-function AgentModelSection({ draft }: { draft: AgentModelDraft }) {
-	const openrouter = draft.provider === "openrouter";
-	const { data: models } = useQuery({ queryKey: ["agent-model", "models"], queryFn: api.listAgentModels, enabled: openrouter, staleTime: 3_600_000 });
-	const [test, setTest] = useState<{ busy: boolean; result?: string; ok?: boolean }>({ busy: false });
-	const keySaved = !!draft.stored?.keySet && !draft.removeKey;
-	const hasKey = keySaved || draft.key.trim() !== "";
-
-	const runTest = async () => {
-		setTest({ busy: true });
-		try {
-			const r = await api.testAgentModel({ model: draft.model.trim() || undefined, apiKey: draft.key.trim() || undefined });
-			setTest({ busy: false, ok: r.ok, result: r.ok ? `Replied: ${r.reply || "(empty)"}` : `OpenRouter: ${r.error}` });
-		} catch (e) {
-			setTest({ busy: false, ok: false, result: `OpenRouter: ${(e as Error).message}` });
-		}
-	};
-
-	return (
-		<>
-			<Setting
-				title="Provider"
-				sub={openrouter
-					? "Chat and auto-draft run on OpenRouter and bill your OpenRouter account. Safety checks on incoming mail stay on Workers AI."
-					: null}
-			>
-				<Segmented<AgentProvider>
-					label="Agent model provider"
-					value={draft.provider}
-					onChange={(v) => { draft.setProvider(v); setTest({ busy: false }); }}
-					options={[{ value: "workers-ai", label: "Workers AI" }, { value: "openrouter", label: "OpenRouter" }]}
-				/>
-			</Setting>
-			{!openrouter && <WorkersAiPicker draft={draft} />}
-			{openrouter && (
-				<>
-					<Setting
-						title="OpenRouter API key"
-						sub={keySaved ? `Saved key ending ${draft.stored?.keyHint || "····"}. Paste a new one to replace it.` : "Stored on your Worker. The key is never sent back to the browser."}
-					>
-						<div className="pg-setting-field">
-							<input
-								className="pg-input pg-mono"
-								type="password"
-								autoComplete="off"
-								spellCheck={false}
-								value={draft.key}
-								placeholder={keySaved ? "••••••••" : "sk-or-…"}
-								aria-label="OpenRouter API key"
-								onChange={(e) => { draft.setKey(e.target.value); draft.setRemoveKey(false); }}
-							/>
-							{keySaved && (
-								<button type="button" className="pg-btn pg-btn-sm pg-btn-quiet" onClick={() => { draft.setRemoveKey(true); draft.setKey(""); }}>Remove</button>
-							)}
-						</div>
-					</Setting>
-					<Setting title="OpenRouter model" sub="Only models that can call tools are listed. The agent needs tools to read, label and draft.">
-						<div className="pg-setting-field">
-						<input
-							className="pg-input pg-mono"
-							list="pg-openrouter-models"
-							value={draft.model}
-							placeholder="provider/model"
-							aria-label="OpenRouter model"
-							spellCheck={false}
-							onChange={(e) => draft.setModel(e.target.value)}
-						/>
-						</div>
-						<datalist id="pg-openrouter-models">
-							{models?.models.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
-						</datalist>
-					</Setting>
-					<div style={{ display: "flex", alignItems: "center", gap: 8, padding: "4px 0 10px" }}>
-						<button type="button" className="pg-btn pg-btn-sm" onClick={runTest} disabled={test.busy || !hasKey || !draft.model.trim()}>
-							{test.busy ? "Testing…" : "Test"}
-						</button>
-						{test.result && (
-							<span role="status" style={{ fontSize: 12, color: test.ok ? "var(--pg-green-text)" : "var(--pg-danger)" }}>{test.result}</span>
-						)}
-					</div>
-				</>
-			)}
-		</>
 	);
 }
 
@@ -386,7 +125,7 @@ export function SettingsModal({ tab, onTab, prefs, setPrefs, addresses, identiti
 	const [error, setError] = useState<string | null>(null);
 	const queryClient = useQueryClient();
 	const agentModel = useAgentModelDraft();
-	const { data: workersAi } = useWorkersAiModels(tab === "agent");
+	const { data: catalog } = useModelCatalog(tab === "agent");
 
 	const dirty = !samePrefs(draft, prefs)
 		|| addresses.some((a) => (names[a] ?? "") !== (initialNames[a] ?? ""))
@@ -551,9 +290,7 @@ export function SettingsModal({ tab, onTab, prefs, setPrefs, addresses, identiti
 								placeholder="You are an email assistant that helps manage this inbox. You read emails, draft replies, and help organize conversations. Write like a real person. Short, direct, flowing prose. Plain text only. (Leave empty to use the built-in default prompt)"
 							/>
 							<div style={{ fontSize: 12, color: "var(--pg-text-6)", padding: "6px 0 4px" }}>Sent as the system message for every address. Controls tone, style and behaviour rules.</div>
-							<Setting title="Model" sub={agentModel.stored?.provider === "openrouter"
-								? `OpenRouter, ${agentModel.stored.model}`
-								: `Workers AI, ${workersAiName(workersAi, agentModel.stored?.workersAiModel || workersAi?.recommended || agentModel.stored?.defaultModel || "")}`}>
+							<Setting title="Model" sub={agentModel.stored ? modelName(catalog, agentModel.stored.active) : ""}>
 								<button type="button" className="pg-btn pg-btn-sm" onClick={() => onTab("model")}>Change</button>
 							</Setting>
 							<Setting title="Auto-draft new mail" sub={<>Drafts a reply to each new message. Mailing lists and automated mail are skipped. Set <span className="pg-mono">AUTO_DRAFT_ENABLED</span> in your Worker config to change.</>}>
