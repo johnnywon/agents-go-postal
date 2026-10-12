@@ -47,20 +47,8 @@ import { DATE_TOKENS, VIEWS } from "../lib/mail-index-sql";
 import { Folders, FOLDER_TOOL_DESCRIPTION, MOVE_FOLDER_TOOL_DESCRIPTION } from "../../shared/folders";
 import { SHARED_AGENT, resolveMailbox, sharedAgentNote, type AgentContext } from "../../shared/agent";
 import type { Env } from "../types";
-
-// AI SDK v6 changed tool() overloads significantly. We define tools as plain
-// objects matching the Tool type to avoid overload resolution issues.
-function defineTool(def: {
-	description: string;
-	parameters: z.ZodType<any>;
-	execute: (...args: any[]) => Promise<any>;
-}) {
-	return {
-		description: def.description,
-		inputSchema: def.parameters,
-		execute: def.execute,
-	};
-}
+import { defineTool } from "./tool-def";
+import { autoDraftRecipient, createAutoDraftTools } from "./auto-draft";
 
 /**
  * Default system prompt used when no custom prompt is configured for a mailbox.
@@ -126,8 +114,9 @@ async function getSystemPrompt(env: Env, mailboxId: string): Promise<string> {
 }
 
 /**
- * crossAddress adds tools that search and label across every address. The
- * chat agent gets them; auto-draft, which reads untrusted incoming mail, does not.
+ * The chat agent's tools. crossAddress adds tools that search and label across
+ * every address. Auto-draft, which reads untrusted incoming mail, never gets
+ * these: it has its own three tools in ./auto-draft.ts.
  */
 function createEmailTools(env: Env, bound: string | null, { crossAddress = false, known = [] as string[] } = {}) {
 	// Cross-address agents name the address on each call; auto-draft stays on its own.
@@ -509,17 +498,28 @@ export class EmailAgent extends AIChatAgent<any> {
 	}) {
 		const env = this.env as Env;
 		const model = await agentModel(env);
-		const tools = createEmailTools(env, emailData.mailboxId);
 		const systemPrompt = await getSystemPrompt(env, emailData.mailboxId);
 
 		// Pre-read the email and thread so the agent has full context
 		// without needing to waste tool calls discovering it
 		const stub = mailStore(env).mailbox(emailData.mailboxId);
+		const email = (await stub.getEmail(emailData.emailId).catch(() => null)) as EmailFull | null;
+		// The reply goes to the inbound message's Reply-To or sender, whatever the mail says.
+		const replyTo = email ? autoDraftRecipient(email) : emailData.sender.toLowerCase();
+		if (!replyTo) {
+			console.warn("Auto-draft skipped: no address to reply to:", emailData.emailId);
+			return { status: "skipped", reason: "no reply address" };
+		}
+		const tools = createAutoDraftTools(env, {
+			mailboxId: emailData.mailboxId,
+			emailId: emailData.emailId,
+			threadId: emailData.threadId,
+			to: replyTo,
+		});
 
 		let emailBody = "";
 		let threadContext = "";
 		try {
-			const email = (await stub.getEmail(emailData.emailId)) as EmailFull | null;
 			if (email?.body) {
 				const isInjection = await isPromptInjection(env.AI, email.body);
 				if (isInjection) {
@@ -622,7 +622,7 @@ This is the first message in the thread (no prior conversation).`;
 
 		autoPrompt += `
 
-Based on the email content and thread context above, draft a reply using draft_reply. If you need more context, use get_thread with thread ID "${emailData.threadId}".`;
+Based on the email content and thread context above, draft a reply using draft_reply. If you need more context, use get_thread.`;
 
 		// Fresh context for auto-draft -- don't include prior chat history
 		// to avoid confusing the model with old messages and tool calls
@@ -647,7 +647,7 @@ Based on the email content and thread context above, draft a reply using draft_r
 			// Check if draft_reply was called (saves to Drafts as side effect).
 			// If NOT, save the agent's text response as a draft directly.
 			const draftToolCalled = result.steps.some((step) =>
-				step.toolCalls.some((tc) => tc?.toolName === "draft_reply" || tc?.toolName === "draft_email"),
+				step.toolCalls.some((tc) => tc?.toolName === "draft_reply"),
 			);
 
 			if (!draftToolCalled && result.text.trim()) {
@@ -667,7 +667,7 @@ Based on the email content and thread context above, draft a reply using draft_r
 							id: draftId,
 							subject: reSubject,
 							sender: emailData.mailboxId.toLowerCase(),
-							recipient: emailData.sender.toLowerCase(),
+							recipient: replyTo,
 							date: new Date().toISOString(),
 						// verifyDraft may return plain text or HTML depending on its
 						// code path. Only wrap in textToHtml if it's plain text.
