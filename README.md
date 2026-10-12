@@ -5,9 +5,9 @@
   </picture>
 </h1>
 
-**One inbox for every address on your domains, with an agent that can read and send.**
+**An email UI for Cloudflare Email Routing/Service.**
 
-Cloudflare Email Routing hands that mail to your own code instead. Every message to your domain arrives in a Worker you deploy, and Email Service sends replies from the same Worker with SPF, DKIM and DMARC already in place.
+Every message to your domain arrives in a Worker you deploy, and Email Service sends replies from the same Worker with SPF, DKIM and DMARC already in place.
 
 Cloudflare doesn't include a mail client. Agents Go Postal is one: every address on every domain in one list, on desktop or phone, with an agent that can search, label, draft and send. It runs entirely on your Cloudflare account.
 
