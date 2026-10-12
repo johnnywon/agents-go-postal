@@ -11,7 +11,7 @@ Every message to your domain arrives in a Worker you deploy, and Email Service s
 
 Cloudflare doesn't include a mail client. Agents Go Postal is one: every address on every domain in one list, on desktop or phone, with an agent that can search, label, draft and send. It runs entirely on your Cloudflare account.
 
-> **Work in progress.** It runs on real mail daily and changes often. Pin a commit if you deploy it, and see the [roadmap](#roadmap).
+> **Work in progress.** It runs on real mail daily and changes often. Pin a [release](https://github.com/johnnywon/agents-go-postal/releases) if you deploy it, read the [changelog](CHANGELOG.md) before upgrading, and see the [roadmap](#roadmap).
 
 [![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/johnnywon/agents-go-postal)
 [![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
@@ -147,7 +147,7 @@ These are the directions under consideration. [Open an issue](https://github.com
 
 - [ ] **One-command setup.** A CLI that creates the Email Routing rule for each address, enables Email Sending, turns on Access and writes the secrets. Setting up a new address becomes one command.
 - [ ] **D1 as the only store.** Finish the migration and remove the Durable Object mail path, so there is one storage model to learn and test.
-- [ ] **CI on every pull request.** Run tests, typecheck and build in GitHub Actions, plus a browser smoke test against a seeded dev server.
+- [ ] **Browser smoke test in CI.** Tests, typecheck and build run on every pull request. Add a browser check against a seeded dev server.
 - [ ] **Import existing mail.** Bring in an mbox or IMAP export so a new deployment starts with history.
 
 ### Next: control over what agents do
