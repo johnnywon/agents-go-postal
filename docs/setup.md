@@ -92,4 +92,4 @@ OMR_WRANGLER_CONFIG=../wrangler.jsonc OMR_PUBLIC_DIR=../public npm run build
 npm run deploy
 ```
 
-`OMR_WRANGLER_CONFIG` replaces `wrangler.jsonc`. Paths inside it, such as `main` and the D1 `migrations_dir`, are relative to that file; with this repo as `engine/`, that is `"migrations_dir": "engine/migrations"`. `OMR_PUBLIC_DIR` replaces `public/`, so it must hold the full set of brand files. `npm run deploy` then applies D1 migrations and deploys with the config the build wrote to `build/server/`. `AGP_WRANGLER_CONFIG` and `AGP_PUBLIC_DIR` from before 0.4.0 still work.
+`OMR_WRANGLER_CONFIG` replaces `wrangler.jsonc`. Paths inside it, such as `main` and the D1 `migrations_dir`, are relative to that file; with this repo as `engine/`, that is `"migrations_dir": "engine/migrations"`. `OMR_PUBLIC_DIR` replaces `public/`, so it must hold the full set of brand files. `npm run deploy` then applies D1 migrations and deploys with the config the build wrote to `build/server/`.

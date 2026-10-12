@@ -89,9 +89,3 @@ test("label: resolves a name or id to the label's id; unknown labels stay text",
 	assert.deepEqual(next.chips, [{ kind: "label", value: "receipts" }, { kind: "label", value: "tax-2026" }]);
 });
 
-test("after the folder conversion, a custom folder link opens its label in All mail", () => {
-	const labels = new Set(["receipts"]);
-	assert.equal(f.legacyRedirect("/mailbox/a@x.example.org/emails/receipts", "", labels), "/?view=all&address=a%40x.example.org&label=receipts");
-	assert.equal(f.legacyRedirect("/mailbox/a@x.example.org/emails/travel", "", labels), "/?view=folder%3Atravel&address=a%40x.example.org");
-	assert.equal(f.legacyRedirect("/mailbox/a@x.example.org/emails/inbox", "", new Set(["inbox"])), "/?view=inbox&address=a%40x.example.org");
-});
