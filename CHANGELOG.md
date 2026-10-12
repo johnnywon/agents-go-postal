@@ -5,7 +5,7 @@ Versions follow [semantic versioning](https://semver.org). Before 1.0, a minor v
 ## 0.4.2
 
 - Incoming messages with a duplicate Message-ID are skipped, and failed saves clean up attachment files.
-- Unknown recipients are rejected before the message is read.
+- Mail to an address this deployment doesn't handle now bounces back to the sender instead of being dropped silently.
 - Outbound subjects and threading headers reject line breaks.
 - Responses add frame protections and safer attachment headers; `/mcp` refuses foreign origins.
 - Cloudflare Access reuses its JWKS, requires RS256 and an HTTPS `TEAM_DOMAIN`.
