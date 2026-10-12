@@ -22,7 +22,7 @@
 	"scripts": {
 		"build": "react-router build",
 		"cf-typegen": "wrangler types",
-		"deploy": "[ -f build/server/wrangler.json ] || (echo 'Run npm run build first.' >&2; exit 1) && wrangler deploy",
+		"deploy": "[ -f build/server/wrangler.json ] || (echo 'Run npm run build first.' >&2; exit 1) && wrangler d1 migrations apply DB --remote && wrangler deploy",
 		"smoke": "bash scripts/smoke.sh",
 		"dev": "react-router dev",
 		"dev:local": "OMR_WRANGLER_CONFIG=wrangler.local.jsonc react-router dev",
