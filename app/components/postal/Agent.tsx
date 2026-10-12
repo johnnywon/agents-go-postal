@@ -9,8 +9,7 @@ import type { UIMessage } from "ai";
 import type { ComposeState } from "./compose";
 import { Keys, useShortcuts } from "./shortcuts";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import Markdown from "react-markdown";
-import remarkGfm from "remark-gfm";
+import { AgentMarkdown } from "./agent-markdown";
 import { SHARED_AGENT, type AgentContext } from "../../../shared/agent";
 
 type Hooks = {
@@ -289,9 +288,7 @@ function ChatMessage({ message, onOpenDraft }: { message: UIMessage; onOpenDraft
 				<div key={i} className="pg-agent-a">
 					<span className="pg-bot is-small"><AgentIcon size={14} weight="fill" /></span>
 					<div className="pg-answer">
-						<Markdown remarkPlugins={[remarkGfm]} components={{ a: ({ href, children }) => <a href={href} target="_blank" rel="noopener noreferrer">{children}</a> }}>
-							{part.text}
-						</Markdown>
+						<AgentMarkdown text={part.text} />
 					</div>
 				</div>,
 			);
