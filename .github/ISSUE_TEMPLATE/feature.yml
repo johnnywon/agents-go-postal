@@ -1,0 +1,31 @@
+name: Feature
+description: Something to build later
+labels: [enhancement]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What
+      description: What it does, from the user's side.
+    validations:
+      required: true
+  - type: textarea
+    id: why
+    attributes:
+      label: Why
+      description: The problem it solves or the moment it's missing.
+    validations:
+      required: true
+  - type: textarea
+    id: where
+    attributes:
+      label: Where
+      description: Files, screens or tools it touches, if known.
+  - type: textarea
+    id: done
+    attributes:
+      label: Done when
+      description: How to tell it works.
+  - type: markdown
+    attributes:
+      value: Use example.com, example.org and example.net for any address or domain. No real deployment details.
