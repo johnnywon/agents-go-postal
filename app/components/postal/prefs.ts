@@ -2,17 +2,12 @@
 // Licensed under the Apache 2.0 license found in the LICENSE file or at:
 //     https://opensource.org/licenses/Apache-2.0
 
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useState } from "react";
+import { cleanPrefs, DEFAULT_PREFS, type Prefs, samePrefs } from "shared/prefs";
+import api from "~/services/api";
 
-/** Per-browser preferences. Nothing here reaches the server. */
-export interface Prefs {
-	theme: "dark" | "light" | "system";
-	/** Show key hints next to controls. Shortcuts work either way. */
-	keys: boolean;
-	markRead: boolean;
-	images: "ask" | "always" | "never";
-	replyFrom: boolean;
-}
+export { DEFAULT_PREFS, type Prefs };
 
 export interface Layout {
 	/** Wide-screen state of the side rails; null follows the default. */
@@ -22,7 +17,6 @@ export interface Layout {
 	labelsOpen: boolean;
 }
 
-export const DEFAULT_PREFS: Prefs = { theme: "dark", keys: true, markRead: true, images: "ask", replyFrom: true };
 const DEFAULT_LAYOUT: Layout = { nav: null, panel: null, mailboxesOpen: true, labelsOpen: true };
 
 const PREFS_KEY = "agp-prefs";
@@ -61,13 +55,49 @@ function useStored<T extends object>(key: string, fallback: T) {
 	return [value, update] as const;
 }
 
-/** Stored prefs, for pages rendered on the server that apply them after hydration. */
+/** This browser's copy of the prefs. Pages rendered on the server apply it after hydration. */
 export function readPrefs(): Prefs {
-	return readJson<Prefs>(PREFS_KEY, DEFAULT_PREFS);
+	return cleanPrefs(readJson<Record<string, unknown>>(PREFS_KEY, {}));
 }
 
+const PREFS_QUERY = ["prefs"] as const;
+
+/** The deployment's prefs. The first browser to find none saved uploads its own copy, so settings made before carry over. */
+async function fetchPrefs(): Promise<Prefs> {
+	const { prefs, saved } = await api.getPrefs();
+	if (saved) {
+		writeJson(PREFS_KEY, prefs);
+		return prefs;
+	}
+	const local = readPrefs();
+	if (samePrefs(local, DEFAULT_PREFS)) return prefs;
+	return (await api.savePrefs(local)).prefs;
+}
+
+/**
+ * Settings > General, saved to the deployment. Every caller shares one copy. It starts from this browser's copy so the
+ * theme is right on the first paint, then follows the server. update() applies at once and resolves when it is saved.
+ */
 export function usePrefs() {
-	return useStored<Prefs>(PREFS_KEY, DEFAULT_PREFS);
+	const queryClient = useQueryClient();
+	const { data } = useQuery({
+		queryKey: PREFS_QUERY,
+		queryFn: fetchPrefs,
+		initialData: readPrefs,
+		initialDataUpdatedAt: 0,
+		staleTime: 60_000,
+		retry: false,
+	});
+	const update = useCallback(async (patch: Partial<Prefs>) => {
+		const next = cleanPrefs(patch, queryClient.getQueryData<Prefs>(PREFS_QUERY) ?? readPrefs());
+		queryClient.setQueryData(PREFS_QUERY, next);
+		writeJson(PREFS_KEY, next);
+		const saved = (await api.savePrefs(next)).prefs;
+		queryClient.setQueryData(PREFS_QUERY, saved);
+		writeJson(PREFS_KEY, saved);
+		return saved;
+	}, [queryClient]);
+	return [data, update] as const;
 }
 
 export function useLayout() {

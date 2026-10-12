@@ -1,0 +1,50 @@
+import assert from "node:assert/strict";
+import { test } from "node:test";
+import { loadTs } from "./helpers/sqlite.mjs";
+
+const { cleanPrefs, DEFAULT_PREFS, samePrefs } = await loadTs("shared/prefs.ts");
+const { readPrefs, writePrefs } = await loadTs("workers/lib/prefs.ts");
+
+function fakeBucket() {
+	const store = new Map();
+	return {
+		store,
+		async get(key) {
+			if (!store.has(key)) return null;
+			const text = store.get(key);
+			return { json: async () => JSON.parse(text) };
+		},
+		async put(key, value) {
+			store.set(key, value);
+		},
+	};
+}
+
+test("cleanPrefs keeps valid fields, takes the rest from base and drops unknown ones", () => {
+	assert.deepEqual(cleanPrefs({ theme: "light", keys: false, markRead: false, images: "never", replyFrom: false }), { theme: "light", keys: false, markRead: false, images: "never", replyFrom: false });
+	assert.deepEqual(cleanPrefs({ theme: "neon", keys: "yes", images: 3, extra: 1 }), DEFAULT_PREFS);
+	assert.deepEqual(cleanPrefs(null), DEFAULT_PREFS);
+	assert.deepEqual(cleanPrefs({ images: "always" }, { ...DEFAULT_PREFS, theme: "system" }), { ...DEFAULT_PREFS, theme: "system", images: "always" });
+	assert.ok(samePrefs(cleanPrefs({}), DEFAULT_PREFS));
+	assert.ok(!samePrefs({ ...DEFAULT_PREFS, keys: false }, DEFAULT_PREFS));
+});
+
+test("a deployment with nothing saved reports the defaults as unsaved", async () => {
+	const env = { BUCKET: fakeBucket() };
+	assert.deepEqual(await readPrefs(env), { prefs: DEFAULT_PREFS, saved: false });
+});
+
+test("writePrefs merges a patch over what is saved and stores only valid fields", async () => {
+	const env = { BUCKET: fakeBucket() };
+	await writePrefs(env, { theme: "light", images: "never" });
+	const next = await writePrefs(env, { keys: false, theme: "bogus", apiKey: "nope" });
+	assert.deepEqual(next, { ...DEFAULT_PREFS, theme: "light", images: "never", keys: false });
+	assert.deepEqual(await readPrefs(env), { prefs: next, saved: true });
+	assert.deepEqual(JSON.parse(env.BUCKET.store.get("config/prefs.json")), next);
+});
+
+test("a corrupt saved file reads as unsaved defaults", async () => {
+	const env = { BUCKET: fakeBucket() };
+	env.BUCKET.store.set("config/prefs.json", "{not json");
+	assert.deepEqual(await readPrefs(env), { prefs: DEFAULT_PREFS, saved: false });
+});

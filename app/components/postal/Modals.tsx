@@ -213,7 +213,7 @@ export function SettingsModal({ tab, onTab, prefs, setPrefs, addresses, identiti
 	tab: SettingsTab;
 	onTab: (tab: SettingsTab) => void;
 	prefs: Prefs;
-	setPrefs: (p: Partial<Prefs>) => void;
+	setPrefs: (p: Partial<Prefs>) => Promise<unknown>;
 	addresses: string[];
 	identities: Identities;
 	info: ReadonlyMap<string, AddressInfo>;
@@ -248,7 +248,6 @@ export function SettingsModal({ tab, onTab, prefs, setPrefs, addresses, identiti
 		setSaving(true);
 		setError(null);
 		try {
-			setPrefs(draft);
 			const writes: Promise<unknown>[] = addresses.flatMap((a) => {
 				const mailbox = info.get(a)?.mailbox;
 				if (!mailbox) return [];
@@ -267,6 +266,7 @@ export function SettingsModal({ tab, onTab, prefs, setPrefs, addresses, identiti
 				};
 				return [api.updateMailbox(a, settings)];
 			});
+			if (JSON.stringify(draft) !== JSON.stringify(prefs)) writes.push(setPrefs(draft));
 			if (agentModel.dirty) writes.push(agentModel.save());
 			await Promise.all(writes);
 			for (const a of addresses) queryClient.invalidateQueries({ queryKey: queryKeys.mailboxes.detail(a) });
@@ -291,7 +291,7 @@ export function SettingsModal({ tab, onTab, prefs, setPrefs, addresses, identiti
 
 	return (
 		<Modal className="is-settings" label="Settings" onClose={onClose}>
-			<Head icon={<GearSixIcon size={16} />} title="Settings" sub="General is saved in this browser · everything else is saved to your deployment" onClose={onClose} />
+			<Head icon={<GearSixIcon size={16} />} title="Settings" sub="Saved to your deployment" onClose={onClose} />
 			<div className="pg-settings">
 				<div className="pg-tabs" role="tablist" aria-label="Settings sections">
 					{tabs.map((t) => (

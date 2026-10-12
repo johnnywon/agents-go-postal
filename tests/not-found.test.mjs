@@ -8,7 +8,7 @@ import { createStaticHandler } from "react-router";
 // It's written under node_modules so its imports resolve to the same react-router as this test's.
 const bundle = await build({
 	entryPoints: ["app/routes/not-found.tsx"], bundle: true, platform: "node", format: "esm", write: false,
-	jsx: "automatic", packages: "external", alias: { "~": "./app" }, loader: { ".svg": "text" },
+	jsx: "automatic", packages: "external", alias: { "~": "./app", shared: "./shared" }, loader: { ".svg": "text" },
 });
 const out = "node_modules/.cache/agp-tests/not-found.mjs";
 mkdirSync("node_modules/.cache/agp-tests", { recursive: true });

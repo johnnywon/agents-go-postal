@@ -17,6 +17,7 @@ import { handleReplyEmail, handleForwardEmail, handleSendEmail } from "./routes/
 import { Folders } from "../shared/folders";
 import type { Env } from "./types";
 import { interpretSearch, MAX_REQUEST_LENGTH } from "./lib/search-interpret";
+import { readPrefs, writePrefs } from "./lib/prefs";
 import { mergeAgentModelConfig, quickModel, OPENROUTER_BASE, openRouterModel, readAgentModelConfig, viewOf, writeAgentModelConfig } from "./lib/agent-model";
 import { requireMailbox, type MailboxContext } from "./lib/mailbox";
 import { csrf } from "./lib/csrf";
@@ -129,6 +130,16 @@ if (import.meta.env?.DEV) {
 }
 
 // -- Agent model ----------------------------------------------------
+
+// -- Preferences (Settings > General) ------------------------------
+
+app.get("/api/v1/prefs", async (c) => c.json(await readPrefs(c.env)));
+
+app.put("/api/v1/prefs", async (c) => {
+	const body = await c.req.json().catch(() => null);
+	if (!body || typeof body !== "object") return c.json({ error: "Send the preferences as a JSON object" }, 400);
+	return c.json({ prefs: await writePrefs(c.env, body), saved: true });
+});
 
 app.get("/api/v1/agent-model", async (c) => {
 	return c.json(viewOf(await readAgentModelConfig(c.env)));

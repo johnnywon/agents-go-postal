@@ -21,7 +21,7 @@ How the app works day to day. Back to the [README](../README.md).
 
 The mail view is a three-column workspace: mailboxes on the left, the list and reader in the middle, the agent on the right. Both side columns collapse to rails. Below 1300px the agent overlays the reader; at phone widths the app shows one pane at a time.
 
-Preferences such as theme (dark, light or system), key hints, mark-as-read, remote images and reply-from-receiving-address are stored per browser. Display names and the agent prompt are stored with each mailbox.
+Settings are saved to your deployment, so they follow you to any browser. General (theme, key hints, mark-as-read, remote images and reply-from-receiving-address) is in R2 at `config/prefs.json`, beside the agent model. Each browser keeps a copy so the theme is right before the page finishes loading; the deployment's copy wins. Choose System for the theme to let each device follow its own light or dark setting. Display names, signatures and the agent prompt are stored with each mailbox, and labels with the mail. Only the open or collapsed side columns and recent searches stay in each browser.
 
 Keyboard: `j`/`k` move, `e` archive, `x` select, `r` reply, `a` reply all, `f` forward, `c` new email, `z` undo, `/` or `⌘K` search, `⌘↵` send, `⌘J` agent, `Esc` close.
 

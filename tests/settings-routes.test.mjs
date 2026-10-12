@@ -10,7 +10,7 @@ const { settingsTabFrom, SETTINGS_TABS } = await loadTs("app/components/postal/s
 // The redirect route bundled as the app sees it, written under node_modules so it shares this test's react-router.
 const bundle = await build({
 	entryPoints: ["app/routes/settings-redirect.tsx"], bundle: true, platform: "node", format: "esm", write: false,
-	jsx: "automatic", packages: "external", alias: { "~": "./app" },
+	jsx: "automatic", packages: "external", alias: { "~": "./app", shared: "./shared" },
 });
 const out = "node_modules/.cache/agp-tests/settings-redirect.mjs";
 mkdirSync("node_modules/.cache/agp-tests", { recursive: true });

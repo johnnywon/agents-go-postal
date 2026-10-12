@@ -4,6 +4,7 @@
 
 import type { BulkAction } from "~/lib/bulk-optimistic";
 import type { Email, Mailbox } from "~/types";
+import type { Prefs } from "shared/prefs";
 
 const REQUEST_TIMEOUT_MS = 30_000;
 
@@ -294,6 +295,8 @@ const api = {
 		get<{ domains: string[]; emailAddresses: string[]; autoDraft?: boolean }>("/api/v1/config"),
 
 	// Agent model
+	getPrefs: () => get<{ prefs: Prefs; saved: boolean }>("/api/v1/prefs"),
+	savePrefs: (prefs: Partial<Prefs>) => put<{ prefs: Prefs; saved: true }>("/api/v1/prefs", prefs),
 	getAgentModel: () => get<AgentModelView>("/api/v1/agent-model"),
 	updateAgentModel: (body: { provider?: AgentProvider; model?: string; apiKey?: string }) =>
 		put<AgentModelView>("/api/v1/agent-model", body),

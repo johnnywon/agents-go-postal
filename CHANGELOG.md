@@ -5,7 +5,9 @@ Versions follow [semantic versioning](https://semver.org). Before 1.0, a minor v
 ## 0.1.3
 
 - Settings holds everything: the Labels page and the Mail index page are now the Labels and Storage tabs of the Settings dialog. `/settings` and `/settings/index` redirect there. The open tab is in the URL (`?settings=labels`), and Back closes the dialog. Storage shows per-address counts on D1 and the index comparison and Rebuild on Durable Objects.
+- Settings > General (theme, key hints, mark as read, remote images, reply from) is saved to the deployment in R2 (`config/prefs.json`) and follows you to every browser. The first browser to load this version uploads its own settings. `GET` and `PUT /api/v1/prefs`.
 - Dividers are straight: anything with a border on one side only (rows, headers, footers, table cells, the side columns) has square corners. A design test keeps it that way.
+- Switches are pills: a 36 by 20 track with a 14px knob inset 3px.
 - A signature with text no longer shows the "No signature" placeholder over it.
 - The brushed-metal settings styles, `SettingsHeader`, `DeckBrand` and the Oxanium font are gone.
 
