@@ -311,6 +311,9 @@ function ModelPicker({ catalog, draft, onPick, onBack }: {
 			)}
 
 			{home && (
+				<p className="pg-picks-why">The agent works by calling tools to search, read, label and draft your mail. These four call tools reliably and fit long threads.</p>
+			)}
+			{home && (
 				<div className="pg-picks" role="radiogroup" aria-label="Suggested models">
 					{picks.map(({ role, model: m }) => {
 						const selected = sameModel(m, effective);
