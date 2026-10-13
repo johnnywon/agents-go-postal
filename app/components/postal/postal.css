@@ -526,9 +526,10 @@ html:has(.postal), html:has(.postal) body { background: var(--pg-base, #141518);
 /* The letterhead: the top band of the message page. Who and where on the left, the date over the time on the right. */
 .pg-mhead { display: flex; align-items: flex-start; gap: 16px; padding: 16px 28px 15px; border-bottom: 1px solid var(--pg-line-soft); background: var(--pg-raised); }
 .pg-mhead-who { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
-.pg-mhead-from { display: flex; align-items: baseline; gap: 8px; min-width: 0; line-height: 22px; }
-.pg-mhead-name { flex: none; max-width: 60%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 16px; font-weight: 600; letter-spacing: -.005em; color: var(--pg-text-1); }
-.pg-mhead-addr { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; color: var(--pg-text-5); }
+/* Name and address share a line when both fit. Otherwise the address drops below; the name is never cut beside it. */
+.pg-mhead-from { display: flex; flex-wrap: wrap; align-items: baseline; column-gap: 8px; row-gap: 1px; min-width: 0; line-height: 22px; }
+.pg-mhead-name { flex: 0 1 auto; min-width: 0; overflow-wrap: anywhere; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; font-size: 16px; font-weight: 600; letter-spacing: -.005em; color: var(--pg-text-1); }
+.pg-mhead-addr { flex: 0 1 auto; min-width: 0; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; line-height: 20px; font-size: 13px; color: var(--pg-text-5); }
 .pg-mhead-to { display: flex; align-items: center; gap: 6px; min-width: 0; line-height: 18px; font-size: 13px; color: var(--pg-text-6); white-space: nowrap; }
 .pg-mhead-to .pg-addr { font-size: 12px; }
 .pg-mhead-word { flex: none; font-size: 13px; color: var(--pg-text-6); }
@@ -1007,6 +1008,7 @@ html:has(.postal), html:has(.postal) body { background: var(--pg-base, #141518);
   .pg-mhead { flex-wrap: wrap; row-gap: 6px; }
   .pg-mhead-when { flex-basis: 100%; flex-direction: row; align-items: baseline; gap: 6px; }
   .pg-mhead-when span:first-child, .pg-mhead-when span:last-child { line-height: 18px; font-size: 12px; font-weight: 400; color: var(--pg-text-6); }
+  .pg-mhead-when span:last-child::before { content: "· "; }
 }
 /* Mobile: one pane at a time, a drawer, a bottom sheet, 44px targets, 16px inputs. */
 @media (max-width: 600px) {
@@ -1031,6 +1033,7 @@ html:has(.postal), html:has(.postal) body { background: var(--pg-base, #141518);
   .pg-mhead { flex-wrap: wrap; row-gap: 6px; }
   .pg-mhead-when { flex-basis: 100%; flex-direction: row; align-items: baseline; gap: 6px; }
   .pg-mhead-when span:first-child, .pg-mhead-when span:last-child { line-height: 18px; font-size: 12px; font-weight: 400; color: var(--pg-text-6); }
+  .pg-mhead-when span:last-child::before { content: "· "; }
     .pg-agent { position: fixed; left: 0; right: 0; bottom: 0; top: auto; width: 100%; height: min(78dvh, 640px); z-index: 37; border-left: 0; border-top: 1px solid var(--pg-line-2); box-shadow: 0 -16px 40px rgba(0, 0, 0, .5); animation: pg-sheet .2s ease-out; }
   .pg-cw, .pg-cw[data-state="max"] { left: 0; right: 0; top: 0; bottom: 0; width: 100%; height: 100dvh; transform: none; }
   .postal .pg-cw { border-radius: 0 !important; }

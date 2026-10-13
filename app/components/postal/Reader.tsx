@@ -149,8 +149,8 @@ export function Reader(props: ReaderProps) {
 			<div className="pg-mhead-who">
 				<div className="pg-mhead-from">
 					{sent && <span className="pg-mhead-word">To</span>}
-					<span className="pg-mhead-name">{senderName}</span>
-					{senderAddr && senderAddr.toLowerCase() !== senderName.toLowerCase() && <span className="pg-mhead-addr">{senderAddr}</span>}
+					<span className="pg-mhead-name" title={senderName}>{senderName}</span>
+					{senderAddr && senderAddr.toLowerCase() !== senderName.toLowerCase() && <span className="pg-mhead-addr" title={senderAddr}>{senderAddr}</span>}
 				</div>
 				<div className="pg-mhead-to" title={sent ? `Sent from ${mailbox}` : `Delivered to ${mailbox} · Replies send from here`}>
 					<span className="pg-mhead-word">{sent ? "from" : "to"}</span>
