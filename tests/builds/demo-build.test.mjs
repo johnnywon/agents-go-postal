@@ -7,7 +7,7 @@ import { test } from "node:test";
 // Builds the app twice: OMR_DEMO=1 must carry the sample inbox and the demo gate, a normal build must carry
 // neither. The normal build runs last, so build/ is left as a normal build. Run with npm run test:build.
 
-const SEED = /Cobalt Cloud|seed-mail-v|ensureDevMail|dev\/seed/;
+const SEED = /Cobalt Cloud|seed-mail-v|seed-alex-v|Partwell|sample-link|ensureDevMail|dev\/seed/;
 const GATE = /Sending is off in the demo|This address does not take mail/;
 
 function build(env) {
@@ -20,6 +20,7 @@ const matching = (files, re) => files.filter(({ text }) => re.test(text)).map(({
 test("a demo build carries the sample inbox and the demo gate", () => {
 	const files = build({ OMR_DEMO: "1" });
 	assert.ok(matching(files, SEED).length > 0, "sample inbox missing");
+	assert.ok(matching(files, /seed-alex-v/).length > 0, "Alex profile missing");
 	assert.ok(matching(files, GATE).length > 0, "demo gate missing");
 });
 

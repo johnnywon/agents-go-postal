@@ -13,24 +13,58 @@
 // /api/v1/dev/seed) wipes the sample mail and writes it again. Mail you
 // created yourself is never touched. `resetDemo` (a demo build's hourly cron)
 // wipes everything first. Set DEV_SEED=off in .dev.vars to skip it.
+//
+// SEED_PROFILE picks what gets written: the default inbox above, or `alex`,
+// 47 messages for Alex Rivera across seven named mailboxes (alex/).
 
 import { attachmentKey } from "../../store/d1/rows";
 import { mailStore, mailboxIds, recordsSql } from "../../store";
 import type { Env } from "../../types";
 import { configuredAddresses } from "../addresses";
+import { ALEX_FROM_NAMES, ALEX_LABELS, ALEX_PREFIX, ALEX_SEARCHES, buildAlex } from "./alex";
 import { FROM_NAMES } from "./cast";
-import { ID_PREFIX, LABELS, NEWEST_MINUTES, SEARCHES, buildInbox, resolveAddresses, toStored } from "./build";
-import { ROLES, type Role } from "./kit";
+import { ID_PREFIX, type Inbox, LABELS, NEWEST_MINUTES, SEARCHES, addressOf, buildInbox, resolveAddresses, toStored } from "./build";
+import type { Box, LabelSpec, Role } from "./kit";
 
 declare const __OMR_TZ_OFFSET__: number | undefined;
 
+export type SeedProfile = "default" | "alex";
+
+/** The profile asked for (a /dev/seed body), else SEED_PROFILE, else the default inbox. */
+export function seedProfile(env: Env, asked?: unknown): SeedProfile {
+	return String(asked ?? env.SEED_PROFILE ?? "").trim().toLowerCase() === "alex" ? "alex" : "default";
+}
+
+interface Profile {
+	prefix: string;
+	labels: LabelSpec[];
+	searches: { name: string; query: string }[];
+	fromName(box: Box): string;
+	build(env: Env, opts: { now: number; tzOffset: number; extra?: number }): Promise<Inbox>;
+}
+
+const PROFILES: Record<SeedProfile, Profile> = {
+	default: {
+		prefix: ID_PREFIX, labels: LABELS, searches: SEARCHES,
+		fromName: (box) => FROM_NAMES[box as Role],
+		build: async (env, o) => buildInbox({ ...o, addresses: await addressesFor(env) }),
+	},
+	// Seven addresses named outright, whatever EMAIL_ADDRESSES holds. Times are New York's, not the machine's.
+	alex: {
+		prefix: ALEX_PREFIX, labels: ALEX_LABELS, searches: ALEX_SEARCHES,
+		fromName: (box) => ALEX_FROM_NAMES[box as keyof typeof ALEX_FROM_NAMES],
+		build: async (_env, o) => buildAlex(o.now),
+	},
+};
+
 export interface SeedSummary {
+	profile: SeedProfile;
 	messages: number;
 	byFolder: Record<string, number>;
 	unread: number;
 	attachments: number;
 	labels: number;
-	addresses: Record<Role, string>;
+	addresses: Partial<Record<Box, string>>;
 }
 
 async function addressesFor(env: Env): Promise<Record<Role, string>> {
@@ -38,41 +72,43 @@ async function addressesFor(env: Env): Promise<Record<Role, string>> {
 	return resolveAddresses(configured.length > 0 ? configured : await mailboxIds(env));
 }
 
-/** Remove sample mail: the current and older versions, and the "Sample message" rows the first seed route made. */
-async function purge(env: Env): Promise<void> {
+/** Remove one profile's sample mail, all its versions. The default also takes the "Sample message" rows the first seed route made. Other mail stays. */
+async function purge(env: Env, profile: SeedProfile): Promise<void> {
 	const sql = recordsSql(env);
+	const family = profile === "alex" ? "seed-alex-" : "seed-mail-";
+	if (profile === "alex") await sql.run(`DELETE FROM messages WHERE email_id LIKE 'seed-alex-%'`);
 	// The first seed route's rows are told apart by their untouched body: one you edited stays. (D1 caps a LIKE pattern at 50 bytes.)
-	await sql.run(`DELETE FROM messages WHERE email_id LIKE 'seed-mail-%' OR (message_id LIKE '%@seed.local' AND body LIKE '<p>Sample message %' AND body LIKE '%a follow-up.</p>')`);
+	else await sql.run(`DELETE FROM messages WHERE email_id LIKE 'seed-mail-%' OR (message_id LIKE '%@seed.local' AND body LIKE '<p>Sample message %' AND body LIKE '%a follow-up.</p>')`);
 	let cursor: string | undefined;
 	do {
-		const page = await env.BUCKET.list({ prefix: "attachments/seed-mail-", cursor, limit: 1000 });
+		const page = await env.BUCKET.list({ prefix: `attachments/${family}`, cursor, limit: 1000 });
 		if (page.objects.length > 0) await env.BUCKET.delete(page.objects.map((o) => o.key));
 		cursor = page.truncated ? page.cursor : undefined;
 	} while (cursor);
 }
 
 /** Wipe the sample mail and write it again. Returns what it wrote. */
-export async function seedMail(env: Env, opts: { tzOffset?: number; extra?: number; now?: number } = {}): Promise<SeedSummary> {
+export async function seedMail(env: Env, opts: { tzOffset?: number; extra?: number; now?: number; profile?: SeedProfile } = {}): Promise<SeedSummary> {
 	const store = mailStore(env);
 	const sql = recordsSql(env);
-	const addresses = await addressesFor(env);
+	const name = opts.profile ?? seedProfile(env);
+	const profile = PROFILES[name];
+	const now = opts.now ?? Date.now();
+	const tz = opts.tzOffset ?? (typeof __OMR_TZ_OFFSET__ === "number" ? __OMR_TZ_OFFSET__ : 0);
+	const inbox = await profile.build(env, { now, tzOffset: tz, extra: opts.extra });
+	const stored = toStored(inbox, profile.prefix);
 
-	for (const role of ROLES) {
-		const addr = addresses[role];
+	for (const [box, addr] of Object.entries(inbox.addresses) as [Box, string][]) {
 		if (!(await store.mailboxes.exists(addr))) {
-			await store.mailboxes.put(addr, { fromName: FROM_NAMES[role], forwarding: { enabled: false, email: "" }, signature: { enabled: false, text: "" }, autoReply: { enabled: false, subject: "", message: "" } });
+			await store.mailboxes.put(addr, { fromName: profile.fromName(box), forwarding: { enabled: false, email: "" }, signature: { enabled: false, text: "" }, autoReply: { enabled: false, subject: "", message: "" } });
 		}
 	}
 
-	await purge(env);
-	const now = opts.now ?? Date.now();
-	const tz = opts.tzOffset ?? (typeof __OMR_TZ_OFFSET__ === "number" ? __OMR_TZ_OFFSET__ : 0);
-	const inbox = buildInbox({ now, tzOffset: tz, addresses, extra: opts.extra });
-	const stored = toStored(inbox);
+	await purge(env, name);
 
 	const labelIds = new Map<string, string>();
 	const existing = await store.all().listLabels();
-	for (const spec of LABELS) {
+	for (const spec of profile.labels) {
 		const found = existing.find((l) => l.name.toLowerCase() === spec.name.toLowerCase());
 		if (found) labelIds.set(spec.name, found.id);
 		else {
@@ -83,7 +119,7 @@ export async function seedMail(env: Env, opts: { tzOffset?: number; extra?: numb
 
 	for (const s of stored) {
 		await Promise.all(s.attachments.map((a) => env.BUCKET.put(attachmentKey(a), a.bytes, { httpMetadata: { contentType: a.mimetype } })));
-		await store.mailbox(inbox.addresses[s.msg.box]).createEmail(s.msg.folder, s.email, s.attachments);
+		await store.mailbox(addressOf(inbox, s.msg)).createEmail(s.msg.folder, s.email, s.attachments);
 	}
 
 	for (const [name, id] of labelIds) {
@@ -92,15 +128,15 @@ export async function seedMail(env: Env, opts: { tzOffset?: number; extra?: numb
 	}
 
 	const saved = await store.all().listSavedSearches();
-	for (const search of SEARCHES) {
+	for (const search of profile.searches) {
 		if (!saved.some((s) => s.name === search.name)) await store.all().createSavedSearch(search);
 	}
 
 	const byFolder: Record<string, number> = {};
 	for (const s of stored) byFolder[s.msg.folder] = (byFolder[s.msg.folder] ?? 0) + 1;
 	return {
-		messages: stored.length, byFolder, unread: stored.filter((s) => !s.msg.read && s.msg.folder === "inbox").length,
-		attachments: stored.reduce((n, s) => n + s.attachments.length, 0), labels: labelIds.size, addresses,
+		profile: name, messages: stored.length, byFolder, unread: stored.filter((s) => !s.msg.read && s.msg.folder === "inbox").length,
+		attachments: stored.reduce((n, s) => n + s.attachments.length, 0), labels: labelIds.size, addresses: inbox.addresses,
 	};
 }
 
@@ -117,7 +153,7 @@ export async function resetDemo(env: Env, now = Date.now()): Promise<SeedSummary
 		if (page.objects.length > 0) await env.BUCKET.delete(page.objects.map((o) => o.key));
 		cursor = page.truncated ? page.cursor : undefined;
 	} while (cursor);
-	return seedMail(env, { now });
+	return seedMail(env, { now, profile: seedProfile(env) });
 }
 
 /**
@@ -136,6 +172,16 @@ async function refresh(env: Env, newest: string): Promise<string | null> {
 	return `moved forward ${Math.round(delta / 3_600_000)} hours`;
 }
 
+/**
+ * The Alex profile keeps its New York times of day, so it moves a week at a
+ * time (alex/clock.ts). When the week has turned, write it again.
+ */
+async function refreshAlex(env: Env, newest: string): Promise<string | null> {
+	const expected = Math.max(...buildAlex(Date.now()).messages.map((m) => m.at));
+	if (new Date(expected).toISOString() === newest) return null;
+	return `${(await seedMail(env, { profile: "alex" })).messages} messages, written again for this week`;
+}
+
 let started: Promise<void> | undefined;
 
 /** Called on the dev server's first API request. Never throws: a failed seed must not break the app. */
@@ -143,15 +189,16 @@ export function ensureDevMail(env: Env): Promise<void> {
 	started ??= (async () => {
 		if (String(env.DEV_SEED ?? "").toLowerCase() === "off") return;
 		try {
-			const row = await recordsSql(env).first(`SELECT COUNT(*) AS n, MAX(date) AS newest FROM messages WHERE email_id LIKE ?`, `${ID_PREFIX}%`);
+			const profile = seedProfile(env);
+			const row = await recordsSql(env).first(`SELECT COUNT(*) AS n, MAX(date) AS newest FROM messages WHERE email_id LIKE ?`, `${PROFILES[profile].prefix}%`);
 			if (Number(row?.n) > 0) {
-				const moved = await refresh(env, String(row?.newest));
+				const moved = profile === "alex" ? await refreshAlex(env, String(row?.newest)) : await refresh(env, String(row?.newest));
 				if (moved) console.log(`[dev seed] sample inbox ${moved}`);
 				return;
 			}
 			const t = Date.now();
 			const summary = await seedMail(env);
-			console.log(`[dev seed] sample inbox written: ${summary.messages} messages in ${Date.now() - t} ms (DEV_SEED=off in .dev.vars skips it)`);
+			console.log(`[dev seed] ${summary.profile} sample inbox written: ${summary.messages} messages in ${Date.now() - t} ms (DEV_SEED=off in .dev.vars skips it)`);
 		} catch (e) {
 			console.warn(`[dev seed] skipped: ${(e as Error).message}. Run the D1 migrations first if the database is new.`);
 		}

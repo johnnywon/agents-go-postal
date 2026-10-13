@@ -1,5 +1,5 @@
 // Test-only worker: runs the dev sample inbox against D1 and R2, for Miniflare tests.
-import { ensureDevMail, seedMail } from "../../workers/lib/dev-seed";
+import { ensureDevMail, resetDemo, seedMail } from "../../workers/lib/dev-seed";
 import { mailStore } from "../../workers/store";
 import type { Env } from "../../workers/types";
 
@@ -10,6 +10,7 @@ export default {
 			if (op === "exec") return Response.json({ ok: (await env.DB.prepare(String(args.sql)).run()).success });
 			if (op === "rows") return Response.json({ ok: (await env.DB.prepare(String(args.sql)).bind(...((args.params as unknown[]) ?? [])).all()).results });
 			if (op === "seed") return Response.json({ ok: await seedMail(env, args as Parameters<typeof seedMail>[1]) });
+			if (op === "reset") return Response.json({ ok: await resetDemo(env, (args as { now?: number }).now) });
 			if (op === "ensure") return Response.json({ ok: (await ensureDevMail(env), true) });
 			if (op === "store") {
 				const { mailbox, method, params } = args as { mailbox: string; method: string; params: unknown[] };

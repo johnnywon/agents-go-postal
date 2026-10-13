@@ -12,7 +12,7 @@ import { helloAndBilling } from "./conversations-a";
 import { legalOpsPress } from "./conversations-b";
 import { nonsenseThreads, peopleThreads } from "./conversations-c";
 import { drafts, junk, pitches, started } from "./junk";
-import { type LabelSpec, type Msg, type Person, ROLES, type Role, Clock, md, rng } from "./kit";
+import { type Box, type LabelSpec, type Msg, type Person, ROLES, type Role, Clock, md, rng } from "./kit";
 import { newsletters } from "./newsletters";
 import { shoppingThreads } from "./shopping";
 import { supportThreads } from "./support";
@@ -58,7 +58,7 @@ export function resolveAddresses(configured: string[]): Record<Role, string> {
 export interface Inbox {
 	messages: Msg[];
 	/** The address that plays each part. */
-	addresses: Record<Role, string>;
+	addresses: Partial<Record<Box, string>>;
 }
 
 export interface BuildOptions {
@@ -117,11 +117,18 @@ export interface Stored {
 	attachments: (AttachmentInput & { bytes: Uint8Array })[];
 }
 
+/** The address a message is stored under. A profile names every box it writes to. */
+export function addressOf(inbox: Inbox, m: Msg): string {
+	const addr = inbox.addresses[m.box];
+	if (!addr) throw new Error(`no address for the ${m.box} mailbox (${m.key})`);
+	return addr;
+}
+
 const rfc = (m: Msg) => `<${m.key}@${m.from.addr.split("@")[1]}>`;
 const named = (p: Person) => `"${p.name.replace(/"/g, "")}" <${p.addr}>`;
 
 /** One message in the shape the store takes: ids, RFC threading and the headers a real delivery would carry. */
-export function toStored(inbox: Inbox): Stored[] {
+export function toStored(inbox: Inbox, prefix = ID_PREFIX): Stored[] {
 	const byKey = new Map(inbox.messages.map((m) => [m.key, m]));
 	const ancestors = (m: Msg): Msg[] => {
 		const chain: Msg[] = [];
@@ -129,7 +136,8 @@ export function toStored(inbox: Inbox): Stored[] {
 		return chain;
 	};
 	return inbox.messages.map((m) => {
-		const id = ID_PREFIX + m.key;
+		const id = prefix + m.key;
+		const mx = addressOf(inbox, m).split("@")[1];
 		const refs = ancestors(m).map((p) => rfc(p));
 		const mine = m.folder === "sent" || m.folder === "draft";
 		const headers: { key: string; value: string }[] = [
@@ -142,8 +150,8 @@ export function toStored(inbox: Inbox): Stored[] {
 			...(m.replyTo ? [{ key: "in-reply-to", value: refs[refs.length - 1] }, { key: "references", value: refs.join(" ") }] : []),
 			...(mine ? [] : [
 				{ key: "return-path", value: `<${m.auto ? "bounces" : m.from.addr.split("@")[0]}@${m.from.addr.split("@")[1]}>` },
-				{ key: "received", value: `from mail.${m.from.addr.split("@")[1]} (mail.${m.from.addr.split("@")[1]} [203.0.113.${(m.key.length * 7) % 200 + 10}]) by mx.${inbox.addresses[m.box].split("@")[1]} with ESMTPS; ${new Date(m.at + 1500).toUTCString()}` },
-				{ key: "authentication-results", value: `mx.${inbox.addresses[m.box].split("@")[1]}; dkim=${m.folder === "spam" ? "none" : "pass"} header.d=${m.from.addr.split("@")[1]}; spf=${m.folder === "spam" ? "fail" : "pass"}; dmarc=${m.folder === "spam" ? "fail" : "pass"}` },
+				{ key: "received", value: `from mail.${m.from.addr.split("@")[1]} (mail.${m.from.addr.split("@")[1]} [203.0.113.${(m.key.length * 7) % 200 + 10}]) by mx.${mx} with ESMTPS; ${new Date(m.at + 1500).toUTCString()}` },
+				{ key: "authentication-results", value: `mx.${mx}; dkim=${m.folder === "spam" ? "none" : "pass"} header.d=${m.from.addr.split("@")[1]}; spf=${m.folder === "spam" ? "fail" : "pass"}; dmarc=${m.folder === "spam" ? "fail" : "pass"}` },
 			]),
 			...(m.auto && !mine ? [{ key: "auto-submitted", value: "auto-generated" }] : []),
 			...(m.list ? [
@@ -159,11 +167,12 @@ export function toStored(inbox: Inbox): Stored[] {
 			email: {
 				id, subject: m.subject, sender: m.from.addr, recipient: m.to.map((p) => p.addr).join(", "), cc: m.cc?.map((p) => p.addr).join(", ") ?? null,
 				date: new Date(m.at).toISOString(), body: m.html, read: m.read, starred: !!m.starred,
-				in_reply_to: parent ? rfc(parent) : null, email_references: refs.length ? JSON.stringify(refs) : null,
-				thread_id: ID_PREFIX + m.thread, message_id: rfc(m), raw_headers: JSON.stringify(headers),
+				// A reply draft names its parent by stored id, as drafts the app saves do: it groups with that conversation and sends as its reply.
+				in_reply_to: parent ? (m.folder === "draft" ? prefix + parent.key : rfc(parent)) : null, email_references: refs.length ? JSON.stringify(refs) : null,
+				thread_id: prefix + m.thread, message_id: rfc(m), raw_headers: JSON.stringify(headers),
 			},
 			attachments: (m.attachments ?? []).map((a, i) => ({
-				id: `${id}-a${i + 1}`, email_id: id, filename: a.filename, mimetype: a.mimetype, size: a.bytes.length, content_id: null, disposition: "attachment", bytes: a.bytes,
+				id: `${id}-a${i + 1}`, email_id: id, filename: a.filename, mimetype: a.mimetype, size: a.bytes.length, content_id: a.contentId ? `<${a.contentId}>` : null, disposition: a.contentId ? "inline" : "attachment", bytes: a.bytes,
 			})),
 		};
 	}).sort((a, b) => a.email.date.localeCompare(b.email.date));

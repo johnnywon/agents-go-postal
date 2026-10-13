@@ -8,7 +8,7 @@ import PostalMime from "postal-mime";
 import { z } from "zod";
 import { generateText } from "ai";
 import { deleteAttachmentFiles, type StoredAttachment } from "./lib/attachments";
-import { ensureDevMail, seedMail } from "./lib/dev-seed";
+import { ensureDevMail, seedMail, seedProfile } from "./lib/dev-seed";
 import { DEMO, demoRefusal } from "./lib/demo";
 import {
 	validateSender,
@@ -137,13 +137,23 @@ app.get("/api/v1/config", (c) => {
 // Local QA only (import.meta.env.DEV is false in production builds, so none of this exists there).
 if (import.meta.env?.DEV) {
 	// A lived-in sample inbox: wipe the sample mail and write it again. Mail you made yourself stays.
-	// Body (all optional): { "tzOffset": minutes behind UTC, "extra": plain messages to add for long lists }.
+	// Body (all optional): { "profile": "default" or "alex", "tzOffset": minutes behind UTC, "extra": plain messages to add for long lists }.
 	app.post("/api/v1/dev/seed", async (c) => {
-		const { tzOffset, extra } = (await c.req.json().catch(() => ({}))) as { tzOffset?: unknown; extra?: unknown };
+		const { profile, tzOffset, extra } = (await c.req.json().catch(() => ({}))) as { profile?: unknown; tzOffset?: unknown; extra?: unknown };
 		return c.json(await seedMail(c.env, {
+			profile: seedProfile(c.env, profile),
 			tzOffset: typeof tzOffset === "number" ? tzOffset : undefined,
 			extra: Math.min(Math.max(Number(extra) || 0, 0), 5000),
 		}));
+	});
+}
+
+// Local QA and demo builds: links in the sample mail open this page instead of leaving the app.
+if (import.meta.env?.DEV || DEMO) {
+	app.get("/api/v1/sample-link", (c) => {
+		const to = (c.req.query("to") ?? "").slice(0, 2000).replace(/[&<>"]/g, (ch) => `&#${ch.charCodeAt(0)};`);
+		c.header("Content-Security-Policy", "default-src 'none'; style-src 'unsafe-inline'");
+		return c.html(`<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Sample link</title><body style="font:15px/1.5 system-ui,sans-serif;margin:40px 16px;max-width:600px;color:#1f2933;background:#ffffff"><p>A link in the sample mail. It goes nowhere in the demo.</p><p style="word-break:break-all"><code>${to}</code></p></body></html>`);
 	});
 }
 

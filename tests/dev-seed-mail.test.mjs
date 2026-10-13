@@ -155,9 +155,12 @@ test("as stored: ids, RFC threading, headers and files", () => {
 		assert.equal(get("message-id"), s.email.message_id);
 		assert.ok(s.email.date.endsWith("Z"));
 		if (s.msg.replyTo) {
-			assert.equal(s.email.in_reply_to, byKey.get(s.msg.replyTo).email.message_id, `${s.id}: In-Reply-To`);
+			const parent = byKey.get(s.msg.replyTo).email;
+			// A reply draft names its parent by stored id, as the app's own drafts do.
+			assert.equal(s.email.in_reply_to, s.msg.folder === "draft" ? parent.id : parent.message_id, `${s.id}: In-Reply-To`);
 			const refs = JSON.parse(s.email.email_references);
-			assert.equal(refs[refs.length - 1], s.email.in_reply_to);
+			assert.equal(refs[refs.length - 1], parent.message_id);
+			assert.equal(get("in-reply-to"), parent.message_id);
 			assert.equal(get("references"), refs.join(" "));
 		}
 		if (s.msg.list) {

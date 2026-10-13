@@ -104,6 +104,8 @@ Sample times follow the time zone of the machine that ran the build.
 
 Give a demo its own Worker, D1 database and R2 bucket. Its Wrangler config keeps the cron trigger (the hourly reset runs on it) and leaves out `send_email` and `ai`, so no real send or model call can happen even if the demo gate were bypassed. Set `EMAIL_ADDRESSES` to six addresses named `hello`, `billing`, `support`, `legal`, `ops` and `press` so every part of the sample inbox has its own mailbox. Run it locally with `OMR_DEMO=1 npm run build && npx vite preview` against a migrated local database.
 
+For the [Alex profile](demo-alex.md), set `SEED_PROFILE` to `alex` in the demo's `vars`, `EMAIL_ADDRESSES` to its seven addresses (`hello`, `support`, `billing`, `partners` and `ops` at `partwell.dev`, `alex` and `league` at `alexrivera.me`) and `DOMAINS` to `partwell.dev,alexrivera.me`. Its times are New York's whatever machine built it, and links in its mail open a page in the app instead of leaving it.
+
 ## Keeping a deployment in its own repo
 
 A deployment can keep its config and brand files outside this checkout, for example in a private repo that includes this one as a submodule. Build with:

@@ -9,4 +9,6 @@ export interface Env extends Cloudflare.Env {
 	ATTACHMENT_SEARCH?: string;
 	/** "off" in .dev.vars keeps the local dev server from filling the inbox with sample mail. */
 	DEV_SEED?: string;
+	/** Local QA and demo builds: which sample inbox to write. `alex` for the Alex Rivera profile; anything else is the default. */
+	SEED_PROFILE?: string;
 }

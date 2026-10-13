@@ -6,6 +6,8 @@
 
 export type Role = "hello" | "billing" | "support" | "legal" | "ops" | "press";
 export const ROLES: readonly Role[] = ["hello", "billing", "support", "legal", "ops", "press"];
+/** A mailbox a seed profile writes to: the default parts, plus the Alex profile's own (alex/). */
+export type Box = Role | "partners" | "personal" | "league";
 
 export type SeedFolder = "inbox" | "sent" | "draft" | "archive" | "trash" | "spam";
 
@@ -18,12 +20,14 @@ export interface Attachment {
 	filename: string;
 	mimetype: string;
 	bytes: Uint8Array;
+	/** An inline part the HTML shows as `cid:<contentId>`, not a file in the list. */
+	contentId?: string;
 }
 
 /** One stored message. `key` is stable across runs; the stored id is derived from it. */
 export interface Msg {
 	key: string;
-	box: Role;
+	box: Box;
 	folder: SeedFolder;
 	at: number;
 	from: Person;
@@ -192,7 +196,7 @@ export function md(text: string): string {
 }
 
 /** The block a mail client puts under a reply: who wrote it, when, and what it said. */
-export function quoteBlock(clock: Clock, parent: { from: Person; at: number; html: string }): string {
+export function quoteBlock(clock: { long(ms: number): string }, parent: { from: Person; at: number; html: string }): string {
 	return `<div class="gmail_quote"><p>On ${esc(clock.long(parent.at))}, ${esc(parent.from.name)} &lt;${esc(parent.from.addr)}&gt; wrote:</p><blockquote>${parent.html}</blockquote></div>`;
 }
 
