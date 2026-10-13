@@ -778,7 +778,8 @@ html:has(.postal), html:has(.postal) body { background: var(--pg-base, #141518);
 .pg-return:hover:not(:disabled) { background: var(--pg-line-3); color: var(--pg-text-1); }
 .pg-agentrail { width: 44px; flex: none; display: flex; flex-direction: column; align-items: center; border-left: 1px solid var(--pg-line); background: var(--pg-rail); min-height: 0; color: var(--pg-text-8); }
 .pg-agentrail:hover { background: var(--pg-modal); color: var(--pg-text-4); }
-.pg-agentrail .pg-rail-head { justify-content: center; }
+/* Mirrors the left rail's head: the caret, then the mark on the outer edge. */
+.pg-agentrail .pg-rail-head { justify-content: center; gap: 5px; }
 .pg-agentrail .pg-vert { display: flex; flex-direction: column; align-items: center; gap: 14px; padding: 16px 0; }
 .pg-agentrail .pg-vert-label { writing-mode: vertical-rl; transform: rotate(180deg); font: 600 10px var(--pg-mono); letter-spacing: .14em; white-space: nowrap; }
 .pg-agentrail .pg-dot { width: 6px; height: 6px; background: var(--pg-green); animation: pg-pulse 1.6s ease-in-out infinite; }

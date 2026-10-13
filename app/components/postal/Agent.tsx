@@ -329,9 +329,11 @@ export function AgentRail({ onOpen, busy }: { onOpen: () => void; busy: boolean 
 	const { tip } = useShortcuts();
 	return (
 		<button type="button" className="pg-agentrail" onClick={onOpen} title={tip("agent", "Open agent chat")} aria-label="Open agent chat">
-			<span className="pg-rail-head"><CaretDoubleLeftIcon size={12} weight="bold" /></span>
+			<span className="pg-rail-head">
+				<CaretDoubleLeftIcon size={10} weight="bold" />
+				<AgentIcon size={14} weight="fill" color="var(--pg-green)" />
+			</span>
 			<span className="pg-vert">
-				<AgentIcon size={16} weight="fill" />
 				<span className="pg-vert-label">MAILROOM AGENT</span>
 				{busy && <span className="pg-dot pg-round" title="Agent working" />}
 			</span>
