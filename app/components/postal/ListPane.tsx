@@ -10,7 +10,7 @@ import {
 import { Fragment, useEffect, useRef, useState } from "react";
 import type { MailFilter } from "~/lib/mail-filter";
 import type { Conversation, Label, MailFacets, ScheduledSend } from "~/services/api";
-import { AddressText, type Identities, LabelChip, LabelTag, Swatch } from "./identity";
+import { AddressText, type Identities, LabelTag, Swatch } from "./identity";
 import { VIEW_LABELS } from "~/lib/mail-filter";
 import { ADDRESS_FOLDERS, ALL_FOLDERS, AllAddressesIcon, InboxIcon, VIEW_ICONS } from "./NavIcons";
 import { Keys, useShortcuts } from "./shortcuts";
@@ -383,6 +383,9 @@ export function ListPane(props: ListPaneProps) {
 									<div className="pg-row-glyphs">
 										{row.starred && <StarIcon size={12} weight="fill" className="pg-star" aria-label="Starred" />}
 										{row.has_attachment && <PaperclipIcon size={12} aria-label="Attachment" />}
+										{rowLabels.map((l) => (
+											<span key={l.id} className="pg-row-label" title={l.name} aria-label={`Label: ${l.name}`}><LabelTag id={l.id} size={12} /></span>
+										))}
 									</div>
 								</div>
 								<div className="pg-row-main">
@@ -400,7 +403,7 @@ export function ListPane(props: ListPaneProps) {
 										? <div className="pg-row-preview" dangerouslySetInnerHTML={{ __html: snippetMarkup(row.snippet_html)! }} />
 										: row.snippet && <div className="pg-row-preview"><Highlighted text={row.snippet} terms={props.terms} /></div>}
 									{/* TODO(roadmap): rule chips on rows (Inquiry, Receipts, DMARC, Triage with their icons) return with rules. */}
-									{(rowLabels.length > 0 || sched) && (
+									{sched && (
 										<div className="pg-row-labels">
 											{sched && (
 												<span className="pg-row-badge" data-error={!!sched.error || undefined} title={sched.error ?? undefined} onClick={(e) => e.stopPropagation()}>
@@ -409,9 +412,6 @@ export function ListPane(props: ListPaneProps) {
 													<button type="button" onClick={() => props.onCancelScheduled(sched)}>Cancel</button>
 												</span>
 											)}
-											{rowLabels.map((l) => (
-												<LabelChip key={l.id} label={l} />
-											))}
 										</div>
 									)}
 								</div>

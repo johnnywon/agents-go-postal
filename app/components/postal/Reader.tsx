@@ -17,7 +17,7 @@ import type { Email } from "~/types";
 import type { DraftResult } from "./Agent";
 import type { AddressInfo, ComposeMode, ComposeState, useMailSender } from "./compose";
 import { Composer } from "./ComposeWindow";
-import { AddressText, type Identities, LabelChip, LabelTag, Swatch } from "./identity";
+import { AddressText, type Identities, LabelTag, Swatch } from "./identity";
 import { formatSize, fullDate, type MailAction, nameFromHeaders } from "./model";
 import type { Prefs } from "./prefs";
 import { useShortcuts } from "./shortcuts";
@@ -152,10 +152,15 @@ export function Reader(props: ReaderProps) {
 					<span className="pg-mhead-name" title={senderName}>{senderName}</span>
 					{senderAddr && senderAddr.toLowerCase() !== senderName.toLowerCase() && <span className="pg-mhead-addr" title={senderAddr}>{senderAddr}</span>}
 				</div>
-				<div className="pg-mhead-to" title={sent ? `Sent from ${mailbox}` : `Delivered to ${mailbox} · Replies send from here`}>
-					<span className="pg-mhead-word">{sent ? "from" : "to"}</span>
-					<Swatch identity={identity} />
-					<AddressText address={mailbox} identity={identity} bold={false} />
+				<div className="pg-mhead-to">
+					<span className="pg-mhead-where" title={sent ? `Sent from ${mailbox}` : `Delivered to ${mailbox} · Replies send from here`}>
+						<span className="pg-mhead-word">{sent ? "from" : "to"}</span>
+						<Swatch identity={identity} />
+						<AddressText address={mailbox} identity={identity} bold={false} />
+					</span>
+					{rowLabels.map((l) => (
+						<span key={l.id} className="pg-mhead-label" title={`Label: ${l.name}`}><LabelTag id={l.id} size={11} />{l.name}</span>
+					))}
 					{attachmentCount > 0 && (
 						<button
 							type="button"
@@ -218,11 +223,6 @@ export function Reader(props: ReaderProps) {
 			<div className="pg-reader-scroll" ref={scrollRef}>
 				<div className="pg-reader-main">
 					<h1 className="pg-subject">{row?.subject || email?.subject || "(no subject)"}</h1>
-					{rowLabels.length > 0 && (
-						<div className="pg-reader-labels">
-							{rowLabels.map((l) => <LabelChip key={l.id} label={l} />)}
-						</div>
-					)}
 					{/* TODO(roadmap): per-email agent card (what the agent did, its steps and one-click actions) returns with rules. */}
 					<div className="pg-reader-content">
 						{!email && <div className="pg-skel" style={{ border: 0, padding: 0 }}><span className="pg-pulse" style={{ width: "80%" }} /></div>}
