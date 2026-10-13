@@ -7,4 +7,6 @@ export interface Env extends Cloudflare.Env {
 	TEAM_DOMAIN: string;
 	/** "true" makes the cron convert attachments to searchable text. Costs Workers AI calls per file. */
 	ATTACHMENT_SEARCH?: string;
+	/** "off" in .dev.vars keeps the local dev server from filling the inbox with sample mail. */
+	DEV_SEED?: string;
 }

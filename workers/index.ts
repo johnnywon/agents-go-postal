@@ -8,6 +8,7 @@ import PostalMime from "postal-mime";
 import { z } from "zod";
 import { generateText } from "ai";
 import { deleteAttachmentFiles, type StoredAttachment } from "./lib/attachments";
+import { ensureDevMail, seedMail } from "./lib/dev-seed";
 import {
 	validateSender,
 	SenderValidationError,
@@ -104,6 +105,13 @@ app.use("/api/*", cors({
 		return undefined;
 	},
 }));
+// Local QA: the first API request fills an empty dev inbox with sample mail (workers/lib/dev-seed).
+if (import.meta.env?.DEV) {
+	app.use("/api/v1/*", async (c, next) => {
+		await ensureDevMail(c.env);
+		await next();
+	});
+}
 app.use("/api/v1/*", csrf);
 app.use("/api/v1/mailboxes/:mailboxId/*", requireMailbox);
 
@@ -117,32 +125,16 @@ app.get("/api/v1/config", (c) => {
 	return c.json({ domains, emailAddresses, autoDraft });
 });
 
-// Local QA only: fill each configured mailbox with sample inbox mail.
-// import.meta.env.DEV is false in production builds, so this route does not exist there.
+// Local QA only (import.meta.env.DEV is false in production builds, so none of this exists there).
 if (import.meta.env?.DEV) {
+	// A lived-in sample inbox: wipe the sample mail and write it again. Mail you made yourself stays.
+	// Body (all optional): { "tzOffset": minutes behind UTC, "extra": plain messages to add for long lists }.
 	app.post("/api/v1/dev/seed", async (c) => {
-		const { perMailbox = 20 } = (await c.req.json().catch(() => ({}))) as { perMailbox?: number };
-		const senders = ["ann@store.example.com", "billing@code.example.com", "news@letters.example.net", "ops@cloud.example.org", "maria@golf.example.com", "noreply@tracker.example.net"];
-		const subjects = ["Invoice for October", "Your weekly digest", "Tee time confirmed", "Deploy finished", "Re: contract draft", "Security alert"];
-		const ids = await mailboxIds(c.env);
-		let created = 0;
-		for (const [m, mailboxId] of ids.entries()) {
-			const stub = mailStore(c.env).mailbox(mailboxId);
-			for (let i = 0; i < Math.min(perMailbox, 100); i++) {
-				const id = crypto.randomUUID();
-				const sender = senders[(i + m) % senders.length];
-				await stub.createEmail(Folders.INBOX, {
-					id, subject: `${subjects[(i * 7 + m) % subjects.length]} #${i}`, sender, recipient: mailboxId,
-					date: new Date(Date.now() - (i * 9 + m) * 3_600_000).toISOString(),
-					body: `<p>Sample message ${i} for ${mailboxId}. Quarterly numbers and a follow-up.</p>`,
-					read: i % 3 === 0, starred: i % 11 === 0, thread_id: id, message_id: `${id}@seed.local`,
-					raw_headers: JSON.stringify([{ key: "from", value: `"${sender.split("@")[0]}" <${sender}>` },
-						...(sender.startsWith("news") ? [{ key: "list-unsubscribe", value: "<https://letters.example.net/u>" }] : [])]),
-				}, []);
-				created++;
-			}
-		}
-		return c.json({ created });
+		const { tzOffset, extra } = (await c.req.json().catch(() => ({}))) as { tzOffset?: unknown; extra?: unknown };
+		return c.json(await seedMail(c.env, {
+			tzOffset: typeof tzOffset === "number" ? tzOffset : undefined,
+			extra: Math.min(Math.max(Number(extra) || 0, 0), 5000),
+		}));
 	});
 }
 

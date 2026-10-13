@@ -4,7 +4,7 @@ Self-hosted multi-address email on Cloudflare Workers. React Router v7 UI in `ap
 
 ## Run and check
 
-- `npm run dev:local` with a gitignored `wrangler.local.jsonc` (see README, Local development). Seed sample mail with `POST /api/v1/dev/seed`.
+- `npm run dev:local` with a gitignored `wrangler.local.jsonc` (see README, Local development). The dev server fills an empty inbox with sample mail on its first API request (`DEV_SEED=off` in `.dev.vars` skips it). `POST /api/v1/dev/seed` wipes the sample mail and writes it again.
 - `npm test`, `npm run typecheck`, `npm run build` before every commit.
 - Browser QA: open the dev server and check the console, at desktop and 375px widths.
 
