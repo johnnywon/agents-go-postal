@@ -204,6 +204,8 @@ export function Composer(props: ComposerProps) {
 	stateRef.current = state;
 	const dirty = useRef(false);
 	const done = useRef(false);
+	// A redraft replaces the draft; a save with the old id meanwhile would leave a stray copy.
+	const redrafting = useRef(false);
 	const asked = useRef(false);
 	const inline = variant === "inline";
 	const reply = state.mode !== "new";
@@ -223,7 +225,7 @@ export function Composer(props: ComposerProps) {
 	const saveNow = () => {
 		saving.current = saving.current.then(async () => {
 			const s = stateRef.current;
-			if (!hasContent(s) || done.current) return;
+			if (!hasContent(s) || done.current || redrafting.current) return;
 			dirty.current = false;
 			const id = await sender.save(s);
 			if (id) setState((cur) => ({ ...cur, draftId: id }));
@@ -331,7 +333,10 @@ export function Composer(props: ComposerProps) {
 		}
 	};
 
-	/** Save pending edits, then have the agent revise the saved draft. The draft gets a new id. */
+	/**
+	 * Save pending edits, then have the agent revise the saved draft. The draft gets a new id.
+	 * The body is read-only and autosave waits until it returns; other field edits save after.
+	 */
 	const redraftWith = async (text: string) => {
 		const wanted = text.trim();
 		if (!wanted || agentBusy) return;
@@ -342,19 +347,25 @@ export function Composer(props: ComposerProps) {
 			await saving.current;
 			const s = stateRef.current;
 			if (!s.draftId) return;
+			redrafting.current = true;
 			const r = await api.redraft(s.from, s.draftId, wanted);
 			// A reply composer keeps its quote apart and adds it on save.
 			const html = s.quoteHtml ? r.draft.body.replace(QUOTE_AT_END, "") : r.draft.body;
 			const next = { ...stateRef.current, html, draftId: r.draft.id, notes: r.notes };
 			stateRef.current = next;
+			redrafting.current = false;
 			setState(next);
-			dirty.current = false;
-			setSaved(true);
+			// Still dirty if To or Subject changed during the redraft: autosave picks those up under the new id.
+			setSaved(!dirty.current);
 			setInstruction("");
 			for (const queryKey of [["mail"], ["mail-facets"], ["emails", s.from]]) queryClient.invalidateQueries({ queryKey });
 		} catch (e) {
 			setError((e as Error).message || "Could not redraft.");
+			redrafting.current = false;
+			// To or Subject edits made while it ran.
+			if (dirty.current) saveNow();
 		} finally {
+			redrafting.current = false;
 			setAgentBusy(false);
 		}
 	};
@@ -496,6 +507,7 @@ export function Composer(props: ComposerProps) {
 							placeholder={state.mode === "forward" ? "Add a note…" : reply ? "Write your reply…" : "Write your message…"}
 							size={inline ? "inline" : "window"}
 							onReady={setEditor}
+							readOnly={agentBusy}
 							autoFocus={state.to.length > 0 && state.mode !== "forward"}
 						/>
 						{signed && <div className="pg-signature" dangerouslySetInnerHTML={{ __html: fromInfo!.signatureHtml }} />}
