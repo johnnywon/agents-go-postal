@@ -2,6 +2,21 @@
 
 Versions follow [semantic versioning](https://semver.org). Before 1.0, a minor version can break things. Each entry names any new D1 migration. `npm run deploy` applies it; if you deploy another way, run `wrangler d1 migrations apply DB --remote` before you deploy that version.
 
+## 0.7.6
+
+Demo build: `OMR_DEMO=1` builds a read-only instance filled with sample mail.
+
+- `OMR_DEMO=1 npm run build` makes a demo build. On its first API request it writes the sample inbox (about 470 messages, 62 attachments, 12 labels, 3 saved searches) into an empty database, with the newest message minutes old. A normal build carries none of it.
+- A demo sends nothing, calls no model and needs no sign-in. Send, reply, forward and scheduled send return 403. The Mailroom agent, Draft, redraft, search interpretation, auto-draft and the MCP server are off, and their controls are hidden. Settings are read-only. Incoming mail is rejected. Cloudflare Access is skipped.
+- Visitors can read, search, archive, delete, star, label and save drafts. The cron writes the sample inbox again every hour on the hour, over everything visitors changed.
+- `GET /api/v1/config` returns `demo`.
+- `npm run test:build` builds both ways and checks that only the demo build carries the sample inbox. CI runs it in place of `npm run build`.
+- The dev server's sample inbox (`workers/lib/dev-seed/`) is new in this release; [Sample inbox](docs/development.md#sample-inbox) describes it.
+
+Decided for the demo: build it and show it locally first, then host it as its own deploy repo. The demo is open to anyone, without Access. See [Demo build](docs/setup.md#demo-build).
+
+No D1 migration.
+
 ## 0.7.4
 
 The reader.

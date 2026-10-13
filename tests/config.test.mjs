@@ -10,7 +10,7 @@ async function config(env) {
 
 test("config lists domains and addresses and says whether auto-draft is on", async () => {
 	assert.deepEqual(await config({ DOMAINS: "example.com, example.org", EMAIL_ADDRESSES: ["a@example.com"] }), {
-		domains: ["example.com", "example.org"], emailAddresses: ["a@example.com"], autoDraft: false,
+		domains: ["example.com", "example.org"], emailAddresses: ["a@example.com"], autoDraft: false, demo: false,
 	});
 	assert.equal((await config({ AUTO_DRAFT_ENABLED: "true" })).autoDraft, true);
 });

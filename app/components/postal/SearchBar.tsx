@@ -22,6 +22,7 @@ import {
 	windowKey,
 } from "./search-window";
 import { type FilterSuggestion, rowDomId, SearchWindow, type WindowRow, type WindowSection } from "./SearchWindow";
+import { useDemo } from "~/lib/demo";
 
 export type { FilterSuggestion } from "./SearchWindow";
 
@@ -74,6 +75,7 @@ function storage(): Storage | undefined {
 }
 
 export const SearchBar = forwardRef<HTMLInputElement, SearchBarProps>(function SearchBar(props, ref) {
+	const demo = useDemo();
 	const input = useRef<HTMLInputElement>(null);
 	useImperativeHandle(ref, () => input.current as HTMLInputElement);
 	const [focused, setFocused] = useState(false);
@@ -394,9 +396,11 @@ export const SearchBar = forwardRef<HTMLInputElement, SearchBarProps>(function S
 					</>
 				)}
 				<Keys id="search" className="pg-kbd pg-desktop-only" />
-				<button type="button" className="pg-icon-btn pg-mobile-only" onClick={props.onAgent} aria-label="Open agent">
-					<AgentIcon size={16} weight="fill" />
-				</button>
+				{!demo && (
+					<button type="button" className="pg-icon-btn pg-mobile-only" onClick={props.onAgent} aria-label="Open agent">
+						<AgentIcon size={16} weight="fill" />
+					</button>
+				)}
 			</div>
 			<span className="pg-sr-only" aria-live="polite">
 				{announced ? `${props.resultCount} result${props.resultCount === 1 ? "" : "s"}` : ""}

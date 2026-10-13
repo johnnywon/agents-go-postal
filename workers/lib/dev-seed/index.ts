@@ -2,7 +2,7 @@
 // Licensed under the Apache 2.0 license found in the LICENSE file or at:
 //     https://opensource.org/licenses/Apache-2.0
 
-// Local QA only. A lived-in sample inbox for the dev server: about 350
+// Local QA and demo builds (workers/lib/demo.ts). A lived-in sample inbox: about 470
 // messages across every configured address, in every folder, with threads,
 // attachments, labels, drafts, newsletters and spam, all from made-up
 // companies on example.com, example.org and example.net.
@@ -11,7 +11,8 @@
 // fills an inbox that has no sample mail, and moves existing sample mail
 // forward so the newest message is minutes old. `seedMail` (POST
 // /api/v1/dev/seed) wipes the sample mail and writes it again. Mail you
-// created yourself is never touched. Set DEV_SEED=off in .dev.vars to skip it.
+// created yourself is never touched. `resetDemo` (a demo build's hourly cron)
+// wipes everything first. Set DEV_SEED=off in .dev.vars to skip it.
 
 import { attachmentKey } from "../../store/d1/rows";
 import { mailStore, mailboxIds, recordsSql } from "../../store";
@@ -101,6 +102,22 @@ export async function seedMail(env: Env, opts: { tzOffset?: number; extra?: numb
 		messages: stored.length, byFolder, unread: stored.filter((s) => !s.msg.read && s.msg.folder === "inbox").length,
 		attachments: stored.reduce((n, s) => n + s.attachments.length, 0), labels: labelIds.size, addresses,
 	};
+}
+
+/**
+ * A demo build's hourly reset: drop everything visitors made or changed (mail,
+ * files, labels, saved searches, undo history), then write the sample inbox again.
+ */
+export async function resetDemo(env: Env, now = Date.now()): Promise<SeedSummary> {
+	const sql = recordsSql(env);
+	for (const table of ["messages", "labels", "saved_searches", "bulk_job", "undo"]) await sql.run(`DELETE FROM ${table}`);
+	let cursor: string | undefined;
+	do {
+		const page = await env.BUCKET.list({ prefix: "attachments/", cursor, limit: 1000 });
+		if (page.objects.length > 0) await env.BUCKET.delete(page.objects.map((o) => o.key));
+		cursor = page.truncated ? page.cursor : undefined;
+	} while (cursor);
+	return seedMail(env, { now });
 }
 
 /**

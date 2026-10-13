@@ -9,6 +9,7 @@ import { z } from "zod";
 import { generateText } from "ai";
 import { deleteAttachmentFiles, type StoredAttachment } from "./lib/attachments";
 import { ensureDevMail, seedMail } from "./lib/dev-seed";
+import { DEMO, demoRefusal } from "./lib/demo";
 import {
 	validateSender,
 	SenderValidationError,
@@ -105,10 +106,18 @@ app.use("/api/*", cors({
 		return undefined;
 	},
 }));
-// Local QA: the first API request fills an empty dev inbox with sample mail (workers/lib/dev-seed).
-if (import.meta.env?.DEV) {
+// Local QA and demo builds: the first API request fills an empty inbox with sample mail (workers/lib/dev-seed).
+if (import.meta.env?.DEV || DEMO) {
 	app.use("/api/v1/*", async (c, next) => {
 		await ensureDevMail(c.env);
+		await next();
+	});
+}
+// A demo build refuses sends, AI and settings changes (workers/lib/demo).
+if (DEMO) {
+	app.use("/api/v1/*", async (c, next) => {
+		const refused = demoRefusal(c.req.method, c.req.path);
+		if (refused) return c.json({ error: refused }, 403);
 		await next();
 	});
 }
@@ -121,8 +130,8 @@ app.get("/api/v1/config", (c) => {
 	const domainsRaw = c.env.DOMAINS || "";
 	const domains = domainsRaw.split(",").map((d) => d.trim()).filter(Boolean);
 	const emailAddresses = configuredAddresses(c.env);
-	const autoDraft = String(c.env.AUTO_DRAFT_ENABLED ?? "") === "true";
-	return c.json({ domains, emailAddresses, autoDraft });
+	const autoDraft = !DEMO && String(c.env.AUTO_DRAFT_ENABLED ?? "") === "true";
+	return c.json({ domains, emailAddresses, autoDraft, demo: DEMO });
 });
 
 // Local QA only (import.meta.env.DEV is false in production builds, so none of this exists there).
@@ -667,6 +676,10 @@ async function streamToArrayBuffer(stream: ReadableStream, streamSize: number) {
 }
 
 async function receiveEmail(event: { to: string; raw: ReadableStream; rawSize: number; setReject(reason: string): void }, env: Env, ctx: ExecutionContext) {
+	if (DEMO) {
+		event.setReject("This address does not take mail");
+		return;
+	}
 	const allowedAddresses = configuredAddresses(env).map((a) => a.toLowerCase());
 	const mailboxId = event.to?.toLowerCase();
 	if (!mailboxId) throw new Error("received email with no envelope recipient");
