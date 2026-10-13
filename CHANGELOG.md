@@ -82,7 +82,7 @@ No D1 migration.
 
 ## 0.4.0
 
-- Agents Go Postal is now Open Mailroom. The repo moved to github.com/johnnywon/open-mailroom; the old URL redirects.
+- The project is now Open Mailroom. The repo moved to github.com/johnnywon/open-mailroom; the old URL redirects.
 - The logo is gone from the sidebar, the empty reader and error pages. The app icon stays. The link preview card shows the mark without a name.
 - Build env vars are `OMR_WRANGLER_CONFIG` and `OMR_PUBLIC_DIR`. `AGP_*` still work.
 - Browser prefs move from `agp-*` to `omr-*` keys on first load. Nothing to do.
