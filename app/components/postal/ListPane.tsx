@@ -12,12 +12,10 @@ import type { MailFilter } from "~/lib/mail-filter";
 import type { Conversation, Label, MailFacets, ScheduledSend } from "~/services/api";
 import { AddressText, type Identities, LabelChip, LabelTag, Swatch } from "./identity";
 import { VIEW_LABELS } from "~/lib/mail-filter";
-import { AllAddressesIcon, InboxIcon, VIEW_ICONS } from "./NavIcons";
+import { ADDRESS_FOLDERS, ALL_FOLDERS, AllAddressesIcon, InboxIcon, VIEW_ICONS } from "./NavIcons";
 import { Keys, useShortcuts } from "./shortcuts";
 import { marks, snippetMarkup } from "./search-window";
 import { dayKey, dayLabel, filterCount, hasChip, labelOf, type MailAction, RESTORABLE, scoped, scopeOf, sendTimeLabel, timeLabel, toggleChip, withoutKinds } from "./model";
-
-const FOLDERS = ["inbox", "unread", "starred", "drafts", "sent", "archive", "spam", "trash"] as const;
 
 export interface ListPaneProps {
 	identities: Identities;
@@ -107,9 +105,13 @@ export function ListPane(props: ListPaneProps) {
 		el?.scrollIntoView({ block: "nearest" });
 	}, [props.currentKey]);
 
+	// The address and the folder are one unit: the folder menu lists what the sidebar shows under
+	// the picked address, and switching address keeps the folder when the new one has it.
+	const foldersOf = (value: string | null) => (value ? ADDRESS_FOLDERS : ALL_FOLDERS);
 	const pickScope = (value: string | null) => {
 		setScopeOpen(false);
-		go({ view: "inbox", chips: value ? [{ kind: "address", value }] : [], sort: filter.sort, dir: filter.dir });
+		const keep = !labelView && foldersOf(value).some((f) => f.view === filter.view);
+		go(scoped(keep ? filter.view : "inbox", value, filter));
 	};
 
 	// The header reads which addresses (as a mark), then which folder (or label), each with its own icon.
@@ -161,19 +163,19 @@ export function ListPane(props: ListPaneProps) {
 					<>
 						<div className="pg-scrim-click" onClick={() => setFolderOpen(false)} />
 						<div className="pg-popover pg-scope-menu pg-folder-menu" role="listbox" aria-label="Folder">
-							{FOLDERS.map((view) => {
-								const Icon = VIEW_ICONS[view];
+							{foldersOf(scope).map(({ view, label, Icon }) => {
 								const on = !labelView && filter.view === view;
 								return (
 									<button key={view} type="button" role="option" aria-selected={on} aria-current={on || undefined} className="pg-menu-item" onClick={() => { setFolderOpen(false); go(scoped(view, scope, filter)); }}>
 										<Icon size={14} />
-										<span className="pg-flex pg-ellipsis">{VIEW_LABELS[view]}</span>
+										<span className="pg-flex pg-ellipsis">{label}</span>
 										{on && <CheckIcon size={12} weight="bold" />}
 									</button>
 								);
 							})}
-							{props.labels.length > 0 && <div className="pg-menu-rule" />}
-							{props.labels.map((label) => {
+							{/* Labels sit under All addresses in the sidebar, so only its menu lists them. */}
+							{!scope && props.labels.length > 0 && <div className="pg-menu-rule" />}
+							{!scope && props.labels.map((label) => {
 								const on = labelView === label.id;
 								return (
 									<button key={label.id} type="button" role="option" aria-selected={on} aria-current={on || undefined} className="pg-menu-item" onClick={() => { setFolderOpen(false); go({ view: "all", chips: [{ kind: "label", value: label.id }], sort: filter.sort, dir: filter.dir }); }}>

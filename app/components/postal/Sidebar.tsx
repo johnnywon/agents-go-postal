@@ -8,7 +8,7 @@ import {
 } from "@phosphor-icons/react";
 import { AgentIcon } from "./AgentIcon";
 import {
-	AllAddressesIcon, ArchiveIcon, ByAddressIcon, DraftsIcon, InboxIcon, LabelsIcon, SentIcon, SpamIcon, StarredIcon, TrashIcon, UnreadIcon,
+	ADDRESS_FOLDERS, AllAddressesIcon, ByAddressIcon, InboxIcon, LabelsIcon, SECONDARY_VIEWS, UnreadIcon,
 } from "./NavIcons";
 import { useShortcuts } from "./shortcuts";
 import { type FormEvent, useState } from "react";
@@ -17,16 +17,6 @@ import type { Label, SavedSearch } from "~/services/api";
 import { AddressText, type Identities, LabelTag, Swatch } from "./identity";
 import { HOME, labelOf, scopeOf, scoped } from "./model";
 
-export const SECONDARY_VIEWS = [
-	{ view: "starred", label: "Starred", Icon: StarredIcon },
-	{ view: "drafts", label: "Drafts", Icon: DraftsIcon },
-	{ view: "sent", label: "Sent", Icon: SentIcon },
-	{ view: "archive", label: "Archive", Icon: ArchiveIcon },
-	{ view: "spam", label: "Spam", Icon: SpamIcon },
-	{ view: "trash", label: "Trash", Icon: TrashIcon },
-] as const;
-
-const ADDRESS_FOLDERS = [{ view: "inbox", label: "Inbox", Icon: InboxIcon }, ...SECONDARY_VIEWS] as const;
 
 export interface SidebarProps {
 	identities: Identities;
