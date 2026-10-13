@@ -9,6 +9,10 @@
 //   - Text-only mail is part of the page. Sender HTML stays in the sandboxed frame, which some agents
 //     can't see into.
 //   - Agent chat says who said each turn.
+//   - Aside's snapshot shows checked and selected but not pressed, current or expanded. A choice of one is a
+//     radio group and a row's Select is a checkbox, so agents see which is on.
+//   - Aside leaves out elements with opacity 0. With a mouse, the row toolbar waits for hover with nothing drawn,
+//     not transparent, and keeps Select in the tree so an agent can select a row without hovering it.
 
 import assert from "node:assert/strict";
 import { readdirSync, readFileSync, statSync } from "node:fs";
@@ -75,4 +79,34 @@ test("agent chat is a log that says who said each turn", () => {
 	assert.match(source, /role="log"/);
 	assert.match(source, /role="article" aria-label="You"/);
 	assert.match(source, /role="article" aria-label="Agent"/);
+});
+
+test("a choice of one is a radio group, so agents see which option is on", () => {
+	const groups = {
+		"app/components/postal/Segmented.tsx": 1,
+		"app/components/postal/ListPane.tsx": 2,
+		"app/components/postal/ComposeWindow.tsx": 1,
+		"app/components/postal/ModelTab.tsx": 3,
+	};
+	for (const [file, count] of Object.entries(groups)) {
+		const source = read(file);
+		assert.equal(source.match(/role="radiogroup"/g)?.length ?? 0, count, file);
+		assert.match(source, /role="radio" aria-checked=\{/, file);
+	}
+	assert.doesNotMatch(read("app/components/postal/postal.css"), /\.pg-(segmented|flt-dates|modes|prov-filter)[^{]*aria-pressed/);
+});
+
+test("a row's Select is a checkbox that stays in the accessibility tree without hover", () => {
+	const list = read("app/components/postal/ListPane.tsx");
+	assert.equal(list.match(/aria-label="Select" role="checkbox" aria-checked=\{checked\}/g)?.length, 2);
+	assert.match(list, /className="pg-row-checkonly" aria-hidden=\{canHover \|\| undefined\}/);
+	const css = read("app/components/postal/postal.css");
+	const hover = css.match(/@media \(hover: hover\) \{([\s\S]*?)\n\}/)?.[1] ?? "";
+	assert.match(hover, /\.pg-row-tools \{ display: flex; \}/);
+	assert.match(hover, /\.pg-row-tools > :not\(:first-child\)/);
+	assert.doesNotMatch(hover, /pg-row-tools[^{]*\{[^}]*opacity: 0/, "Aside drops transparent elements");
+});
+
+test("the Filter button's name says how many filters are on", () => {
+	assert.match(read("app/components/postal/ListPane.tsx"), /aria-label=\{nFilters \? `Filter, \$\{nFilters\} on` : "Filter"\}/);
 });

@@ -14,7 +14,10 @@ Agents that drive a browser, such as Aside, gstack browse, Playwright and Claude
 - The letterhead names its parts for agents and screen readers: From, to, and Received or Sent. Nothing changes on screen.
 - The Reply bar was a clickable box with the Draft reply button inside it. They are two buttons side by side now.
 - Agent chat is a log, and each turn says who said it: You or Agent.
-- `tests/agent-readable.test.mjs` keeps it this way: no `role="button"`, no accessible names joined with ": ", rows and views as links, text-only mail on the page and chat turns labelled.
+- With a mouse, each row's Select is a checkbox an agent can see and tick without hovering. The rest of the row toolbar still appears on hover, and nothing on screen changes. The toolbar used to be left out of the page until hover, so an agent had to open a message to act on it.
+- A choice of one is a radio group: the date and sort options, Theme and Remote images in settings, Reply mode and the model provider filter. Aside shows which item is checked or selected, but not which button is pressed, so it couldn't tell which option was on.
+- The Filter button is named "Filter, 2 on" when filters are on. Its name used to be the badge's number.
+- `tests/agent-readable.test.mjs` keeps it this way: no `role="button"`, no accessible names joined with ": ", rows and views as links, text-only mail on the page, chat turns labelled, radio groups for a choice of one, and a row's Select in the tree.
 
 No D1 migration.
 

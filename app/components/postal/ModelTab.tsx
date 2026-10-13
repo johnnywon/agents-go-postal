@@ -275,15 +275,15 @@ function ModelPicker({ catalog, draft, onPick, onBack }: {
 				/>
 			</label>
 			<div className="pg-models-tools">
-				<div className="pg-prov-filter" role="group" aria-label="Provider">
-					<button type="button" aria-pressed={filter === "all"} onClick={() => setFilter("all")}>All</button>
+				<div className="pg-prov-filter" role="radiogroup" aria-label="Provider">
+					<button type="button" role="radio" aria-checked={filter === "all"} onClick={() => setFilter("all")}>All</button>
 					{PROVIDERS.map((p) => (
-						<button key={p} type="button" aria-pressed={filter === p} onClick={() => setFilter(p)}>
+						<button key={p} type="button" role="radio" aria-checked={filter === p} onClick={() => setFilter(p)}>
 							<ProviderMark provider={p} />
 						</button>
 					))}
 					{MAKER_FILTERS.map((f) => (
-						<button key={f} type="button" aria-pressed={filter === f} onClick={() => setFilter(f)}>{f}</button>
+						<button key={f} type="button" role="radio" aria-checked={filter === f} onClick={() => setFilter(f)}>{f}</button>
 					))}
 				</div>
 				{!home && <select className="pg-select" value={sort} aria-label="Sort models" onChange={(e) => setSort(e.target.value as ModelSort)}>

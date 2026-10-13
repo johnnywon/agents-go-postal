@@ -417,9 +417,9 @@ export function Composer(props: ComposerProps) {
 					{inline && replyMode ? <replyMode.Icon size={14} color="var(--pg-text-4)" /> : <PencilSimpleLineIcon size={14} color="var(--pg-text-5)" />}
 					<span className={inline ? "pg-title is-inline" : "pg-title"}>{title}</span>
 					{inline && props.onMode && (
-						<div className="pg-modes" role="group" aria-label="Reply mode">
+						<div className="pg-modes" role="radiogroup" aria-label="Reply mode">
 							{MODES.map(({ mode: m, label, Icon }) => (
-								<button key={m} type="button" title={label} aria-label={label} aria-pressed={m === state.mode} onClick={() => m !== state.mode && props.onMode?.(m, stateRef.current)}>
+								<button key={m} type="button" title={label} aria-label={label} role="radio" aria-checked={m === state.mode} onClick={() => m !== state.mode && props.onMode?.(m, stateRef.current)}>
 									<Icon size={13} />
 								</button>
 							))}

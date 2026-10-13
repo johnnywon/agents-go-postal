@@ -7,7 +7,7 @@ import {
 	FileIcon, FunnelSimpleIcon, MagnifyingGlassIcon, PaperclipIcon, PaperPlaneTiltIcon, PencilSimpleLineIcon, SortAscendingIcon,
 	SortDescendingIcon, StarIcon, TrashIcon, TrayArrowUpIcon, TrayIcon, WarningIcon, WarningOctagonIcon, XIcon,
 } from "@phosphor-icons/react";
-import { Fragment, useEffect, useRef, useState } from "react";
+import { Fragment, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import type { MailFilter } from "~/lib/mail-filter";
 import type { Conversation, Label, MailFacets, ScheduledSend } from "~/services/api";
 import { AddressText, type Identities, LabelTag, Swatch } from "./identity";
@@ -70,6 +70,19 @@ const EMPTY: Record<string, { Icon: typeof TrayIcon; title: string; body: string
 	starred: { Icon: StarIcon, title: "No starred mail", body: "Star a conversation to keep it here." },
 };
 
+/** Whether the main pointer can hover. Then the row toolbar waits for it and the selecting check is only a picture. */
+function useCanHover(): boolean {
+	return useSyncExternalStore(
+		(change) => {
+			const query = window.matchMedia("(hover: hover)");
+			query.addEventListener("change", change);
+			return () => query.removeEventListener("change", change);
+		},
+		() => window.matchMedia("(hover: hover)").matches,
+		() => false,
+	);
+}
+
 function Highlighted({ text, terms }: { text: string; terms: string[] }) {
 	return <>{marks(text, terms).map((p, i) => (p.mark ? <mark key={i}>{p.text}</mark> : p.text))}</>;
 }
@@ -77,6 +90,7 @@ function Highlighted({ text, terms }: { text: string; terms: string[] }) {
 export function ListPane(props: ListPaneProps) {
 	const { identities, filter, go, rows } = props;
 	const { tip } = useShortcuts();
+	const canHover = useCanHover();
 	const scope = scopeOf(filter);
 	const labelView = labelOf(filter);
 	const [scopeOpen, setScopeOpen] = useState(false);
@@ -239,7 +253,7 @@ export function ListPane(props: ListPaneProps) {
 					>
 						<EnvelopeSimpleIcon size={16} weight={unreadOnly ? "fill" : "regular"} />
 					</button>
-					<button type="button" className="pg-icon-btn" style={{ position: "relative" }} aria-pressed={nFilters > 0} aria-expanded={fltOpen} title="Filter · Unread, starred, attachments, date and more" onClick={() => setFltOpen((v) => !v)}>
+					<button type="button" className="pg-icon-btn" style={{ position: "relative" }} aria-pressed={nFilters > 0} aria-expanded={fltOpen} aria-label={nFilters ? `Filter, ${nFilters} on` : "Filter"} title="Filter · Unread, starred, attachments, date and more" onClick={() => setFltOpen((v) => !v)}>
 						<FunnelSimpleIcon size={16} weight={nFilters ? "fill" : "regular"} />
 						{nFilters > 0 && <span className="pg-flt-badge">{nFilters}</span>}
 					</button>
@@ -290,9 +304,9 @@ export function ListPane(props: ListPaneProps) {
 									);
 								})}
 								<span className="pg-caption">RECEIVED</span>
-								<div className="pg-flt-dates">
+								<div className="pg-flt-dates" role="radiogroup" aria-label="Received">
 									{([["any", "Any"], ["today", "Today"], ["7d", "7 days"], ["30d", "30 days"]] as const).map(([value, label]) => (
-										<button key={value} type="button" aria-pressed={dateChip === value} onClick={() => setDate(value)}>{label}</button>
+										<button key={value} type="button" role="radio" aria-checked={dateChip === value} onClick={() => setDate(value)}>{label}</button>
 									))}
 								</div>
 							</div>
@@ -309,9 +323,9 @@ export function ListPane(props: ListPaneProps) {
 				<div className="pg-order">
 					<span>{props.rankSkipped ? "Too many matches to rank. Newest first." : props.order === "relevance" ? "Best match first" : "Newest first"}</span>
 					<span className="pg-flex" />
-					<div className="pg-segmented" role="group" aria-label="Order">
-						<button type="button" aria-pressed={props.order === "relevance"} onClick={() => props.onOrder("relevance")}>Relevance</button>
-						<button type="button" aria-pressed={props.order === "date"} onClick={() => props.onOrder("date")}>Newest</button>
+					<div className="pg-segmented" role="radiogroup" aria-label="Order">
+						<button type="button" role="radio" aria-checked={props.order === "relevance"} onClick={() => props.onOrder("relevance")}>Relevance</button>
+						<button type="button" role="radio" aria-checked={props.order === "date"} onClick={() => props.onOrder("date")}>Newest</button>
 					</div>
 				</div>
 			)}
@@ -431,8 +445,9 @@ export function ListPane(props: ListPaneProps) {
 										</div>
 									)}
 								</div>
+								{/* Select stays first: with a mouse, it's the one button kept in the accessibility tree while the toolbar waits for hover. */}
 								<div className="pg-row-tools" onClick={(e) => e.stopPropagation()}>
-									<button type="button" title={tip("select", "Select", "shift-click for a range")} aria-label="Select" aria-pressed={checked} onClick={(e) => props.onCheck(row, e.shiftKey)}>
+									<button type="button" title={tip("select", "Select", "shift-click for a range")} aria-label="Select" role="checkbox" aria-checked={checked} onClick={(e) => props.onCheck(row, e.shiftKey)}>
 										<span className="pg-check" data-on={checked}>{checked && <CheckIcon size={10} weight="bold" />}</span>
 									</button>
 									<span className="pg-sep" />
@@ -450,8 +465,9 @@ export function ListPane(props: ListPaneProps) {
 										<button type="button" title="Move to trash" aria-label="Move to trash" onClick={() => props.onRowAction(row, "trash")}><TrashIcon size={15} /></button>
 									)}
 								</div>
-								<div className="pg-row-checkonly" onClick={(e) => e.stopPropagation()}>
-									<button type="button" title={tip("select", "Select", "shift-click for a range")} aria-label="Select" aria-pressed={checked} onClick={(e) => props.onCheck(row, e.shiftKey)}>
+								{/* With a mouse, hover always brings up the toolbar's Select first, so this check is only a picture. */}
+								<div className="pg-row-checkonly" aria-hidden={canHover || undefined} onClick={(e) => e.stopPropagation()}>
+									<button type="button" tabIndex={canHover ? -1 : undefined} title={tip("select", "Select", "shift-click for a range")} aria-label="Select" role="checkbox" aria-checked={checked} onClick={(e) => props.onCheck(row, e.shiftKey)}>
 										<span className="pg-check" data-on={checked}>{checked && <CheckIcon size={10} weight="bold" />}</span>
 									</button>
 								</div>
