@@ -3,24 +3,24 @@
 //     https://opensource.org/licenses/Apache-2.0
 
 import {
-	ArchiveIcon, ArrowsClockwiseIcon, CaretDownIcon, CheckIcon, ClockIcon, EnvelopeOpenIcon, EnvelopeSimpleIcon,
+	ArchiveIcon, ArrowsClockwiseIcon, CaretDownIcon, CaretRightIcon, CheckIcon, ClockIcon, EnvelopeOpenIcon, EnvelopeSimpleIcon,
 	FileIcon, FunnelSimpleIcon, MagnifyingGlassIcon, PaperclipIcon, PaperPlaneTiltIcon, PencilSimpleLineIcon, SortAscendingIcon,
 	SortDescendingIcon, StarIcon, TrashIcon, TrayArrowUpIcon, TrayIcon, WarningIcon, WarningOctagonIcon, XIcon,
 } from "@phosphor-icons/react";
 import { Fragment, useEffect, useRef, useState } from "react";
 import type { MailFilter } from "~/lib/mail-filter";
 import type { Conversation, Label, MailFacets, ScheduledSend } from "~/services/api";
-import { AddressText, type Identities, LabelChip, LabelTag, Swatch } from "./identity";
-import { AllAddressesIcon } from "./NavIcons";
+import { AddressText, type Identities, LabelTag, Swatch } from "./identity";
+import { VIEW_LABELS } from "~/lib/mail-filter";
+import { ADDRESS_FOLDERS, ALL_FOLDERS, AllAddressesIcon, InboxIcon, VIEW_ICONS } from "./NavIcons";
 import { Keys, useShortcuts } from "./shortcuts";
 import { marks, snippetMarkup } from "./search-window";
-import { dayKey, dayLabel, filterCount, hasChip, labelOf, type MailAction, RESTORABLE, scopeOf, sendTimeLabel, timeLabel, toggleChip, withoutKinds } from "./model";
+import { dayKey, dayLabel, filterCount, hasChip, labelOf, type MailAction, RESTORABLE, scoped, scopeOf, sendTimeLabel, timeLabel, toggleChip, withoutKinds } from "./model";
 
 export interface ListPaneProps {
 	identities: Identities;
 	filter: MailFilter;
 	go: (filter: MailFilter) => void;
-	title: string;
 	searching: boolean;
 	allUnread?: number;
 	unreadByAddress: ReadonlyMap<string, number>;
@@ -78,6 +78,7 @@ export function ListPane(props: ListPaneProps) {
 	const scope = scopeOf(filter);
 	const labelView = labelOf(filter);
 	const [scopeOpen, setScopeOpen] = useState(false);
+	const [folderOpen, setFolderOpen] = useState(false);
 	const [fltOpen, setFltOpen] = useState(false);
 	const sentinel = useRef<HTMLDivElement>(null);
 	const listRef = useRef<HTMLDivElement>(null);
@@ -104,18 +105,20 @@ export function ListPane(props: ListPaneProps) {
 		el?.scrollIntoView({ block: "nearest" });
 	}, [props.currentKey]);
 
+	// The address and the folder are one unit: the folder menu lists what the sidebar shows under
+	// the picked address, and switching address keeps the folder when the new one has it.
+	const foldersOf = (value: string | null) => (value ? ADDRESS_FOLDERS : ALL_FOLDERS);
 	const pickScope = (value: string | null) => {
 		setScopeOpen(false);
-		go({ view: "inbox", chips: value ? [{ kind: "address", value }] : [], sort: filter.sort, dir: filter.dir });
+		const keep = !labelView && foldersOf(value).some((f) => f.view === filter.view);
+		go(scoped(keep ? filter.view : "inbox", value, filter));
 	};
 
-	const scopeIcon = labelView ? (
-		<LabelTag id={labelView} />
-	) : scope ? (
-		<Swatch identity={identities.of(scope)} />
-	) : (
-		<AllAddressesIcon size={14} />
-	);
+	// The header reads which addresses (as a mark), then which folder (or label), each with its own icon.
+	const scopeIcon = scope ? <Swatch identity={identities.of(scope)} /> : <AllAddressesIcon size={14} />;
+	const FolderIcon = VIEW_ICONS[filter.view] ?? InboxIcon;
+	const folderIcon = labelView ? <LabelTag id={labelView} /> : <FolderIcon size={14} />;
+	const folderName = labelView ? props.labelsById.get(labelView)?.name ?? "Label" : VIEW_LABELS[filter.view] ?? filter.view;
 
 	const status = props.facets?.status;
 	const labelFacet = new Map((props.facets?.label ?? []).map((f) => [f.value, f.count]));
@@ -146,11 +149,45 @@ export function ListPane(props: ListPaneProps) {
 	return (
 		<section className="pg-list-col" aria-label="Conversations">
 			<div className="pg-list-head">
-				<button type="button" className="pg-scope-btn" onClick={() => setScopeOpen((v) => !v)} title="Switch address" aria-expanded={scopeOpen} aria-haspopup="listbox">
+				<button type="button" className="pg-scope-btn" onClick={() => setScopeOpen((v) => !v)} title={`Switch address · ${scope ?? "All addresses"}`} aria-label={`Address: ${scope ?? "All addresses"}`} aria-expanded={scopeOpen} aria-haspopup="listbox">
 					<span className="pg-scope-icon">{scopeIcon}</span>
-					<span className="pg-title">{props.title}</span>
 					<CaretDownIcon size={10} weight="bold" color="var(--pg-text-6)" style={{ flex: "none" }} />
 				</button>
+				<CaretRightIcon className="pg-crumb-sep" size={10} weight="bold" aria-hidden />
+				{/* The folder is also a menu of its peers: every folder for this address, then the labels. No caret. */}
+				<button type="button" className="pg-folder" onClick={() => setFolderOpen((v) => !v)} title="Switch folder" aria-expanded={folderOpen} aria-haspopup="listbox">
+					<span className="pg-scope-icon">{folderIcon}</span>
+					<span className="pg-title">{folderName}{props.searching && <span className="pg-title-note"> · search</span>}</span>
+				</button>
+				{folderOpen && (
+					<>
+						<div className="pg-scrim-click" onClick={() => setFolderOpen(false)} />
+						<div className="pg-popover pg-scope-menu pg-folder-menu" role="listbox" aria-label="Folder">
+							{foldersOf(scope).map(({ view, label, Icon }) => {
+								const on = !labelView && filter.view === view;
+								return (
+									<button key={view} type="button" role="option" aria-selected={on} aria-current={on || undefined} className="pg-menu-item" onClick={() => { setFolderOpen(false); go(scoped(view, scope, filter)); }}>
+										<Icon size={14} />
+										<span className="pg-flex pg-ellipsis">{label}</span>
+										{on && <CheckIcon size={12} weight="bold" />}
+									</button>
+								);
+							})}
+							{/* Labels sit under All addresses in the sidebar, so only its menu lists them. */}
+							{!scope && props.labels.length > 0 && <div className="pg-menu-rule" />}
+							{!scope && props.labels.map((label) => {
+								const on = labelView === label.id;
+								return (
+									<button key={label.id} type="button" role="option" aria-selected={on} aria-current={on || undefined} className="pg-menu-item" onClick={() => { setFolderOpen(false); go({ view: "all", chips: [{ kind: "label", value: label.id }], sort: filter.sort, dir: filter.dir }); }}>
+										<LabelTag id={label.id} />
+										<span className="pg-flex pg-ellipsis">{label.name}</span>
+										{on && <CheckIcon size={12} weight="bold" />}
+									</button>
+								);
+							})}
+						</div>
+					</>
+				)}
 				{scopeOpen && (
 					<>
 						<div className="pg-scrim-click" onClick={() => setScopeOpen(false)} />
@@ -346,6 +383,9 @@ export function ListPane(props: ListPaneProps) {
 									<div className="pg-row-glyphs">
 										{row.starred && <StarIcon size={12} weight="fill" className="pg-star" aria-label="Starred" />}
 										{row.has_attachment && <PaperclipIcon size={12} aria-label="Attachment" />}
+										{rowLabels.map((l) => (
+											<span key={l.id} className="pg-row-label" title={l.name} aria-label={`Label: ${l.name}`}><LabelTag id={l.id} size={12} /></span>
+										))}
 									</div>
 								</div>
 								<div className="pg-row-main">
@@ -363,7 +403,7 @@ export function ListPane(props: ListPaneProps) {
 										? <div className="pg-row-preview" dangerouslySetInnerHTML={{ __html: snippetMarkup(row.snippet_html)! }} />
 										: row.snippet && <div className="pg-row-preview"><Highlighted text={row.snippet} terms={props.terms} /></div>}
 									{/* TODO(roadmap): rule chips on rows (Inquiry, Receipts, DMARC, Triage with their icons) return with rules. */}
-									{(rowLabels.length > 0 || sched) && (
+									{sched && (
 										<div className="pg-row-labels">
 											{sched && (
 												<span className="pg-row-badge" data-error={!!sched.error || undefined} title={sched.error ?? undefined} onClick={(e) => e.stopPropagation()}>
@@ -372,9 +412,6 @@ export function ListPane(props: ListPaneProps) {
 													<button type="button" onClick={() => props.onCancelScheduled(sched)}>Cancel</button>
 												</span>
 											)}
-											{rowLabels.map((l) => (
-												<LabelChip key={l.id} label={l} />
-											))}
 										</div>
 									)}
 								</div>

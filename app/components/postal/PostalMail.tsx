@@ -549,10 +549,7 @@ function PostalApp({ addresses, domains, autoDraft }: PostalProps) {
 		};
 	}, [bindings]);
 	// ── Derived display ────────────────────────────────────────────
-	const scope = scopeOf(filter);
-	const labelView = labelOf(filter);
 	const searching = !!debounced.trim();
-	const title = `${labelView ? labelsById.get(labelView)?.name ?? "Label" : scope ? `${scope}${filter.view !== "inbox" ? ` · ${VIEW_LABELS[filter.view] ?? filter.view}` : ""}` : filter.view === "inbox" ? "Inbox" : VIEW_LABELS[filter.view] ?? filter.view}${searching ? " · search" : ""}`;
 	const status = listFacets.data?.status;
 	const topLabels = [...labels].sort((a, b) => b.count - a.count).slice(0, 2);
 	const topFrom = (listFacets.data?.from.domains ?? []).slice(0, 2);
@@ -655,7 +652,6 @@ function PostalApp({ addresses, domains, autoDraft }: PostalProps) {
 								identities={identities}
 								filter={filter}
 								go={go}
-								title={title}
 								searching={searching}
 								allUnread={counts.unread}
 								unreadByAddress={unreadByAddress}

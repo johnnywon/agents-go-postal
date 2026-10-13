@@ -8,7 +8,7 @@ import {
 } from "@phosphor-icons/react";
 import { AgentIcon } from "./AgentIcon";
 import {
-	AllAddressesIcon, ArchiveIcon, ByAddressIcon, DraftsIcon, InboxIcon, LabelsIcon, SentIcon, SpamIcon, StarredIcon, TrashIcon, UnreadIcon,
+	ADDRESS_FOLDERS, AllAddressesIcon, ByAddressIcon, InboxIcon, LabelsIcon, SECONDARY_VIEWS, UnreadIcon,
 } from "./NavIcons";
 import { useShortcuts } from "./shortcuts";
 import { type FormEvent, useState } from "react";
@@ -17,16 +17,6 @@ import type { Label, SavedSearch } from "~/services/api";
 import { AddressText, type Identities, LabelTag, Swatch } from "./identity";
 import { HOME, labelOf, scopeOf, scoped } from "./model";
 
-export const SECONDARY_VIEWS = [
-	{ view: "starred", label: "Starred", Icon: StarredIcon },
-	{ view: "drafts", label: "Drafts", Icon: DraftsIcon },
-	{ view: "sent", label: "Sent", Icon: SentIcon },
-	{ view: "archive", label: "Archive", Icon: ArchiveIcon },
-	{ view: "spam", label: "Spam", Icon: SpamIcon },
-	{ view: "trash", label: "Trash", Icon: TrashIcon },
-] as const;
-
-const ADDRESS_FOLDERS = [{ view: "inbox", label: "Inbox", Icon: InboxIcon }, ...SECONDARY_VIEWS] as const;
 
 export interface SidebarProps {
 	identities: Identities;
@@ -81,7 +71,7 @@ export function Sidebar(props: SidebarProps) {
 		<nav className="pg-nav" aria-label="Mail" data-overlay={props.overlay || undefined} data-drawer={props.drawer}>
 			<button type="button" className="pg-rail-head" onClick={props.onCollapse} title={tip("sidebar", "Collapse sidebar")}>
 				<AllAddressesIcon size={14} />
-				<span className="pg-flex" style={{ lineHeight: 1, textAlign: "left" }}>ALL ADDRESSES</span>
+				<span className="pg-flex" style={{ lineHeight: 1, textAlign: "left" }}>MAILROOM</span>
 				<CaretDoubleLeftIcon size={14} weight="bold" />
 			</button>
 			<div className="pg-nav-scroll">

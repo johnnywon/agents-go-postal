@@ -2,6 +2,27 @@
 
 Versions follow [semantic versioning](https://semver.org). Before 1.0, a minor version can break things. Each entry names any new D1 migration. `npm run deploy` applies it; if you deploy another way, run `wrangler d1 migrations apply DB --remote` before you deploy that version.
 
+## 0.7.4
+
+The reader.
+
+- Every message is a page with one left edge, lined up with the subject, sender and Reply bar. Plain mail no longer floats indented on the reader background.
+- Plain mail reads in a serif at 16px with lines capped at 66 characters, so the message reads as a letter and the app stays sans. Designed HTML mail keeps its own fonts on its white page.
+- Text-only mail: blank-line runs collapse to one paragraph break, bare URLs and addresses are links, the signature under a `-- ` line is muted under a rule, and quoted replies (`>` lines and "On … wrote:") fold behind a toggle.
+- A text body with an address in angle brackets ("<jane@example.com>") was shown as HTML. Only real tags count now.
+- Images hidden is a row at the top of the message instead of a bar above it. A blocked image shows its alt text in a dashed box instead of the broken-image icon, and tracking pixels are dropped.
+- The agent panel and its collapsed rail are labelled MAILROOM AGENT, and the sidebar MAILROOM.
+- The list header reads which addresses, then which folder: the address picker as its mark and a caret, then the folder with the same icon it has in the sidebar. The scope's icon used to sit beside the folder name as if they were one control. Click the folder name to jump to a sibling: the same list the sidebar shows under that address, or under All addresses with its labels. Switching address keeps the folder you are in.
+- The message frame skips writing a document it already holds. Two writes in a row, as React makes in development, left plain mail blank in some Chromium browsers.
+- In a small window the reader slid under the agent rail, so MAILROOM AGENT sat on top of the toolbar and the sender's address was cut to "<". The reader now shrinks, its toolbar wraps and the sender line breaks.
+- Who sent a message and when is now the page's letterhead: name and address over the receiving address on the left, the date over the time on the right, above a hairline. The initial square and the angle brackets are gone.
+- Labels are no longer chips. In the reader they sit on a thin rail across the top of the message, right-aligned over the date; in the list they are tags beside the star, with the name on hover, so a labelled row is no taller than any other.
+- Quoted earlier messages in HTML replies fold behind the `···` toggle, as in text-only mail. Opened, each one sits under a hairline with its sender and date instead of a grey block.
+- Focused search lifts off the page: a soft shadow on both sides of the bar and its window.
+- When the agent drafted more than once in one auto-draft run, every draft stayed in Drafts. The run now keeps its last draft and discards the earlier ones (#19).
+
+No D1 migration.
+
 ## 0.7.3
 
 The last fixes from the 0.7.0 review.

@@ -153,14 +153,6 @@ export function labelLook(id: string): React.CSSProperties & { "data-pattern": s
 	return { "--pg-lh": String(h % 360), "data-pattern": LABEL_PATTERNS[(h >>> 9) % LABEL_PATTERNS.length] } as never;
 }
 
-export function LabelChip({ label, style }: { label: { id: string; name: string }; style?: React.CSSProperties }) {
-	return (
-		<span className="pg-label-chip" style={style}>
-			<LabelTag id={label.id} size={10} />{label.name}
-		</span>
-	);
-}
-
 const TAG_PATH = "M243.31,136,144,36.69A15.86,15.86,0,0,0,132.69,32H40a8,8,0,0,0-8,8v92.69A15.86,15.86,0,0,0,36.69,144L136,243.31a16,16,0,0,0,22.63,0l84.68-84.68a16,16,0,0,0,0-22.63ZM84,96A12,12,0,1,1,96,84,12,12,0,0,1,84,96Z";
 
 /** One tile of each pattern, in the tag's 256-unit space. */

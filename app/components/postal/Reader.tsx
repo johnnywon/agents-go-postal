@@ -9,6 +9,7 @@ import { AgentIcon } from "./AgentIcon";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Folders } from "shared/folders";
 import EmailIframe, { type EmailPalette, hasRemoteImages, isPlainHtml } from "~/components/EmailIframe";
+import { isHtmlBody, plainTextToHtml } from "~/components/plain-text";
 import { getAttachmentUrl, getNonInlineAttachments, rewriteInlineImages } from "~/lib/utils";
 import { useEmail, useMarkThreadRead, useThreadReplies } from "~/queries/emails";
 import type { Conversation, Label } from "~/services/api";
@@ -16,7 +17,7 @@ import type { Email } from "~/types";
 import type { DraftResult } from "./Agent";
 import type { AddressInfo, ComposeMode, ComposeState, useMailSender } from "./compose";
 import { Composer } from "./ComposeWindow";
-import { AddressText, type Identities, LabelChip, LabelTag, Swatch } from "./identity";
+import { AddressText, type Identities, LabelTag, Swatch } from "./identity";
 import { formatSize, fullDate, type MailAction, nameFromHeaders } from "./model";
 import type { Prefs } from "./prefs";
 import { useShortcuts } from "./shortcuts";
@@ -141,6 +142,51 @@ export function Reader(props: ReaderProps) {
 	const unread = row?.unread ?? false;
 	const reply = (mode: Exclude<ComposeMode, "new">) => original && props.startReply(mode, original);
 
+	// The message's letterhead: who and where on the left, when on the right, inside the page.
+	const when = (head ? fullDate(head.date) : row ? fullDate(row.date) : "").split(" · ");
+	const letterhead = (
+		<>
+			{rowLabels.length > 0 && (
+				<div className="pg-mrail" aria-label="Labels">
+					{rowLabels.map((l) => (
+						<span key={l.id} className="pg-mrail-label"><LabelTag id={l.id} size={10} />{l.name}</span>
+					))}
+				</div>
+			)}
+		<header className="pg-mhead">
+			<div className="pg-mhead-who">
+				<div className="pg-mhead-from">
+					{sent && <span className="pg-mhead-word">To</span>}
+					<span className="pg-mhead-name" title={senderName}>{senderName}</span>
+					{senderAddr && senderAddr.toLowerCase() !== senderName.toLowerCase() && <span className="pg-mhead-addr" title={senderAddr}>{senderAddr}</span>}
+				</div>
+				<div className="pg-mhead-to">
+					<span className="pg-mhead-where" title={sent ? `Sent from ${mailbox}` : `Delivered to ${mailbox} · Replies send from here`}>
+						<span className="pg-mhead-word">{sent ? "from" : "to"}</span>
+						<Swatch identity={identity} />
+						<AddressText address={mailbox} identity={identity} bold={false} />
+					</span>
+					{attachmentCount > 0 && (
+						<button
+							type="button"
+							className="pg-attach-count"
+							title={attachmentCount === 1 ? "1 attachment" : `${attachmentCount} attachments`}
+							onClick={() => scrollRef.current?.querySelector(".pg-attachments")?.scrollIntoView({ behavior: "smooth", block: "nearest" })}
+						>
+							<PaperclipIcon size={13} />{attachmentCount}
+						</button>
+					)}
+				</div>
+			</div>
+			{when[0] && (
+				<time className="pg-mhead-when" dateTime={head?.date ?? row?.date}>
+					<span>{when[0]}</span>
+					<span>{when[1]}</span>
+				</time>
+			)}
+		</header>
+		</>
+	);
 	return (
 		<section className="pg-reader" aria-label="Message" ref={sectionRef}>
 			{pickerOpen && row && (
@@ -183,43 +229,13 @@ export function Reader(props: ReaderProps) {
 			<div className="pg-reader-scroll" ref={scrollRef}>
 				<div className="pg-reader-main">
 					<h1 className="pg-subject">{row?.subject || email?.subject || "(no subject)"}</h1>
-					{rowLabels.length > 0 && (
-						<div className="pg-reader-labels">
-							{rowLabels.map((l) => <LabelChip key={l.id} label={l} />)}
-						</div>
-					)}
-					<div className="pg-sender">
-						<Avatar name={senderName || senderAddr} seed={senderAddr || senderName} />
-						<div className="pg-sender-text">
-							<div className="pg-sender-line">
-								{sent && <span className="pg-to-word">To</span>}
-								<span className="pg-name">{senderName}</span>
-								{senderAddr && senderAddr.toLowerCase() !== senderName.toLowerCase() && <span className="pg-email">&lt;{senderAddr}&gt;</span>}
-								<span className="pg-date">{head ? fullDate(head.date) : row ? fullDate(row.date) : ""}</span>
-							</div>
-							<div className="pg-sender-to" title={sent ? `Sent from ${mailbox}` : `Delivered to ${mailbox} · Replies send from here`}>
-								<span>{sent ? "from" : "to"}</span>
-								<Swatch identity={identity} />
-								<AddressText address={mailbox} identity={identity} bold={false} />
-								{attachmentCount > 0 && (
-									<button
-										type="button"
-										className="pg-attach-count"
-										title={attachmentCount === 1 ? "1 attachment" : `${attachmentCount} attachments`}
-										onClick={() => scrollRef.current?.querySelector(".pg-attachments")?.scrollIntoView({ behavior: "smooth", block: "nearest" })}
-									>
-										<PaperclipIcon size={13} />{attachmentCount}
-									</button>
-								)}
-							</div>
-						</div>
-					</div>
 					{/* TODO(roadmap): per-email agent card (what the agent did, its steps and one-click actions) returns with rules. */}
 					<div className="pg-reader-content">
 						{!email && <div className="pg-skel" style={{ border: 0, padding: 0 }}><span className="pg-pulse" style={{ width: "80%" }} /></div>}
 						{email && (
 							<Message
 								key={email.id}
+								head={letterhead}
 								email={email}
 								mailboxId={mailbox}
 								images={props.prefs.images === "always" || shownImages.has(email.id)}
@@ -274,14 +290,6 @@ export function Reader(props: ReaderProps) {
 	);
 }
 
-/** A square with the sender's initial, coloured from their address. Round is kept for the agent. */
-function Avatar({ name, seed }: { name: string; seed: string }) {
-	let hash = 0;
-	for (const ch of seed.toLowerCase()) hash = (hash * 31 + ch.charCodeAt(0)) >>> 0;
-	const letter = (name.replace(/^["'\s]+/, "")[0] ?? "?").toUpperCase();
-	return <span className="pg-avatar" aria-hidden style={{ "--pg-h": String(hash % 360) } as React.CSSProperties}>{letter}</span>;
-}
-
 const PALETTE_VARS = { text: "--pg-text-2", muted: "--pg-text-6", link: "--pg-link", quote: "--pg-well", line: "--pg-line-2" } as const;
 
 /** The reader's colours, for plain mail rendered on the reader surface. Follows theme changes. */
@@ -312,19 +320,15 @@ function useReaderPalette(ref: React.RefObject<HTMLElement | null>): EmailPalett
 	return palette;
 }
 
-function escapeText(text: string): string {
-	return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-}
-
-function Message({ email, mailboxId, images, onShowImages }: {
+function Message({ head, email, mailboxId, images, onShowImages }: {
+	head: React.ReactNode;
 	email: Email;
 	mailboxId: string;
 	images: boolean;
 	onShowImages: () => void;
 }) {
 	const raw = email.body || "";
-	// Text-only mail keeps its line breaks.
-	const html = /<[a-z][\s\S]*>/i.test(raw) ? raw : `<div style="white-space: pre-wrap">${escapeText(raw)}</div>`;
+	const html = isHtmlBody(raw) ? raw : plainTextToHtml(raw);
 	const body = rewriteInlineImages(html, mailboxId, email.id, email.attachments);
 	const remote = hasRemoteImages(body);
 	const frameRef = useRef<HTMLDivElement>(null);
@@ -333,15 +337,17 @@ function Message({ email, mailboxId, images, onShowImages }: {
 	const attachments = getNonInlineAttachments(email.attachments);
 	return (
 		<>
-			{remote && !images && (
-				<div className="pg-images-note">
-					<ImageIcon size={14} />
-					<span className="pg-flex">Images are hidden so the sender can’t see when you open this.</span>
-					<button type="button" className="pg-btn" onClick={onShowImages}>Show images</button>
-				</div>
-			)}
-			{/* Plain mail reads on the reader surface; designed HTML mail keeps its white page. Attachments sit inside, under the body. */}
+			{/* Every message is a page: plain mail in the reader's colours and a serif, designed HTML mail on its own white. The images note and attachments sit inside it. */}
 			<div className="pg-mail-frame" data-kind={plain ? "plain" : "html"} ref={frameRef}>
+				{head}
+				<div className="pg-mail-body">
+				{remote && !images && (
+					<div className="pg-images-note">
+						<ImageIcon size={14} />
+						<span className="pg-flex" title="Remote images can tell the sender you opened this">Images hidden</span>
+						<button type="button" className="pg-images-show" onClick={onShowImages}>Show images</button>
+					</div>
+				)}
 				{(!plain || palette) && (
 					<EmailIframe autoSize body={body} remoteImages={images} padding={plain ? 0 : 24} palette={plain ? palette : undefined} />
 				)}
@@ -350,6 +356,7 @@ function Message({ email, mailboxId, images, onShowImages }: {
 						{attachments.map((a) => <AttachmentRow key={a.id} attachment={a} href={getAttachmentUrl(mailboxId, email.id, a.id)} />)}
 					</div>
 				)}
+				</div>
 			</div>
 		</>
 	);

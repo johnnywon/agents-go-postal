@@ -171,3 +171,25 @@ export function TrashIcon(props: NavIconProps) {
 		</Svg>
 	);
 }
+
+/** Each folder's icon, one meaning everywhere: the sidebar, the rail and the list header. */
+export const VIEW_ICONS: Record<string, (props: NavIconProps) => ReactNode> = {
+	inbox: InboxIcon, unread: UnreadIcon, starred: StarredIcon, drafts: DraftsIcon, sent: SentIcon,
+	archive: ArchiveIcon, spam: SpamIcon, trash: TrashIcon, all: AllAddressesIcon,
+};
+
+/** The folders under All addresses' Inbox and Unread in the sidebar. */
+export const SECONDARY_VIEWS = [
+	{ view: "starred", label: "Starred", Icon: StarredIcon },
+	{ view: "drafts", label: "Drafts", Icon: DraftsIcon },
+	{ view: "sent", label: "Sent", Icon: SentIcon },
+	{ view: "archive", label: "Archive", Icon: ArchiveIcon },
+	{ view: "spam", label: "Spam", Icon: SpamIcon },
+	{ view: "trash", label: "Trash", Icon: TrashIcon },
+] as const;
+
+/** One address's (or domain's) folders: what the sidebar lists under it. */
+export const ADDRESS_FOLDERS = [{ view: "inbox", label: "Inbox", Icon: InboxIcon }, ...SECONDARY_VIEWS] as const;
+
+/** All addresses' folders: the sidebar's top group. Labels follow them. */
+export const ALL_FOLDERS = [{ view: "inbox", label: "Inbox", Icon: InboxIcon }, { view: "unread", label: "Unread", Icon: UnreadIcon }, ...SECONDARY_VIEWS] as const;
