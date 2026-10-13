@@ -190,7 +190,6 @@ export function Reader(props: ReaderProps) {
 						</div>
 					)}
 					<div className="pg-sender">
-						<Avatar name={senderName || senderAddr} seed={senderAddr || senderName} />
 						<div className="pg-sender-text">
 							<div className="pg-sender-line">
 								{sent && <span className="pg-to-word">To</span>}
@@ -273,14 +272,6 @@ export function Reader(props: ReaderProps) {
 			{source && <SourceModal email={source} onClose={() => setSource(null)} />}
 		</section>
 	);
-}
-
-/** A square with the sender's initial, coloured from their address. Round is kept for the agent. */
-function Avatar({ name, seed }: { name: string; seed: string }) {
-	let hash = 0;
-	for (const ch of seed.toLowerCase()) hash = (hash * 31 + ch.charCodeAt(0)) >>> 0;
-	const letter = (name.replace(/^["'\s]+/, "")[0] ?? "?").toUpperCase();
-	return <span className="pg-avatar" aria-hidden style={{ "--pg-h": String(hash % 360) } as React.CSSProperties}>{letter}</span>;
 }
 
 const PALETTE_VARS = { text: "--pg-text-2", muted: "--pg-text-6", link: "--pg-link", quote: "--pg-well", line: "--pg-line-2" } as const;
