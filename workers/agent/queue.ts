@@ -47,7 +47,8 @@ export async function consumeAutoDrafts(batch: MessageBatch<AutoDraftJob>, env: 
 		try {
 			const outcome = await processAutoDraft(env, message.body, final);
 			if (outcome === "retry") message.retry({ delaySeconds: retryDelay(message.attempts) });
-			else message.ack();
+			else if (outcome === "done") message.ack();
+			else message.retry({ delaySeconds: outcome.wait });
 		} catch (e) {
 			console.error("Auto-draft attempt failed:", (e as Error).message);
 			message.retry({ delaySeconds: retryDelay(message.attempts) });
