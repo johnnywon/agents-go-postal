@@ -166,7 +166,7 @@ export default function EmailIframe({ body, autoSize, remoteImages = true, paddi
 
 		// Use srcdoc so the iframe is truly sandboxed (no same-origin access).
 		// We can't use doc.write() because that requires allow-same-origin.
-		iframe.srcdoc = `<!DOCTYPE html>
+		const doc = `<!DOCTYPE html>
 <html>
 <head>
 <meta charset="utf-8">
@@ -253,6 +253,9 @@ hr { border: 0; border-top: 1px solid ${palette.line}; }
 </head>
 <body>${cleanBody.innerHTML}${heightScript}${keyScript}</body>
 </html>`;
+		// Writing the same document twice in a row (React's dev double effects, or a palette read
+		// that didn't change anything) can leave the frame blank in some Chromium browsers.
+		if (iframe.srcdoc !== doc) iframe.srcdoc = doc;
 	}, [body, autoSize, remoteImages, paddingProp, palette?.scheme, palette?.text, palette?.muted, palette?.link, palette?.quote, palette?.line]);
 
 	return (
