@@ -109,9 +109,8 @@ export function ListPane(props: ListPaneProps) {
 		go({ view: "inbox", chips: value ? [{ kind: "address", value }] : [], sort: filter.sort, dir: filter.dir });
 	};
 
-	// The header reads which addresses, then which folder (or label), each with its own icon.
+	// The header reads which addresses (as a mark), then which folder (or label), each with its own icon.
 	const scopeIcon = scope ? <Swatch identity={identities.of(scope)} /> : <AllAddressesIcon size={14} />;
-	const scopeName = !scope ? "All addresses" : scope.includes("@") ? <AddressText address={scope} identity={identities.of(scope)} short bold={false} /> : scope;
 	const FolderIcon = VIEW_ICONS[filter.view] ?? InboxIcon;
 	const folderIcon = labelView ? <LabelTag id={labelView} /> : <FolderIcon size={14} />;
 	const folderName = labelView ? props.labelsById.get(labelView)?.name ?? "Label" : VIEW_LABELS[filter.view] ?? filter.view;
@@ -145,9 +144,8 @@ export function ListPane(props: ListPaneProps) {
 	return (
 		<section className="pg-list-col" aria-label="Conversations">
 			<div className="pg-list-head">
-				<button type="button" className="pg-scope-btn" onClick={() => setScopeOpen((v) => !v)} title={`Switch address · ${scope ?? "All addresses"}`} aria-expanded={scopeOpen} aria-haspopup="listbox">
+				<button type="button" className="pg-scope-btn" onClick={() => setScopeOpen((v) => !v)} title={`Switch address · ${scope ?? "All addresses"}`} aria-label={`Address: ${scope ?? "All addresses"}`} aria-expanded={scopeOpen} aria-haspopup="listbox">
 					<span className="pg-scope-icon">{scopeIcon}</span>
-					<span className="pg-scope-name">{scopeName}</span>
 					<CaretDownIcon size={10} weight="bold" color="var(--pg-text-6)" style={{ flex: "none" }} />
 				</button>
 				<CaretRightIcon className="pg-crumb-sep" size={10} weight="bold" aria-hidden />
