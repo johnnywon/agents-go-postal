@@ -18,3 +18,13 @@ test("a message frame writes its document only when it changed", () => {
 	assert.match(source, /if \(iframe\.srcdoc !== doc\) iframe\.srcdoc = doc;/);
 	assert.doesNotMatch(source, /iframe\.srcdoc = `/);
 });
+
+// Quoted history in HTML replies (Gmail, Apple Mail) folds like text-only mail, with no fill behind it.
+test("quoted earlier messages fold and have no background", () => {
+	const source = readFileSync("app/components/EmailIframe.tsx", "utf8");
+	assert.match(source, /const QUOTE = "\.gmail_quote, [^"]*blockquote\[type='cite'\]/);
+	assert.match(source, /fold\.className = "omr-quote"/);
+	const quoteRules = source.match(/(?:^|\n)\s*(?:\.omr-quote )?blockquote \{[^}]*\}/g) ?? [];
+	assert.ok(quoteRules.length > 0);
+	for (const rule of quoteRules) assert.doesNotMatch(rule, /background/);
+});
