@@ -5,14 +5,14 @@
 Cloudflare receives and sends your domain's mail but doesn't include a mail client. Open Mailroom is one: every address on every domain in one list, on desktop or phone, with an agent that can search, label, draft and send. It runs entirely in your Cloudflare account.
 
 [![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/johnnywon/open-mailroom)
-[![Version 0.5.1](https://img.shields.io/badge/version-0.5.1-blue)](https://github.com/johnnywon/open-mailroom/releases)
+[![Version 0.6.0](https://img.shields.io/badge/version-0.6.0-blue)](https://github.com/johnnywon/open-mailroom/releases)
 [![CI](https://github.com/johnnywon/open-mailroom/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/johnnywon/open-mailroom/actions/workflows/ci.yml)
 [![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
 [![Runs on Cloudflare Workers](https://img.shields.io/badge/runs%20on-Cloudflare%20Workers-f38020?logo=cloudflare&logoColor=white)](https://developers.cloudflare.com/workers/)
 
 Needs a domain on Cloudflare, R2 and Cloudflare Access. Sending needs the Workers Paid plan and Cloudflare Email Sending, which is in public beta.
 
-**v0.5.1, ready to deploy.** One production deployment has handled real mail on it every day since May 2026. Before 1.0, an upgrade can need a step, such as a D1 migration or a config change, and the [changelog](CHANGELOG.md) names it in every release. Pin a [release](https://github.com/johnnywon/open-mailroom/releases) tag to choose when you upgrade.
+**v0.6.0, ready to deploy.** One production deployment has handled real mail on it every day since May 2026. Before 1.0, an upgrade can need a step, such as a D1 migration or a config change, and the [changelog](CHANGELOG.md) names it in every release. Pin a [release](https://github.com/johnnywon/open-mailroom/releases) tag to choose when you upgrade.
 
 <picture>
   <source media="(prefers-color-scheme: light)" srcset="docs/images/inbox-light.jpg">
@@ -70,7 +70,7 @@ Also: an in-app agent on Workers AI or zero data retention OpenRouter models, at
 ```text
    Sender           You, in a browser    Claude Code, Cursor,   Cron, every
      |                    |              other MCP clients      minute
-     v                    v                    |                  | on D1:
+     v                    v                    |                  |
 +---------------+  +-----------------+         | /mcp             | scheduled
 | Email Routing |  | Cloudflare      |         |                  | sends,
 +---------------+  | Access          |         |                  | attachment
@@ -83,10 +83,10 @@ Also: an in-app agent on Workers AI or zero data retention OpenRouter models, at
      v                 v                  v                    v
 +-------------+  +-------------+  +----------------+  +---------------+
 | Mail store  |  | R2          |  | Agent          |  | Email Service |
-| D1, or one  |  | attachments,|  | Durable Object |  | send_email    |
-| DO per      |  | large bodies|  +----------------+  +---------------+
-| address     |  | on D1       |          |                    |
-| + an index  |  +-------------+          v                    v
+| D1, one     |  | attachments,|  | Durable Object |  | send_email    |
+| database    |  | large bodies|  +----------------+  +---------------+
+| for every   |  |             |          |                    |
+| address     |  +-------------+          v                    v
 +-------------+                   Workers AI or            Recipient
                                   OpenRouter (zero
                                   data retention)

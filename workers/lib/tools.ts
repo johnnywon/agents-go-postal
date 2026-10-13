@@ -5,8 +5,8 @@
 /**
  * Shared tool business logic for the Agent and MCP server.
  *
- * Each function takes an `env: Env` (or a DO stub) and tool-specific params,
- * performs the business logic (DO calls, data fetching, formatting), and
+ * Each function takes an `env: Env` (or a mailbox store) and tool-specific params,
+ * performs the business logic (store calls, data fetching, formatting), and
  * returns a plain object. The Agent and MCP server wrap these results in
  * their own response formats.
  *
@@ -14,9 +14,7 @@
  * are reused directly — this module covers the remaining shared operations.
  */
 
-import { isSystemFolder } from "./mailbox-bulk";
-import { mailStore, searchEngine } from "../store";
-import type { SearchEngine } from "../store/search";
+import { mailStore } from "../store";
 import { DATE_TOKENS, emptyFilter, InvalidFilterError, type MailFilter, searchOf, VIEWS } from "./mail-index-sql";
 import type { EmailFull } from "./schemas";
 import { snippetText } from "./snippets";
@@ -29,7 +27,7 @@ import {
 import { verifyDraft } from "./ai";
 import { sendMail } from "./send";
 import { deleteAttachmentFiles } from "./attachments";
-import { Folders } from "../../shared/folders";
+import { Folders, isSystemFolder } from "../../shared/folders";
 import { LABEL_COLORS } from "../../shared/label-colors";
 import { describeShortcuts, findShortcut, isRebindable, setShortcut, type ShortcutOverrides } from "../../shared/shortcuts";
 import { readPrefs, writePrefs } from "./prefs";
@@ -478,7 +476,7 @@ export async function toolLabelConversation(
 		return { error: `Unknown label: ${unknown.join(", ")}. Use list_labels to see labels, or create_label to make one.` };
 	}
 	const threadKey = await index.threadKeyOf(mailboxId, emailId);
-	if (!threadKey) return { error: "Email not found in the mail index", emailId };
+	if (!threadKey) return { error: "Email not found", emailId };
 
 	const target = { threadKeys: [threadKey], view: "all" };
 	const done: string[] = [];
@@ -525,13 +523,12 @@ export const SEARCH_HELP =
 	`Results with words come best match first where the store ranks them (order: "relevance"); add sort:date for newest first.`;
 
 /**
- * Build an index filter. Labels are named by id or name; unknown ones are an
- * error. With `engine`, the query text is checked for that store too.
+ * Build a mail filter. Labels are named by id or name; unknown ones are an
+ * error. The query text is checked too.
  */
 export function mailSearchFilter(
 	search: MailSearch,
 	labels: { id: string; name: string }[],
-	engine?: SearchEngine,
 ): { filter: MailFilter } | { error: string } {
 	const folder = (search.folder ?? "all").trim().toLowerCase();
 	if (!(VIEWS as readonly string[]).includes(folder)) return { error: `Unknown folder: ${search.folder}. Use one of ${VIEWS.join(", ")}.` };
@@ -558,7 +555,6 @@ export function mailSearchFilter(
 		is,
 		has: search.hasAttachment ? ["attachment"] : [],
 		date: search.date as MailFilter["date"],
-		engine,
 	});
 	try {
 		searchOf(filter);
@@ -574,7 +570,7 @@ export function mailSearchFilter(
 /** Search every address at once. Each result names the address it is in. */
 export async function toolSearchAllMail(env: Env, search: MailSearch & { limit?: number }) {
 	const index = mailStore(env).all();
-	const built = mailSearchFilter(search, await index.listLabels(), searchEngine(env));
+	const built = mailSearchFilter(search, await index.listLabels());
 	if ("error" in built) return built;
 	const limit = Math.min(Math.max(search.limit ?? 25, 1), 50);
 	const result = await index.queryMail(built.filter, { limit });
@@ -587,7 +583,7 @@ export async function toolSearchAllMail(env: Env, search: MailSearch & { limit?:
 			date: c.date,
 			from: c.sender_name ? `${c.sender_name} <${c.sender_addr}>` : c.sender_addr,
 			subject: c.subject,
-			// On D1, the text around the matched words; otherwise the opening lines.
+			// The text around the matched words, or the opening lines.
 			snippet: c.snippet_html ? snippetText(c.snippet_html) : c.snippet,
 			unread: c.unread,
 			labels: c.labels,
@@ -614,7 +610,7 @@ export async function toolLabelMatching(
 		return { error: `Unknown label: ${unknown.join(", ")}. Use list_labels to see labels, or create_label to make one.` };
 	}
 	if (!params.add?.length && !params.remove?.length && !params.archive) return { error: "Say which labels to add or remove." };
-	const built = mailSearchFilter(search, labels, searchEngine(env));
+	const built = mailSearchFilter(search, labels);
 	if ("error" in built) return built;
 	const threadKeys = await index.threadKeysMatching(built.filter, LABEL_MATCHING_MAX + 1);
 	if (threadKeys.length === 0) return { status: "no matches", conversations: 0 };

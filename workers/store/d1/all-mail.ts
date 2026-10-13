@@ -4,13 +4,11 @@
 
 /**
  * Mail across every address on D1: the combined list, facets, labels, bulk
- * actions and undo. The queries are the same generators MailIndexDO runs
- * (mail-index-sql.ts, mail-bulk-sql.ts), driven with runAsync.
+ * actions and undo. The queries are generators (mail-index-sql.ts,
+ * mail-bulk-sql.ts) driven with runAsync.
  *
- * Bulk actions apply inline at any size. MailIndexDO turns actions over 500
- * messages into an alarm job because each op is a call to another Durable
- * Object; on D1 an op is one statement, so there is no job to poll and
- * `bulkJob` only finds jobs that older code created.
+ * Bulk actions apply inline at any size: an op is one statement, so there
+ * is no job to poll and `bulkJob` only finds jobs that older code created.
  */
 import {
 	BulkConflictError,
@@ -37,7 +35,6 @@ import {
 } from "../../lib/mail-bulk-sql";
 import { type MailFilter, type Query, folderViewsQuery, runAsync } from "../../lib/mail-index-sql";
 import { d1FacetsQuery, d1MailQuery, withSubstrings } from "../../lib/search-engine-sql";
-import type { BulkTarget } from "../../durableObject/mail-index";
 import {
 	createSavedSearchQuery,
 	deleteSavedSearchQuery,
@@ -47,10 +44,8 @@ import {
 	updateSavedSearchQuery,
 } from "../../lib/search-suggest-sql";
 import type { Sql } from "../sql";
+import type { BulkTarget } from "../types";
 import { applyOps } from "./ops";
-
-/** Searches here may use the operators that need D1's tables. */
-const onD1 = (filter: MailFilter): MailFilter => ({ ...filter, engine: "d1" });
 
 export class D1AllMail {
 	constructor(private readonly sql: Sql, private readonly bucket: R2Bucket) {}
@@ -59,9 +54,9 @@ export class D1AllMail {
 		return runAsync(query, (text, ...params) => this.sql.all(text, ...params));
 	}
 
-	/** The filter as D1 runs it: its engine set and its substring matches found, so bulk targets match the list. */
+	/** The filter with its substring matches found, so bulk targets match the list. */
 	#search(filter: MailFilter): Promise<MailFilter> {
-		return this.#run(withSubstrings(onD1(filter)));
+		return this.#run(withSubstrings(filter));
 	}
 
 	async #deleteFiles(keys: string[]) {
@@ -74,11 +69,11 @@ export class D1AllMail {
 	}
 
 	async queryMail(filter: MailFilter, options: { cursor?: string | null; limit?: number } = {}) {
-		return { ...(await this.#run(d1MailQuery(onD1(filter), options))), indexing: null };
+		return this.#run(d1MailQuery(filter, options));
 	}
 
 	async queryFacets(filter: MailFilter) {
-		return this.#run(d1FacetsQuery(onD1(filter)));
+		return this.#run(d1FacetsQuery(filter));
 	}
 
 	async folderViews() {
@@ -88,11 +83,11 @@ export class D1AllMail {
 	// ── Search window ────────────────────────────────────────────────
 
 	async suggest(filter: MailFilter, text: string, at: number) {
-		return this.#run(suggestQuery(onD1(filter), text, at));
+		return this.#run(suggestQuery(filter, text, at));
 	}
 
 	async listSavedSearches(counts?: { tzOffset: number }) {
-		return this.#run(listSavedSearchesQuery(counts && { engine: "d1", tzOffset: counts.tzOffset }));
+		return this.#run(listSavedSearchesQuery(counts));
 	}
 
 	async createSavedSearch(input: { name?: unknown; query: unknown }) {

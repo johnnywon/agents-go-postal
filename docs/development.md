@@ -16,7 +16,7 @@ Set `account_id` in `wrangler.jsonc` first. Local development still connects to 
 
 To keep your account ID and test addresses out of `wrangler.jsonc`, copy it to `wrangler.local.jsonc` (gitignored), edit that copy, and run `npm run dev:local`. Apply the migrations with `-c wrangler.local.jsonc`.
 
-Mail is stored in a local D1 database under `.wrangler/state`. Run the migrations command again after pulling a new migration. To run on the Durable Object store instead, set `"STORAGE": "do"`.
+Mail is stored in a local D1 database under `.wrangler/state`. Run the migrations command again after pulling a new migration.
 
 Open the app once so it creates the configured mailboxes, then fill them with sample mail:
 

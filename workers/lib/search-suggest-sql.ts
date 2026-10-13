@@ -4,14 +4,12 @@
 
 /**
  * The search window's server side: suggestions for what is typed, and saved
- * searches. Generators over `messages m`, like mail-index-sql.ts, so the
- * combined index and D1 run the same SQL.
+ * searches. Generators over `messages m`, like mail-index-sql.ts.
  *
  * Every statement holds at most one MATCH (see workers/store/search.ts).
  */
 import { completionAt, filterTerms, looksLikeRequest, removeRange } from "../../shared/search-complete";
 import { formatSearch, MAX_SEARCH_LENGTH, parseSearch } from "../../shared/search-query";
-import type { SearchEngine } from "../store/search";
 import { type DidYouMean, didYouMeanQuery, withSubstrings } from "./search-engine-sql";
 import { FACET_CAP, filterWhere, InvalidFilterError, type MailFilter, type Query, sqlStep } from "./mail-index-sql";
 
@@ -118,7 +116,7 @@ function* recipientCompletions(partial: string): Query<SuggestPerson[]> {
 		.slice(0, MAX_COMPLETIONS);
 }
 
-/** Conversations a filter matches, or null when its search can't run on this store. */
+/** Conversations a filter matches, or null when its search doesn't compile. */
 function* countOf(filter: MailFilter, now: number): Query<number | null> {
 	let w: { sql: string; params: unknown[] };
 	try {
@@ -132,8 +130,8 @@ function* countOf(filter: MailFilter, now: number): Query<number | null> {
 }
 
 function* narrowOf(filter: MailFilter, text: string, now: number): Query<SuggestCount[]> {
-	// Counted over the newest matches on D1, as the list's facets are.
-	const w = filterWhere(filter, now, filter.engine === "d1" ? FACET_CAP : undefined);
+	// Counted over the newest matches, as the list's facets are.
+	const w = filterWhere(filter, now, FACET_CAP);
 	const typed = text.toLowerCase();
 	const out: SuggestCount[] = [];
 	const domains = yield sqlStep(
@@ -216,7 +214,7 @@ export function* suggestQuery(base: MailFilter, text: string, at: number, now = 
 		if (count) removals.push({ ...term, count });
 	}
 	out.nothing = { everywhere: everywhere || null, removals };
-	if (base.engine === "d1") out.didYouMean = yield* didYouMeanQuery(text);
+	out.didYouMean = yield* didYouMeanQuery(text);
 	return out;
 }
 
@@ -268,14 +266,14 @@ function* allSaved(): Query<SavedSearch[]> {
 	return (yield sqlStep(`SELECT id, name, filter, position FROM saved_searches ORDER BY position, name`)).map(toSaved);
 }
 
-/** Saved searches in order. With `counts`, each is counted over All mail for that store's engine. */
-export function* listSavedSearchesQuery(counts?: { engine: SearchEngine; tzOffset: number }, now = Date.now()): Query<SavedSearch[]> {
+/** Saved searches in order. With `counts`, each is counted over All mail. */
+export function* listSavedSearchesQuery(counts?: { tzOffset: number }, now = Date.now()): Query<SavedSearch[]> {
 	const list = yield* allSaved();
 	if (!counts) return list;
 	for (const saved of list) {
 		const filter: MailFilter = {
 			view: "all", address: [], from: [], label: [], is: [], has: [], subject: [], q: saved.query,
-			sort: "date", dir: "desc", tzOffset: counts.tzOffset, engine: counts.engine,
+			sort: "date", dir: "desc", tzOffset: counts.tzOffset,
 		};
 		saved.count = yield* countOf(filter, now);
 	}

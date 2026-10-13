@@ -12,8 +12,6 @@
  *    the last two days with the same subject where the sender took part
  *    (sent a message in it, or was written to from this mailbox).
  * 3. Otherwise the message starts its own thread.
- *
- * Both stores (Durable Object and D1) run the same matching below.
  */
 
 /** Prefixes stripped before comparing subjects. */

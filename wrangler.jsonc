@@ -19,14 +19,9 @@
 		// The worker now fails closed outside local development if Access is not configured.
 		"DOMAINS": "example.com",
 		"AUTO_DRAFT_ENABLED": "false",
-		// Kill switch for mailbox pushes to MailIndexDO. "false" stops pushes; changes queue in each mailbox outbox.
-		"INDEX_SYNC_ENABLED": "true",
-		"EMAIL_ADDRESSES": ["hello@example.com"],
-		// Mail lives in the DB database. A deployment whose mail is still in Durable Objects sets "do"
-		// until it has copied its mail (docs/setup.md, Moving to D1).
-		"STORAGE": "d1"
+		"EMAIL_ADDRESSES": ["hello@example.com"]
 	},
-	// Sends scheduled mail and runs search upkeep on D1. On the Durable Object store each run returns at once.
+	// Sends scheduled mail and, with ATTACHMENT_SEARCH on, makes attachments searchable.
 	"triggers": {
 		"crons": ["* * * * *"]
 	},
@@ -60,20 +55,12 @@
 	"durable_objects": {
 		"bindings": [
 			{
-				"name": "MAILBOX",
-				"class_name": "MailboxDO"
-			},
-			{
 				"name": "EMAIL_AGENT",
 				"class_name": "EmailAgent"
 			},
 			{
 				"name": "EMAIL_MCP",
 				"class_name": "EmailMCP"
-			},
-			{
-				"name": "MAIL_INDEX",
-				"class_name": "MailIndexDO"
 			}
 		]
 	},
@@ -99,6 +86,14 @@
 		{
 			"tag": "v4",
 			"new_sqlite_classes": [
+				"MailIndexDO"
+			]
+		},
+		{
+			// Deletes the Durable Object mail storage from 0.5 and earlier, and the mail in it.
+			"tag": "v5",
+			"deleted_classes": [
+				"MailboxDO",
 				"MailIndexDO"
 			]
 		}

@@ -8,7 +8,7 @@ import { loadTs } from "./helpers/sqlite.mjs";
 
 const si = await loadTs("workers/lib/search-interpret.ts");
 
-const ctx = (o = {}) => ({ now: new Date("2026-10-11T12:00:00Z"), engine: "d1", tzOffset: 0, labels: ["Receipts", "Tax 2026"], addresses: ["billing@example.com"], ...o });
+const ctx = (o = {}) => ({ now: new Date("2026-10-11T12:00:00Z"), tzOffset: 0, labels: ["Receipts", "Tax 2026"], addresses: ["billing@example.com"], ...o });
 const answer = (obj) => async () => JSON.stringify(obj);
 const run = (text, generate, o) => si.interpretSearch(text, ctx(o), generate);
 
@@ -66,10 +66,9 @@ test("anything else falls back to a word search", async () => {
 	assert.deepEqual(await run("   ", answer({ terms: [], explanation: "" })), { error: "Nothing to interpret", query: "" });
 });
 
-test("terms that don't parse, or that the store can't run, are dropped", async () => {
+test("terms that don't parse are dropped", async () => {
 	const terms = [{ field: "before", value: "soon" }, { field: "has", value: "pdf" }, { field: "is", value: "maybe" }, { field: "words", value: "lease" }];
 	assert.equal((await run("x", answer({ terms, explanation: "e" }))).query, "has:pdf lease");
-	assert.equal((await run("x", answer({ terms, explanation: "e" }), { engine: "index" })).query, "lease", "has:pdf needs D1");
 });
 
 test("the prompt quotes the request and gives the date, labels and addresses", async () => {

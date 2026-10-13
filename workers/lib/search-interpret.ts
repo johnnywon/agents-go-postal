@@ -13,7 +13,7 @@
  */
 import { z } from "zod";
 import { formatSearch, MAX_SEARCH_LENGTH, OPERATOR_HELP, OPERATORS, parseSearch, type Term } from "../../shared/search-query";
-import { compileSearch, type SearchEngine } from "../store/search";
+import { compileSearch } from "../store/search";
 
 export const MAX_REQUEST_LENGTH = 300;
 const MAX_TERMS = 12;
@@ -37,7 +37,6 @@ export interface Interpreted {
 
 export interface InterpretContext {
 	now: Date;
-	engine: SearchEngine;
 	/** The reader's offset from UTC in minutes, as getTimezoneOffset() gives it. */
 	tzOffset: number;
 	labels: readonly string[];
@@ -119,7 +118,7 @@ function termText(t: Interpreted["terms"][number]): string | null {
 
 /**
  * Search text for the model's terms. Each term must parse with no error and
- * compile for this store; others are dropped. Null when nothing is left.
+ * compile; others are dropped. Null when nothing is left.
  */
 export function searchFromTerms(model: Interpreted, ctx: InterpretContext): string | null {
 	const kept: Term[] = [];
@@ -130,7 +129,7 @@ export function searchFromTerms(model: Interpreted, ctx: InterpretContext): stri
 		const parsed = parseSearch(text);
 		if (parsed.errors.length > 0) continue;
 		if (parsed.sort) sort = parsed.sort;
-		const compiled = compileSearch(parsed, { engine: ctx.engine, now: ctx.now.getTime(), tzOffset: ctx.tzOffset });
+		const compiled = compileSearch(parsed, { now: ctx.now.getTime(), tzOffset: ctx.tzOffset });
 		if (compiled.errors.length > 0) continue;
 		kept.push(...parsed.terms);
 	}

@@ -15,8 +15,6 @@ import { app as apiApp, receiveEmail } from "./index";
 import { EmailMCP } from "./mcp";
 import type { Env } from "./types";
 
-export { MailboxDO } from "./durableObject";
-export { MailIndexDO } from "./durableObject/mail-index";
 export { EmailAgent } from "./agent";
 export { EmailMCP } from "./mcp";
 

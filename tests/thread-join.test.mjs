@@ -4,6 +4,7 @@ import { build } from "esbuild";
 import { loadTs } from "./helpers/sqlite.mjs";
 import { openSql } from "./helpers/sql.mjs";
 import { D1_SCHEMA } from "./helpers/d1-schema.mjs";
+import { openD1 } from "./helpers/d1.mjs";
 
 const t = await loadTs("workers/lib/threading.ts");
 const { D1Mailbox } = await loadTs("workers/store/d1/mailbox.ts");
@@ -86,26 +87,18 @@ test("inbound mail with a References header for unknown mail starts its own thre
 		"From: mallory@example.org\r\nTo: jane@example.com\r\nSubject: Re: Invoice\r\nMessage-ID: <m1@example.org>\r\n"
 		+ "In-Reply-To: <guess@example.com>\r\nReferences: <guess@example.com>\r\n\r\nHello",
 	);
-	let saved;
-	const looked = [];
+	const d1 = await openD1();
+	await d1.addMailboxes("jane@example.com");
+	// Another mailbox holds the guessed message; it must not join.
+	await new D1Mailbox(d1.sql, {}, "other@example.com").createEmail("sent", {
+		id: "g1", subject: "Invoice", sender: "other@example.com", recipient: "x@example.org", date: hoursAgo(1), body: "", thread_id: "t-guess", message_id: "guess@example.com",
+	}, []);
 	await receiveEmail(
 		{ to: "jane@example.com", rawSize: raw.length, raw: new ReadableStream({ start(c) { c.enqueue(raw); c.close(); } }), setReject: () => {} },
-		{
-			EMAIL_ADDRESSES: ["jane@example.com"],
-			BUCKET: { head: async () => ({}) },
-			MAILBOX: {
-				idFromName: (name) => name,
-				get: () => ({
-					hasInboundMessageId: async () => false,
-					findThreadByMessageIds: async (ids) => (looked.push(ids), null),
-					findThreadBySubject: async () => null,
-					createEmail: async (_folder, email) => { saved = email; },
-				}),
-			},
-		},
+		{ EMAIL_ADDRESSES: ["jane@example.com"], BUCKET: { head: async () => ({}) }, DB: d1.DB },
 		{ waitUntil: () => {} },
 	);
-	assert.deepEqual(looked, [["guess@example.com"]]);
+	const saved = await d1.sql.first(`SELECT email_id AS id, thread_id FROM messages WHERE mailbox_id = 'jane@example.com'`);
 	assert.equal(saved.thread_id, saved.id);
 	assert.notEqual(saved.thread_id, "guess@example.com");
 });

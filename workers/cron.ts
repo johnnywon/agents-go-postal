@@ -3,27 +3,13 @@
 //     https://opensource.org/licenses/Apache-2.0
 
 /**
- * The one-minute cron. With a D1 database bound it advances the copy from
- * the Durable Objects, if one is running. On D1 it then sends due scheduled
- * mail; on the Durable Object store each mailbox's alarm sends its own.
- * Then, when ATTACHMENT_SEARCH is "true", it converts a few attachments
- * to searchable text.
+ * The one-minute cron. It sends due scheduled mail, then, when
+ * ATTACHMENT_SEARCH is "true", converts a few attachments to searchable text.
  */
-import { extractAttachmentTextBatch, hasD1, sendDueScheduledMail, usesD1 } from "./store";
-import { advanceCopy } from "./store/copy-job";
+import { extractAttachmentTextBatch, sendDueScheduledMail } from "./store";
 import type { Env } from "./types";
 
 export async function runCron(env: Env, now = Date.now()) {
-	let copy: Awaited<ReturnType<typeof advanceCopy>> | "failed" = "none";
-	if (hasD1(env)) {
-		// The copy's final pass runs before sending, so the scheduled sends it brings over are current.
-		copy = await advanceCopy(env).catch((e) => {
-			if (/no such table/.test((e as Error).message)) return "none" as const; // migrations not applied yet
-			console.error("copy to D1 failed:", (e as Error).message);
-			return "failed" as const;
-		});
-	}
-	if (!usesD1(env)) return { copy, skipped: true as const };
 	const scheduled = await sendDueScheduledMail(env, now);
 	if (scheduled.failed.length > 0) console.error(`scheduled send failed for ${scheduled.failed.length} message(s)`);
 	const attachments = String(env.ATTACHMENT_SEARCH ?? "") === "true"
@@ -32,5 +18,5 @@ export async function runCron(env: Env, now = Date.now()) {
 			return null;
 		})
 		: null;
-	return { copy, skipped: false as const, scheduled, attachments };
+	return { scheduled, attachments };
 }

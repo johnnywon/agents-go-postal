@@ -9,7 +9,7 @@ const bundle = await build({
 	format: "esm",
 	write: false,
 });
-const { htmlToText, parseSender, listHeaders, folderToState, BODY_TEXT_LIMIT } = await import(
+const { htmlToText, parseSender, listHeaders, BODY_TEXT_LIMIT } = await import(
 	`data:text/javascript;base64,${Buffer.from(bundle.outputFiles[0].text).toString("base64")}`
 );
 
@@ -48,11 +48,4 @@ test("listHeaders extracts list id and unsubscribe targets", () => {
 	});
 	assert.deepEqual(listHeaders(null), { list_id: null, unsubscribe: null });
 	assert.deepEqual(listHeaders(JSON.stringify([{ key: "subject", value: "x" }])), { list_id: null, unsubscribe: null });
-});
-
-test("folderToState maps folders to index states", () => {
-	assert.equal(folderToState("inbox"), "inbox");
-	assert.equal(folderToState("draft"), "draft");
-	assert.equal(folderToState("spam"), "spam");
-	assert.equal(folderToState("receipts"), "folder:receipts");
 });

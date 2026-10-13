@@ -16,7 +16,7 @@ const EMAIL = {
 export default {
 	async fetch(request: Request, base: Env & { DB: D1Database }) {
 		const { op, args = [] } = (await request.json()) as { op: string; args?: unknown[] };
-		const env = { ...base, EMAIL, STORAGE: "d1" } as unknown as Env;
+		const env = { ...base, EMAIL } as unknown as Env;
 		try {
 			switch (op) {
 				case "_sql":
@@ -33,8 +33,6 @@ export default {
 				case "register":
 					await mailStore(env).mailboxes.put(String(args[0]), {});
 					return Response.json({ ok: true });
-				case "cronOff":
-					return Response.json({ ok: await runCron({ ...env, STORAGE: "" } as Env) });
 				default: {
 					const mailbox = mailStore(env).mailbox(String(args[0])) as unknown as Record<string, (...a: unknown[]) => Promise<unknown>>;
 					return Response.json({ ok: (await mailbox[op](...args.slice(1))) ?? null });

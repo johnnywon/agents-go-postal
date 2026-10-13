@@ -4,7 +4,7 @@
 
 /**
  * Attachment text for search, run by the cron when ATTACHMENT_SEARCH is
- * "true" (docs/d1-migration-plan.md, Attachment text). Each run claims a few
+ * "true". Each run claims a few
  * queued attachments, reads each file from R2, converts it, stores the text
  * (capped at 64 KB) and rewrites the message's word-index row with the text
  * after the body, and its attachment_trigram row for substring search. Inbound mail never waits for it.

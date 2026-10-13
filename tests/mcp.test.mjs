@@ -4,6 +4,8 @@ import { build } from "esbuild";
 import { Miniflare } from "miniflare";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
+import { statements } from "./helpers/schema.mjs";
+import { D1_SCHEMA } from "./helpers/d1-schema.mjs";
 
 // End to end in local workerd: an MCP SDK client talks to EmailMCP over Streamable HTTP.
 
@@ -36,15 +38,15 @@ before(async () => {
 		script: bundle.outputFiles[0].text,
 		compatibilityDate: "2025-11-28",
 		compatibilityFlags: ["nodejs_compat"],
-		bindings: { EMAIL_ADDRESSES: [MAILBOX], INDEX_SYNC_ENABLED: "true" },
+		bindings: { EMAIL_ADDRESSES: [MAILBOX] },
 		email: { send_email: [{ name: "EMAIL" }] },
 		r2Buckets: ["BUCKET"],
+		d1Databases: ["DB"],
 		durableObjects: {
-			MAILBOX: { className: "MailboxDO", useSQLite: true },
-			MAIL_INDEX: { className: "MailIndexDO", useSQLite: true },
 			EMAIL_MCP: { className: "EmailMCP", useSQLite: true },
 		},
 	});
+	for (const s of statements(D1_SCHEMA)) await mf.dispatchFetch("http://test/_sql", { method: "POST", body: s });
 	const seed = await mf.dispatchFetch("http://test/_seed", { method: "POST", body: JSON.stringify({ mailbox: MAILBOX, emails: seeded }) });
 	assert.equal(seed.status, 200, await seed.text());
 

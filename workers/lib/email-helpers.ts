@@ -5,7 +5,7 @@
 /**
  * Shared email helpers to eliminate duplication across API routes, MCP, and agent.
  *
- * Includes: DO stub helpers, sender validation, message-ID generation,
+ * Includes: sender validation, message-ID generation,
  * threading, HTML utilities, and tool-logic (getFullEmail / getFullThread).
  */
 import type { MailboxStore } from "../store";
@@ -13,9 +13,6 @@ import type { EmailFull } from "./schemas";
 import { formatQuotedDate } from "../../shared/dates";
 import { Folders } from "../../shared/folders";
 import type { Env } from "../types";
-
-// ── DO Stub ────────────────────────────────────────────────────────
-
 
 // ── Sender Validation ──────────────────────────────────────────────
 
@@ -208,7 +205,7 @@ export async function getFullEmail(
 }
 
 /**
- * Fetch all emails in a thread with full bodies in a single DO call.
+ * Fetch all emails in a thread with full bodies in a single store call.
  * Uses `getThreadEmails` which runs 2 SQL queries (emails + attachments)
  * instead of the previous N+1 pattern (1 list query + N getEmail calls).
  */
@@ -224,7 +221,7 @@ export async function getFullThread(
 		return { ...email, body_text: textBody };
 	});
 
-	// Already sorted ASC by the DO query, but ensure consistency
+	// Already sorted ASC by the store query, but ensure consistency
 	enriched.sort(
 		(a, b) => new Date(a.date).getTime() - new Date(b.date).getTime(),
 	);

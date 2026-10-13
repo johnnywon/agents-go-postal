@@ -910,11 +910,6 @@ html:has(.postal), html:has(.postal) body { background: var(--pg-base, #141518);
 .pg-table td.is-zero { color: var(--pg-text-8); }
 .pg-table tbody tr:hover { background: var(--pg-hover); }
 .pg-table .is-num { text-align: right; }
-.pg-table tr.is-off { background: color-mix(in oklch, var(--pg-danger) 8%, transparent); }
-.pg-table td.is-off { color: var(--pg-danger-text); font-weight: 600; }
-.pg-parity-mark { display: inline-block; width: 1.4em; color: var(--pg-green-text); }
-.pg-table tr.is-off .pg-parity-mark { color: var(--pg-danger-text); }
-.pg-parity { margin: 8px 0 0; padding-left: 18px; font-size: var(--pg-t-12); color: var(--pg-text-5); }
 .pg-mcp-url { display: flex; align-items: center; gap: 8px; height: 36px; padding: 0 6px 0 12px; border: 1px solid var(--pg-line-2); background: var(--pg-raised); }
 .pg-mcp-url span { flex: 1; min-width: 0; font: 12px var(--pg-mono); color: var(--pg-text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .pg-mcp-url button { display: inline-flex; align-items: center; gap: 5px; height: 26px; padding: 0 9px; font-size: 12px; color: var(--pg-text-5); }

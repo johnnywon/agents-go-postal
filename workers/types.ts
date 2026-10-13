@@ -5,6 +5,6 @@
 export interface Env extends Cloudflare.Env {
 	POLICY_AUD: string;
 	TEAM_DOMAIN: string;
-	/** "true" makes the cron convert attachments to searchable text (D1 only). Costs Workers AI calls per file. */
+	/** "true" makes the cron convert attachments to searchable text. Costs Workers AI calls per file. */
 	ATTACHMENT_SEARCH?: string;
 }
