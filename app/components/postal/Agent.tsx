@@ -111,10 +111,10 @@ export function AgentPanel(props: AgentPanelProps) {
 	const { hooks, error } = useAgentHooks();
 	const { tip } = useShortcuts();
 	return (
-		<aside className="pg-agent" aria-label="Agent" data-overlay={props.overlay || undefined}>
+		<aside className="pg-agent" aria-label="Mailroom Agent" data-overlay={props.overlay || undefined}>
 			<button type="button" className="pg-rail-head" onClick={props.onCollapse} title={tip("agent", "Collapse agent panel")}>
 				<CaretDoubleRightIcon size={14} weight="bold" />
-				<span className="pg-head-label">AGENT</span>
+				<span className="pg-head-label">MAILROOM AGENT</span>
 				<AgentIcon size={14} weight="fill" color="var(--pg-green)" />
 			</button>
 			{hooks ? (
@@ -332,7 +332,7 @@ export function AgentRail({ onOpen, busy }: { onOpen: () => void; busy: boolean 
 			<span className="pg-rail-head"><CaretDoubleLeftIcon size={12} weight="bold" /></span>
 			<span className="pg-vert">
 				<AgentIcon size={16} weight="fill" />
-				<span className="pg-vert-label">AGENT</span>
+				<span className="pg-vert-label">MAILROOM AGENT</span>
 				{busy && <span className="pg-dot pg-round" title="Agent working" />}
 			</span>
 			<span style={{ flex: 1 }} />
