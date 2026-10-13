@@ -522,30 +522,31 @@ html:has(.postal), html:has(.postal) body { background: var(--pg-base, #141518);
 .pg-reader-bar { display: flex; align-items: center; gap: 8px; height: 44px; padding: 0 8px; border-bottom: 1px solid var(--pg-line); color: var(--pg-text-5); overflow: hidden; flex: none; }
 .pg-reader-scroll { flex: 1; overflow-y: auto; padding: 22px 26px 28px; display: flex; gap: 28px; align-items: flex-start; }
 .pg-reader-main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
-.pg-reader h1.pg-subject { margin: 2px 0 0; font: 600 22px/1.3 var(--pg-font); letter-spacing: -.015em; text-wrap: pretty; color: var(--pg-text-1); overflow-wrap: anywhere; }
+/* The subject sits on the letterhead's left edge (its 28px inset plus the frame's 1px border), so headline, sender and body share one axis. */
+.pg-reader h1.pg-subject { margin: 4px 0 0; padding-inline: 29px; font: 600 26px/1.2 var(--pg-font); letter-spacing: -.02em; text-wrap: pretty; color: var(--pg-text-1); overflow-wrap: anywhere; }
 /* The letterhead: the top band of the message page. Who and where on the left, the date over the time on the right. */
-.pg-mhead { display: flex; align-items: flex-start; gap: 16px; padding: 16px 28px 15px; border-bottom: 1px solid var(--pg-line-soft); background: var(--pg-raised); }
-.pg-mhead-who { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.pg-mhead { display: flex; align-items: flex-start; gap: 16px; padding: 18px 28px 16px; border-bottom: 1px solid var(--pg-line-soft); background: var(--pg-raised); }
+.pg-mhead-who { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
 /* Name and address share a line when both fit. Otherwise the address drops below; the name is never cut beside it. */
-.pg-mhead-from { display: flex; flex-wrap: wrap; align-items: baseline; column-gap: 8px; row-gap: 1px; min-width: 0; line-height: 22px; }
-.pg-mhead-name { flex: 0 1 auto; min-width: 0; overflow-wrap: anywhere; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; font-size: 16px; font-weight: 600; letter-spacing: -.005em; color: var(--pg-text-1); }
+.pg-mhead-from { display: flex; flex-wrap: wrap; align-items: baseline; column-gap: 8px; row-gap: 0; min-width: 0; line-height: 22px; }
+.pg-mhead-name { flex: 0 1 auto; min-width: 0; overflow-wrap: anywhere; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; font-size: 15px; font-weight: 600; letter-spacing: -.005em; color: var(--pg-text-1); }
 .pg-mhead-addr { flex: 0 1 auto; min-width: 0; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; line-height: 20px; font-size: 13px; color: var(--pg-text-5); }
 .pg-mhead-to { display: flex; align-items: center; gap: 6px; min-width: 0; line-height: 18px; font-size: 13px; color: var(--pg-text-6); white-space: nowrap; }
 .pg-mhead-to .pg-addr { font-size: 12px; }
-.pg-mhead-word { flex: none; font-size: 13px; color: var(--pg-text-6); }
+.pg-mhead-word { flex: none; font-size: 12px; color: var(--pg-text-6); }
 .pg-mhead-when { flex: none; display: flex; flex-direction: column; align-items: flex-end; gap: 4px; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .pg-mhead-when span:first-child { line-height: 22px; font-size: 13px; font-weight: 500; color: var(--pg-text-3); }
 .pg-mhead-when span:last-child { line-height: 18px; font-size: 12px; color: var(--pg-text-6); }
-.pg-reader-content { margin-top: 16px; display: flex; flex-direction: column; gap: 10px; }
+.pg-reader-content { margin-top: 20px; display: flex; flex-direction: column; gap: 10px; }
 /* Every message is a page with one edge: plain mail on the raised surface, designed HTML mail on white. */
 .pg-mail-frame { border: 1px solid var(--pg-line-2); background: var(--pg-raised); overflow: hidden; }
-.pg-mail-frame[data-kind="plain"] .pg-mail-body { padding: 22px 28px 24px; min-height: 64px; }
+.pg-mail-frame[data-kind="plain"] .pg-mail-body { padding: 24px 28px 28px; min-height: 64px; }
 .pg-mail-frame[data-kind="html"] .pg-mail-body { background: #fff; }
 .pg-mail-frame iframe { display: block; width: 100%; border: 0; }
 /* Blocked images: a quiet row at the top of the page, not a bar above it. */
 .pg-images-note {
   --pg-note-text: var(--pg-text-6); --pg-note-strong: var(--pg-text-3); --pg-note-line: var(--pg-line-soft); --pg-note-hover: var(--pg-hover);
-  display: flex; align-items: center; gap: 8px; height: 36px; margin: -22px -28px 18px; padding: 0 8px 0 28px;
+  display: flex; align-items: center; gap: 8px; height: 36px; margin: -24px -28px 20px; padding: 0 8px 0 28px;
   border-bottom: 1px solid var(--pg-note-line); font-size: 12px; color: var(--pg-note-text);
 }
 .pg-mail-frame[data-kind="html"] .pg-images-note {
@@ -1023,6 +1024,8 @@ html:has(.postal), html:has(.postal) body { background: var(--pg-base, #141518);
   .pg-reader { min-width: 0; }
   .pg-back { display: flex !important; }
   .pg-reader-scroll { padding: 18px 16px 24px; }
+  .pg-reader h1.pg-subject { padding-inline: 0; font-size: 22px; line-height: 1.25; }
+  .pg-reader-content { margin-top: 16px; }
   .pg-mail-frame { margin: 0 -16px; border-width: 1px 0; }
   .pg-mail-frame[data-kind="plain"] .pg-mail-body { padding: 18px 16px 20px; }
   .pg-mhead { padding: 14px 16px 13px; }

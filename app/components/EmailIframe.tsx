@@ -228,8 +228,8 @@ body {
 	color: ${palette.text};
 	font-family: "Iowan Old Style", Charter, "Bitstream Charter", "Source Serif 4", Cambria, Georgia, serif;
 	font-size: 16px;
-	line-height: 1.6;
-	max-width: 68ch;
+	line-height: 1.65;
+	max-width: 66ch;
 	-webkit-font-smoothing: antialiased;
 }
 a { color: ${palette.link}; text-underline-offset: 2px; }
