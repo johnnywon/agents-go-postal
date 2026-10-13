@@ -408,7 +408,10 @@ html:has(.postal), html:has(.postal) body { background: var(--pg-base, #141518);
 .pg-scope-btn:hover { background: var(--pg-hover); }
 .pg-scope-btn .pg-scope-icon { width: 16px; height: 16px; flex: none; display: flex; align-items: center; justify-content: center; }
 .pg-crumb-sep { flex: none; color: var(--pg-text-8); }
-.pg-folder { display: flex; align-items: center; gap: 6px; height: 32px; margin: 0; padding: 0 2px; min-width: 0; flex: 0 0 auto; max-width: 60%; font: inherit; }
+.pg-folder { display: flex; align-items: center; gap: 6px; height: 32px; margin: 0; padding: 0 6px; min-width: 0; flex: 0 1 auto; font: inherit; }
+.pg-folder:hover, .pg-folder[aria-expanded="true"] { background: var(--pg-hover); }
+.pg-scope-menu.pg-folder-menu { left: 70px; width: 220px; }
+.pg-menu-rule { height: 1px; margin: 5px 6px; background: var(--pg-line); }
 .pg-folder .pg-scope-icon { width: 16px; height: 16px; flex: none; display: flex; align-items: center; justify-content: center; color: var(--pg-text-4); }
 .pg-folder .pg-title { font-weight: 600; font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--pg-text-2); }
 .pg-title-note { font-weight: 400; color: var(--pg-text-6); }

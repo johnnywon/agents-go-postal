@@ -12,7 +12,7 @@ The reader.
 - A text body with an address in angle brackets ("<jane@example.com>") was shown as HTML. Only real tags count now.
 - Images hidden is a row at the top of the message instead of a bar above it. A blocked image shows its alt text in a dashed box instead of the broken-image icon, and tracking pixels are dropped.
 - The agent panel and its collapsed rail are labelled MAILROOM AGENT, and the sidebar MAILROOM.
-- The list header reads which addresses, then which folder: the address picker as its mark and a caret, then the folder with the same icon it has in the sidebar. The scope's icon used to sit beside the folder name as if they were one control.
+- The list header reads which addresses, then which folder: the address picker as its mark and a caret, then the folder with the same icon it has in the sidebar. The scope's icon used to sit beside the folder name as if they were one control. Click the folder name to jump to another folder for the same addresses, or to a label.
 
 No D1 migration.
 

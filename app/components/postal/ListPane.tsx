@@ -15,7 +15,9 @@ import { VIEW_LABELS } from "~/lib/mail-filter";
 import { AllAddressesIcon, InboxIcon, VIEW_ICONS } from "./NavIcons";
 import { Keys, useShortcuts } from "./shortcuts";
 import { marks, snippetMarkup } from "./search-window";
-import { dayKey, dayLabel, filterCount, hasChip, labelOf, type MailAction, RESTORABLE, scopeOf, sendTimeLabel, timeLabel, toggleChip, withoutKinds } from "./model";
+import { dayKey, dayLabel, filterCount, hasChip, labelOf, type MailAction, RESTORABLE, scoped, scopeOf, sendTimeLabel, timeLabel, toggleChip, withoutKinds } from "./model";
+
+const FOLDERS = ["inbox", "unread", "starred", "drafts", "sent", "archive", "spam", "trash"] as const;
 
 export interface ListPaneProps {
 	identities: Identities;
@@ -78,6 +80,7 @@ export function ListPane(props: ListPaneProps) {
 	const scope = scopeOf(filter);
 	const labelView = labelOf(filter);
 	const [scopeOpen, setScopeOpen] = useState(false);
+	const [folderOpen, setFolderOpen] = useState(false);
 	const [fltOpen, setFltOpen] = useState(false);
 	const sentinel = useRef<HTMLDivElement>(null);
 	const listRef = useRef<HTMLDivElement>(null);
@@ -149,10 +152,40 @@ export function ListPane(props: ListPaneProps) {
 					<CaretDownIcon size={10} weight="bold" color="var(--pg-text-6)" style={{ flex: "none" }} />
 				</button>
 				<CaretRightIcon className="pg-crumb-sep" size={10} weight="bold" aria-hidden />
-				<h2 className="pg-folder">
+				{/* The folder is also a menu of its peers: every folder for this address, then the labels. No caret. */}
+				<button type="button" className="pg-folder" onClick={() => setFolderOpen((v) => !v)} title="Switch folder" aria-expanded={folderOpen} aria-haspopup="listbox">
 					<span className="pg-scope-icon">{folderIcon}</span>
 					<span className="pg-title">{folderName}{props.searching && <span className="pg-title-note"> · search</span>}</span>
-				</h2>
+				</button>
+				{folderOpen && (
+					<>
+						<div className="pg-scrim-click" onClick={() => setFolderOpen(false)} />
+						<div className="pg-popover pg-scope-menu pg-folder-menu" role="listbox" aria-label="Folder">
+							{FOLDERS.map((view) => {
+								const Icon = VIEW_ICONS[view];
+								const on = !labelView && filter.view === view;
+								return (
+									<button key={view} type="button" role="option" aria-selected={on} aria-current={on || undefined} className="pg-menu-item" onClick={() => { setFolderOpen(false); go(scoped(view, scope, filter)); }}>
+										<Icon size={14} />
+										<span className="pg-flex pg-ellipsis">{VIEW_LABELS[view]}</span>
+										{on && <CheckIcon size={12} weight="bold" />}
+									</button>
+								);
+							})}
+							{props.labels.length > 0 && <div className="pg-menu-rule" />}
+							{props.labels.map((label) => {
+								const on = labelView === label.id;
+								return (
+									<button key={label.id} type="button" role="option" aria-selected={on} aria-current={on || undefined} className="pg-menu-item" onClick={() => { setFolderOpen(false); go({ view: "all", chips: [{ kind: "label", value: label.id }], sort: filter.sort, dir: filter.dir }); }}>
+										<LabelTag id={label.id} />
+										<span className="pg-flex pg-ellipsis">{label.name}</span>
+										{on && <CheckIcon size={12} weight="bold" />}
+									</button>
+								);
+							})}
+						</div>
+					</>
+				)}
 				{scopeOpen && (
 					<>
 						<div className="pg-scrim-click" onClick={() => setScopeOpen(false)} />
