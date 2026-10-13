@@ -18,7 +18,7 @@ The reader.
 
 - In a small window the reader slid under the agent rail, so MAILROOM AGENT sat on top of the toolbar and the sender's address was cut to "<". The reader now shrinks, its toolbar wraps and the sender line breaks.
 
-- The sender's initial square is gone from the reader. The sender row starts at the page's edge.
+- The sender block is two rows at one size: name and address, then the receiving address and the date. The initial square, the angle brackets and the date pinned to the far right are gone.
 
 No D1 migration.
 

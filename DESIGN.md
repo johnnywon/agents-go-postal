@@ -61,7 +61,7 @@ This rule applies to every view. Rows, cards, nav items, callouts and panels nev
 
 ### Message HTML
 
-The reader reads like a mail client: subject, then a sender row with the name, address and date (no avatar: the name says who, and the page below starts at the same edge), and a "to" line naming the receiving address with its domain swatch.
+The reader reads like a mail client: subject, then two rows at one edge with no avatar: the name (15px semibold) and the sender's address (13px, no angle brackets), then "to", the receiving address with its domain swatch and the date, all at 13px in one muted colour. On a narrow reader the date wraps under the address.
 
 Mail renders in the sandboxed iframe, and every message is a page: a 1px-bordered card at the same left edge as the subject, sender row and Reply bar; on mobile it runs edge to edge. Plain mail (no tables, images, colours or backgrounds of its own, see `isPlainHtml`) sits on the raised surface in the reader's colours and a serif (Iowan Old Style, then Charter, Cambria, Georgia) at 16px with a 68ch measure, so a message never reads as interface. Designed HTML mail keeps its own fonts on a white page. Text-only bodies go through `plain-text.ts`: paragraphs on blank lines, links for bare URLs and addresses, the signature after `-- ` muted under a rule, quoted replies folded behind a `···` toggle. Remote images are blocked until the reader allows them (Settings: Ask, Always, Never); the page then opens with an Images hidden row and Show images, and each blocked image is a dashed box with its alt text.
 

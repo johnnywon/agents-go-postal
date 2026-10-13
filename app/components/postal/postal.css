@@ -522,15 +522,17 @@ html:has(.postal), html:has(.postal) body { background: var(--pg-base, #141518);
 .pg-reader-scroll { flex: 1; overflow-y: auto; padding: 22px 26px 28px; display: flex; gap: 28px; align-items: flex-start; }
 .pg-reader-main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
 .pg-reader h1.pg-subject { margin: 2px 0 0; font: 600 22px/1.3 var(--pg-font); letter-spacing: -.015em; text-wrap: pretty; color: var(--pg-text-1); overflow-wrap: anywhere; }
-.pg-sender { display: flex; align-items: flex-start; margin-top: 14px; min-width: 0; }
-.pg-sender-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
-.pg-sender-line { display: flex; align-items: baseline; gap: 6px; min-width: 0; }
+/* Who and when, as two rows at one size under the subject: name and address, then where it landed and the date. */
+.pg-sender { display: flex; align-items: flex-start; margin-top: 10px; min-width: 0; }
+.pg-sender-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.pg-sender-line { display: flex; align-items: baseline; gap: 8px; min-width: 0; line-height: 22px; }
 .pg-sender-line .pg-to-word { font-size: 13px; color: var(--pg-text-6); flex: none; }
-.pg-sender-line .pg-name { font-weight: 600; font-size: 14px; color: var(--pg-text-1); flex: none; max-width: 60%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.pg-sender-line .pg-email { font-size: 12px; color: var(--pg-text-6); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.pg-sender-line .pg-date { margin-left: auto; padding-left: 12px; flex: none; font: 11px var(--pg-mono); color: var(--pg-text-6); white-space: nowrap; }
-.pg-sender-to { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--pg-text-6); min-width: 0; overflow: hidden; white-space: nowrap; }
+.pg-sender-line .pg-name { font-weight: 600; font-size: 15px; color: var(--pg-text-1); flex: none; max-width: 60%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pg-sender-line .pg-email { font-size: 13px; color: var(--pg-text-5); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pg-sender-to { display: flex; align-items: center; flex-wrap: wrap; column-gap: 14px; row-gap: 2px; font-size: 13px; line-height: 20px; color: var(--pg-text-6); min-width: 0; }
 .pg-sender-to .pg-addr { font-size: 12px; }
+.pg-sender-box { display: inline-flex; align-items: center; gap: 6px; min-width: 0; }
+.pg-sender-to .pg-date { white-space: nowrap; font-variant-numeric: tabular-nums; }
 .pg-reader-content { margin-top: 20px; display: flex; flex-direction: column; gap: 10px; }
 /* Every message is a page with one edge: plain mail on the raised surface, designed HTML mail on white. */
 .pg-mail-frame { border: 1px solid var(--pg-line-2); }
@@ -1001,7 +1003,6 @@ html:has(.postal), html:has(.postal) body { background: var(--pg-base, #141518);
   .pg-reader-bar { height: auto; min-height: 44px; padding-block: 4px; flex-wrap: wrap; row-gap: 4px; }
   .pg-reader-bar > div { flex-wrap: wrap; row-gap: 4px; }
   .pg-sender-line { flex-wrap: wrap; row-gap: 0; }
-  .pg-sender-line .pg-date { margin-left: 0; padding-left: 0; flex-basis: 100%; }
 }
 /* Mobile: one pane at a time, a drawer, a bottom sheet, 44px targets, 16px inputs. */
 @media (max-width: 600px) {
@@ -1023,7 +1024,6 @@ html:has(.postal), html:has(.postal) body { background: var(--pg-base, #141518);
   .pg-mail-frame[data-kind="html"] .pg-attachments { margin: 0 16px; }
   .pg-attach { height: 40px; }
   .pg-sender-line { flex-wrap: wrap; row-gap: 0; }
-  .pg-sender-line .pg-date { margin-left: 0; padding-left: 0; flex-basis: 100%; }
     .pg-agent { position: fixed; left: 0; right: 0; bottom: 0; top: auto; width: 100%; height: min(78dvh, 640px); z-index: 37; border-left: 0; border-top: 1px solid var(--pg-line-2); box-shadow: 0 -16px 40px rgba(0, 0, 0, .5); animation: pg-sheet .2s ease-out; }
   .pg-cw, .pg-cw[data-state="max"] { left: 0; right: 0; top: 0; bottom: 0; width: 100%; height: 100dvh; transform: none; }
   .postal .pg-cw { border-radius: 0 !important; }

@@ -194,13 +194,15 @@ export function Reader(props: ReaderProps) {
 							<div className="pg-sender-line">
 								{sent && <span className="pg-to-word">To</span>}
 								<span className="pg-name">{senderName}</span>
-								{senderAddr && senderAddr.toLowerCase() !== senderName.toLowerCase() && <span className="pg-email">&lt;{senderAddr}&gt;</span>}
-								<span className="pg-date">{head ? fullDate(head.date) : row ? fullDate(row.date) : ""}</span>
+								{senderAddr && senderAddr.toLowerCase() !== senderName.toLowerCase() && <span className="pg-email">{senderAddr}</span>}
 							</div>
 							<div className="pg-sender-to" title={sent ? `Sent from ${mailbox}` : `Delivered to ${mailbox} · Replies send from here`}>
-								<span>{sent ? "from" : "to"}</span>
-								<Swatch identity={identity} />
-								<AddressText address={mailbox} identity={identity} bold={false} />
+								<span className="pg-sender-box">
+									<span>{sent ? "from" : "to"}</span>
+									<Swatch identity={identity} />
+									<AddressText address={mailbox} identity={identity} bold={false} />
+								</span>
+								<span className="pg-date">{head ? fullDate(head.date) : row ? fullDate(row.date) : ""}</span>
 								{attachmentCount > 0 && (
 									<button
 										type="button"
