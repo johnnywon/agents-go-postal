@@ -4,7 +4,7 @@
 
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { AGENT_LIMIT_RANGES, type AgentLimits, DEFAULT_AGENT_LIMITS, SEND_LIMITS } from "shared/send-limits";
+import { AGENT_LIMIT_RANGES, type AgentLimits, DEFAULT_AGENT_LIMITS, parseAgentLimit, SEND_LIMITS } from "shared/send-limits";
 import api from "~/services/api";
 
 type Key = keyof AgentLimits;
@@ -23,21 +23,23 @@ export function useAgentLimitsDraft() {
 	const base = saved.data ?? DEFAULT_AGENT_LIMITS;
 	const text = (key: Key) => edits[key] ?? String(base[key]);
 	const problem = (key: Key) => {
-		const n = Number(text(key));
 		const { min, max } = AGENT_LIMIT_RANGES[key];
-		return Number.isInteger(n) && n >= min && n <= max ? null : `Use a whole number from ${min} to ${max}`;
+		return parseAgentLimit(key, text(key)) === null ? `Use a whole number from ${min} to ${max}` : null;
 	};
-	const dirty = FIELDS.some(({ key }) => edits[key] !== undefined && text(key) !== String(base[key]));
+	const changed = FIELDS.filter(({ key }) => edits[key] !== undefined && text(key) !== String(base[key]));
+	const dirty = changed.length > 0;
 	const save = async () => {
+		if (!saved.data) throw new Error("Limits: the saved limits haven't loaded. Reload and try again.");
 		const bad = FIELDS.find(({ key }) => problem(key));
 		if (bad) throw new Error(`${bad.title}: ${problem(bad.key)}`);
-		const next = Object.fromEntries(FIELDS.map(({ key }) => [key, Number(text(key))])) as unknown as AgentLimits;
+		// Only what changed, so a stale form can't overwrite the other limits.
+		const next: Partial<AgentLimits> = Object.fromEntries(changed.map(({ key }) => [key, parseAgentLimit(key, text(key))]));
 		await api.putAgentLimits(next);
 		await queryClient.invalidateQueries({ queryKey: ["agent-limits"] });
 		queryClient.invalidateQueries({ queryKey: ["agents-overview"] });
 		setEdits({});
 	};
-	return { saved: saved.data, text, problem, dirty, save, set: (key: Key, value: string) => setEdits((cur) => ({ ...cur, [key]: value })) };
+	return { saved: saved.data, loadError: saved.isError, text, problem, dirty, save, set: (key: Key, value: string) => setEdits((cur) => ({ ...cur, [key]: value })) };
 }
 
 export function LimitsTab({ draft }: { draft: ReturnType<typeof useAgentLimitsDraft> }) {
@@ -46,6 +48,7 @@ export function LimitsTab({ draft }: { draft: ReturnType<typeof useAgentLimitsDr
 			<div className="pg-tab-intro">
 				What the agent, auto-draft and MCP clients may do on their own. Agents can't change these. Saved to your deployment.
 			</div>
+			{draft.loadError && <div className="pg-limit-error" role="alert">Couldn't load the saved limits. Reload to edit them.</div>}
 			{FIELDS.map(({ key, title, sub, unit }) => {
 				const error = draft.problem(key);
 				const { min, max } = AGENT_LIMIT_RANGES[key];
@@ -64,7 +67,8 @@ export function LimitsTab({ draft }: { draft: ReturnType<typeof useAgentLimitsDr
 								min={min}
 								max={max}
 								step={1}
-								value={draft.text(key)}
+								value={draft.saved ? draft.text(key) : ""}
+								disabled={!draft.saved}
 								aria-label={title}
 								aria-invalid={!!error || undefined}
 								onChange={(e) => draft.set(key, e.target.value)}
