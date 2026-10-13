@@ -13,7 +13,8 @@
  *
  * New mail in a thread supersedes the thread's earlier runs. A superseded run
  * is not started, and a draft from a run superseded while it ran is discarded:
- * the newer mail gets its own draft. Each sender gets autoDraftPerSender
+ * the newer mail gets its own draft. When the model drafts more than once, the
+ * run keeps its last draft and discards the earlier ones. Each sender gets autoDraftPerSender
  * drafts per address a day (Console > Limits); later mail is stored but not drafted.
  */
 import { DEFAULT_AGENT_LIMITS } from "../../shared/send-limits";
@@ -161,11 +162,10 @@ export async function attemptRun(
 		await settleRun(sql, run.emailId, "skipped", { reason: outcome.reason });
 		return "done";
 	}
+	// A run keeps one draft, its last; a run superseded while it ran keeps none.
 	const kept = await settleRun(sql, run.emailId, "drafted", { draftId: outcome.draftId });
-	if (!kept) {
-		for (const id of [...(outcome.earlier ?? []), outcome.draftId]) {
-			if (id) await options.discardDraft(run.mailboxId, id).catch(() => {});
-		}
+	for (const id of kept ? outcome.earlier ?? [] : [...(outcome.earlier ?? []), outcome.draftId]) {
+		if (id) await options.discardDraft(run.mailboxId, id).catch(() => {});
 	}
 	return "done";
 }
