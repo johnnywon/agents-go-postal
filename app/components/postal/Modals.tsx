@@ -145,6 +145,12 @@ export function ConsoleModal({ tab, onTab, prefs, setPrefs, addresses, identitie
 		|| limits.dirty;
 
 	const save = async () => {
+		// Limits are the one tab that can refuse a save; check them before anything is written.
+		const limitsError = limits.dirty ? limits.check() : null;
+		if (limitsError) {
+			setError(limitsError);
+			return;
+		}
 		setSaving(true);
 		setError(null);
 		try {
@@ -339,7 +345,9 @@ export function ConsoleModal({ tab, onTab, prefs, setPrefs, addresses, identitie
 							<Setting title="Auto-draft new mail" sub={<>Drafts a reply to each new message. Mailing lists and automated mail are skipped. Set <span className="pg-mono">AUTO_DRAFT_ENABLED</span> in your Worker config to change.</>}>
 								<span className="pg-tag">{autoDraft ? "on" : "off"} · config</span>
 							</Setting>
-							<Setting title="Sending" sub={`The agent sends a draft when you ask it to. Auto-draft only drafts. Agents and MCP clients send up to ${limits.text("agentDay")} messages a day per address, ${limits.text("agentRecipients")} recipients each.`}>
+							<Setting title="Sending" sub={`The agent sends a draft when you ask it to. Auto-draft only drafts. ${limits.saved
+								? `Agents and MCP clients send up to ${limits.saved.agentDay} messages a day per address, ${limits.saved.agentRecipients} recipients each.`
+								: "Agents and MCP clients send within the limits set in Limits."}`}>
 								<button type="button" className="pg-btn pg-btn-sm" onClick={() => onTab("limits")}>Limits</button>
 							</Setting>
 							{/* TODO(roadmap): rules (Inquiry, Receipts, DMARC, Triage) and per-rule autonomy settings. */}

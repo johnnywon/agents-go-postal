@@ -4,16 +4,17 @@
 
 /**
  * The activity log: one row per tool call by the chat agent, auto-draft or
- * an MCP client, in the agent_activity table. Console > Activity lists it.
+ * an MCP client, and per redraft a person asks for, in the agent_activity table. Console > Activity lists it.
  * The cron deletes rows older than the retention in prefs (90, 120 or 180
  * days). Logging never fails the call it records.
  */
 import type { Sql } from "../store/sql";
 
-export type ActivityActor = "chat" | "auto-draft" | "mcp";
+/** `person` is a person in the app asking a model for something, such as a redraft. */
+export type ActivityActor = "chat" | "auto-draft" | "mcp" | "person";
 export type ActivityAction = "read" | "draft" | "send" | "delete" | "label" | "move" | "settings";
 
-export const ACTIVITY_ACTORS: readonly ActivityActor[] = ["chat", "auto-draft", "mcp"];
+export const ACTIVITY_ACTORS: readonly ActivityActor[] = ["chat", "auto-draft", "mcp", "person"];
 export const ACTIVITY_PAGE = 50;
 
 /** Every tool the chat agent, auto-draft and MCP expose, by what it does. */
@@ -142,17 +143,22 @@ export async function logged<T>(
 	return result;
 }
 
-/** Newest first. `before` is the last id of the previous page. */
+/** Newest first. `before` is the last id of the previous page; `failed` keeps only failed calls; `since` is an ISO time. */
 export async function listActivity(
 	sql: Sql,
-	options: { mailboxId?: string | null; actor?: string | null; action?: string | null; before?: number | null; limit?: number } = {},
+	options: {
+		mailboxId?: string | null; actor?: string | null; action?: string | null; before?: number | null; limit?: number;
+		failed?: boolean; since?: string | null;
+	} = {},
 ): Promise<{ entries: ActivityRow[]; next: number | null }> {
 	const limit = Math.min(Math.max(options.limit ?? ACTIVITY_PAGE, 1), 200);
 	const rows = await sql.all(
 		`SELECT id, at, mailbox_id, actor, client, action, tool, target, summary, ok FROM agent_activity
 		WHERE (?1 IS NULL OR mailbox_id = ?1) AND (?2 IS NULL OR actor = ?2) AND (?3 IS NULL OR action = ?3) AND (?4 IS NULL OR id < ?4)
+			AND (?6 = 0 OR ok = 0) AND (?7 IS NULL OR at >= ?7)
 		ORDER BY id DESC LIMIT ?5`,
 		options.mailboxId?.toLowerCase() ?? null, options.actor ?? null, options.action ?? null, options.before ?? null, limit + 1,
+		options.failed ? 1 : 0, options.since ?? null,
 	);
 	const entries = rows.slice(0, limit).map((r) => ({
 		id: Number(r.id),

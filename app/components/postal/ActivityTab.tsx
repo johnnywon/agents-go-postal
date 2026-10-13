@@ -14,9 +14,10 @@ const ACTORS: { value: ActivityActor | "all"; label: string }[] = [
 	{ value: "chat", label: "Agent" },
 	{ value: "auto-draft", label: "Auto-draft" },
 	{ value: "mcp", label: "MCP" },
+	{ value: "person", label: "You" },
 ];
 
-const ACTOR_LABELS: Record<ActivityActor, string> = { chat: "Agent", "auto-draft": "Auto-draft", mcp: "MCP" };
+const ACTOR_LABELS: Record<ActivityActor, string> = { chat: "Agent", "auto-draft": "Auto-draft", mcp: "MCP", person: "You" };
 
 const ACTION_LABELS: Record<ActivityEntry["action"], string> = {
 	read: "Read",

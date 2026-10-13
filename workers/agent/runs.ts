@@ -41,19 +41,26 @@ export interface AutoDraftTarget {
 }
 
 export type DraftOutcome =
-	| { status: "drafted"; draftId: string | null }
+	/** `earlier` holds drafts saved before `draftId` in the same run, when the model drafted more than once. */
+	| { status: "drafted"; draftId: string | null; earlier?: string[] }
 	| { status: "skipped"; reason: string }
 	| { status: "error"; error: string };
 
 export type Drafter = (target: AutoDraftTarget) => Promise<DraftOutcome>;
 
+/** A drafted outcome for the drafts one run saved, oldest first. */
+export function draftedOutcome(draftIds: string[]): DraftOutcome {
+	const draftId = draftIds.at(-1) ?? null;
+	return draftIds.length > 1 ? { status: "drafted", draftId, earlier: draftIds.slice(0, -1) } : { status: "drafted", draftId };
+}
+
 /**
  * The outcome when drafting throws. A draft that was already saved settles the
  * run as drafted: a retry would draft the same reply again.
  */
-export function outcomeAfterError(error: unknown, draftId: string | null): DraftOutcome {
+export function outcomeAfterError(error: unknown, draftIds: string[]): DraftOutcome {
 	const message = (error as Error)?.message || "Auto-draft failed";
-	return draftId ? { status: "drafted", draftId } : { status: "error", error: message };
+	return draftIds.length ? draftedOutcome(draftIds) : { status: "error", error: message };
 }
 
 /** Seconds before retry n (1-based): 30, 60, 120. */
@@ -155,7 +162,11 @@ export async function attemptRun(
 		return "done";
 	}
 	const kept = await settleRun(sql, run.emailId, "drafted", { draftId: outcome.draftId });
-	if (!kept && outcome.draftId) await options.discardDraft(run.mailboxId, outcome.draftId).catch(() => {});
+	if (!kept) {
+		for (const id of [...(outcome.earlier ?? []), outcome.draftId]) {
+			if (id) await options.discardDraft(run.mailboxId, id).catch(() => {});
+		}
+	}
 	return "done";
 }
 

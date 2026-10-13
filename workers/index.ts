@@ -553,7 +553,7 @@ app.post("/api/v1/mailboxes/:mailboxId/drafts/:id/redraft", async (c: AppContext
 	if (!parsed.success) return c.json({ error: "Say how to change the draft" }, 400);
 	const sql = recordsSql(c.env);
 	const [system, model] = await Promise.all([getSystemPrompt(c.env, mailboxId), agentModel(c.env)]);
-	const result = await logged(sql, { actor: "chat", bound: mailboxId }, "redraft", { draftId, instruction: parsed.data.instruction }, () =>
+	const result = await logged(sql, { actor: "person", bound: mailboxId }, "redraft", { draftId, instruction: parsed.data.instruction }, () =>
 		redraft(c.var.mailbox, mailboxId, draftId, parsed.data.instruction, {
 			ai: c.env.AI,
 			bucket: c.env.BUCKET,

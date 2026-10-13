@@ -96,7 +96,7 @@ function del<T>(url: string) {
 
 // ---------- Typed response shapes ----------
 
-export type ActivityActor = "chat" | "auto-draft" | "mcp";
+export type ActivityActor = "chat" | "auto-draft" | "mcp" | "person";
 
 export interface ActivityEntry {
 	id: number;
@@ -120,6 +120,7 @@ export interface AgentOverview {
 	limits: AgentLimits;
 	addresses: { mailboxId: string; hour: number; day: number; agentDay: number }[];
 	runs: Partial<Record<AutoDraftRun["state"], number>>;
+	failed: number;
 	failures: ActivityEntry[];
 	actions: number;
 }

@@ -24,7 +24,7 @@ async function handleSend(c: AppContext, kind: SendMode["kind"]) {
 		defer: (delivery) => c.executionCtx.waitUntil(delivery),
 		idempotencyKey,
 	});
-	if (!result.ok) return c.json({ error: result.error }, result.status);
+	if (!result.ok) return c.json({ error: result.error, ...(result.attempt ? { attempt: result.attempt } : {}) }, result.status);
 	return c.json({ id: result.id, status: "sent" }, 202);
 }
 

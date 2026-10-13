@@ -13,7 +13,6 @@ import { z } from "zod";
 import { HeaderValueSchema } from "../lib/schemas";
 import { verifyDraft } from "../lib/ai";
 import { agentModel } from "../lib/agent-model";
-import { textToHtml } from "../lib/email-helpers";
 import { mailStore, recordsSql } from "../store";
 import {
 	toolDeleteLabel,
@@ -47,8 +46,8 @@ import type { DraftNotes } from "../../shared/draft-notes";
 import type { Env } from "../types";
 import { defineTool, logTools } from "./tool-def";
 import { getSystemPrompt } from "./prompt";
-import { autoDraftPrompt, createAutoDraftTools, prepareAutoDraft } from "./auto-draft";
-import { type AutoDraftTarget, type DraftOutcome, outcomeAfterError } from "./runs";
+import { autoDraftPrompt, createAutoDraftTools, prepareAutoDraft, saveTextDraft } from "./auto-draft";
+import { type AutoDraftTarget, type DraftOutcome, draftedOutcome, outcomeAfterError } from "./runs";
 
 const CHAT_NOTES: DraftNotes = { origin: "chat", instructions: [] };
 
@@ -443,8 +442,8 @@ export class EmailAgent extends AIChatAgent<any> {
 		const context = prepared.context;
 		const replyTo = context.replyTo;
 
-		// Set once a draft is saved; an error after that still counts as drafted.
-		let draftId: string | null = null;
+		// Every draft saved, oldest first; an error after the first still counts as drafted.
+		const draftIds: string[] = [];
 		try {
 			const model = await agentModel(env);
 			const systemPrompt = await getSystemPrompt(env, target.mailboxId);
@@ -453,7 +452,7 @@ export class EmailAgent extends AIChatAgent<any> {
 				emailId: target.emailId,
 				threadId: target.threadId,
 				to: replyTo,
-			}, context, toolDraftReply, { onDraft: (id) => { draftId = id; } }), sql, { actor: "auto-draft", bound: target.mailboxId });
+			}, context, toolDraftReply, { onDraft: (id) => { draftIds.push(id); } }), sql, { actor: "auto-draft", bound: target.mailboxId });
 			const autoPrompt = autoDraftPrompt(target.mailboxId, target.threadId, context);
 
 			// Fresh context for auto-draft: no prior chat history, so old
@@ -476,31 +475,10 @@ export class EmailAgent extends AIChatAgent<any> {
 			});
 
 			// No draft_reply call: save the model's text as the draft, once verifyDraft keeps something.
-			if (!draftId && result.text.trim()) {
+			if (!draftIds.length && result.text.trim()) {
 				const sanitizedText = await verifyDraft(env.AI, result.text.trim());
 				if (sanitizedText) {
-					const id = crypto.randomUUID();
-					const reSubject = context.email.subject.startsWith("Re:")
-						? context.email.subject
-						: `Re: ${context.email.subject}`;
-					await stub.createEmail(
-						Folders.DRAFT,
-						{
-							id,
-							subject: reSubject,
-							sender: target.mailboxId.toLowerCase(),
-							recipient: replyTo,
-							date: new Date().toISOString(),
-							// verifyDraft may return plain text or HTML. Only plain text is wrapped.
-							body: /<[a-z][\s\S]*>/i.test(sanitizedText) ? sanitizedText : textToHtml(sanitizedText),
-							in_reply_to: target.emailId,
-							email_references: null,
-							thread_id: target.threadId,
-						},
-						[],
-					);
-					draftId = id;
-					await stub.setDraftNotes(id, { origin: "auto-draft", instructions: [] });
+					await saveTextDraft(stub, sql, { ...target, to: replyTo }, context.email.subject, sanitizedText, (id) => draftIds.push(id));
 				}
 			}
 
@@ -508,14 +486,14 @@ export class EmailAgent extends AIChatAgent<any> {
 				...this.messages,
 				...autoLog(
 					`[Auto-triggered] New email from ${target.sender}: "${context.email.subject}"`,
-					draftId ? `Created draft reply to ${replyTo}.` : "No draft: the model wrote nothing to send.",
+					draftIds.length ? `Created draft reply to ${replyTo}.` : "No draft: the model wrote nothing to send.",
 				),
 			]);
 
-			return draftId ? { status: "drafted", draftId } : { status: "skipped", reason: "the model wrote no draft" };
+			return draftIds.length ? draftedOutcome(draftIds) : { status: "skipped", reason: "the model wrote no draft" };
 		} catch (e) {
 			console.error("Auto-draft failed:", (e as Error).message);
-			return outcomeAfterError(e, draftId);
+			return outcomeAfterError(e, draftIds);
 		}
 	}
 }

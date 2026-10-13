@@ -28,10 +28,15 @@ export function useAgentLimitsDraft() {
 	};
 	const changed = FIELDS.filter(({ key }) => edits[key] !== undefined && text(key) !== String(base[key]));
 	const dirty = changed.length > 0;
-	const save = async () => {
-		if (!saved.data) throw new Error("Limits: the saved limits haven't loaded. Reload and try again.");
+	/** Why save would fail, checked before anything else in the console is written. */
+	const check = () => {
+		if (!saved.data) return "Limits: the saved limits haven't loaded. Reload and try again.";
 		const bad = FIELDS.find(({ key }) => problem(key));
-		if (bad) throw new Error(`${bad.title}: ${problem(bad.key)}`);
+		return bad ? `${bad.title}: ${problem(bad.key)}` : null;
+	};
+	const save = async () => {
+		const error = check();
+		if (error) throw new Error(error);
 		// Only what changed, so a stale form can't overwrite the other limits.
 		const next: Partial<AgentLimits> = Object.fromEntries(changed.map(({ key }) => [key, parseAgentLimit(key, text(key))]));
 		await api.putAgentLimits(next);
@@ -39,7 +44,7 @@ export function useAgentLimitsDraft() {
 		queryClient.invalidateQueries({ queryKey: ["agents-overview"] });
 		setEdits({});
 	};
-	return { saved: saved.data, loadError: saved.isError, text, problem, dirty, save, set: (key: Key, value: string) => setEdits((cur) => ({ ...cur, [key]: value })) };
+	return { saved: saved.data, loadError: saved.isError, text, problem, dirty, check, save, set: (key: Key, value: string) => setEdits((cur) => ({ ...cur, [key]: value })) };
 }
 
 export function LimitsTab({ draft }: { draft: ReturnType<typeof useAgentLimitsDraft> }) {

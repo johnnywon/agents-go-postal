@@ -108,3 +108,28 @@ test("GET /api/v1/activity lists entries, with filters", async () => {
 	// An unknown filter value is ignored rather than matching nothing.
 	assert.equal((await get("?actor=robot")).entries.length, 2);
 });
+
+test("an auto-draft saved from the model's text is logged like draft_reply (WON-242)", async () => {
+	const { saveTextDraft } = await loadTs("workers/agent/auto-draft.ts");
+	const d1 = await openD1();
+	const saved = [];
+	const stub = { createEmail: async (folder, email) => saved.push([folder, email]), setDraftNotes: async () => {} };
+	const ids = [];
+	await saveTextDraft(stub, d1.sql, { mailboxId: MAILBOX, emailId: "e1", threadId: "t1", to: "bob@example.org" }, "Lunch", "Sounds good.", (id) => ids.push(id));
+	assert.equal(saved.length, 1);
+	assert.equal(saved[0][1].subject, "Re: Lunch");
+	assert.deepEqual(ids, [saved[0][1].id]);
+	assert.deepEqual(rows(d1), [
+		{ mailbox_id: MAILBOX, actor: "auto-draft", client: null, action: "draft", tool: "draft_reply", target: ids[0], summary: "to bob@example.org · Re: Lunch", ok: 1 },
+	]);
+});
+
+test("a redraft from the app is logged as the person, not the chat agent (WON-244)", async () => {
+	const route = readFileSync("workers/index.ts", "utf8").match(/\/redraft", async[\s\S]*?\n\}\);/)[0];
+	assert.match(route, /logged\(sql, \{ actor: "person"/);
+	const d1 = await openD1();
+	await activity.logActivity(d1.sql, { actor: "person", tool: "redraft", mailboxId: MAILBOX, target: "d1", ok: true });
+	await activity.logActivity(d1.sql, { actor: "chat", tool: "get_email", mailboxId: MAILBOX, ok: true });
+	const res = await (await app.request("/api/v1/activity?actor=person", {}, { DB: d1.DB })).json();
+	assert.deepEqual(res.entries.map((e) => e.tool), ["redraft"]);
+});

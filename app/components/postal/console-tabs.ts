@@ -13,7 +13,7 @@ const RENAMED: Record<string, ConsoleTab> = { agent: "drafting", index: "storage
 
 function tabNamed(value: string | null): ConsoleTab | null {
 	if (!value) return null;
-	if (value in RENAMED) return RENAMED[value];
+	if (Object.hasOwn(RENAMED, value)) return RENAMED[value];
 	return (CONSOLE_TABS as readonly string[]).includes(value) ? (value as ConsoleTab) : null;
 }
 
