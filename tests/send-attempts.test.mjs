@@ -10,15 +10,17 @@ const { D1Mailbox } = await loadTs("workers/store/d1/mailbox.ts");
 
 const MAILBOX = "a@example.com";
 
-async function harness({ failDelivery = 0, failStore = 0 } = {}) {
+async function harness({ failDelivery = 0, failStore = 0, hold = null } = {}) {
 	const d1 = await openD1();
 	const box = new D1Mailbox(d1.sql, {}, MAILBOX);
 	const delivered = [];
 	const stored = [];
+	const moved = [];
 	const row = (key) => d1.exec(`SELECT state, provider_id, email_id, error FROM send_keys WHERE key = ?`, key)[0];
 	const env = {
 		EMAIL: {
 			send: async (message) => {
+				if (hold) await hold;
 				if (failDelivery > 0) { failDelivery--; throw new Error("delivery down"); }
 				delivered.push(message);
 				return { messageId: `provider-${delivered.length}` };
@@ -29,6 +31,7 @@ async function harness({ failDelivery = 0, failStore = 0 } = {}) {
 	const stub = Object.assign(Object.create(box), {
 		getEmail: async () => null,
 		markThreadRead: async () => {},
+		moveEmail: async (id, folder) => { moved.push({ id, folder }); return true; },
 		createEmail: async (_folder, email) => {
 			stored.push({ email, attempt: row(currentKey) });
 			if (failStore > 0) { failStore--; throw new Error("storage down"); }
@@ -42,7 +45,7 @@ async function harness({ failDelivery = 0, failStore = 0 } = {}) {
 		currentKey = key;
 		return sendMail(env, MAILBOX, stub, { to: "bob@example.org", from: MAILBOX, subject: "Hi", text: "Hello", ...fields }, { kind: "new" }, { idempotencyKey: key, ...options });
 	};
-	return { d1, box, send, delivered, stored, row };
+	return { d1, box, send, delivered, stored, moved, row };
 }
 
 test("an attempt goes pending, sending, sent", async () => {
@@ -114,4 +117,45 @@ test("a deferred delivery records the provider ID when it finishes", async () =>
 	assert.equal(result.ok, true);
 	await delivery;
 	assert.deepEqual(h.row("k1"), { state: "sent", provider_id: "provider-1", email_id: result.id, error: null });
+});
+
+test("a deferred send stays sending until delivery finishes", async () => {
+	let release;
+	const h = await harness({ hold: new Promise((r) => { release = r; }) });
+	let delivery;
+	await h.send("k1", {}, { defer: (p) => { delivery = p; } });
+	assert.equal(h.row("k1").state, "sending");
+	const retry = await h.send("k1");
+	assert.equal(retry.status, 409);
+	release();
+	await delivery;
+	assert.equal(h.row("k1").state, "sent");
+	assert.equal(h.delivered.length, 1);
+});
+
+test("a failed deferred delivery fails the key, refunds the budget and moves the copy to Drafts", async () => {
+	const h = await harness({ failDelivery: 1 });
+	let delivery;
+	const result = await h.send("k1", {}, { defer: (p) => { delivery = p; } });
+	assert.equal(result.ok, true);
+	await delivery;
+	assert.equal(h.row("k1").state, "failed");
+	assert.equal(h.row("k1").error, "delivery down");
+	assert.deepEqual(h.moved, [{ id: result.id, folder: "draft" }]);
+	assert.equal(h.d1.exec(`SELECT COUNT(*) AS n FROM send_budget`)[0].n, 0);
+	// The key can be used again, and this time the message goes out.
+	const retry = await h.send("k1", {}, { defer: (p) => { delivery = p; } });
+	assert.equal(retry.ok, true);
+	assert.notEqual(retry.duplicate, true);
+	await delivery;
+	assert.equal(h.delivered.length, 1);
+	assert.equal(h.row("k1").state, "sent");
+});
+
+test("a deferred send whose Sent copy fails to store fails the key and refunds the budget", async () => {
+	const h = await harness({ failStore: 1 });
+	await assert.rejects(h.send("k1", {}, { defer: () => {} }), /storage down/);
+	assert.equal(h.row("k1").state, "failed");
+	assert.equal(h.delivered.length, 0);
+	assert.equal(h.d1.exec(`SELECT COUNT(*) AS n FROM send_budget`)[0].n, 0);
 });

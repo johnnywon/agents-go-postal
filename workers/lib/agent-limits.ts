@@ -9,19 +9,23 @@ import type { Env } from "../types";
 
 const LIMITS_KEY = "config/agent-limits.json";
 
+async function readSaved(env: Pick<Env, "BUCKET">): Promise<AgentLimits> {
+	const obj = await env.BUCKET.get(LIMITS_KEY);
+	return obj ? cleanAgentLimits(await obj.json()) : DEFAULT_AGENT_LIMITS;
+}
+
 /** The saved limits, or the defaults when nothing is saved or the file can't be read. */
 export async function readAgentLimits(env: Pick<Env, "BUCKET">): Promise<AgentLimits> {
 	try {
-		const obj = await env.BUCKET.get(LIMITS_KEY);
-		return obj ? cleanAgentLimits(await obj.json()) : DEFAULT_AGENT_LIMITS;
+		return await readSaved(env);
 	} catch {
 		return DEFAULT_AGENT_LIMITS;
 	}
 }
 
-/** Merge a patch over what is saved, keep only valid values, and save. */
+/** Merge a patch over what is saved, keep only valid values, and save. Throws when the saved file can't be read, so a patch never lands on the defaults. */
 export async function writeAgentLimits(env: Pick<Env, "BUCKET">, patch: unknown): Promise<AgentLimits> {
-	const next = cleanAgentLimits(patch, await readAgentLimits(env));
+	const next = cleanAgentLimits(patch, await readSaved(env));
 	await env.BUCKET.put(LIMITS_KEY, JSON.stringify(next), { httpMetadata: { contentType: "application/json" } });
 	return next;
 }

@@ -48,7 +48,7 @@ import type { Env } from "../types";
 import { defineTool, logTools } from "./tool-def";
 import { getSystemPrompt } from "./prompt";
 import { autoDraftPrompt, createAutoDraftTools, prepareAutoDraft } from "./auto-draft";
-import type { AutoDraftTarget, DraftOutcome } from "./runs";
+import { type AutoDraftTarget, type DraftOutcome, outcomeAfterError } from "./runs";
 
 const CHAT_NOTES: DraftNotes = { origin: "chat", instructions: [] };
 
@@ -443,10 +443,11 @@ export class EmailAgent extends AIChatAgent<any> {
 		const context = prepared.context;
 		const replyTo = context.replyTo;
 
+		// Set once a draft is saved; an error after that still counts as drafted.
+		let draftId: string | null = null;
 		try {
 			const model = await agentModel(env);
 			const systemPrompt = await getSystemPrompt(env, target.mailboxId);
-			let draftId: string | null = null;
 			const tools = logTools(createAutoDraftTools(env, {
 				mailboxId: target.mailboxId,
 				emailId: target.emailId,
@@ -478,14 +479,14 @@ export class EmailAgent extends AIChatAgent<any> {
 			if (!draftId && result.text.trim()) {
 				const sanitizedText = await verifyDraft(env.AI, result.text.trim());
 				if (sanitizedText) {
-					draftId = crypto.randomUUID();
+					const id = crypto.randomUUID();
 					const reSubject = context.email.subject.startsWith("Re:")
 						? context.email.subject
 						: `Re: ${context.email.subject}`;
 					await stub.createEmail(
 						Folders.DRAFT,
 						{
-							id: draftId,
+							id,
 							subject: reSubject,
 							sender: target.mailboxId.toLowerCase(),
 							recipient: replyTo,
@@ -498,7 +499,8 @@ export class EmailAgent extends AIChatAgent<any> {
 						},
 						[],
 					);
-					await stub.setDraftNotes(draftId, { origin: "auto-draft", instructions: [] });
+					draftId = id;
+					await stub.setDraftNotes(id, { origin: "auto-draft", instructions: [] });
 				}
 			}
 
@@ -513,7 +515,7 @@ export class EmailAgent extends AIChatAgent<any> {
 			return draftId ? { status: "drafted", draftId } : { status: "skipped", reason: "the model wrote no draft" };
 		} catch (e) {
 			console.error("Auto-draft failed:", (e as Error).message);
-			return { status: "error", error: (e as Error).message || "Auto-draft failed" };
+			return outcomeAfterError(e, draftId);
 		}
 	}
 }

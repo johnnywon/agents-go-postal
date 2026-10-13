@@ -46,5 +46,14 @@ export function cleanAgentLimits(input: unknown, base: AgentLimits = DEFAULT_AGE
 	return { agentDay: pick("agentDay"), agentRecipients: pick("agentRecipients"), autoDraftPerSender: pick("autoDraftPerSender") };
 }
 
+/** A limit as typed in Console > Limits, or null unless it is a whole number in range. Empty is not 0. */
+export function parseAgentLimit(key: keyof AgentLimits, text: string): number | null {
+	const trimmed = text.trim();
+	if (!/^\d+$/.test(trimmed)) return null;
+	const n = Number(trimmed);
+	const { min, max } = AGENT_LIMIT_RANGES[key];
+	return n >= min && n <= max ? n : null;
+}
+
 export const sameAgentLimits = (a: AgentLimits, b: AgentLimits) =>
 	a.agentDay === b.agentDay && a.agentRecipients === b.agentRecipients && a.autoDraftPerSender === b.autoDraftPerSender;

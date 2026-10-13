@@ -2,6 +2,16 @@
 
 Versions follow [semantic versioning](https://semver.org). Before 1.0, a minor version can break things. Each entry names any new D1 migration. `npm run deploy` applies it; if you deploy another way, run `wrangler d1 migrations apply DB --remote` before you deploy that version.
 
+## 0.7.1
+
+Fixes from a review of 0.7.0.
+
+- A send from the app or the API that failed at the mail service was marked sent. A retry with the same idempotency key returned the first send and nothing went out. Now the attempt stays in sending until delivery finishes. A failed delivery marks the key failed, gives back the send limit slot and moves the message from Sent to Drafts.
+- Console > Limits: clearing a field saved 0, which stopped agent sending or auto-drafting. A limit must now be a whole number. Save sends only the limits you changed, the fields wait for the saved values to load, and `PUT /api/v1/agent-limits` returns an error instead of saving over defaults when it can't read the saved file.
+- Auto-draft: when the model call after `draft_reply` failed, the queue retried and drafted the same reply again. A run with a saved draft now counts as drafted.
+
+No D1 migration.
+
 ## 0.7.0
 
 Agent reliability.
@@ -72,7 +82,7 @@ No D1 migration.
 
 ## 0.4.0
 
-- Agents Go Postal is now Open Mailroom. The repo moved to github.com/johnnywon/open-mailroom; the old URL redirects.
+- The project is now Open Mailroom. The repo moved to github.com/johnnywon/open-mailroom; the old URL redirects.
 - The logo is gone from the sidebar, the empty reader and error pages. The app icon stays. The link preview card shows the mark without a name.
 - Build env vars are `OMR_WRANGLER_CONFIG` and `OMR_PUBLIC_DIR`. `AGP_*` still work.
 - Browser prefs move from `agp-*` to `omr-*` keys on first load. Nothing to do.

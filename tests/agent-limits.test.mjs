@@ -8,7 +8,7 @@ import { loadTs } from "./helpers/sqlite.mjs";
 const { sendMail } = await loadTs("workers/lib/send.ts");
 const { D1Mailbox } = await loadTs("workers/store/d1/mailbox.ts");
 const { countRecipients, recipientLimitError } = await loadTs("workers/lib/send-budget.ts");
-const { SEND_LIMITS, DEFAULT_AGENT_LIMITS, cleanAgentLimits } = await loadTs("shared/send-limits.ts");
+const { SEND_LIMITS, DEFAULT_AGENT_LIMITS, cleanAgentLimits, parseAgentLimit } = await loadTs("shared/send-limits.ts");
 const { readAgentLimits, writeAgentLimits } = await loadTs("workers/lib/agent-limits.ts");
 
 /** An R2 stand-in holding saved agent limits. */
@@ -134,6 +134,22 @@ test("saved limits are checked: out of range or not whole keeps what was there",
 	await writeAgentLimits(env, { agentDay: 40 });
 	assert.deepEqual(await writeAgentLimits(env, { agentRecipients: 99, autoDraftPerSender: 5 }), { agentDay: 40, agentRecipients: 10, autoDraftPerSender: 5 });
 	assert.deepEqual(await readAgentLimits({ BUCKET: { get: async () => { throw new Error("R2 down"); } } }), DEFAULT_AGENT_LIMITS);
+});
+
+test("a limit typed in Console > Limits must be a whole number in range; empty is not 0", async () => {
+	assert.equal(parseAgentLimit("agentDay", "40"), 40);
+	assert.equal(parseAgentLimit("agentDay", " 0 "), 0);
+	for (const text of ["", " ", "-", "e", "1e1", "2.5", "-1", "101", "0x10"]) {
+		assert.equal(parseAgentLimit("agentDay", text), null, JSON.stringify(text));
+	}
+	assert.equal(parseAgentLimit("agentRecipients", "0"), null);
+});
+
+test("saving a limit doesn't overwrite the others when the saved file can't be read", async () => {
+	const store = new Map([["config/agent-limits.json", JSON.stringify({ agentDay: 40, agentRecipients: 5, autoDraftPerSender: 1 })]]);
+	const env = { BUCKET: { get: async () => { throw new Error("R2 down"); }, put: async (k, v) => { store.set(k, v); } } };
+	await assert.rejects(writeAgentLimits(env, { agentDay: 30 }), /R2 down/);
+	assert.deepEqual(JSON.parse(store.get("config/agent-limits.json")), { agentDay: 40, agentRecipients: 5, autoDraftPerSender: 1 });
 });
 
 test("GET and PUT /api/v1/agent-limits", async () => {
