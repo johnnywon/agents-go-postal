@@ -14,7 +14,7 @@ import { d1Registry } from "./d1/registry";
 import { extractAttachmentText, workersAiMarkdown } from "./d1/attachment-text";
 import { sendDueScheduled } from "./d1/scheduled";
 import { d1StorageStatus } from "./d1/status";
-import { d1Sql } from "./sql";
+import { d1Sql, type Sql } from "./sql";
 import type { MailStore } from "./types";
 
 export type { AllMailStore, BulkFailure, BulkTarget, MailboxRegistry, MailboxStore, MailStore } from "./types";
@@ -26,6 +26,11 @@ export function mailStore(env: Env): MailStore {
 		all: () => new D1AllMail(sql, env.BUCKET),
 		mailboxes: d1Registry(sql),
 	};
+}
+
+/** The same database, for agent records kept beside the mail: activity, auto-draft runs, draft notes. */
+export function recordsSql(env: Env): Sql {
+	return d1Sql(env.DB);
 }
 
 /** Mailboxes that exist and are configured in EMAIL_ADDRESSES, sorted. */

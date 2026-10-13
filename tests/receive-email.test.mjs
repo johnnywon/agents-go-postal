@@ -98,7 +98,7 @@ test("an inbound message triggers the receiving agent through RPC", async () => 
 	const { d1, env } = await freshEnvironment(["jane@example.org"]);
 	const agent = {
 		fetch: async () => { throw new Error("Direct agent fetch is unsupported"); },
-		handleNewEmail: async (input) => { agentInput = input; },
+		handleNewEmail: async (input) => { agentInput = input; return { status: "drafted", draftId: null }; },
 	};
 	await receiveEmail(
 		{
@@ -117,9 +117,10 @@ test("an inbound message triggers the receiving agent through RPC", async () => 
 		mailboxId: "jane@example.org",
 		emailId: savedEmail.id,
 		sender: "sender@example.net",
-		subject: "Draft me",
 		threadId: savedEmail.thread_id,
 	});
+	// The run is recorded and settled.
+	assert.deepEqual(await d1.sql.first(`SELECT state, attempts FROM auto_draft_runs WHERE email_id = ?`, savedEmail.id), { state: "drafted", attempts: 1 });
 });
 
 test("inbound mail is saved without triggering the agent when auto-drafting is off", async () => {

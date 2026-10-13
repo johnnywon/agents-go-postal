@@ -8,7 +8,8 @@ Shipped: one list for every address, one search language with ranked results, th
 
 ## Now: control over what agents do
 
-- [ ] **Approval queue and activity log.** Agent sends and bulk changes can wait for one-click approval, and every action an agent took is logged with its reason.
+- [x] **Activity log.** Every read, draft, send, delete and label change by the agent, auto-draft and MCP clients, in Console > Activity.
+- [ ] **Approval queue.** Agent sends and bulk changes can wait for one-click approval.
 - [ ] **Scoped agent access.** MCP tokens limited to chosen addresses, read-only or draft-only, so a support agent never sees billing mail.
 
 ## Next: a faster start, and rules

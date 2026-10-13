@@ -7,6 +7,8 @@ import { Hono } from "hono";
 import { jwtVerify } from "jose";
 import { createRequestHandler } from "react-router";
 import { runCron } from "./cron";
+import { consumeAutoDrafts } from "./agent/queue";
+import type { AutoDraftJob } from "./agent/runs";
 import { accessConfigError, accessJwks, getAccessUrls } from "./lib/access-config";
 import { errorResponse } from "./lib/error-page";
 import { foreignOrigin } from "./lib/csrf";
@@ -125,5 +127,8 @@ export default {
 	},
 	async scheduled(_controller: ScheduledController, env: Env, ctx: ExecutionContext) {
 		ctx.waitUntil(runCron(env).catch((e) => console.error("cron failed:", (e as Error).message)));
+	},
+	async queue(batch: MessageBatch<AutoDraftJob>, env: Env) {
+		await consumeAutoDrafts(batch, env);
 	},
 };

@@ -26,6 +26,8 @@ import {
 } from "./email-helpers";
 import { verifyDraft } from "./ai";
 import { sendMail } from "./send";
+import type { SendActor } from "./send-budget";
+import type { DraftNotes } from "../../shared/draft-notes";
 import { deleteAttachmentFiles } from "./attachments";
 import { Folders, isSystemFolder } from "../../shared/folders";
 import { LABEL_COLORS } from "../../shared/label-colors";
@@ -123,6 +125,8 @@ export async function toolDraftReply(
 		body: string;
 		isPlainText?: boolean;
 		runVerifyDraft?: boolean;
+		/** Set for agent drafts: who made it and how it was redrafted. */
+		notes?: DraftNotes;
 	},
 ): Promise<
 	| { status: "draft_saved"; draftId: string; message: string; draft: Record<string, string> }
@@ -176,6 +180,7 @@ export async function toolDraftReply(
 		},
 		[],
 	);
+	if (params.notes) await stub.setDraftNotes(draftId, params.notes);
 
 	return {
 		status: "draft_saved",
@@ -205,6 +210,7 @@ export async function toolDraftEmail(
 		in_reply_to?: string;
 		/** Optional thread_id for create_draft style */
 		thread_id?: string;
+		notes?: DraftNotes;
 	},
 ): Promise<
 	| { status: string; draftId: string; threadId?: string; message: string; draft?: Record<string, string> }
@@ -252,6 +258,7 @@ export async function toolDraftEmail(
 		},
 		[],
 	);
+	if (params.notes) await stub.setDraftNotes(draftId, params.notes);
 
 	return {
 		status: "draft_saved",
@@ -297,6 +304,7 @@ export async function toolUpdateDraft(
 		return { error: "Draft verification failed — keeping existing draft unchanged. Please try again." };
 	}
 
+	const notes = await stub.getDraftNotes(params.draftId);
 	const attachments = await stub.deleteEmail(params.draftId);
 	if (attachments) await deleteAttachmentFiles(env.BUCKET, params.draftId, attachments);
 	await stub.createEmail(
@@ -314,6 +322,7 @@ export async function toolUpdateDraft(
 		},
 		[],
 	);
+	if (notes) await stub.setDraftNotes(newDraftId, notes);
 
 	return {
 		status: "draft_updated",
@@ -684,7 +693,7 @@ export async function toolDeleteEmail(
  * sent as a reply in that thread. The key is `draft:<id>`, the same one the
  * UI uses, so a draft goes out once however many times it is sent.
  */
-export async function toolSendDraft(env: Env, mailboxId: string, draftId: string) {
+export async function toolSendDraft(env: Env, mailboxId: string, draftId: string, actor: SendActor = "agent") {
 	const stub = mailStore(env).mailbox(mailboxId);
 	const draft = (await stub.getEmail(draftId)) as EmailFull | null;
 	if (!draft) return { error: "Draft not found" };
@@ -706,8 +715,8 @@ export async function toolSendDraft(env: Env, mailboxId: string, draftId: string
 		subject: draft.subject || "(no subject)",
 		html,
 		text: html.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim(),
-	}, original ? { kind: "reply", originalId: original.id } : { kind: "new" }, { idempotencyKey: `draft:${draftId}` });
-	if (!result.ok) return { error: result.error };
+	}, original ? { kind: "reply", originalId: original.id } : { kind: "new" }, { idempotencyKey: `draft:${draftId}`, actor });
+	if (!result.ok) return { error: result.error, ...(result.attempt ? { attempt: result.attempt } : {}) };
 	const attachments = await stub.deleteEmail(draftId);
 	if (attachments) await deleteAttachmentFiles(env.BUCKET, draftId, attachments);
 	return { status: result.duplicate ? "already_sent" : "sent", sentId: result.id, to: to.join(", "), subject: draft.subject || "" };

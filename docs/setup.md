@@ -64,9 +64,20 @@ Requirements: a domain on Cloudflare, R2, and Workers Paid for outbound email. T
 
 To rebrand a deployment, set `APP_NAME` and replace the files listed in [`public/brand/README.md`](../public/brand/README.md).
 
+## Auto-draft queue
+
+With `AUTO_DRAFT_ENABLED` on, a queue retries a draft that failed, for example on a model timeout. It is optional: without it each draft is tried once.
+
+```bash
+npx wrangler queues create open-mailroom-drafts
+npx wrangler queues create open-mailroom-drafts-dlq
+```
+
+Then uncomment `queues` in `wrangler.jsonc` and deploy. Keep `max_retries` at 3. Messages that fail every retry wait in `open-mailroom-drafts-dlq`, and their runs show as Failed in Console > Activity.
+
 ## D1 migrations
 
-`npm run deploy` applies new D1 migrations before it deploys. If you deploy another way, run `npx wrangler d1 migrations apply DB --remote` first: new code writes columns that later migrations add (`0002_has_link.sql` adds `has_link`; `0003_attachment_text.sql` queues older attachments for `ATTACHMENT_SEARCH`; `0004_attachment_trigram.sql` adds substring search over their text; `0005_drop_copy_job.sql` drops the tables of the copy from Durable Objects). A search that finds no substring table fails, so apply `0004` before deploying a version that has it. Adding a column doesn't break the version already running.
+`npm run deploy` applies new D1 migrations before it deploys. If you deploy another way, run `npx wrangler d1 migrations apply DB --remote` first: new code writes columns that later migrations add (`0002_has_link.sql` adds `has_link`; `0003_attachment_text.sql` queues older attachments for `ATTACHMENT_SEARCH`; `0004_attachment_trigram.sql` adds substring search over their text; `0005_drop_copy_job.sql` drops the tables of the copy from Durable Objects; `0006_agent_reliability.sql` adds send attempts, send limits, auto-draft runs, the activity log and draft notes). A search that finds no substring table fails, so apply `0004` before deploying a version that has it. Adding a column doesn't break the version already running.
 
 ## Upgrading from Durable Object storage
 

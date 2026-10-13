@@ -11,6 +11,7 @@
  * Zod schemas: used across route handlers to eliminate duplication.
  */
 import { z } from "zod";
+import type { DraftNotes } from "../../shared/draft-notes";
 
 // ── TypeScript Interfaces ──────────────────────────────────────────
 
@@ -36,6 +37,8 @@ export interface EmailFull extends EmailMetadata {
 	message_id?: string | null;
 	raw_headers?: string | null;
 	attachments?: AttachmentInfo[];
+	/** Drafts an agent made: how it made them. */
+	draft_notes?: DraftNotes;
 }
 
 export interface AttachmentInfo {

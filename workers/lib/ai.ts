@@ -154,7 +154,7 @@ RULES:
 /**
  * Split an HTML body into the reply portion and the quoted block.
  */
-function splitQuotedBlock(html: string): { reply: string; quoted: string } {
+export function splitQuotedBlock(html: string): { reply: string; quoted: string } {
 	const match = html.match(
 		/(\s*(?:<br\s*\/?>)\s*)?(<blockquote[\s\S]*<\/blockquote>)\s*$/i,
 	);

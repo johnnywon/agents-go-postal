@@ -5,10 +5,13 @@
 /**
  * One address's mail on D1. Every query is scoped to the mailbox.
  */
+import type { DraftNotes } from "../../../shared/draft-notes";
 import { Folders } from "../../../shared/folders";
 import { deleteAttachmentFiles } from "../../lib/attachments";
 import type { ScheduleMode, ScheduledPayload, ScheduledRow } from "../../lib/scheduled-send";
 import type { SendEmailRequest } from "../../lib/send";
+import { budgetError, type SendActor } from "../../lib/send-budget";
+import { DEFAULT_AGENT_LIMITS, SEND_LIMITS } from "../../../shared/send-limits";
 import { SEND_KEY_TTL_MS, type SendKeyClaim } from "../../lib/send-keys";
 import {
 	MAX_REFERENCED_IDS,
@@ -104,7 +107,44 @@ export class D1Mailbox {
 		const row = await this.sql.first(`SELECT ${EMAIL_COLUMNS} FROM messages m WHERE m.mailbox_id = ? AND m.email_id = ?`, this.#id, id);
 		if (!row) return null;
 		const attachments = (await this.#attachments([id])).get(id) ?? [];
-		return { ...toEmailRow(row, await this.#body(row)), attachments };
+		const email = { ...toEmailRow(row, await this.#body(row)), attachments };
+		if (email.folder_id !== Folders.DRAFT) return email;
+		const notes = await this.getDraftNotes(id);
+		return notes ? { ...email, draft_notes: notes } : email;
+	}
+
+	// ── Draft notes ────────────────────────────────────────────────
+
+	/** How an agent made this draft. Null for drafts a person wrote. */
+	async getDraftNotes(emailId: string): Promise<DraftNotes | null> {
+		return (await this.#draftNotes([emailId])).get(emailId) ?? null;
+	}
+
+	async #draftNotes(emailIds: string[]): Promise<Map<string, DraftNotes>> {
+		const notes = new Map<string, DraftNotes>();
+		if (emailIds.length === 0) return notes;
+		const rows = await this.sql.all(
+			`SELECT n.email_id, n.origin, n.instructions FROM draft_notes n JOIN messages m ON m.email_id = n.email_id
+			WHERE m.mailbox_id = ? AND n.email_id IN (SELECT value FROM json_each(?))`,
+			this.#id, JSON.stringify(emailIds),
+		);
+		for (const row of rows) {
+			let instructions: string[] = [];
+			try {
+				const parsed = JSON.parse(String(row.instructions ?? "[]"));
+				if (Array.isArray(parsed)) instructions = parsed.filter((v): v is string => typeof v === "string");
+			} catch { /* keep none */ }
+			notes.set(String(row.email_id), { origin: String(row.origin) as DraftNotes["origin"], instructions });
+		}
+		return notes;
+	}
+
+	async setDraftNotes(emailId: string, notes: DraftNotes): Promise<void> {
+		await this.sql.run(
+			`INSERT OR REPLACE INTO draft_notes (email_id, origin, instructions, created_at)
+			SELECT email_id, ?, ?, ? FROM messages WHERE mailbox_id = ? AND email_id = ?`,
+			notes.origin, JSON.stringify(notes.instructions), new Date().toISOString(), this.#id, emailId,
+		);
 	}
 
 	async hasInboundMessageId(messageId: string): Promise<boolean> {
@@ -120,10 +160,12 @@ export class D1Mailbox {
 			this.#id, threadId,
 		);
 		const attachments = await this.#attachments(rows.map((r) => String(r.id)));
-		return Promise.all(rows.map(async (row) => ({
-			...toEmailRow(row, await this.#body(row)),
-			attachments: attachments.get(String(row.id)) ?? [],
-		})));
+		const notes = await this.#draftNotes(rows.filter((r) => r.folder_id === Folders.DRAFT).map((r) => String(r.id)));
+		return Promise.all(rows.map(async (row) => {
+			const email = { ...toEmailRow(row, await this.#body(row)), attachments: attachments.get(String(row.id)) ?? [] };
+			const note = notes.get(String(row.id));
+			return note ? { ...email, draft_notes: note } : email;
+		}));
 	}
 
 	async createEmail(folder: string, email: EmailInput, attachments: AttachmentInput[]) {
@@ -280,38 +322,93 @@ export class D1Mailbox {
 
 	// ── Sending ────────────────────────────────────────────────────
 
-	/** 20 sends an hour and 100 a day per address. Null when under the limit. */
-	async checkSendRateLimit(): Promise<string | null> {
+	/**
+	 * Count one send against the address's limits, or refuse it. The insert
+	 * is conditional on the counts, so the check and the count are atomic.
+	 */
+	async takeSendBudget(actor: SendActor, recipients: number, agentDay: number = DEFAULT_AGENT_LIMITS.agentDay): Promise<{ ok: true; id: number } | { ok: false; error: string }> {
 		const now = Date.now();
-		const row = await this.sql.first(
-			`SELECT COALESCE(SUM(date >= ?), 0) AS hour, COUNT(*) AS day FROM messages WHERE mailbox_id = ? AND folder_id = ? AND date >= ?`,
-			new Date(now - 3_600_000).toISOString(), this.#id, Folders.SENT, new Date(now - 86_400_000).toISOString(),
-		);
-		if (Number(row?.hour ?? 0) >= 20) return "Rate limit exceeded: max 20 emails per hour per mailbox";
-		if (Number(row?.day ?? 0) >= 100) return "Rate limit exceeded: max 100 emails per day per mailbox";
-		return null;
-	}
-
-	async claimSendKey(key: string): Promise<SendKeyClaim> {
-		const now = Date.now();
-		const [, inserted] = await this.sql.batch([
-			{ sql: `DELETE FROM send_keys WHERE created_at < ?`, params: [new Date(now - SEND_KEY_TTL_MS).toISOString()] },
+		const hour = new Date(now - 3_600_000).toISOString();
+		const day = new Date(now - 86_400_000).toISOString();
+		const [, taken] = await this.sql.batch([
+			{ sql: `DELETE FROM send_budget WHERE mailbox_id = ? AND at < ?`, params: [this.#id, day] },
 			{
-				sql: `INSERT INTO send_keys (mailbox_id, key, state, created_at) VALUES (?, ?, 'pending', ?) ON CONFLICT DO NOTHING RETURNING state`,
-				params: [this.#id, key, new Date(now).toISOString()],
+				sql: `INSERT INTO send_budget (mailbox_id, actor, recipients, at)
+					SELECT ?1, ?2, ?3, ?4
+					WHERE (SELECT COUNT(*) FROM send_budget WHERE mailbox_id = ?1 AND at >= ?5) < ?6
+					AND (SELECT COUNT(*) FROM send_budget WHERE mailbox_id = ?1) < ?7
+					AND (?2 = 'person' OR (SELECT COUNT(*) FROM send_budget WHERE mailbox_id = ?1 AND actor != 'person') < ?8)
+					RETURNING id`,
+				params: [this.#id, actor, recipients, new Date(now).toISOString(), hour, SEND_LIMITS.hour, SEND_LIMITS.day, agentDay],
 			},
 		]);
-		if (inserted.length > 0) return { state: "new" };
-		const row = await this.sql.first(`SELECT state, email_id FROM send_keys WHERE mailbox_id = ? AND key = ?`, this.#id, key);
-		return row?.state === "sent" ? { state: "sent", id: String(row.email_id) } : { state: "pending" };
+		if (taken.length > 0) return { ok: true, id: Number(taken[0].id) };
+		const counts = await this.sql.first(
+			`SELECT COALESCE(SUM(at >= ?), 0) AS hour, COUNT(*) AS day, COALESCE(SUM(actor != 'person'), 0) AS agentDay FROM send_budget WHERE mailbox_id = ?`,
+			hour, this.#id,
+		);
+		return { ok: false, error: budgetError(actor, { hour: Number(counts?.hour ?? 0), day: Number(counts?.day ?? 0), agentDay: Number(counts?.agentDay ?? 0) }, agentDay) };
+	}
+
+	/** Give back a send that was never delivered. */
+	async refundSendBudget(id: number): Promise<void> {
+		await this.sql.run(`DELETE FROM send_budget WHERE mailbox_id = ? AND id = ?`, this.#id, id);
+	}
+
+	/**
+	 * Claim a send attempt (send-keys.ts). New keys and keys whose last
+	 * attempt failed are claimed as pending; anything else reports its state.
+	 */
+	async claimSendKey(key: string, contentHash: string | null = null): Promise<SendKeyClaim> {
+		const now = new Date().toISOString();
+		const [, claimed] = await this.sql.batch([
+			{ sql: `DELETE FROM send_keys WHERE created_at < ?`, params: [new Date(Date.now() - SEND_KEY_TTL_MS).toISOString()] },
+			{
+				sql: `INSERT INTO send_keys (mailbox_id, key, state, content_hash, created_at, updated_at) VALUES (?1, ?2, 'pending', ?3, ?4, ?4)
+					ON CONFLICT (mailbox_id, key) DO UPDATE SET state = 'pending', content_hash = ?3, provider_id = NULL, error = NULL, updated_at = ?4
+					WHERE send_keys.state = 'failed'
+					RETURNING state`,
+				params: [this.#id, key, contentHash, now],
+			},
+		]);
+		if (claimed.length > 0) return { state: "new" };
+		const row = await this.sql.first(`SELECT state, email_id, content_hash, provider_id FROM send_keys WHERE mailbox_id = ? AND key = ?`, this.#id, key);
+		if (!row) return this.claimSendKey(key, contentHash);
+		if (contentHash && row.content_hash && row.content_hash !== contentHash) return { state: "conflict" };
+		if (row.state === "sent") return { state: "sent", id: String(row.email_id) };
+		return { state: row.state === "sending" ? "sending" : "pending", providerId: row.provider_id == null ? null : String(row.provider_id) };
+	}
+
+	/** pending -> sending. False when another caller already started this attempt. */
+	async startSendKey(key: string): Promise<boolean> {
+		const rows = await this.sql.all(
+			`UPDATE send_keys SET state = 'sending', updated_at = ? WHERE mailbox_id = ? AND key = ? AND state = 'pending' RETURNING key`,
+			new Date().toISOString(), this.#id, key,
+		);
+		return rows.length > 0;
+	}
+
+	/** The mail service's message ID, saved before the Sent copy. */
+	async recordSendProvider(key: string, providerId: string | null, error: string | null = null): Promise<void> {
+		await this.sql.run(
+			`UPDATE send_keys SET provider_id = COALESCE(?, provider_id), error = ?, updated_at = ? WHERE mailbox_id = ? AND key = ?`,
+			providerId, error, new Date().toISOString(), this.#id, key,
+		);
 	}
 
 	async finishSendKey(key: string, emailId: string): Promise<void> {
-		await this.sql.run(`UPDATE send_keys SET state = 'sent', email_id = ? WHERE mailbox_id = ? AND key = ?`, emailId, this.#id, key);
+		await this.sql.run(
+			`UPDATE send_keys SET state = 'sent', email_id = ?, updated_at = ? WHERE mailbox_id = ? AND key = ?`,
+			emailId, new Date().toISOString(), this.#id, key,
+		);
 	}
 
-	async releaseSendKey(key: string): Promise<void> {
-		await this.sql.run(`DELETE FROM send_keys WHERE mailbox_id = ? AND key = ? AND state = 'pending'`, this.#id, key);
+	/** The attempt failed before delivery; the key can be used again. */
+	async failSendKey(key: string, error: string): Promise<void> {
+		await this.sql.run(
+			`UPDATE send_keys SET state = 'failed', error = ?, updated_at = ? WHERE mailbox_id = ? AND key = ? AND state IN ('pending', 'sending')`,
+			error.slice(0, 1000), new Date().toISOString(), this.#id, key,
+		);
 	}
 
 	// ── Scheduled send ─────────────────────────────────────────────

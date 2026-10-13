@@ -19,7 +19,16 @@ import {
 } from "./email-helpers";
 import { hasHeaderLineBreaks } from "./schemas";
 import type { EmailFull, SendEmailRequestSchema } from "./schemas";
-import { SEND_KEY_PENDING_ERROR, type SendKeyClaim } from "./send-keys";
+import { readAgentLimits } from "./agent-limits";
+import { countRecipients, isAgent, recipientLimitError, type SendActor } from "./send-budget";
+import { type AgentLimits, DEFAULT_AGENT_LIMITS } from "../../shared/send-limits";
+import {
+	SEND_KEY_CONFLICT_ERROR,
+	SEND_KEY_PENDING_ERROR,
+	SEND_KEY_SENDING_ERROR,
+	sendContentHash,
+	type SendKeyClaim,
+} from "./send-keys";
 import { Folders } from "../../shared/folders";
 import type { Env } from "../types";
 
@@ -34,16 +43,22 @@ export type SendMode =
 export interface SendStub {
 	getEmail(id: string): Promise<unknown>;
 	createEmail(folder: string, email: any, attachments: any[]): Promise<unknown>;
-	checkSendRateLimit(): Promise<string | null>;
 	markThreadRead(threadId: string): Promise<unknown>;
-	claimSendKey(key: string): Promise<SendKeyClaim>;
+	takeSendBudget(actor: SendActor, recipients: number, agentDay?: number): Promise<{ ok: true; id: number } | { ok: false; error: string }>;
+	refundSendBudget(id: number): Promise<void>;
+	claimSendKey(key: string, contentHash?: string | null): Promise<SendKeyClaim>;
+	startSendKey(key: string): Promise<boolean>;
+	recordSendProvider(key: string, providerId: string | null, error?: string | null): Promise<void>;
 	finishSendKey(key: string, emailId: string): Promise<void>;
-	releaseSendKey(key: string): Promise<void>;
+	failSendKey(key: string, error: string): Promise<void>;
 }
+
+/** An attempt that is still open, returned instead of sending again. */
+export type OpenAttempt = { state: "pending" | "sending"; providerId: string | null };
 
 export type SendResult =
 	| { ok: true; id: string; duplicate?: true }
-	| { ok: false; status: 400 | 404 | 409 | 429; error: string };
+	| { ok: false; status: 400 | 404 | 409 | 429; error: string; attempt?: OpenAttempt };
 
 export interface SendOptions {
 	/**
@@ -57,6 +72,10 @@ export interface SendOptions {
 	 * already sent returns the first send's id with `duplicate: true`.
 	 */
 	idempotencyKey?: string;
+	/** Who asked for the send, for the limits in send-budget.ts. Defaults to a person. */
+	actor?: SendActor;
+	/** Agent limits to apply instead of the saved ones (lib/agent-limits.ts). */
+	limits?: AgentLimits;
 }
 
 const DEFERRED_LABEL: Record<SendMode["kind"], string> = { new: "email", reply: "reply", forward: "forward" };
@@ -72,21 +91,28 @@ export async function sendMail(
 	options: SendOptions = {},
 ): Promise<SendResult> {
 	const key = options.idempotencyKey;
-	if (!key) return sendOnce(env, mailboxId, stub, body, mode, options, () => {});
+	if (!key) return sendOnce(env, mailboxId, stub, body, mode, options, null, () => {});
 
-	const claim = await stub.claimSendKey(key);
+	const claim = await stub.claimSendKey(key, await sendContentHash([mode, body]));
 	if (claim.state === "sent") return { ok: true, id: claim.id, duplicate: true };
-	if (claim.state === "pending") return { ok: false, status: 409, error: SEND_KEY_PENDING_ERROR };
+	if (claim.state === "conflict") return { ok: false, status: 409, error: SEND_KEY_CONFLICT_ERROR };
+	if (claim.state !== "new") {
+		return {
+			ok: false, status: 409,
+			error: claim.state === "sending" ? SEND_KEY_SENDING_ERROR : SEND_KEY_PENDING_ERROR,
+			attempt: { state: claim.state, providerId: claim.providerId },
+		};
+	}
 
-	// Once delivery may have happened the key stays claimed, even if storing the Sent copy fails.
+	// Once delivery may have happened the attempt stays in sending, even if storing the Sent copy fails.
 	let delivered = false;
 	try {
-		const result = await sendOnce(env, mailboxId, stub, body, mode, options, () => { delivered = true; });
+		const result = await sendOnce(env, mailboxId, stub, body, mode, options, key, () => { delivered = true; });
 		if (result.ok) await stub.finishSendKey(key, result.id);
-		else await stub.releaseSendKey(key);
+		else if (!result.attempt) await stub.failSendKey(key, result.error);
 		return result;
 	} catch (e) {
-		if (!delivered) await stub.releaseSendKey(key);
+		if (!delivered) await stub.failSendKey(key, (e as Error).message || "Delivery failed");
 		throw e;
 	}
 }
@@ -98,6 +124,7 @@ async function sendOnce(
 	body: SendEmailRequest,
 	mode: SendMode,
 	options: SendOptions,
+	key: string | null,
 	onDelivered: () => void,
 ): Promise<SendResult> {
 	const { to, cc, bcc, from, subject, html, text, attachments } = body;
@@ -136,8 +163,17 @@ async function sendOnce(
 	}
 
 	const { messageId, outgoingMessageId } = generateMessageId(fromDomain);
-	const rateLimitError = await stub.checkSendRateLimit();
-	if (rateLimitError) return { ok: false, status: 429, error: rateLimitError };
+	const actor = options.actor ?? "person";
+	const recipients = countRecipients(to, cc, bcc);
+	const limits = isAgent(actor) ? options.limits ?? (await readAgentLimits(env)) : DEFAULT_AGENT_LIMITS;
+	const tooMany = recipientLimitError(actor, recipients, limits);
+	if (tooMany) return { ok: false, status: 400, error: tooMany };
+	const budget = await stub.takeSendBudget(actor, recipients, limits.agentDay);
+	if (!budget.ok) return { ok: false, status: 429, error: budget.error };
+	if (key && !(await stub.startSendKey(key))) {
+		await stub.refundSendBudget(budget.id);
+		return { ok: false, status: 409, error: SEND_KEY_PENDING_ERROR, attempt: { state: "sending", providerId: null } };
+	}
 
 	const deliver = () =>
 		sendEmail(env.EMAIL, {
@@ -150,8 +186,15 @@ async function sendOnce(
 		});
 
 	if (!options.defer) {
-		await deliver();
+		let providerId: string;
+		try {
+			({ messageId: providerId } = await deliver());
+		} catch (e) {
+			await stub.refundSendBudget(budget.id);
+			throw e;
+		}
 		onDelivered();
+		if (key) await stub.recordSendProvider(key, providerId || null);
 	}
 
 	const attachmentData = await storeAttachments(env.BUCKET, messageId, attachments);
@@ -187,9 +230,13 @@ async function sendOnce(
 	if (options.defer) {
 		onDelivered();
 		const label = DEFERRED_LABEL[mode.kind];
-		options.defer(deliver().catch((e) => {
-			console.error(`Deferred ${label} delivery failed:`, (e as Error).message);
-		}));
+		options.defer(deliver().then(
+			({ messageId: providerId }) => (key ? stub.recordSendProvider(key, providerId || null) : undefined),
+			async (e) => {
+				console.error(`Deferred ${label} delivery failed:`, (e as Error).message);
+				if (key) await stub.recordSendProvider(key, null, (e as Error).message || "Delivery failed").catch(() => {});
+			},
+		));
 	}
 	return { ok: true, id: messageId };
 }

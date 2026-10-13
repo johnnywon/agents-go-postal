@@ -24,8 +24,8 @@ import {
 import { ComposePopout, Composer } from "./ComposeWindow";
 import { buildIdentities } from "./identity";
 import { ListPane } from "./ListPane";
-import { LogoutModal, McpModal, SettingsModal, ShortcutsModal, Toast, type ToastState } from "./Modals";
-import { type SettingsTab, settingsTabFrom } from "./settings-tabs";
+import { ConsoleModal, LogoutModal, ShortcutsModal, Toast, type ToastState } from "./Modals";
+import { type ConsoleTab, consoleTabFrom } from "./console-tabs";
 import { conversations, HOME, labelOf, type MailAction, parsePostalFilter, RESTORABLE, scoped, scopeOf, searchErrors, searchTerms, withSearch } from "./model";
 import { withOrder } from "./search-window";
 import { useDeleteSavedSearch, useSavedSearches, useSaveSearch, useSuggest } from "~/queries/search";
@@ -101,10 +101,12 @@ function PostalApp({ addresses, domains, autoDraft }: PostalProps) {
 			const params = filterToParams(next);
 			if (nextOpen) params.set("open", openParam(nextOpen));
 			if (nextSearch.trim()) params.set("search", nextSearch);
-			// An open Settings dialog stays open while the mail behind it moves.
+			// An open console stays open while the mail behind it moves.
 			setSearchParams((cur) => {
-				const settings = cur.get("settings");
-				if (settings) params.set("settings", settings);
+				for (const key of ["console", "settings"]) {
+					const value = cur.get(key);
+					if (value) params.set(key, value);
+				}
 				return params;
 			}, { replace });
 		},
@@ -178,19 +180,21 @@ function PostalApp({ addresses, domains, autoDraft }: PostalProps) {
 	const [panelTemp, setPanelTemp] = useState(false);
 	const navOpen = mobile ? navTemp : narrow ? navTemp : layout.nav ?? true;
 	const panelOpen = mobile ? panelTemp : narrow ? panelTemp : layout.panel ?? true;
-	const [modal, setModal] = useState<"mcp" | "logout" | null>(null);
+	const [modal, setModal] = useState<"logout" | null>(null);
 	const [toast, setToast] = useState<ToastState | null>(null);
 	const [cw, setCw] = useState<{ key: number; initial: ComposeState; max?: boolean } | null>(null);
 	const [inline, setInline] = useState<{ key: number; initial: ComposeState } | null>(null);
-	// Settings lives in the URL (?settings=<tab>), so a link opens it on a tab and Back closes it.
-	const settingsTab = settingsTabFrom(searchParams.get("settings"));
-	const openSettings = (tab: SettingsTab = "general") => setSearchParams((cur) => {
+	// The console lives in the URL (?console=<tab>), so a link opens it on a tab and Back closes it. Old ?settings= links still open it.
+	const consoleTab = consoleTabFrom(searchParams);
+	const openConsole = (tab: ConsoleTab = "overview") => setSearchParams((cur) => {
 		const next = new URLSearchParams(cur);
-		next.set("settings", tab);
+		next.delete("settings");
+		next.set("console", tab);
 		return next;
-	}, { replace: !!settingsTab });
-	const closeSettings = () => setSearchParams((cur) => {
+	}, { replace: !!consoleTab });
+	const closeConsole = () => setSearchParams((cur) => {
 		const next = new URLSearchParams(cur);
+		next.delete("console");
 		next.delete("settings");
 		return next;
 	});
@@ -499,7 +503,7 @@ function PostalApp({ addresses, domains, autoDraft }: PostalProps) {
 		const before = seenShortcuts.current;
 		seenShortcuts.current = prefs.shortcuts;
 		writeJson(SEEN_SHORTCUTS_KEY, prefs.shortcuts);
-		if (settingsTab || before === prefs.shortcuts) return;
+		if (consoleTab || before === prefs.shortcuts) return;
 		const lines = describeChanges(before, prefs.shortcuts, isMac());
 		if (!lines.length) return;
 		const text = lines.length > 2 ? `${lines.slice(0, 2).join(". ")}, and ${lines.length - 2} more` : lines.join(". ");
@@ -580,9 +584,8 @@ function PostalApp({ addresses, domains, autoDraft }: PostalProps) {
 		labelsOpen: layout.labelsOpen,
 		setLayout,
 		onCollapse: toggleNav,
-		onMcp: () => setModal("mcp"),
-		onSettings: () => openSettings(),
-		onManageLabels: () => openSettings("labels"),
+		onConsole: () => openConsole(),
+		onManageLabels: () => openConsole("labels"),
 		onLogout: () => setModal("logout"),
 		onShortcuts: () => setHelpOpen(true),
 	};
@@ -728,7 +731,7 @@ function PostalApp({ addresses, domains, autoDraft }: PostalProps) {
 									popOut(state, () => openCompose(state));
 									setInline(null);
 								}}
-								onEditSignatures={() => openSettings("signatures")}
+								onEditSignatures={() => openConsole("signatures")}
 								onEditDraft={(draft) => open && editDraft(open.mailboxId, draft.id, draft)}
 								draftWithAgent={draftWithAgent}
 								replyRequest={replyRequest}
@@ -760,7 +763,7 @@ function PostalApp({ addresses, domains, autoDraft }: PostalProps) {
 						initial={cw.initial}
 						maximised={cw.max}
 						lockFrom={prefs.replyFrom}
-						onEditSignatures={() => openSettings("signatures")}
+						onEditSignatures={() => openConsole("signatures")}
 						addresses={addresses}
 						identities={identities}
 						info={info}
@@ -779,30 +782,29 @@ function PostalApp({ addresses, domains, autoDraft }: PostalProps) {
 				)}
 				{draftRunner}
 				<Toast toast={toast} onClose={closeToast} />
-				{settingsTab && (
-					<SettingsModal
-						// A link can open Settings before each address's settings load; it starts again as they arrive so it compares against them.
+				{consoleTab && (
+					<ConsoleModal
+						// A link can open the console before each address's settings load; it starts again as they arrive so it compares against them.
 						key={`${addresses.length}:${[...info.values()].filter((i) => i.mailbox).length}`}
-						tab={settingsTab}
-						onTab={openSettings}
+						tab={consoleTab}
+						onTab={openConsole}
 						prefs={prefs}
 						setPrefs={setPrefs}
 						addresses={addresses}
 						identities={identities}
 						info={info}
 						autoDraft={autoDraft}
-						onClose={closeSettings}
+						onClose={closeConsole}
 						onSaved={(text) => showToast({ text })}
 					/>
 				)}
-				{modal === "mcp" && <McpModal onClose={() => setModal(null)} />}
 				{modal === "logout" && <LogoutModal onClose={() => setModal(null)} />}
 				{helpOpen && (
 					<ShortcutsModal
 						onClose={() => setHelpOpen(false)}
 						onEdit={() => {
 							setHelpOpen(false);
-							openSettings("shortcuts");
+							openConsole("shortcuts");
 						}}
 					/>
 				)}

@@ -35,7 +35,9 @@ import {
 } from "../lib/tools";
 import { Folders, FOLDER_TOOL_DESCRIPTION, MOVE_FOLDER_TOOL_DESCRIPTION } from "../../shared/folders";
 import { DATE_TOKENS, VIEWS } from "../lib/mail-index-sql";
-import { mailStore } from "../store";
+import { mailStore, recordsSql } from "../store";
+import { logged } from "../lib/activity";
+import type { DraftNotes } from "../../shared/draft-notes";
 import type { Env } from "../types";
 
 /** Wrap a plain result object into MCP content format. */
@@ -69,6 +71,18 @@ function mcpResult(result: Record<string, unknown>) {
 	return mcpText(result);
 }
 
+const MCP_NOTES: DraftNotes = { origin: "mcp", instructions: [] };
+
+/** The result object inside an MCP response, for the activity log. */
+function mcpView(response: { content?: { type: string; text?: string }[]; isError?: boolean }): unknown {
+	const text = response.content?.find((c) => c.type === "text")?.text ?? "";
+	try {
+		return JSON.parse(text);
+	} catch {
+		return response.isError ? { error: text.slice(0, 200) } : {};
+	}
+}
+
 /**
  * EmailMCP — exposes email tools over the Model Context Protocol.
  *
@@ -84,6 +98,15 @@ export class EmailMCP extends McpAgent<Env> {
 
 	async init() {
 		const env = this.env;
+		const sql = recordsSql(env);
+		const server = this.server;
+		/** Register a tool whose every call goes to the activity log, with the client's name. */
+		const tool = (name: string, description: string, schema: z.ZodRawShape, handler: (args: any, extra: any) => Promise<any>) =>
+			server.tool(name, description, schema, async (args: any, extra: any) => {
+				const info = server.server.getClientVersion();
+				const client = info ? `${info.name} ${info.version ?? ""}`.trim() : null;
+				return logged<any>(sql, { actor: "mcp", client }, name, args ?? {}, () => handler(args, extra), mcpView);
+			});
 
 		/**
 		 * Verify a mailbox exists before operating on it.
@@ -97,7 +120,7 @@ export class EmailMCP extends McpAgent<Env> {
 		};
 
 		// ── list_mailboxes ─────────────────────────────────────────
-		this.server.tool(
+		tool(
 			"list_mailboxes",
 			"List all available mailboxes",
 			{},
@@ -108,7 +131,7 @@ export class EmailMCP extends McpAgent<Env> {
 		);
 
 		// ── list_emails ────────────────────────────────────────────
-		this.server.tool(
+		tool(
 			"list_emails",
 			"List emails in a mailbox folder. Returns email metadata (id, subject, sender, recipient, date, read/starred status, thread_id).",
 			{
@@ -137,7 +160,7 @@ export class EmailMCP extends McpAgent<Env> {
 		);
 
 		// ── get_email ──────────────────────────────────────────────
-		this.server.tool(
+		tool(
 			"get_email",
 			"Get a single email with its full body content. Use this to read the actual content of an email.",
 			{
@@ -159,7 +182,7 @@ export class EmailMCP extends McpAgent<Env> {
 		);
 
 		// ── get_thread ─────────────────────────────────────────────
-		this.server.tool(
+		tool(
 			"get_thread",
 			"Get all emails in a conversation thread. Returns all messages sorted chronologically.",
 			{
@@ -177,7 +200,7 @@ export class EmailMCP extends McpAgent<Env> {
 		);
 
 		// ── search_emails ──────────────────────────────────────────
-		this.server.tool(
+		tool(
 			"search_emails",
 			"Search one address's conversations. Same search and results as search_all_mail, limited to that address.",
 			{
@@ -197,7 +220,7 @@ export class EmailMCP extends McpAgent<Env> {
 		);
 
 		// ── draft_reply ────────────────────────────────────────────
-		this.server.tool(
+		tool(
 			"draft_reply",
 			"Draft a reply to an email and save it to the Drafts folder. Use send_draft to send it.",
 			{
@@ -221,13 +244,14 @@ export class EmailMCP extends McpAgent<Env> {
 					body: bodyHtml,
 					isPlainText: false,
 					runVerifyDraft: true,
+					notes: MCP_NOTES,
 				});
 				return mcpResult(result);
 			},
 		);
 
 		// ── create_draft ───────────────────────────────────────────
-		this.server.tool(
+		tool(
 			"create_draft",
 			"Create a new draft email. Can be a new email or a reply draft.",
 			{
@@ -256,6 +280,7 @@ export class EmailMCP extends McpAgent<Env> {
 					runVerifyDraft: true,
 					in_reply_to,
 					thread_id,
+					notes: MCP_NOTES,
 				});
 				if ("error" in result) {
 					return mcpResult(result);
@@ -271,7 +296,7 @@ export class EmailMCP extends McpAgent<Env> {
 		);
 
 		// ── update_draft ───────────────────────────────────────────
-		this.server.tool(
+		tool(
 			"update_draft",
 			"Update an existing draft. The draft is replaced: the result's newDraftId is its ID from now on, and the old draftId no longer works.",
 			{
@@ -307,7 +332,7 @@ export class EmailMCP extends McpAgent<Env> {
 		);
 
 		// ── send_draft ─────────────────────────────────────────────
-		this.server.tool(
+		tool(
 			"send_draft",
 			"Send a saved draft now and remove it from Drafts. A reply draft is sent in its thread. A draft that was already sent returns \"Draft not found\" and is not sent again.",
 			{
@@ -317,12 +342,12 @@ export class EmailMCP extends McpAgent<Env> {
 			async ({ mailboxId, draftId }) => {
 				const denied = await verifyMailbox(mailboxId);
 				if (denied) return denied;
-				return mcpResult(await toolSendDraft(env, mailboxId, draftId));
+				return mcpResult(await toolSendDraft(env, mailboxId, draftId, "mcp"));
 			},
 		);
 
 		// ── delete_email ───────────────────────────────────────────
-		this.server.tool(
+		tool(
 			"delete_email",
 			"Move an email to Trash.",
 			{
@@ -338,7 +363,7 @@ export class EmailMCP extends McpAgent<Env> {
 		);
 
 		// ── list_labels ────────────────────────────────────────────
-		this.server.tool(
+		tool(
 			"list_labels",
 			"List labels with their ids, colours and conversation counts. Labels are tags shared by every mailbox.",
 			{},
@@ -346,8 +371,8 @@ export class EmailMCP extends McpAgent<Env> {
 		);
 
 		// ── Keyboard shortcuts ─────────────────────────────────────
-		this.server.tool("list_shortcuts", SHORTCUT_TOOL_DESCRIPTIONS.list, {}, async () => mcpText(await toolListShortcuts(env)));
-		this.server.tool(
+		tool("list_shortcuts", SHORTCUT_TOOL_DESCRIPTIONS.list, {}, async () => mcpText(await toolListShortcuts(env)));
+		tool(
 			"set_shortcut",
 			SHORTCUT_TOOL_DESCRIPTIONS.set,
 			{
@@ -356,7 +381,7 @@ export class EmailMCP extends McpAgent<Env> {
 			},
 			async ({ shortcut, keys }) => mcpResult(await toolSetShortcut(env, { shortcut, keys })),
 		);
-		this.server.tool(
+		tool(
 			"reset_shortcuts",
 			SHORTCUT_TOOL_DESCRIPTIONS.reset,
 			{ shortcut: z.string().optional().describe(SHORTCUT_TOOL_DESCRIPTIONS.shortcut) },
@@ -364,7 +389,7 @@ export class EmailMCP extends McpAgent<Env> {
 		);
 
 		// ── create_label ───────────────────────────────────────────
-		this.server.tool(
+		tool(
 			"create_label",
 			"Create a label shared by every mailbox. If a label with that name exists, it is returned instead. Then apply it with label_conversation.",
 			{
@@ -374,7 +399,7 @@ export class EmailMCP extends McpAgent<Env> {
 		);
 
 		// ── rename_label ───────────────────────────────────────────
-		this.server.tool(
+		tool(
 			"rename_label",
 			"Rename a label. Conversations keep it under the new name.",
 			{
@@ -385,7 +410,7 @@ export class EmailMCP extends McpAgent<Env> {
 		);
 
 		// ── delete_label ───────────────────────────────────────────
-		this.server.tool(
+		tool(
 			"delete_label",
 			"Delete a label. It is removed from every conversation that carries it; the mail itself stays. This cannot be undone.",
 			{ label: z.string().describe("The label's id or name") },
@@ -393,7 +418,7 @@ export class EmailMCP extends McpAgent<Env> {
 		);
 
 		// ── label_conversation ─────────────────────────────────────
-		this.server.tool(
+		tool(
 			"label_conversation",
 			"Add or remove labels on the conversation that holds an email. Labeling leaves the conversation where it is unless archive is true.",
 			{
@@ -422,13 +447,13 @@ export class EmailMCP extends McpAgent<Env> {
 			hasAttachment: z.boolean().optional(),
 			date: z.enum(DATE_TOKENS).optional().describe("today, yesterday, 7d, 30d or older"),
 		};
-		this.server.tool(
+		tool(
 			"search_all_mail",
 			"Search conversations across every address at once. Each result gives its mailboxId and emailId.",
 			{ ...mailSearch, limit: z.number().int().min(1).max(50).optional() },
 			async (search) => mcpResult(await toolSearchAllMail(env, search)),
 		);
-		this.server.tool(
+		tool(
 			"label_matching",
 			`Add or remove labels on every conversation that matches a search, across all addresses, in one call. Up to ${LABEL_MATCHING_MAX} conversations.`,
 			{
@@ -441,7 +466,7 @@ export class EmailMCP extends McpAgent<Env> {
 		);
 
 		// ── mark_email_read ────────────────────────────────────────
-		this.server.tool(
+		tool(
 			"mark_email_read",
 			"Mark an email as read or unread.",
 			{
@@ -458,7 +483,7 @@ export class EmailMCP extends McpAgent<Env> {
 		);
 
 		// ── move_email ─────────────────────────────────────────────
-		this.server.tool(
+		tool(
 			"move_email",
 			"Move an email to a system folder (inbox, archive, spam, trash). Custom folders are labels; use label_conversation.",
 			{

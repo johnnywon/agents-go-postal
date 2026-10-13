@@ -5,6 +5,8 @@
 import type { BulkAction } from "~/lib/bulk-optimistic";
 import type { Email, Mailbox } from "~/types";
 import type { Prefs } from "shared/prefs";
+import type { DraftNotes } from "shared/draft-notes";
+import type { AgentLimits } from "shared/send-limits";
 import type { CatalogModel, KeyedProvider, ModelRef, ProviderId } from "shared/models";
 
 const REQUEST_TIMEOUT_MS = 30_000;
@@ -93,6 +95,46 @@ function del<T>(url: string) {
 }
 
 // ---------- Typed response shapes ----------
+
+export type ActivityActor = "chat" | "auto-draft" | "mcp";
+
+export interface ActivityEntry {
+	id: number;
+	at: string;
+	mailboxId: string | null;
+	actor: ActivityActor;
+	client: string | null;
+	action: "read" | "draft" | "send" | "delete" | "label" | "move" | "settings";
+	tool: string;
+	target: string | null;
+	summary: string | null;
+	ok: boolean;
+}
+
+export interface ActivityPage {
+	entries: ActivityEntry[];
+	next: number | null;
+}
+
+export interface AgentOverview {
+	limits: AgentLimits;
+	addresses: { mailboxId: string; hour: number; day: number; agentDay: number }[];
+	runs: Partial<Record<AutoDraftRun["state"], number>>;
+	failures: ActivityEntry[];
+	actions: number;
+}
+
+export interface AutoDraftRun {
+	emailId: string;
+	mailboxId: string;
+	sender: string;
+	state: "queued" | "running" | "drafted" | "skipped" | "superseded" | "failed";
+	attempts: number;
+	reason: string | null;
+	draftId: string | null;
+	createdAt: string;
+	updatedAt: string;
+}
 
 
 export interface Conversation {
@@ -365,6 +407,26 @@ const api = {
 
 	// Storage
 	getStorageStatus: () => get<StorageStatusResponse>("/api/v1/storage/status"),
+
+	// Console > Limits and Overview
+	getAgentLimits: () => get<AgentLimits>("/api/v1/agent-limits"),
+	putAgentLimits: (limits: Partial<AgentLimits>) => put<AgentLimits>("/api/v1/agent-limits", limits),
+	getAgentOverview: () => get<AgentOverview>("/api/v1/agents/overview"),
+
+	// Activity and auto-draft runs (Console > Activity)
+	getActivity: (filter: { mailbox?: string; actor?: string; before?: number }) =>
+		get<ActivityPage>("/api/v1/activity", {
+			params: Object.fromEntries(Object.entries(filter).filter(([, v]) => v !== undefined && v !== "").map(([k, v]) => [k, String(v)])),
+		}),
+	getAutoDraftRuns: (mailbox?: string) => get<AutoDraftRun[]>("/api/v1/auto-draft/runs", mailbox ? { params: { mailbox } } : undefined),
+
+
+	// Redraft an agent draft with an instruction. The draft is replaced; the reply carries its new id.
+	redraft: (mailboxId: string, draftId: string, instruction: string) =>
+		post<{ draft: { id: string; subject: string; recipient: string; body: string }; notes: DraftNotes }>(
+			`/api/v1/mailboxes/${encodeURIComponent(mailboxId)}/drafts/${encodeURIComponent(draftId)}/redraft`,
+			{ instruction },
+		),
 
 };
 

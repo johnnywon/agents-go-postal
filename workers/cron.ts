@@ -5,9 +5,24 @@
 /**
  * The one-minute cron. It sends due scheduled mail, then, when
  * ATTACHMENT_SEARCH is "true", converts a few attachments to searchable text.
+ * Once an hour it deletes activity and auto-draft runs past the retention.
  */
-import { extractAttachmentTextBatch, sendDueScheduledMail } from "./store";
+import { pruneRuns } from "./agent/runs";
+import { pruneActivity } from "./lib/activity";
+import { readPrefs } from "./lib/prefs";
+import { extractAttachmentTextBatch, sendDueScheduledMail, recordsSql } from "./store";
 import type { Env } from "./types";
+
+/** Delete activity log rows and auto-draft runs older than the retention in prefs. */
+export async function pruneAgentHistory(env: Env, now = Date.now()) {
+	const { prefs } = await readPrefs(env);
+	const sql = recordsSql(env);
+	return {
+		days: prefs.activityDays,
+		activity: await pruneActivity(sql, prefs.activityDays, now),
+		runs: await pruneRuns(sql, prefs.activityDays, now),
+	};
+}
 
 export async function runCron(env: Env, now = Date.now()) {
 	const scheduled = await sendDueScheduledMail(env, now);
@@ -18,5 +33,11 @@ export async function runCron(env: Env, now = Date.now()) {
 			return null;
 		})
 		: null;
-	return { scheduled, attachments };
+	const pruned = new Date(now).getUTCMinutes() === 0
+		? await pruneAgentHistory(env, now).catch((e) => {
+			console.error("activity prune failed:", (e as Error).message);
+			return null;
+		})
+		: null;
+	return { scheduled, attachments, pruned };
 }

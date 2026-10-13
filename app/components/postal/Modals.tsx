@@ -3,9 +3,10 @@
 //     https://opensource.org/licenses/Apache-2.0
 
 import {
-	ArrowCounterClockwiseIcon, AtIcon, CheckIcon, CopyIcon, DatabaseIcon, DesktopIcon, GearSixIcon, KeyboardIcon, MoonIcon,
+	ArrowCounterClockwiseIcon, AtIcon, CheckIcon, CopyIcon, DatabaseIcon, DesktopIcon, KeyboardIcon, MoonIcon,
 	KeyIcon, MagnifyingGlassIcon, PlugsConnectedIcon, SignatureIcon, SignOutIcon, SlidersHorizontalIcon, SunIcon, TagIcon, WrenchIcon, XIcon,
 } from "@phosphor-icons/react";
+import { ClockCounterClockwiseIcon, GaugeIcon, ShieldCheckIcon, TerminalWindowIcon } from "@phosphor-icons/react";
 import { AgentIcon } from "./AgentIcon";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
@@ -18,7 +19,10 @@ import { Editor } from "./Editor";
 import { htmlToPlainText } from "~/lib/utils";
 import { AddressText, type Identities, Swatch } from "./identity";
 import { LabelsTab } from "./LabelsTab";
-import type { SettingsTab } from "./settings-tabs";
+import type { ConsoleTab } from "./console-tabs";
+import { LimitsTab, useAgentLimitsDraft } from "./LimitsTab";
+import { OverviewTab } from "./OverviewTab";
+import { ActivityTab } from "./ActivityTab";
 import { StorageTab } from "./StorageTab";
 import type { Prefs } from "./prefs";
 import { ShortcutMap } from "./ShortcutMap";
@@ -97,9 +101,10 @@ function Setting({ title, sub, children }: { title: string; sub?: React.ReactNod
 	);
 }
 
-export function SettingsModal({ tab, onTab, prefs, setPrefs, addresses, identities, info, autoDraft, onClose, onSaved }: {
-	tab: SettingsTab;
-	onTab: (tab: SettingsTab) => void;
+/** The console: what agents did and may do, then the mail client's settings. */
+export function ConsoleModal({ tab, onTab, prefs, setPrefs, addresses, identities, info, autoDraft, onClose, onSaved }: {
+	tab: ConsoleTab;
+	onTab: (tab: ConsoleTab) => void;
 	prefs: Prefs;
 	setPrefs: (p: Partial<Prefs>) => Promise<unknown>;
 	addresses: string[];
@@ -129,13 +134,15 @@ export function SettingsModal({ tab, onTab, prefs, setPrefs, addresses, identiti
 	const [error, setError] = useState<string | null>(null);
 	const queryClient = useQueryClient();
 	const agentModel = useAgentModelDraft();
-	const { data: catalog } = useModelCatalog(tab === "agent");
+	const limits = useAgentLimitsDraft();
+	const { data: catalog } = useModelCatalog(tab === "drafting");
 
 	const dirty = !samePrefs(draft, prefs)
 		|| addresses.some((a) => (names[a] ?? "") !== (initialNames[a] ?? ""))
 		|| addresses.some(promptChanged)
 		|| addresses.some(sigChanged)
-		|| agentModel.dirty;
+		|| agentModel.dirty
+		|| limits.dirty;
 
 	const save = async () => {
 		setSaving(true);
@@ -160,9 +167,10 @@ export function SettingsModal({ tab, onTab, prefs, setPrefs, addresses, identiti
 			});
 			if (!samePrefs(draft, prefs)) writes.push(setPrefs(draft));
 			if (agentModel.dirty) writes.push(agentModel.save());
+			if (limits.dirty) writes.push(limits.save());
 			await Promise.all(writes);
 			for (const a of addresses) queryClient.invalidateQueries({ queryKey: queryKeys.mailboxes.detail(a) });
-			onSaved("Settings saved");
+			onSaved("Saved");
 			onClose();
 		} catch (e) {
 			setError((e as Error).message || "Could not save settings.");
@@ -171,24 +179,43 @@ export function SettingsModal({ tab, onTab, prefs, setPrefs, addresses, identiti
 		}
 	};
 
-	const tabs: { id: SettingsTab; label: string; icon: React.ReactNode }[] = [
-		{ id: "general", label: "General", icon: <SlidersHorizontalIcon size={16} /> },
-		{ id: "addresses", label: "Addresses", icon: <AtIcon size={16} /> },
-		{ id: "signatures", label: "Signatures", icon: <SignatureIcon size={16} /> },
-		{ id: "labels", label: "Labels", icon: <TagIcon size={16} /> },
-		{ id: "shortcuts", label: "Shortcuts", icon: <KeyboardIcon size={16} /> },
-		{ id: "agent", label: "Agent", icon: <AgentIcon size={16} /> },
-		{ id: "model", label: "Model & key", icon: <KeyIcon size={16} /> },
-		{ id: "storage", label: "Storage", icon: <DatabaseIcon size={16} /> },
+	const groups: { title: string; tabs: { id: ConsoleTab; label: string; icon: React.ReactNode }[] }[] = [
+		{
+			title: "Agents",
+			tabs: [
+				{ id: "overview", label: "Overview", icon: <GaugeIcon size={16} /> },
+				{ id: "activity", label: "Activity", icon: <ClockCounterClockwiseIcon size={16} /> },
+				{ id: "limits", label: "Limits", icon: <ShieldCheckIcon size={16} /> },
+				{ id: "drafting", label: "Drafting", icon: <AgentIcon size={16} /> },
+				{ id: "model", label: "Model & key", icon: <KeyIcon size={16} /> },
+				{ id: "connections", label: "Connections", icon: <PlugsConnectedIcon size={16} /> },
+			],
+		},
+		{
+			title: "Settings",
+			tabs: [
+				{ id: "general", label: "General", icon: <SlidersHorizontalIcon size={16} /> },
+				{ id: "addresses", label: "Addresses", icon: <AtIcon size={16} /> },
+				{ id: "signatures", label: "Signatures", icon: <SignatureIcon size={16} /> },
+				{ id: "labels", label: "Labels", icon: <TagIcon size={16} /> },
+				{ id: "shortcuts", label: "Shortcuts", icon: <KeyboardIcon size={16} /> },
+				{ id: "storage", label: "Storage", icon: <DatabaseIcon size={16} /> },
+			],
+		},
 	];
 
 	return (
-		<Modal className="is-settings" label="Settings" onClose={onClose}>
-			<Head icon={<GearSixIcon size={16} />} title="Settings" sub="Saved to your deployment" onClose={onClose} />
+		<Modal className="is-settings is-console" label="Console" onClose={onClose}>
+			<Head icon={<TerminalWindowIcon size={16} />} title="Console" sub="Agents and settings · saved to your deployment" onClose={onClose} />
 			<div className="pg-settings">
-				<div className="pg-tabs" role="tablist" aria-label="Settings sections">
-					{tabs.map((t) => (
-						<button key={t.id} type="button" role="tab" aria-selected={tab === t.id} onClick={() => onTab(t.id)} ref={tab === t.id ? (el) => el?.scrollIntoView({ block: "nearest", inline: "nearest" }) : undefined}>{t.icon}<span>{t.label}</span></button>
+				<div className="pg-tabs" role="tablist" aria-label="Console sections">
+					{groups.map((g) => (
+						<div key={g.title} className="pg-tab-group" role="presentation">
+							<span className="pg-tab-group-title" aria-hidden>{g.title}</span>
+							{g.tabs.map((t) => (
+								<button key={t.id} type="button" role="tab" aria-selected={tab === t.id} onClick={() => onTab(t.id)} ref={tab === t.id ? (el) => el?.scrollIntoView({ block: "nearest", inline: "nearest" }) : undefined}>{t.icon}<span>{t.label}</span></button>
+							))}
+						</div>
 					))}
 				</div>
 				<div className="pg-tab-body" role="tabpanel">
@@ -272,7 +299,10 @@ export function SettingsModal({ tab, onTab, prefs, setPrefs, addresses, identiti
 							})}
 						</>
 					)}
-					{tab === "agent" && (
+					{tab === "overview" && <OverviewTab identities={identities} autoDraft={autoDraft} onTab={onTab} />}
+					{tab === "limits" && <LimitsTab draft={limits} />}
+					{tab === "connections" && <ConnectionsTab />}
+					{tab === "drafting" && (
 						<>
 							<div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 8, padding: "14px 0 8px" }}>
 								<b style={{ fontWeight: 500 }}>Agent prompt</b>
@@ -309,8 +339,8 @@ export function SettingsModal({ tab, onTab, prefs, setPrefs, addresses, identiti
 							<Setting title="Auto-draft new mail" sub={<>Drafts a reply to each new message. Mailing lists and automated mail are skipped. Set <span className="pg-mono">AUTO_DRAFT_ENABLED</span> in your Worker config to change.</>}>
 								<span className="pg-tag">{autoDraft ? "on" : "off"} · config</span>
 							</Setting>
-							<Setting title="Sending" sub="The agent sends a draft when you ask it to. Auto-draft only drafts.">
-								<span className="pg-tag">send_draft</span>
+							<Setting title="Sending" sub={`The agent sends a draft when you ask it to. Auto-draft only drafts. Agents and MCP clients send up to ${limits.text("agentDay")} messages a day per address, ${limits.text("agentRecipients")} recipients each.`}>
+								<button type="button" className="pg-btn pg-btn-sm" onClick={() => onTab("limits")}>Limits</button>
 							</Setting>
 							{/* TODO(roadmap): rules (Inquiry, Receipts, DMARC, Triage) and per-rule autonomy settings. */}
 						</>
@@ -318,6 +348,15 @@ export function SettingsModal({ tab, onTab, prefs, setPrefs, addresses, identiti
 					{tab === "model" && <AgentModelSection draft={agentModel} />}
 					{tab === "labels" && <LabelsTab />}
 					{tab === "shortcuts" && <ShortcutList overrides={draft.shortcuts} onChange={(shortcuts) => setDraft({ ...draft, shortcuts })} />}
+					{tab === "activity" && (
+						<ActivityTab
+							addresses={addresses}
+							identities={identities}
+							days={draft.activityDays}
+							onDays={(activityDays) => setDraft({ ...draft, activityDays })}
+							autoDraft={autoDraft}
+						/>
+					)}
 					{tab === "storage" && <StorageTab identities={identities} />}
 				</div>
 			</div>
@@ -356,57 +395,49 @@ const MCP_TOOLS = [
 	["reset_shortcuts", "Restore default shortcut keys"],
 ] as const;
 
-export function McpModal({ onClose }: { onClose: () => void }) {
+/** The MCP server's address and tools, for connecting outside agents. */
+function ConnectionsTab() {
 	const url = `${window.location.origin}/mcp`;
 	const [copied, setCopied] = useState(false);
 	return (
-		<Modal className="is-mcp" label="Connect via MCP" onClose={onClose}>
-			<Head icon={<PlugsConnectedIcon size={16} />} title="Connect via MCP" sub="Model Context Protocol server" onClose={onClose} />
-			<div style={{ flex: 1, minHeight: 0, overflowY: "auto", padding: "16px 18px", display: "flex", flexDirection: "column", gap: 16 }}>
-				<span style={{ fontSize: 13, color: "var(--pg-text-5)", textWrap: "pretty" }}>
-					Point Claude Code, Cursor or any MCP client at this server to read, search, draft, send and organize mail across every address. Requests go through Cloudflare Access like the app.
-				</span>
-				<div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-					<span className="pg-caption">SERVER URL</span>
-					<div className="pg-mcp-url">
-						<span>{url}</span>
-						<button
-							type="button"
-							data-copied={copied}
-							data-autofocus
-							onClick={async () => {
-								try {
-									await navigator.clipboard.writeText(url);
-									setCopied(true);
-									setTimeout(() => setCopied(false), 2000);
-								} catch {
-									// Clipboard blocked: the URL stays selectable.
-								}
-							}}
-						>
-							{copied ? <CheckIcon size={12} weight="bold" /> : <CopyIcon size={12} />}{copied ? "Copied" : "Copy"}
-						</button>
-					</div>
-				</div>
-				<div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-					<span className="pg-caption">AVAILABLE TOOLS · {MCP_TOOLS.length}</span>
-					<div className="pg-tools-list">
-						{MCP_TOOLS.map(([name, desc]) => (
-							<div key={name}>
-								<WrenchIcon size={12} color="var(--pg-text-8)" />
-								<code>{name}</code>
-								<span>{desc}</span>
-							</div>
-						))}
-					</div>
+		<div className="pg-connections">
+			<div className="pg-tab-intro">
+				Point Claude Code, Cursor or any MCP client at this server to read, search, draft, send and organize mail across every address. Requests go through Cloudflare Access like the app, and every call shows in Activity with the client's name.
+			</div>
+			<div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+				<span className="pg-caption">SERVER URL</span>
+				<div className="pg-mcp-url">
+					<span>{url}</span>
+					<button
+						type="button"
+						data-copied={copied}
+						onClick={async () => {
+							try {
+								await navigator.clipboard.writeText(url);
+								setCopied(true);
+								setTimeout(() => setCopied(false), 2000);
+							} catch {
+								// Clipboard blocked: the URL stays selectable.
+							}
+						}}
+					>
+						{copied ? <CheckIcon size={12} weight="bold" /> : <CopyIcon size={12} />}{copied ? "Copied" : "Copy"}
+					</button>
 				</div>
 			</div>
-			<div className="pg-modal-foot">
-				<span className="pg-note">send_draft sends each draft once.</span>
-				<div className="pg-flex" />
-				<button type="button" className="pg-btn pg-btn-primary" onClick={onClose}>Done</button>
+			<div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+				<span className="pg-caption">AVAILABLE TOOLS · {MCP_TOOLS.length}</span>
+				<div className="pg-tools-list">
+					{MCP_TOOLS.map(([name, desc]) => (
+						<div key={name}>
+							<WrenchIcon size={12} color="var(--pg-text-8)" />
+							<code>{name}</code>
+							<span>{desc}</span>
+						</div>
+					))}
+				</div>
 			</div>
-		</Modal>
+		</div>
 	);
 }
 

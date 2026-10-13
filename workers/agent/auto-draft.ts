@@ -157,6 +157,7 @@ export function createAutoDraftTools(
 	target: AutoDraftTarget,
 	context: Pick<AutoDraftContext, "thread">,
 	draftReply: typeof toolDraftReply = toolDraftReply,
+	options: { onDraft?: (draftId: string) => void } = {},
 ) {
 	const { mailboxId, emailId, threadId, to } = target;
 	return {
@@ -180,15 +181,19 @@ export function createAutoDraftTools(
 				subject: HeaderValueSchema.describe("Subject line (usually 'Re: ...')"),
 				body: z.string().describe("The plain text body of the reply. No HTML, just write normally."),
 			}),
-			execute: async ({ subject, body }): Promise<unknown> =>
-				draftReply(env, mailboxId, {
+			execute: async ({ subject, body }): Promise<unknown> => {
+				const result = await draftReply(env, mailboxId, {
 					originalEmailId: emailId,
 					to,
 					subject,
 					body,
 					isPlainText: true,
 					runVerifyDraft: true,
-				}),
+					notes: { origin: "auto-draft", instructions: [] },
+				});
+				if ("draftId" in result) options.onDraft?.(result.draftId);
+				return result;
+			},
 		}),
 	};
 }
