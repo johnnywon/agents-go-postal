@@ -73,7 +73,7 @@ npx wrangler queues create open-mailroom-drafts
 npx wrangler queues create open-mailroom-drafts-dlq
 ```
 
-Then uncomment `queues` in `wrangler.jsonc` and deploy. Keep `max_retries` at 3. Messages that fail every retry wait in `open-mailroom-drafts-dlq`, and their runs show as Failed in Settings > Activity.
+Then uncomment `queues` in `wrangler.jsonc` and deploy. Keep `max_retries` at 3. Messages that fail every retry wait in `open-mailroom-drafts-dlq`, and their runs show as Failed in Console > Activity.
 
 ## D1 migrations
 

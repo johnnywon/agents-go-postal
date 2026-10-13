@@ -10,7 +10,8 @@ import { Folders } from "../../../shared/folders";
 import { deleteAttachmentFiles } from "../../lib/attachments";
 import type { ScheduleMode, ScheduledPayload, ScheduledRow } from "../../lib/scheduled-send";
 import type { SendEmailRequest } from "../../lib/send";
-import { budgetError, SEND_LIMITS, type SendActor } from "../../lib/send-budget";
+import { budgetError, type SendActor } from "../../lib/send-budget";
+import { DEFAULT_AGENT_LIMITS, SEND_LIMITS } from "../../../shared/send-limits";
 import { SEND_KEY_TTL_MS, type SendKeyClaim } from "../../lib/send-keys";
 import {
 	MAX_REFERENCED_IDS,
@@ -325,7 +326,7 @@ export class D1Mailbox {
 	 * Count one send against the address's limits, or refuse it. The insert
 	 * is conditional on the counts, so the check and the count are atomic.
 	 */
-	async takeSendBudget(actor: SendActor, recipients: number): Promise<{ ok: true; id: number } | { ok: false; error: string }> {
+	async takeSendBudget(actor: SendActor, recipients: number, agentDay: number = DEFAULT_AGENT_LIMITS.agentDay): Promise<{ ok: true; id: number } | { ok: false; error: string }> {
 		const now = Date.now();
 		const hour = new Date(now - 3_600_000).toISOString();
 		const day = new Date(now - 86_400_000).toISOString();
@@ -338,7 +339,7 @@ export class D1Mailbox {
 					AND (SELECT COUNT(*) FROM send_budget WHERE mailbox_id = ?1) < ?7
 					AND (?2 = 'person' OR (SELECT COUNT(*) FROM send_budget WHERE mailbox_id = ?1 AND actor != 'person') < ?8)
 					RETURNING id`,
-				params: [this.#id, actor, recipients, new Date(now).toISOString(), hour, SEND_LIMITS.hour, SEND_LIMITS.day, SEND_LIMITS.agentDay],
+				params: [this.#id, actor, recipients, new Date(now).toISOString(), hour, SEND_LIMITS.hour, SEND_LIMITS.day, agentDay],
 			},
 		]);
 		if (taken.length > 0) return { ok: true, id: Number(taken[0].id) };
@@ -346,7 +347,7 @@ export class D1Mailbox {
 			`SELECT COALESCE(SUM(at >= ?), 0) AS hour, COUNT(*) AS day, COALESCE(SUM(actor != 'person'), 0) AS agentDay FROM send_budget WHERE mailbox_id = ?`,
 			hour, this.#id,
 		);
-		return { ok: false, error: budgetError(actor, { hour: Number(counts?.hour ?? 0), day: Number(counts?.day ?? 0), agentDay: Number(counts?.agentDay ?? 0) }) };
+		return { ok: false, error: budgetError(actor, { hour: Number(counts?.hour ?? 0), day: Number(counts?.day ?? 0), agentDay: Number(counts?.agentDay ?? 0) }, agentDay) };
 	}
 
 	/** Give back a send that was never delivered. */

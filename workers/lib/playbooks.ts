@@ -5,7 +5,7 @@
 /**
  * Drafting playbooks, per address: when to use one, what to do, and an
  * example reply. Auto-draft lists them in its prompt, picks one or none, and
- * the draft's notes record which. People write playbooks in Settings > Agent;
+ * the draft's notes record which. People write playbooks in Console > Drafting;
  * nothing from incoming mail reaches them.
  */
 import { z } from "zod";

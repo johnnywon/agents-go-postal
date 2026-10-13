@@ -19,7 +19,9 @@ import {
 } from "./email-helpers";
 import { hasHeaderLineBreaks } from "./schemas";
 import type { EmailFull, SendEmailRequestSchema } from "./schemas";
-import { countRecipients, recipientLimitError, type SendActor } from "./send-budget";
+import { readAgentLimits } from "./agent-limits";
+import { countRecipients, isAgent, recipientLimitError, type SendActor } from "./send-budget";
+import { type AgentLimits, DEFAULT_AGENT_LIMITS } from "../../shared/send-limits";
 import {
 	SEND_KEY_CONFLICT_ERROR,
 	SEND_KEY_PENDING_ERROR,
@@ -42,7 +44,7 @@ export interface SendStub {
 	getEmail(id: string): Promise<unknown>;
 	createEmail(folder: string, email: any, attachments: any[]): Promise<unknown>;
 	markThreadRead(threadId: string): Promise<unknown>;
-	takeSendBudget(actor: SendActor, recipients: number): Promise<{ ok: true; id: number } | { ok: false; error: string }>;
+	takeSendBudget(actor: SendActor, recipients: number, agentDay?: number): Promise<{ ok: true; id: number } | { ok: false; error: string }>;
 	refundSendBudget(id: number): Promise<void>;
 	claimSendKey(key: string, contentHash?: string | null): Promise<SendKeyClaim>;
 	startSendKey(key: string): Promise<boolean>;
@@ -72,6 +74,8 @@ export interface SendOptions {
 	idempotencyKey?: string;
 	/** Who asked for the send, for the limits in send-budget.ts. Defaults to a person. */
 	actor?: SendActor;
+	/** Agent limits to apply instead of the saved ones (lib/agent-limits.ts). */
+	limits?: AgentLimits;
 }
 
 const DEFERRED_LABEL: Record<SendMode["kind"], string> = { new: "email", reply: "reply", forward: "forward" };
@@ -161,9 +165,10 @@ async function sendOnce(
 	const { messageId, outgoingMessageId } = generateMessageId(fromDomain);
 	const actor = options.actor ?? "person";
 	const recipients = countRecipients(to, cc, bcc);
-	const tooMany = recipientLimitError(actor, recipients);
+	const limits = isAgent(actor) ? options.limits ?? (await readAgentLimits(env)) : DEFAULT_AGENT_LIMITS;
+	const tooMany = recipientLimitError(actor, recipients, limits);
 	if (tooMany) return { ok: false, status: 400, error: tooMany };
-	const budget = await stub.takeSendBudget(actor, recipients);
+	const budget = await stub.takeSendBudget(actor, recipients, limits.agentDay);
 	if (!budget.ok) return { ok: false, status: 429, error: budget.error };
 	if (key && !(await stub.startSendKey(key))) {
 		await stub.refundSendBudget(budget.id);

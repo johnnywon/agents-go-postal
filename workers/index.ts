@@ -35,6 +35,8 @@ import { configuredAddresses } from "./lib/addresses";
 import { dryRunFolderImport, importDeps, runFolderImport } from "./lib/folder-import";
 import { startAutoDraft } from "./agent/queue";
 import { listRuns } from "./agent/runs";
+import { readAgentLimits, writeAgentLimits } from "./lib/agent-limits";
+import { agentOverview } from "./lib/agent-overview";
 import { getSystemPrompt } from "./agent/prompt";
 import { ACTIVITY_ACTORS, listActivity, logged, TOOL_ACTIONS } from "./lib/activity";
 import { verifyDraft } from "./lib/ai";
@@ -332,7 +334,21 @@ app.get("/api/v1/mail/folders", async (c) => c.json(await mailStore(c.env).all()
 /** Message counts per address, for the Storage page. */
 app.get("/api/v1/storage/status", async (c) => c.json(await storageStatus(c.env, await mailboxIds(c.env))));
 
-// -- Activity (Settings > Activity) ---------------------------------
+// -- Console > Limits and Overview ----------------------------------
+
+app.get("/api/v1/agent-limits", async (c) => c.json(await readAgentLimits(c.env)));
+
+/** Agent limits. Only people set them here; no agent or MCP tool can. Out-of-range values keep what was saved. */
+app.put("/api/v1/agent-limits", async (c) => {
+	const body = await c.req.json().catch(() => null);
+	if (!body || typeof body !== "object") return c.json({ error: "Send the limits as a JSON object" }, 400);
+	return c.json(await writeAgentLimits(c.env, body));
+});
+
+app.get("/api/v1/agents/overview", async (c) =>
+	c.json(await agentOverview(recordsSql(c.env), await mailboxIds(c.env), await readAgentLimits(c.env))));
+
+// -- Activity (Console > Activity) -----------------------------------
 
 /** What agents and MCP clients did, newest first. Filter by mailbox, actor and action; page with before=<last id>. */
 app.get("/api/v1/activity", async (c) => {
@@ -551,7 +567,7 @@ app.post("/api/v1/mailboxes/:mailboxId/drafts/:id/redraft", async (c: AppContext
 	return c.json({ draft: result.draft, notes: result.notes });
 });
 
-// -- Playbooks (Settings > Agent) ----------------------------------
+// -- Playbooks (Console > Drafting) ----------------------------------
 
 app.get("/api/v1/mailboxes/:mailboxId/playbooks", async (c: AppContext) =>
 	c.json(await listPlaybooks(recordsSql(c.env), c.req.param("mailboxId")!)));

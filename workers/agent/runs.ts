@@ -13,10 +13,10 @@
  *
  * New mail in a thread supersedes the thread's earlier runs. A superseded run
  * is not started, and a draft from a run superseded while it ran is discarded:
- * the newer mail gets its own draft. Each sender gets AUTO_DRAFT_SENDER_DAILY
- * drafts per address a day; later mail is stored but not drafted.
+ * the newer mail gets its own draft. Each sender gets autoDraftPerSender
+ * drafts per address a day (Console > Limits); later mail is stored but not drafted.
  */
-import { AUTO_DRAFT_SENDER_DAILY } from "../../shared/send-limits";
+import { DEFAULT_AGENT_LIMITS } from "../../shared/send-limits";
 import type { Sql } from "../store/sql";
 
 /** Must match max_retries on the queue consumer in wrangler.jsonc. */
@@ -52,7 +52,7 @@ export const retryDelay = (attempt: number) => 30 * 2 ** Math.max(0, attempt - 1
  * Record a run for new inbound mail, superseding the thread's earlier runs.
  * Returns the new run's state, or null when this message already has one.
  */
-export async function recordRun(sql: Sql, target: AutoDraftTarget, now = Date.now()): Promise<{ state: "queued" | "skipped"; reason: string | null } | null> {
+export async function recordRun(sql: Sql, target: AutoDraftTarget, now = Date.now(), perSender = DEFAULT_AGENT_LIMITS.autoDraftPerSender): Promise<{ state: "queued" | "skipped"; reason: string | null } | null> {
 	const at = new Date(now).toISOString();
 	const dayAgo = new Date(now - 86_400_000).toISOString();
 	const [, inserted] = await sql.batch([
@@ -74,7 +74,7 @@ export async function recordRun(sql: Sql, target: AutoDraftTarget, now = Date.no
 				RETURNING state, reason`,
 			params: [
 				target.emailId, target.mailboxId, target.threadId, target.sender, at,
-				AUTO_DRAFT_SENDER_DAILY, `sender limit: ${AUTO_DRAFT_SENDER_DAILY} auto-drafts a day`, dayAgo,
+				perSender, `sender limit: ${perSender} auto-drafts a day`, dayAgo,
 			],
 		},
 	]);
@@ -152,7 +152,7 @@ export interface RunRow {
 	updatedAt: string;
 }
 
-/** The latest runs, newest first, for Settings > Activity. */
+/** The latest runs, newest first, for Console > Activity. */
 export async function listRuns(sql: Sql, options: { mailboxId?: string | null; limit?: number } = {}): Promise<RunRow[]> {
 	return (await sql.all(
 		`SELECT email_id, mailbox_id, sender, state, attempts, reason, draft_id, created_at, updated_at FROM auto_draft_runs

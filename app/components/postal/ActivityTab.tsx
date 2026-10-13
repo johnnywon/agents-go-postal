@@ -28,7 +28,7 @@ const ACTION_LABELS: Record<ActivityEntry["action"], string> = {
 	settings: "Settings",
 };
 
-const RUN_LABELS: Record<AutoDraftRun["state"], string> = {
+export const RUN_LABELS: Record<AutoDraftRun["state"], string> = {
 	queued: "Queued",
 	running: "Running",
 	drafted: "Drafted",
@@ -37,10 +37,10 @@ const RUN_LABELS: Record<AutoDraftRun["state"], string> = {
 	failed: "Failed",
 };
 
-const when = (iso: string) =>
+export const when = (iso: string) =>
 	new Date(iso).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
 
-function Entry({ entry, identities }: { entry: ActivityEntry; identities: Identities }) {
+export function ActivityEntryRow({ entry, identities }: { entry: ActivityEntry; identities: Identities }) {
 	return (
 		<li className="pg-activity-row" data-failed={!entry.ok || undefined}>
 			<time dateTime={entry.at}>{when(entry.at)}</time>
@@ -108,7 +108,7 @@ export function ActivityTab({ addresses, identities, days, onDays, autoDraft }: 
 				: entries.length === 0 ? <p className="pg-label-note">No activity{mailbox || actor !== "all" ? " matches" : " yet"}.</p>
 				: (
 					<ul className="pg-activity-list" aria-label="Activity">
-						{entries.map((e) => <Entry key={e.id} entry={e} identities={identities} />)}
+						{entries.map((e) => <ActivityEntryRow key={e.id} entry={e} identities={identities} />)}
 					</ul>
 				)}
 			{log.hasNextPage && (

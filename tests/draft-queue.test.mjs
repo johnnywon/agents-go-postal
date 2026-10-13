@@ -8,7 +8,8 @@ import { loadTs } from "./helpers/sqlite.mjs";
 
 const runs = await loadTs("workers/agent/runs.ts");
 const { consumeAutoDrafts, startAutoDraft } = await loadTs("workers/agent/queue.ts");
-const { AUTO_DRAFT_SENDER_DAILY } = await loadTs("workers/lib/send-budget.ts");
+const { DEFAULT_AGENT_LIMITS } = await loadTs("shared/send-limits.ts");
+const AUTO_DRAFT_SENDER_DAILY = DEFAULT_AGENT_LIMITS.autoDraftPerSender;
 
 const MAILBOX = "a@example.com";
 const target = (emailId, fields = {}) => ({ mailboxId: MAILBOX, emailId, threadId: "t1", sender: "bob@example.org", ...fields });
@@ -44,6 +45,9 @@ test("a sender gets a few auto-drafts a day per address", async () => {
 	// A day later the sender is drafted again.
 	const later = Date.now() + 86_400_000 + 60_000;
 	assert.equal((await runs.recordRun(d1.sql, target("next-day", { threadId: "tz" }), later)).state, "queued");
+	// The console can raise the limit, or set 0 to stop auto-drafting.
+	assert.equal((await runs.recordRun(d1.sql, target("raised", { threadId: "tr" }), Date.now(), 10)).state, "queued");
+	assert.match((await runs.recordRun(d1.sql, target("off", { threadId: "to", sender: "dan@example.org" }), Date.now(), 0)).reason, /0 auto-drafts/);
 });
 
 test("an attempt drafts, skips, or asks for a retry", async () => {

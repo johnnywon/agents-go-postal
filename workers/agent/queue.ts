@@ -3,6 +3,7 @@
 //     https://opensource.org/licenses/Apache-2.0
 
 /** Auto-draft on Cloudflare Queues: the producer side for inbound mail, and the consumer. See ./runs.ts. */
+import { readAgentLimits } from "../lib/agent-limits";
 import { toolDiscardDraft } from "../lib/tools";
 import { recordsSql } from "../store";
 import type { Env } from "../types";
@@ -23,7 +24,8 @@ export function processAutoDraft(env: Env, job: AutoDraftJob, final: boolean) {
 
 /** Record the run for new inbound mail and hand it to the queue. */
 export async function startAutoDraft(env: Env, ctx: ExecutionContext, target: AutoDraftTarget) {
-	const run = await recordRun(recordsSql(env), target);
+	const { autoDraftPerSender } = await readAgentLimits(env);
+	const run = await recordRun(recordsSql(env), target, Date.now(), autoDraftPerSender);
 	if (!run) return;
 	if (run.state === "skipped") {
 		console.log(`Auto-draft skipped for ${target.emailId}: ${run.reason}`);

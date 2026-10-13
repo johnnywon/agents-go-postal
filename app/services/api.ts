@@ -6,6 +6,7 @@ import type { BulkAction } from "~/lib/bulk-optimistic";
 import type { Email, Mailbox } from "~/types";
 import type { Prefs } from "shared/prefs";
 import type { DraftNotes } from "shared/draft-notes";
+import type { AgentLimits } from "shared/send-limits";
 import type { CatalogModel, KeyedProvider, ModelRef, ProviderId } from "shared/models";
 
 const REQUEST_TIMEOUT_MS = 30_000;
@@ -113,6 +114,14 @@ export interface ActivityEntry {
 export interface ActivityPage {
 	entries: ActivityEntry[];
 	next: number | null;
+}
+
+export interface AgentOverview {
+	limits: AgentLimits;
+	addresses: { mailboxId: string; hour: number; day: number; agentDay: number }[];
+	runs: Partial<Record<AutoDraftRun["state"], number>>;
+	failures: ActivityEntry[];
+	actions: number;
 }
 
 export interface AutoDraftRun {
@@ -410,14 +419,19 @@ const api = {
 	// Storage
 	getStorageStatus: () => get<StorageStatusResponse>("/api/v1/storage/status"),
 
-	// Activity and auto-draft runs (Settings > Activity)
+	// Console > Limits and Overview
+	getAgentLimits: () => get<AgentLimits>("/api/v1/agent-limits"),
+	putAgentLimits: (limits: Partial<AgentLimits>) => put<AgentLimits>("/api/v1/agent-limits", limits),
+	getAgentOverview: () => get<AgentOverview>("/api/v1/agents/overview"),
+
+	// Activity and auto-draft runs (Console > Activity)
 	getActivity: (filter: { mailbox?: string; actor?: string; before?: number }) =>
 		get<ActivityPage>("/api/v1/activity", {
 			params: Object.fromEntries(Object.entries(filter).filter(([, v]) => v !== undefined && v !== "").map(([k, v]) => [k, String(v)])),
 		}),
 	getAutoDraftRuns: (mailbox?: string) => get<AutoDraftRun[]>("/api/v1/auto-draft/runs", mailbox ? { params: { mailbox } } : undefined),
 
-	// Playbooks (Settings > Agent)
+	// Playbooks (Console > Drafting)
 	getPlaybooks: (mailboxId: string) => get<Playbook[]>(`/api/v1/mailboxes/${encodeURIComponent(mailboxId)}/playbooks`),
 	createPlaybook: (mailboxId: string, input: PlaybookInput) => post<Playbook>(`/api/v1/mailboxes/${encodeURIComponent(mailboxId)}/playbooks`, input),
 	updatePlaybook: (mailboxId: string, id: string, input: Partial<PlaybookInput>) =>

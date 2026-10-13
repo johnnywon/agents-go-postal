@@ -4,7 +4,7 @@
 
 /**
  * The activity log: one row per tool call by the chat agent, auto-draft or
- * an MCP client, in the agent_activity table. Settings > Activity lists it.
+ * an MCP client, in the agent_activity table. Console > Activity lists it.
  * The cron deletes rows older than the retention in prefs (90, 120 or 180
  * days). Logging never fails the call it records.
  */

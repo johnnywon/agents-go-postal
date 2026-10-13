@@ -106,7 +106,7 @@ One Worker in your account. Mail is stored in D1, one database for every address
 **What to know first**
 
 - Email Sending is in public beta and needs Workers Paid. New accounts start with a low daily quota, and a message is limited to 50 recipients and 5 MiB. Receiving uses Email Routing, which isn't in beta and works on Workers Free.
-- Agents can send when you ask them to, up to 20 messages a day per address. There's no approval step yet; it's the first item on the [roadmap](#roadmap). Settings > Activity shows what they did.
+- Agents can send when you ask them to, up to a daily limit per address you set in the Console (20 by default). There's no approval step yet; it's the first item on the [roadmap](#roadmap). Console > Activity shows what they did.
 - There's no mail export, IMAP or SMTP yet. `wrangler d1 time-travel` restores the last 30 days.
 - Everyone who passes Access sees every address.
 

@@ -3,8 +3,8 @@
 //     https://opensource.org/licenses/Apache-2.0
 
 import {
-	BookmarkSimpleIcon, CaretDoubleLeftIcon, KeyboardIcon, CaretDoubleRightIcon, CaretDownIcon, CaretRightIcon, GearSixIcon,
-	PencilSimpleIcon, PlugsConnectedIcon, PlusIcon, SignOutIcon,
+	BookmarkSimpleIcon, CaretDoubleLeftIcon, KeyboardIcon, CaretDoubleRightIcon, CaretDownIcon, CaretRightIcon,
+	PencilSimpleIcon, PlusIcon, SignOutIcon, TerminalWindowIcon,
 } from "@phosphor-icons/react";
 import { AgentIcon } from "./AgentIcon";
 import {
@@ -45,8 +45,8 @@ export interface SidebarProps {
 	labelsOpen: boolean;
 	setLayout: (patch: { mailboxesOpen?: boolean; labelsOpen?: boolean }) => void;
 	onCollapse: () => void;
-	onMcp: () => void;
-	onSettings: () => void;
+	/** Opens the console: agents, then settings. */
+	onConsole: () => void;
 	/** Opens Settings on its Labels tab. */
 	onManageLabels: () => void;
 	onLogout: () => void;
@@ -264,13 +264,9 @@ export function Sidebar(props: SidebarProps) {
 				<div style={{ flex: 1, minHeight: 12 }} />
 			</div>
 			<div className="pg-nav-foot">
-				<button type="button" className="pg-foot-btn" onClick={props.onMcp} title="MCP server · connect outside agents">
-					<PlugsConnectedIcon size={14} />
-					<span>MCP</span>
-				</button>
-				<button type="button" className="pg-foot-btn" onClick={props.onSettings} title="Settings">
-					<GearSixIcon size={14} />
-					<span>Settings</span>
+				<button type="button" className="pg-foot-btn" onClick={props.onConsole} title="Console · agents, limits, MCP and settings">
+					<TerminalWindowIcon size={14} />
+					<span>Console</span>
 				</button>
 				<div className="pg-flex" />
 				<button type="button" className="pg-foot-btn is-square" onClick={props.onShortcuts} title={tip("help", "Keyboard shortcuts")} aria-label="Keyboard shortcuts">
@@ -285,8 +281,8 @@ export function Sidebar(props: SidebarProps) {
 }
 
 export function NavRail({
-	identities, filter, go, allUnread, unreadByAddress, onExpand, onLabels, onMcp, onSettings, onLogout, onShortcuts,
-}: Pick<SidebarProps, "identities" | "filter" | "go" | "allUnread" | "unreadByAddress" | "onMcp" | "onSettings" | "onLogout" | "onShortcuts"> & {
+	identities, filter, go, allUnread, unreadByAddress, onExpand, onLabels, onConsole, onLogout, onShortcuts,
+}: Pick<SidebarProps, "identities" | "filter" | "go" | "allUnread" | "unreadByAddress" | "onConsole" | "onLogout" | "onShortcuts"> & {
 	onExpand: () => void;
 	onLabels: () => void;
 }) {
@@ -344,8 +340,7 @@ export function NavRail({
 				<div style={{ flex: 1 }} />
 			</div>
 			<div className="pg-rail-foot">
-				<button type="button" onClick={onMcp} title="MCP" aria-label="MCP"><PlugsConnectedIcon size={16} /></button>
-				<button type="button" onClick={onSettings} title="Settings" aria-label="Settings"><GearSixIcon size={16} /></button>
+				<button type="button" onClick={onConsole} title="Console" aria-label="Console"><TerminalWindowIcon size={16} /></button>
 				<button type="button" onClick={onShortcuts} title={tip("help", "Keyboard shortcuts")} aria-label="Keyboard shortcuts"><KeyboardIcon size={16} /></button>
 				<button type="button" onClick={onLogout} title="Log out" aria-label="Log out"><SignOutIcon size={16} /></button>
 			</div>
