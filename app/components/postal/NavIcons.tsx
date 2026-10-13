@@ -171,3 +171,9 @@ export function TrashIcon(props: NavIconProps) {
 		</Svg>
 	);
 }
+
+/** Each folder's icon, one meaning everywhere: the sidebar, the rail and the list header. */
+export const VIEW_ICONS: Record<string, (props: NavIconProps) => ReactNode> = {
+	inbox: InboxIcon, unread: UnreadIcon, starred: StarredIcon, drafts: DraftsIcon, sent: SentIcon,
+	archive: ArchiveIcon, spam: SpamIcon, trash: TrashIcon, all: AllAddressesIcon,
+};

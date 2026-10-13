@@ -37,7 +37,9 @@ An address always renders as **bold handle**, muted `@`, then the domain in its 
 ### Layout
 
 - Left column 236px (collapses to a 52px rail), centre, and the agent column 328px (collapses to a 44px rail: the robot over "MAILROOM AGENT" set vertically in mono). Both rail states persist per browser.
-- Every column starts with a 38px header bar on one line: ALL ADDRESSES, the search bar, MAILROOM AGENT.
+- Every column starts with a 38px header bar on one line: MAILROOM, the search bar, MAILROOM AGENT.
+- Mail is always which addresses plus which folder, and the list header reads them in that order, each with its own icon: the address picker (`All addresses` with the PO-box wall, or a domain or address with its swatch, and a caret), a caret-right, then the folder with its sidebar icon (or a label with its tag). The address shortens first; the folder keeps its name. Below 600px the address shows as its mark only.
+- One meaning per icon. The PO-box wall is the whole mailroom: the sidebar header, the collapsed rail and the All addresses choice. The tray is the Inbox folder, everywhere. `VIEW_ICONS` in `NavIcons.tsx` maps each folder to its icon.
 - There is no logo in the app. The name appears only in the page title.
 - The list column is `clamp(280px, 30vw, 430px)`. Nothing may overflow at 280px.
 - At 1100 to 1300px the left column starts as its rail and opens as an overlay; the agent panel overlays the reader.

@@ -11,7 +11,8 @@ The reader.
 - Text-only mail: blank-line runs collapse to one paragraph break, bare URLs and addresses are links, the signature under a `-- ` line is muted under a rule, and quoted replies (`>` lines and "On … wrote:") fold behind a toggle.
 - A text body with an address in angle brackets ("<jane@example.com>") was shown as HTML. Only real tags count now.
 - Images hidden is a row at the top of the message instead of a bar above it. A blocked image shows its alt text in a dashed box instead of the broken-image icon, and tracking pixels are dropped.
-- The agent panel and its collapsed rail are labelled MAILROOM AGENT.
+- The agent panel and its collapsed rail are labelled MAILROOM AGENT, and the sidebar MAILROOM.
+- The list header reads which addresses, then which folder: "All addresses ▾ › Inbox", "example.org ▾ › Archive". It used to show the address scope's icon beside the folder name, and the menu it opened switched addresses. The folder now has the same icon as in the sidebar.
 
 No D1 migration.
 

@@ -3,7 +3,7 @@
 //     https://opensource.org/licenses/Apache-2.0
 
 import {
-	ArchiveIcon, ArrowsClockwiseIcon, CaretDownIcon, CheckIcon, ClockIcon, EnvelopeOpenIcon, EnvelopeSimpleIcon,
+	ArchiveIcon, ArrowsClockwiseIcon, CaretDownIcon, CaretRightIcon, CheckIcon, ClockIcon, EnvelopeOpenIcon, EnvelopeSimpleIcon,
 	FileIcon, FunnelSimpleIcon, MagnifyingGlassIcon, PaperclipIcon, PaperPlaneTiltIcon, PencilSimpleLineIcon, SortAscendingIcon,
 	SortDescendingIcon, StarIcon, TrashIcon, TrayArrowUpIcon, TrayIcon, WarningIcon, WarningOctagonIcon, XIcon,
 } from "@phosphor-icons/react";
@@ -11,7 +11,8 @@ import { Fragment, useEffect, useRef, useState } from "react";
 import type { MailFilter } from "~/lib/mail-filter";
 import type { Conversation, Label, MailFacets, ScheduledSend } from "~/services/api";
 import { AddressText, type Identities, LabelChip, LabelTag, Swatch } from "./identity";
-import { AllAddressesIcon } from "./NavIcons";
+import { VIEW_LABELS } from "~/lib/mail-filter";
+import { AllAddressesIcon, InboxIcon, VIEW_ICONS } from "./NavIcons";
 import { Keys, useShortcuts } from "./shortcuts";
 import { marks, snippetMarkup } from "./search-window";
 import { dayKey, dayLabel, filterCount, hasChip, labelOf, type MailAction, RESTORABLE, scopeOf, sendTimeLabel, timeLabel, toggleChip, withoutKinds } from "./model";
@@ -20,7 +21,6 @@ export interface ListPaneProps {
 	identities: Identities;
 	filter: MailFilter;
 	go: (filter: MailFilter) => void;
-	title: string;
 	searching: boolean;
 	allUnread?: number;
 	unreadByAddress: ReadonlyMap<string, number>;
@@ -109,13 +109,12 @@ export function ListPane(props: ListPaneProps) {
 		go({ view: "inbox", chips: value ? [{ kind: "address", value }] : [], sort: filter.sort, dir: filter.dir });
 	};
 
-	const scopeIcon = labelView ? (
-		<LabelTag id={labelView} />
-	) : scope ? (
-		<Swatch identity={identities.of(scope)} />
-	) : (
-		<AllAddressesIcon size={14} />
-	);
+	// The header reads which addresses, then which folder (or label), each with its own icon.
+	const scopeIcon = scope ? <Swatch identity={identities.of(scope)} /> : <AllAddressesIcon size={14} />;
+	const scopeName = !scope ? "All addresses" : scope.includes("@") ? <AddressText address={scope} identity={identities.of(scope)} short bold={false} /> : scope;
+	const FolderIcon = VIEW_ICONS[filter.view] ?? InboxIcon;
+	const folderIcon = labelView ? <LabelTag id={labelView} /> : <FolderIcon size={14} />;
+	const folderName = labelView ? props.labelsById.get(labelView)?.name ?? "Label" : VIEW_LABELS[filter.view] ?? filter.view;
 
 	const status = props.facets?.status;
 	const labelFacet = new Map((props.facets?.label ?? []).map((f) => [f.value, f.count]));
@@ -146,11 +145,16 @@ export function ListPane(props: ListPaneProps) {
 	return (
 		<section className="pg-list-col" aria-label="Conversations">
 			<div className="pg-list-head">
-				<button type="button" className="pg-scope-btn" onClick={() => setScopeOpen((v) => !v)} title="Switch address" aria-expanded={scopeOpen} aria-haspopup="listbox">
+				<button type="button" className="pg-scope-btn" onClick={() => setScopeOpen((v) => !v)} title={`Switch address · ${scope ?? "All addresses"}`} aria-expanded={scopeOpen} aria-haspopup="listbox">
 					<span className="pg-scope-icon">{scopeIcon}</span>
-					<span className="pg-title">{props.title}</span>
+					<span className="pg-scope-name">{scopeName}</span>
 					<CaretDownIcon size={10} weight="bold" color="var(--pg-text-6)" style={{ flex: "none" }} />
 				</button>
+				<CaretRightIcon className="pg-crumb-sep" size={10} weight="bold" aria-hidden />
+				<h2 className="pg-folder">
+					<span className="pg-scope-icon">{folderIcon}</span>
+					<span className="pg-title">{folderName}{props.searching && <span className="pg-title-note"> · search</span>}</span>
+				</h2>
 				{scopeOpen && (
 					<>
 						<div className="pg-scrim-click" onClick={() => setScopeOpen(false)} />
