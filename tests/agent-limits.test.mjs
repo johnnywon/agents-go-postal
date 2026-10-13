@@ -30,7 +30,7 @@ async function harness({ failDelivery = 0, limits } = {}) {
 	const env = {
 		EMAIL: {
 			send: async (message) => {
-				if (failDelivery > 0) { failDelivery--; throw new Error("delivery down"); }
+				if (failDelivery > 0) { failDelivery--; throw Object.assign(new Error("delivery down"), { code: "E_RECIPIENT_SUPPRESSED" }); }
 				delivered.push(message);
 				return { messageId: `p${delivered.length}` };
 			},

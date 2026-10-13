@@ -93,6 +93,24 @@ test("a failed send retries in 15 minutes and stops after three attempts", async
 	await call("cancelScheduled", A, id);
 });
 
+test("a send that may have gone out is not retried", async () => {
+	const id = await schedule("timeout", T0 + 60_000);
+	await call("fail", "unknown");
+	try {
+		assert.deepEqual((await call("cron", T0 + 60_000))[0].scheduled.failed, [id]);
+		const [row] = await call("listScheduled", A);
+		assert.equal(row.attempts, 3, "no attempts left");
+		assert.match(row.error, /binding timed out/);
+		assert.deepEqual((await call("cron", T0 + 3_600_000))[0].scheduled, { sent: [], failed: [] }, "no retry");
+		const [key] = await rows(`SELECT state, error FROM send_keys WHERE key = 'draft:${id}'`);
+		assert.deepEqual(key, { state: "sending", error: "binding timed out" });
+	} finally {
+		await call("fail", false);
+	}
+	assert.equal((await call("sent")).length, 1, "delivered once");
+	await call("cancelScheduled", A, id);
+});
+
 test("deleting the draft drops its schedule", async () => {
 	const id = await schedule("deleted", T0 + 60_000);
 	await call("deleteEmail", A, id);

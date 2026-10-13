@@ -4,12 +4,14 @@ import { mailStore } from "../../workers/store";
 import type { Env } from "../../workers/types";
 
 const sent: unknown[] = [];
-let failing = false;
+// "rejected": the mail service refuses the message. "unknown": it takes the message, then the call throws with no code.
+let failing: false | "rejected" | "unknown" = false;
 const EMAIL = {
 	async send(message: unknown) {
 		await new Promise((r) => setTimeout(r, 5)); // let overlapping runs interleave
-		if (failing) throw new Error("binding down");
+		if (failing === "rejected") throw Object.assign(new Error("binding down"), { code: "E_RATE_LIMIT_EXCEEDED" });
 		sent.push(message);
+		if (failing === "unknown") throw new Error("binding timed out");
 	},
 };
 
@@ -24,7 +26,7 @@ export default {
 				case "rows":
 					return Response.json({ ok: (await base.DB.prepare(String(args[0])).all()).results });
 				case "fail":
-					failing = !!args[0];
+					failing = args[0] === true ? "rejected" : args[0] === "unknown" ? "unknown" : false;
 					return Response.json({ ok: true });
 				case "sent":
 					return Response.json({ ok: sent.splice(0) });
