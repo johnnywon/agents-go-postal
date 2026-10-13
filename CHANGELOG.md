@@ -2,6 +2,18 @@
 
 Versions follow [semantic versioning](https://semver.org). Before 1.0, a minor version can break things. Each entry names any new D1 migration. `npm run deploy` applies it; if you deploy another way, run `wrangler d1 migrations apply DB --remote` before you deploy that version.
 
+## 0.7.4
+
+The reader.
+
+- Every message is a page with one left edge, lined up with the subject, sender and Reply bar. Plain mail no longer floats indented on the reader background.
+- Plain mail reads in a serif at 16px with lines capped at 68 characters, so the message reads as a letter and the app stays sans. Designed HTML mail keeps its own fonts on its white page.
+- Text-only mail: blank-line runs collapse to one paragraph break, bare URLs and addresses are links, the signature under a `-- ` line is muted under a rule, and quoted replies (`>` lines and "On … wrote:") fold behind a toggle.
+- A text body with an address in angle brackets ("<jane@example.com>") was shown as HTML. Only real tags count now.
+- Images hidden is a row at the top of the message instead of a bar above it. A blocked image shows its alt text in a dashed box instead of the broken-image icon, and tracking pixels are dropped.
+
+No D1 migration.
+
 ## 0.7.3
 
 The last fixes from the 0.7.0 review.

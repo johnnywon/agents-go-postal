@@ -111,6 +111,27 @@ export default function EmailIframe({ body, autoSize, remoteImages = true, paddi
 			link.setAttribute("rel", "noopener noreferrer");
 		}
 
+		// A blocked remote image would draw the browser's broken-image icon. Show
+		// its alt text in a quiet box instead, and drop tracking pixels outright.
+		if (!remoteImages) {
+			for (const img of cleanBody.querySelectorAll("img")) {
+				if (!/^\s*(?:https?:)?\/\//i.test(img.getAttribute("src") ?? "")) continue;
+				const w = Number.parseInt(img.getAttribute("width") ?? "", 10);
+				const h = Number.parseInt(img.getAttribute("height") ?? "", 10);
+				const alt = (img.getAttribute("alt") ?? "").trim();
+				if ((w <= 2 || h <= 2) || (!alt && !(w > 0 && h > 0))) {
+					img.remove();
+					continue;
+				}
+				const box = document.createElement("span");
+				box.className = "omr-img-off";
+				box.textContent = alt;
+				if (w > 0) box.style.width = `${w}px`;
+				if (h > 0) box.style.minHeight = `${Math.min(h, 160)}px`;
+				img.replaceWith(box);
+			}
+		}
+
 		const padding = `${paddingProp ?? (autoSize ? 0 : 24)}px`;
 
 		// Height-reporting script: sends body.scrollHeight to the parent.
@@ -195,14 +216,39 @@ td, th { padding: 4px 8px; }
 p { margin: 4px 0; }
 h1, h2, h3 { margin: 8px 0 4px; }
 ul, ol { padding-left: 20px; margin: 4px 0; }
+.omr-img-off {
+	display: inline-flex; align-items: center; justify-content: center; max-width: 100%;
+	padding: 4px 8px; border: 1px dashed #c9c9c4; color: #74767c;
+	font: 12px/1.3 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; vertical-align: middle; text-align: center;
+}
 </style>
 ${palette ? `<style>
 html, body { background: transparent; color-scheme: ${palette.scheme}; }
-body { color: ${palette.text}; font-size: 14px; line-height: 1.6; }
-a { color: ${palette.link}; }
+body {
+	color: ${palette.text};
+	font-family: "Iowan Old Style", Charter, "Bitstream Charter", "Source Serif 4", Cambria, Georgia, serif;
+	font-size: 16px;
+	line-height: 1.6;
+	max-width: 68ch;
+	-webkit-font-smoothing: antialiased;
+}
+a { color: ${palette.link}; text-underline-offset: 2px; }
+p { margin: 0 0 1em; }
+.omr-plain > :last-child, .omr-sig > :last-child, blockquote > :last-child { margin-bottom: 0; }
 blockquote { background: ${palette.quote}; color: ${palette.muted}; }
 pre { background: ${palette.quote}; }
 hr { border: 0; border-top: 1px solid ${palette.line}; }
+.omr-sig { margin-top: 1.25em; padding-top: 1em; border-top: 1px solid ${palette.line}; color: ${palette.muted}; font-size: 14px; }
+.omr-sig p { margin-bottom: .5em; }
+.omr-quote { margin: 0 0 1em; }
+.omr-quote > summary {
+	display: inline-block; list-style: none; cursor: pointer; padding: 0 8px; border: 1px solid ${palette.line}; border-radius: 6px;
+	color: ${palette.muted}; font: 12px/18px -apple-system, BlinkMacSystemFont, sans-serif; letter-spacing: .1em; user-select: none;
+}
+.omr-quote > summary::-webkit-details-marker { display: none; }
+.omr-quote[open] > summary { margin-bottom: 8px; }
+.omr-attr { color: ${palette.muted}; font-size: 14px; margin-bottom: 4px; }
+.omr-quote blockquote { margin: 0; font-size: 15px; }
 </style>` : ""}
 </head>
 <body>${cleanBody.innerHTML}${heightScript}${keyScript}</body>

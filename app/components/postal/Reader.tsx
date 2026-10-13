@@ -9,6 +9,7 @@ import { AgentIcon } from "./AgentIcon";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Folders } from "shared/folders";
 import EmailIframe, { type EmailPalette, hasRemoteImages, isPlainHtml } from "~/components/EmailIframe";
+import { isHtmlBody, plainTextToHtml } from "~/components/plain-text";
 import { getAttachmentUrl, getNonInlineAttachments, rewriteInlineImages } from "~/lib/utils";
 import { useEmail, useMarkThreadRead, useThreadReplies } from "~/queries/emails";
 import type { Conversation, Label } from "~/services/api";
@@ -312,10 +313,6 @@ function useReaderPalette(ref: React.RefObject<HTMLElement | null>): EmailPalett
 	return palette;
 }
 
-function escapeText(text: string): string {
-	return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-}
-
 function Message({ email, mailboxId, images, onShowImages }: {
 	email: Email;
 	mailboxId: string;
@@ -323,8 +320,7 @@ function Message({ email, mailboxId, images, onShowImages }: {
 	onShowImages: () => void;
 }) {
 	const raw = email.body || "";
-	// Text-only mail keeps its line breaks.
-	const html = /<[a-z][\s\S]*>/i.test(raw) ? raw : `<div style="white-space: pre-wrap">${escapeText(raw)}</div>`;
+	const html = isHtmlBody(raw) ? raw : plainTextToHtml(raw);
 	const body = rewriteInlineImages(html, mailboxId, email.id, email.attachments);
 	const remote = hasRemoteImages(body);
 	const frameRef = useRef<HTMLDivElement>(null);
@@ -333,15 +329,15 @@ function Message({ email, mailboxId, images, onShowImages }: {
 	const attachments = getNonInlineAttachments(email.attachments);
 	return (
 		<>
-			{remote && !images && (
-				<div className="pg-images-note">
-					<ImageIcon size={14} />
-					<span className="pg-flex">Images are hidden so the sender can’t see when you open this.</span>
-					<button type="button" className="pg-btn" onClick={onShowImages}>Show images</button>
-				</div>
-			)}
-			{/* Plain mail reads on the reader surface; designed HTML mail keeps its white page. Attachments sit inside, under the body. */}
+			{/* Every message is a page: plain mail in the reader's colours and a serif, designed HTML mail on its own white. The images note and attachments sit inside it. */}
 			<div className="pg-mail-frame" data-kind={plain ? "plain" : "html"} ref={frameRef}>
+				{remote && !images && (
+					<div className="pg-images-note">
+						<ImageIcon size={14} />
+						<span className="pg-flex" title="Remote images can tell the sender you opened this">Images hidden</span>
+						<button type="button" className="pg-images-show" onClick={onShowImages}>Show images</button>
+					</div>
+				)}
 				{(!plain || palette) && (
 					<EmailIframe autoSize body={body} remoteImages={images} padding={plain ? 0 : 24} palette={plain ? palette : undefined} />
 				)}

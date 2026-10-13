@@ -82,7 +82,8 @@ html:has(.postal), html:has(.postal) body { background: var(--pg-base, #141518);
   .pg-prov-row,
   .pg-browse-row,
   .pg-models-note,
-  .pg-tools-list div
+  .pg-tools-list div,
+  .pg-images-note
 ) { border-radius: 0 !important; }
 .postal .pg-sr { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 .postal .pg-flex { flex: 1; min-width: 0; }
@@ -527,12 +528,23 @@ html:has(.postal), html:has(.postal) body { background: var(--pg-base, #141518);
 .pg-sender-to { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--pg-text-6); min-width: 0; overflow: hidden; white-space: nowrap; }
 .pg-sender-to .pg-addr { font-size: 12px; }
 .pg-reader-content { margin-top: 20px; display: flex; flex-direction: column; gap: 10px; }
-.pg-images-note { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--pg-text-6); }
-.pg-images-note .pg-btn { height: 24px; padding: 0 9px; font-size: 12px; border-color: var(--pg-line-2); color: var(--pg-text-3); }
-/* Plain mail sits under the sender, on the reader surface. Designed HTML mail is a white page. */
-.pg-mail-frame[data-kind="plain"] { padding: 4px 0 8px 48px; min-height: 24px; }
-.pg-mail-frame[data-kind="html"] { background: #fff; border: 1px solid var(--pg-line-2); }
+/* Every message is a page with one edge: plain mail on the raised surface, designed HTML mail on white. */
+.pg-mail-frame { border: 1px solid var(--pg-line-2); }
+.pg-mail-frame[data-kind="plain"] { padding: 22px 28px 24px; min-height: 72px; background: var(--pg-raised); }
+.pg-mail-frame[data-kind="html"] { background: #fff; }
 .pg-mail-frame iframe { display: block; width: 100%; border: 0; }
+/* Blocked images: a quiet row at the top of the page, not a bar above it. */
+.pg-images-note {
+  --pg-note-text: var(--pg-text-6); --pg-note-strong: var(--pg-text-3); --pg-note-line: var(--pg-line-soft); --pg-note-hover: var(--pg-hover);
+  display: flex; align-items: center; gap: 8px; height: 36px; margin: -22px -28px 18px; padding: 0 8px 0 28px;
+  border-bottom: 1px solid var(--pg-note-line); font-size: 12px; color: var(--pg-note-text);
+}
+.pg-mail-frame[data-kind="html"] .pg-images-note {
+  --pg-note-text: #74767c; --pg-note-strong: #2a2b2f; --pg-note-line: #e6e6e1; --pg-note-hover: #f1f1ee;
+  margin: 0; padding-left: 24px;
+}
+.pg-images-show { height: 26px; padding: 0 10px; border: 0; background: none; font-size: 12px; font-weight: 500; color: var(--pg-note-strong); }
+.pg-images-show:hover { background: var(--pg-note-hover); }
 /* Attachments are part of the letter: rows under a hairline, inside the frame. Long names fade before the size column. */
 .pg-attachments { display: flex; flex-direction: column; margin-top: 12px; padding-bottom: 4px; }
 /* A dotted rule drawn as its own 1px line, so the global radius cannot curve its ends. */
@@ -992,8 +1004,10 @@ html:has(.postal), html:has(.postal) body { background: var(--pg-base, #141518);
   .pg-reader { min-width: 0; }
   .pg-back { display: flex !important; }
   .pg-reader-scroll { padding: 18px 16px 24px; }
-  .pg-mail-frame[data-kind="html"] { margin: 0 -16px; border-width: 1px 0; }
-  .pg-mail-frame[data-kind="plain"] { padding-left: 0; }
+  .pg-mail-frame { margin: 0 -16px; border-width: 1px 0; }
+  .pg-mail-frame[data-kind="plain"] { padding: 18px 16px 20px; }
+  .pg-mail-frame[data-kind="plain"] .pg-images-note { margin: -18px -16px 14px; padding-left: 16px; }
+  .pg-mail-frame[data-kind="html"] .pg-images-note { padding-left: 16px; }
   .pg-mail-frame[data-kind="html"] .pg-attachments { margin: 0 16px; }
   .pg-attach { height: 40px; }
   .pg-sender-line { flex-wrap: wrap; row-gap: 0; }
