@@ -140,6 +140,20 @@ test("inbound mail goes to the queue when it's bound, and to waitUntil when it i
 	assert.equal(sent.length, 1);
 });
 
+test("an error after the draft was saved settles the run as drafted, not retried", async () => {
+	assert.deepEqual(runs.outcomeAfterError(new Error("429 on step 2"), "d1"), { status: "drafted", draftId: "d1" });
+	assert.deepEqual(runs.outcomeAfterError(new Error("429 on step 1"), null), { status: "error", error: "429 on step 1" });
+
+	const d1 = await openD1();
+	let drafts = 0;
+	// The drafter saves a draft, then the model call after the tool call fails.
+	const drafter = async () => { drafts++; return runs.outcomeAfterError(new Error("provider down"), `d${drafts}`); };
+	await runs.recordRun(d1.sql, target("e1"));
+	assert.equal(await runs.attemptRun(d1.sql, { emailId: "e1" }, drafter, { final: false, discardDraft: async () => {} }), "done");
+	assert.equal(drafts, 1);
+	assert.deepEqual(state(d1, "e1"), { state: "drafted", attempts: 1, reason: null, draft_id: "d1" });
+});
+
 test("the example config's queue matches the retry count in code", () => {
 	const config = readFileSync("wrangler.jsonc", "utf8");
 	const consumer = config.match(/"consumers":.*"max_retries": (\d+).*"dead_letter_queue"/);
