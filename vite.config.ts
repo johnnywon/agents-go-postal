@@ -39,6 +39,8 @@ const PREBUNDLE = [
 ];
 
 export default defineConfig({
+  // The dev sample inbox arrives in the developer's working hours. Workers run in UTC, so the dev server hands over this machine's offset.
+  define: { __OMR_TZ_OFFSET__: JSON.stringify(new Date().getTimezoneOffset()) },
   publicDir: publicDir ? resolve(publicDir) : "public",
   optimizeDeps: { include: PREBUNDLE },
   plugins: [

@@ -18,15 +18,30 @@ To keep your account ID and test addresses out of `wrangler.jsonc`, copy it to `
 
 Mail is stored in a local D1 database under `.wrangler/state`. Run the migrations command again after pulling a new migration.
 
-Open the app once so it creates the configured mailboxes, then fill them with sample mail:
+### Sample inbox
+
+The first API request to the dev server writes about 470 sample messages across every address in `EMAIL_ADDRESSES`. It makes the mailboxes if they don't exist. The mail is spread over every folder and about ten weeks:
+
+- Threads with replies in Sent, drafts, and replies that quote what they answer. People write too: family planning Thanksgiving, a group deciding on a camping trip, a landlord, an old roommate.
+- Mail nobody needed: a chain forward from Dad, a reply-all storm on a conference list, the building's recycling-room argument, a pre-read for a pre-read, a vendor's follow-up ladder.
+- Orders as threads, from confirmation to delivery, with a wrong color, a back-order, a return, an exchange and abandoned-cart nudges.
+- Receipts, payouts, builds, incidents, sign-in alerts, travel mail, newsletters with unsubscribe headers, cold pitches, Spam and Trash.
+- 60 or so PDF, calendar, CSV, JSON, text and SVG attachments that open from the reader.
+- Twelve labels and three saved searches.
+
+The companies and people are made up and sit under `example.com`, `example.org` and `example.net`. Each of six parts (`hello`, `billing`, `support`, `legal`, `ops`, `press`) goes to the configured address with that name. If you configure other addresses, the parts share them. Times follow this machine's time zone.
+
+When the server starts again and the sample mail is there, it moves the dates forward so the newest message is a few minutes old, and keeps what you read, starred or labelled. After two weeks away it writes the inbox again. Mail you made yourself is never touched. Set `DEV_SEED=off` in `.dev.vars` to start with an empty inbox.
+
+To wipe the sample mail and write it again, or to add plain messages for testing long lists:
 
 ```sh
 curl -X POST http://localhost:5173/api/v1/dev/seed \
   -H 'content-type: application/json' -H 'sec-fetch-site: same-origin' \
-  -d '{"perMailbox": 15}'
+  -d '{"extra": 2000}'
 ```
 
-The seed route exists only in development builds.
+Apply the D1 migrations first. Without them the seed logs a warning and skips. The code is in `workers/lib/dev-seed/`, and none of it exists in production builds.
 
 `vite.config.ts` pre-bundles the UI libraries so the first page load after a fresh start works. If a new dependency brings back "Invalid hook call" on a first load, the dev log names it under "new dependencies optimized": add it to `PREBUNDLE`.
 
