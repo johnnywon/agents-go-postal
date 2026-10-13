@@ -96,6 +96,16 @@ test("a superseded run discards every draft it saved, not only the last (WON-244
 	assert.deepEqual(runs.outcomeAfterError(new Error("x"), ["a", "b"]), { status: "drafted", draftId: "b", earlier: ["a"] });
 });
 
+test("a run that drafted more than once keeps only its last draft", async () => {
+	const d1 = await openD1();
+	const discarded = [];
+	await runs.recordRun(d1.sql, target("e1"));
+	await runs.attemptRun(d1.sql, { emailId: "e1" }, async () => runs.draftedOutcome(["first", "second", "third"]),
+		{ final: false, discardDraft: async (mailboxId, id) => discarded.push([mailboxId, id]) });
+	assert.deepEqual(discarded, [[MAILBOX, "first"], [MAILBOX, "second"]]);
+	assert.deepEqual(state(d1, "e1"), { state: "drafted", attempts: 1, reason: null, draft_id: "third" });
+});
+
 test("a run left running by a dead worker is taken over", async () => {
 	const d1 = await openD1();
 	await runs.recordRun(d1.sql, target("e1"));
