@@ -44,6 +44,7 @@ export interface SendStub {
 	getEmail(id: string): Promise<unknown>;
 	createEmail(folder: string, email: any, attachments: any[]): Promise<unknown>;
 	markThreadRead(threadId: string): Promise<unknown>;
+	moveEmail(id: string, folderId: string): Promise<unknown>;
 	takeSendBudget(actor: SendActor, recipients: number, agentDay?: number): Promise<{ ok: true; id: number } | { ok: false; error: string }>;
 	refundSendBudget(id: number): Promise<void>;
 	claimSendKey(key: string, contentHash?: string | null): Promise<SendKeyClaim>;
@@ -63,8 +64,10 @@ export type SendResult =
 export interface SendOptions {
 	/**
 	 * Hand delivery to the caller (e.g. waitUntil) after the Sent copy is
-	 * stored. Without it, delivery runs first and a failure throws before
-	 * anything is stored, so the caller can retry.
+	 * stored. The attempt stays in sending until delivery settles; a failed
+	 * delivery refunds the budget, fails the key and moves the copy to Drafts.
+	 * Without it, delivery runs first and a failure throws before anything is
+	 * stored, so the caller can retry.
 	 */
 	defer?: (delivery: Promise<unknown>) => void;
 	/**
@@ -108,8 +111,10 @@ export async function sendMail(
 	let delivered = false;
 	try {
 		const result = await sendOnce(env, mailboxId, stub, body, mode, options, key, () => { delivered = true; });
-		if (result.ok) await stub.finishSendKey(key, result.id);
-		else if (!result.attempt) await stub.failSendKey(key, result.error);
+		if (result.ok) {
+			// A deferred send finishes its key when delivery settles (sendOnce).
+			if (!options.defer) await stub.finishSendKey(key, result.id);
+		} else if (!result.attempt) await stub.failSendKey(key, result.error);
 		return result;
 	} catch (e) {
 		if (!delivered) await stub.failSendKey(key, (e as Error).message || "Delivery failed");
@@ -197,44 +202,57 @@ async function sendOnce(
 		if (key) await stub.recordSendProvider(key, providerId || null);
 	}
 
-	const attachmentData = await storeAttachments(env.BUCKET, messageId, attachments);
-	const now = new Date().toISOString();
-	await stub.createEmail(Folders.SENT, {
-		id: messageId, subject, sender: fromEmail, recipient: toStr,
-		cc: cc ? joinList(cc).toLowerCase() : null,
-		bcc: bcc ? joinList(bcc).toLowerCase() : null,
-		date: now, body: html || text || "",
-		in_reply_to: inReplyTo,
-		email_references: mode.kind === "reply" || (mode.kind === "new" && body.references)
-			? JSON.stringify(references)
-			: null,
-		thread_id: threadId || messageId,
-		message_id: outgoingMessageId,
-		raw_headers: JSON.stringify([
-			{ key: "from", value: typeof from === "string" ? from : `${from.name} <${from.email}>` },
-			{ key: "to", value: joinList(to) },
-			...(cc ? [{ key: "cc", value: joinList(cc) }] : []),
-			...(bcc ? [{ key: "bcc", value: joinList(bcc) }] : []),
-			{ key: "subject", value: subject },
-			{ key: "date", value: now },
-			{ key: "message-id", value: `<${outgoingMessageId}>` },
-			...(mode.kind === "reply" && inReplyTo ? [{ key: "in-reply-to", value: `<${inReplyTo}>` }] : []),
-			...(mode.kind === "reply" && references.length > 0
-				? [{ key: "references", value: references.map((r) => `<${r}>`).join(" ") }]
-				: []),
-		]),
-	}, attachmentData);
+	try {
+		const attachmentData = await storeAttachments(env.BUCKET, messageId, attachments);
+		const now = new Date().toISOString();
+		await stub.createEmail(Folders.SENT, {
+			id: messageId, subject, sender: fromEmail, recipient: toStr,
+			cc: cc ? joinList(cc).toLowerCase() : null,
+			bcc: bcc ? joinList(bcc).toLowerCase() : null,
+			date: now, body: html || text || "",
+			in_reply_to: inReplyTo,
+			email_references: mode.kind === "reply" || (mode.kind === "new" && body.references)
+				? JSON.stringify(references)
+				: null,
+			thread_id: threadId || messageId,
+			message_id: outgoingMessageId,
+			raw_headers: JSON.stringify([
+				{ key: "from", value: typeof from === "string" ? from : `${from.name} <${from.email}>` },
+				{ key: "to", value: joinList(to) },
+				...(cc ? [{ key: "cc", value: joinList(cc) }] : []),
+				...(bcc ? [{ key: "bcc", value: joinList(bcc) }] : []),
+				{ key: "subject", value: subject },
+				{ key: "date", value: now },
+				{ key: "message-id", value: `<${outgoingMessageId}>` },
+				...(mode.kind === "reply" && inReplyTo ? [{ key: "in-reply-to", value: `<${inReplyTo}>` }] : []),
+				...(mode.kind === "reply" && references.length > 0
+					? [{ key: "references", value: references.map((r) => `<${r}>`).join(" ") }]
+					: []),
+			]),
+		}, attachmentData);
+	} catch (e) {
+		// Nothing has gone out yet on a deferred send, so give back the slot.
+		if (options.defer) await stub.refundSendBudget(budget.id);
+		throw e;
+	}
 
 	if (markRead) await stub.markThreadRead(markRead);
 
 	if (options.defer) {
-		onDelivered();
 		const label = DEFERRED_LABEL[mode.kind];
 		options.defer(deliver().then(
-			({ messageId: providerId }) => (key ? stub.recordSendProvider(key, providerId || null) : undefined),
+			async ({ messageId: providerId }) => {
+				if (!key) return;
+				await stub.recordSendProvider(key, providerId || null);
+				await stub.finishSendKey(key, messageId);
+			},
 			async (e) => {
-				console.error(`Deferred ${label} delivery failed:`, (e as Error).message);
-				if (key) await stub.recordSendProvider(key, null, (e as Error).message || "Delivery failed").catch(() => {});
+				const error = (e as Error).message || "Delivery failed";
+				console.error(`Deferred ${label} delivery failed:`, error);
+				// Nothing went out: give back the slot and put the message where the sender will see it.
+				await stub.refundSendBudget(budget.id).catch(() => {});
+				await stub.moveEmail(messageId, Folders.DRAFT).catch(() => {});
+				if (key) await stub.failSendKey(key, error).catch(() => {});
 			},
 		));
 	}
