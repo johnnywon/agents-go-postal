@@ -402,7 +402,7 @@ html:has(.postal), html:has(.postal) body { background: var(--pg-base, #141518);
 .pg-panes { flex: 1; display: flex; min-height: 0; position: relative; }
 
 /* ── List column ───────────────────────────────────────────────────── */
-.pg-list-col { width: clamp(280px, 30vw, 430px); flex: none; display: flex; flex-direction: column; border-right: 1px solid var(--pg-line); min-height: 0; background: var(--pg-base); }
+.pg-list-col { width: clamp(240px, 30vw, 430px); min-width: 240px; flex: 0 1 auto; display: flex; flex-direction: column; border-right: 1px solid var(--pg-line); min-height: 0; background: var(--pg-base); }
 .pg-list-head { position: relative; z-index: 15; display: flex; align-items: center; gap: 5px; height: 44px; padding: 0 8px 0 6px; border-bottom: 1px solid var(--pg-line); flex: none; min-width: 0; }
 .pg-scope-btn { display: flex; align-items: center; gap: 6px; height: 32px; padding: 0 6px; flex: none; }
 .pg-scope-btn:hover { background: var(--pg-hover); }
@@ -516,7 +516,8 @@ html:has(.postal), html:has(.postal) body { background: var(--pg-base, #141518);
 .pg-bulk-bar .pg-sep { width: 1px; height: 16px; background: var(--pg-line-2); margin: 0 2px; flex: none; }
 
 /* ── Reader ────────────────────────────────────────────────────────── */
-.pg-reader { flex: 1; min-width: 300px; display: flex; flex-direction: column; min-height: 0; background: var(--pg-base); position: relative; }
+/* The reader takes what's left and never slides under the agent rail; narrow, it wraps instead (below). */
+.pg-reader { flex: 1; min-width: 0; display: flex; flex-direction: column; min-height: 0; background: var(--pg-base); position: relative; container: pg-reader / inline-size; }
 .pg-reader-bar { display: flex; align-items: center; gap: 8px; height: 44px; padding: 0 8px; border-bottom: 1px solid var(--pg-line); color: var(--pg-text-5); overflow: hidden; flex: none; }
 .pg-reader-scroll { flex: 1; overflow-y: auto; padding: 22px 26px 28px; display: flex; gap: 28px; align-items: flex-start; }
 .pg-reader-main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
@@ -998,6 +999,13 @@ html:has(.postal), html:has(.postal) body { background: var(--pg-base, #141518);
 }
 @media (max-width: 1199px) {
   .pg-wide-only { display: none !important; }
+}
+/* A narrow reader (a small window with both rails): the toolbar wraps and the sender line breaks, so nothing is cut. */
+@container pg-reader (max-width: 560px) {
+  .pg-reader-bar { height: auto; min-height: 44px; padding-block: 4px; flex-wrap: wrap; row-gap: 4px; }
+  .pg-reader-bar > div { flex-wrap: wrap; row-gap: 4px; }
+  .pg-sender-line { flex-wrap: wrap; row-gap: 0; }
+  .pg-sender-line .pg-date { margin-left: 0; padding-left: 0; flex-basis: 100%; }
 }
 /* Mobile: one pane at a time, a drawer, a bottom sheet, 44px targets, 16px inputs. */
 @media (max-width: 600px) {

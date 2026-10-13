@@ -16,6 +16,8 @@ The reader.
 
 - The message frame skips writing a document it already holds. Two writes in a row, as React makes in development, left plain mail blank in some Chromium browsers.
 
+- In a small window the reader slid under the agent rail, so MAILROOM AGENT sat on top of the toolbar and the sender's address was cut to "<". The reader now shrinks, its toolbar wraps and the sender line breaks.
+
 No D1 migration.
 
 ## 0.7.3
