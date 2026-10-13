@@ -19,11 +19,15 @@
 import { z } from "zod";
 import { getReplyAddresses } from "../../app/lib/reply";
 import { scanForInjection } from "../lib/ai";
-import { stripHtmlToText } from "../lib/email-helpers";
+import { Folders } from "../../shared/folders";
+import { logged } from "../lib/activity";
+import { stripHtmlToText, textToHtml } from "../lib/email-helpers";
 import { parseSender } from "../lib/message-meta";
 import { HeaderValueSchema } from "../lib/schemas";
 import type { EmailFull } from "../lib/schemas";
 import { toolDraftReply } from "../lib/tools";
+import type { MailboxStore } from "../store/types";
+import type { Sql } from "../store/sql";
 import type { Env } from "../types";
 import { defineTool } from "./tool-def";
 
@@ -196,4 +200,44 @@ export function createAutoDraftTools(
 			},
 		}),
 	};
+}
+
+/**
+ * Save the model's reply text as the draft when it answered without calling
+ * draft_reply. Logged as a draft_reply call so it shows in Console > Activity.
+ * `text` has been through verifyDraft. `onDraft` gets the id as soon as the
+ * draft exists, so a later error still leaves the run drafted.
+ */
+export async function saveTextDraft(
+	stub: Pick<MailboxStore, "createEmail" | "setDraftNotes">,
+	sql: Sql,
+	target: AutoDraftTarget,
+	subject: string,
+	text: string,
+	onDraft: (draftId: string) => void,
+): Promise<void> {
+	const reSubject = subject.startsWith("Re:") ? subject : `Re: ${subject}`;
+	const args = { to: target.to, subject: reSubject };
+	await logged(sql, { actor: "auto-draft", bound: target.mailboxId }, "draft_reply", args, async () => {
+		const id = crypto.randomUUID();
+		await stub.createEmail(
+			Folders.DRAFT,
+			{
+				id,
+				subject: reSubject,
+				sender: target.mailboxId.toLowerCase(),
+				recipient: target.to,
+				date: new Date().toISOString(),
+				// verifyDraft may return plain text or HTML. Only plain text is wrapped.
+				body: /<[a-z][\s\S]*>/i.test(text) ? text : textToHtml(text),
+				in_reply_to: target.emailId,
+				email_references: null,
+				thread_id: target.threadId,
+			},
+			[],
+		);
+		onDraft(id);
+		await stub.setDraftNotes(id, { origin: "auto-draft", instructions: [] });
+		return { draftId: id };
+	});
 }

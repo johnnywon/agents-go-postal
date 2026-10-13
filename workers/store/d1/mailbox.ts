@@ -359,7 +359,7 @@ export class D1Mailbox {
 	 * Claim a send attempt (send-keys.ts). New keys, keys whose last attempt
 	 * failed, and pending attempts older than SEND_KEY_PENDING_STALE_MS (the
 	 * caller died before delivery started) are claimed as pending; anything
-	 * else reports its state.
+	 * else reports its state. A reclaimed key starts a new SEND_KEY_TTL_MS.
 	 */
 	async claimSendKey(key: string, contentHash: string | null = null): Promise<SendKeyClaim> {
 		const now = new Date().toISOString();
@@ -367,7 +367,7 @@ export class D1Mailbox {
 			{ sql: `DELETE FROM send_keys WHERE created_at < ?`, params: [new Date(Date.now() - SEND_KEY_TTL_MS).toISOString()] },
 			{
 				sql: `INSERT INTO send_keys (mailbox_id, key, state, content_hash, created_at, updated_at) VALUES (?1, ?2, 'pending', ?3, ?4, ?4)
-					ON CONFLICT (mailbox_id, key) DO UPDATE SET state = 'pending', content_hash = ?3, provider_id = NULL, error = NULL, updated_at = ?4
+					ON CONFLICT (mailbox_id, key) DO UPDATE SET state = 'pending', content_hash = ?3, provider_id = NULL, error = NULL, created_at = ?4, updated_at = ?4
 					WHERE send_keys.state = 'failed'
 						OR (send_keys.state = 'pending' AND COALESCE(send_keys.updated_at, send_keys.created_at) < ?5)
 					RETURNING state`,

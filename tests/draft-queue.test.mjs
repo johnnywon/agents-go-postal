@@ -83,6 +83,19 @@ test("a draft from a run superseded while it ran is discarded", async () => {
 	assert.deepEqual(discarded, [[MAILBOX, "stale-draft"]]);
 });
 
+test("a superseded run discards every draft it saved, not only the last (WON-244)", async () => {
+	const d1 = await openD1();
+	const discarded = [];
+	await runs.recordRun(d1.sql, target("e1"));
+	await runs.attemptRun(d1.sql, { emailId: "e1" }, async () => {
+		await runs.recordRun(d1.sql, target("e2"));
+		return runs.draftedOutcome(["first", "second"]);
+	}, { final: false, discardDraft: async (mailboxId, id) => discarded.push(id) });
+	assert.deepEqual(discarded, ["first", "second"]);
+	assert.deepEqual(runs.draftedOutcome(["only"]), { status: "drafted", draftId: "only" });
+	assert.deepEqual(runs.outcomeAfterError(new Error("x"), ["a", "b"]), { status: "drafted", draftId: "b", earlier: ["a"] });
+});
+
 test("a run left running by a dead worker is taken over", async () => {
 	const d1 = await openD1();
 	await runs.recordRun(d1.sql, target("e1"));
@@ -179,13 +192,13 @@ test("inbound mail goes to the queue when it's bound, and to waitUntil when it i
 });
 
 test("an error after the draft was saved settles the run as drafted, not retried", async () => {
-	assert.deepEqual(runs.outcomeAfterError(new Error("429 on step 2"), "d1"), { status: "drafted", draftId: "d1" });
-	assert.deepEqual(runs.outcomeAfterError(new Error("429 on step 1"), null), { status: "error", error: "429 on step 1" });
+	assert.deepEqual(runs.outcomeAfterError(new Error("429 on step 2"), ["d1"]), { status: "drafted", draftId: "d1" });
+	assert.deepEqual(runs.outcomeAfterError(new Error("429 on step 1"), []), { status: "error", error: "429 on step 1" });
 
 	const d1 = await openD1();
 	let drafts = 0;
 	// The drafter saves a draft, then the model call after the tool call fails.
-	const drafter = async () => { drafts++; return runs.outcomeAfterError(new Error("provider down"), `d${drafts}`); };
+	const drafter = async () => { drafts++; return runs.outcomeAfterError(new Error("provider down"), [`d${drafts}`]); };
 	await runs.recordRun(d1.sql, target("e1"));
 	assert.equal(await runs.attemptRun(d1.sql, { emailId: "e1" }, drafter, { final: false, discardDraft: async () => {} }), "done");
 	assert.equal(drafts, 1);

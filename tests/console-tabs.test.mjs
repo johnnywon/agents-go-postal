@@ -20,3 +20,10 @@ test("old ?settings= links open the same place in the console", () => {
 	assert.equal(from("settings=activity"), "activity");
 	assert.equal(from("console=limits&settings=general"), "limits");
 });
+
+test("names of built-in object properties don't open an empty console (WON-245)", () => {
+	for (const name of ["constructor", "toString", "__proto__", "hasOwnProperty", "valueOf"]) {
+		assert.equal(from(`console=${name}`), null);
+		assert.equal(from(`settings=${name}`), null);
+	}
+});

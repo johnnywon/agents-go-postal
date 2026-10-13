@@ -47,7 +47,7 @@ async function harness({ failDelivery = 0, failStore = 0, hold = null, deliveryE
 		currentKey = key;
 		return sendMail(env, MAILBOX, stub, { to: "bob@example.org", from: MAILBOX, subject: "Hi", text: "Hello", ...fields }, { kind: "new" }, { idempotencyKey: key, ...options });
 	};
-	return { d1, box, send, delivered, stored, moved, row };
+	return { d1, box, env, stub, send, delivered, stored, moved, row };
 }
 
 test("an attempt goes pending, sending, sent", async () => {
@@ -201,4 +201,40 @@ test("a deferred send whose Sent copy fails to store fails the key and refunds t
 	assert.equal(h.row("k1").state, "failed");
 	assert.equal(h.delivered.length, 0);
 	assert.equal(h.d1.exec(`SELECT COUNT(*) AS n FROM send_budget`)[0].n, 0);
+});
+
+test("a reclaimed failed key starts a new seven days (WON-243)", async () => {
+	const h = await harness({ failDelivery: 1 });
+	await assert.rejects(h.send("k1"), /delivery down/);
+	const old = new Date(Date.now() - 6.9 * 86_400_000).toISOString();
+	h.d1.exec(`UPDATE send_keys SET created_at = ? WHERE key = 'k1'`, old);
+	assert.equal((await h.send("k1")).ok, true);
+	const { created_at } = h.d1.exec(`SELECT created_at FROM send_keys WHERE key = 'k1'`)[0];
+	assert.ok(Date.parse(created_at) > Date.now() - 60_000, "created_at reset on reclaim");
+	// Another key's claim prunes old keys; the reclaimed one stays, so a retry is still a duplicate.
+	h.d1.exec(`UPDATE send_keys SET created_at = ? WHERE key = 'k1'`, new Date(Date.parse(created_at) - 0.2 * 86_400_000).toISOString());
+	await h.box.claimSendKey("k2", "h2");
+	assert.equal((await h.send("k1")).duplicate, true);
+	assert.equal(h.delivered.length, 1);
+});
+
+test("the HTTP send route returns the open attempt with a 409 (WON-243)", async () => {
+	const { handleSendEmail } = await loadTs("workers/routes/reply-forward.ts");
+	const h = await harness({ failDelivery: 1, deliveryError: () => new Error("timed out") });
+	await assert.rejects(h.send("k1"), /timed out/);
+	const c = {
+		env: h.env,
+		var: { mailbox: h.stub },
+		executionCtx: { waitUntil: () => {} },
+		req: {
+			param: (name) => (name === "mailboxId" ? MAILBOX : undefined),
+			json: async () => ({ to: "bob@example.org", from: MAILBOX, subject: "Hi", text: "Hello" }),
+			header: (name) => (name === "idempotency-key" ? "k1" : undefined),
+		},
+		json: (body, status) => ({ body, status }),
+	};
+	const res = await handleSendEmail(c);
+	assert.equal(res.status, 409);
+	assert.deepEqual(res.body.attempt, { state: "sending", providerId: null });
+	assert.ok(res.body.error);
 });

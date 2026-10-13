@@ -181,5 +181,20 @@ test("the console overview counts each address's sends, runs and failures for th
 	]);
 	assert.deepEqual(overview.runs, { drafted: 1, failed: 1 });
 	assert.equal(overview.actions, 2);
+	assert.equal(overview.failed, 1);
 	assert.deepEqual(overview.failures.map((f) => f.tool), ["send_draft"]);
+});
+
+test("the console overview counts every failure in the last day, not the newest five (WON-241)", async () => {
+	const { agentOverview } = await loadTs("workers/lib/agent-overview.ts");
+	const { logActivity } = await loadTs("workers/lib/activity.ts");
+	const d1 = await openD1();
+	const now = Date.now();
+	for (let i = 0; i < 12; i++) await logActivity(d1.sql, { actor: "mcp", tool: "send_draft", mailboxId: MAILBOX, ok: false }, now - 3_600_000 + i);
+	for (let i = 0; i < 60; i++) await logActivity(d1.sql, { actor: "chat", tool: "get_email", mailboxId: MAILBOX, ok: true }, now - 1000 + i);
+	await logActivity(d1.sql, { actor: "mcp", tool: "send_draft", mailboxId: MAILBOX, ok: false }, now - 30 * 3_600_000);
+	const overview = await agentOverview(d1.sql, [MAILBOX], DEFAULT_AGENT_LIMITS, now);
+	assert.equal(overview.failed, 12);
+	assert.equal(overview.failures.length, 5);
+	assert.ok(overview.failures.every((f) => !f.ok));
 });

@@ -22,7 +22,9 @@ export interface AgentOverview {
 	addresses: AddressUsage[];
 	/** Auto-draft runs started in the last day, by state. */
 	runs: Record<string, number>;
-	/** Agent actions that failed in the last day, newest first. */
+	/** Agent actions that failed in the last day. */
+	failed: number;
+	/** The newest five of those. */
 	failures: ActivityRow[];
 	/** Agent actions in the last day. */
 	actions: number;
@@ -42,7 +44,7 @@ export async function agentOverview(sql: Sql, mailboxIds: string[], limits: Agen
 	]);
 	const byMailbox = new Map(usage.map((r) => [String(r.mailbox_id), r]));
 	const failed = Number(actions[0]?.failed ?? 0);
-	const recent = failed > 0 ? (await listActivity(sql, { limit: 50 })).entries.filter((e) => !e.ok && e.at >= day).slice(0, 5) : [];
+	const recent = failed > 0 ? (await listActivity(sql, { failed: true, since: day, limit: 5 })).entries : [];
 	return {
 		limits,
 		addresses: mailboxIds.map((mailboxId) => {
@@ -50,6 +52,7 @@ export async function agentOverview(sql: Sql, mailboxIds: string[], limits: Agen
 			return { mailboxId, hour: Number(r?.hour ?? 0), day: Number(r?.day ?? 0), agentDay: Number(r?.agent_day ?? 0) };
 		}),
 		runs: Object.fromEntries(runs.map((r) => [String(r.state), Number(r.n)])),
+		failed,
 		failures: recent,
 		actions: Number(actions[0]?.n ?? 0),
 	};

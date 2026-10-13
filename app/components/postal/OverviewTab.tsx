@@ -36,8 +36,8 @@ export function OverviewTab({ identities, autoDraft, onTab }: { identities: Iden
 					<span>Auto-drafts</span><b>{Object.values(data.runs).reduce((n, v) => n + (v ?? 0), 0)}</b>
 					<em>{autoDraft ? runs.join(" · ") || "none yet" : "off"}</em>
 				</button>
-				<button type="button" className="pg-stat" data-bad={data.failures.length > 0 || undefined} onClick={() => onTab("activity")}>
-					<span>Failed actions</span><b>{data.failures.length}</b>
+				<button type="button" className="pg-stat" data-bad={data.failed > 0 || undefined} onClick={() => onTab("activity")}>
+					<span>Failed actions</span><b>{data.failed.toLocaleString()}</b>
 				</button>
 			</div>
 			<p className="pg-table-note" id="usage-note">Sends per address against the limits.</p>

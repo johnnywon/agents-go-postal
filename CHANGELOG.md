@@ -2,6 +2,20 @@
 
 Versions follow [semantic versioning](https://semver.org). Before 1.0, a minor version can break things. Each entry names any new D1 migration. `npm run deploy` applies it; if you deploy another way, run `wrangler d1 migrations apply DB --remote` before you deploy that version.
 
+## 0.7.3
+
+The last fixes from the 0.7.0 review.
+
+- Console > Overview showed at most 5 failed actions, and 0 when the failures were older than the newest 50 actions. It now shows the day's real count. `GET /api/v1/agents/overview` returns it as `failed`.
+- Auto-draft: a draft saved from the model's text, without a `draft_reply` call, was missing from Console > Activity. It is now logged as `draft_reply`.
+- Auto-draft: when the model called `draft_reply` more than once and newer mail superseded the run, only the last draft was discarded. Every draft from that run is discarded now.
+- A redraft you ask for in the app was logged as the chat agent. It is now logged as you, with its own "You" filter in Console > Activity.
+- The send routes (`POST /api/v1/mailboxes/:id/emails`, reply and forward) now return the attempt's state and provider ID with a 409, as 0.7.0 said they did.
+- A failed idempotency key used again kept its first-use time, so it could be pruned hours later and a retry would send a second copy. Using it again now starts a new 7 days.
+- Console: `?console=constructor` and other built-in property names opened an empty Console. Save checked the limits only after the address and prefs writes had started, so an invalid limit left the other changes saved. It now checks first and saves nothing. The Drafting tab's Sending line shows the saved limits, not unsaved edits.
+
+No D1 migration.
+
 ## 0.7.2
 
 More fixes from the 0.7.0 review.
