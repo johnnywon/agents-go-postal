@@ -10,7 +10,9 @@ const { D1Mailbox } = await loadTs("workers/store/d1/mailbox.ts");
 
 const MAILBOX = "a@example.com";
 
-async function harness({ failDelivery = 0, failStore = 0, hold = null } = {}) {
+const rejected = () => Object.assign(new Error("delivery down"), { code: "E_RECIPIENT_SUPPRESSED" });
+
+async function harness({ failDelivery = 0, failStore = 0, hold = null, deliveryError = rejected } = {}) {
 	const d1 = await openD1();
 	const box = new D1Mailbox(d1.sql, {}, MAILBOX);
 	const delivered = [];
@@ -21,7 +23,7 @@ async function harness({ failDelivery = 0, failStore = 0, hold = null } = {}) {
 		EMAIL: {
 			send: async (message) => {
 				if (hold) await hold;
-				if (failDelivery > 0) { failDelivery--; throw new Error("delivery down"); }
+				if (failDelivery > 0) { failDelivery--; throw deliveryError(); }
 				delivered.push(message);
 				return { messageId: `provider-${delivered.length}` };
 			},
@@ -110,6 +112,35 @@ test("a failed delivery marks the attempt failed, and a retry may change the mes
 	assert.equal(h.delivered[0].subject, "Fixed");
 });
 
+test("a delivery error that doesn't prove rejection leaves the attempt in sending", async () => {
+	const h = await harness({ failDelivery: 1, deliveryError: () => new Error("timed out") });
+	await assert.rejects(h.send("k1"), /timed out/);
+	assert.deepEqual(h.row("k1"), { state: "sending", provider_id: null, email_id: null, error: "timed out" });
+	assert.equal(h.d1.exec(`SELECT COUNT(*) AS n FROM send_budget`)[0].n, 1, "the slot is kept");
+	const retry = await h.send("k1");
+	assert.equal(retry.status, 409);
+	assert.equal(retry.attempt.state, "sending");
+});
+
+test("a pending attempt whose caller died can be claimed again after a few minutes", async () => {
+	const h = await harness();
+	await h.box.claimSendKey("k1", "h1");
+	assert.equal((await h.send("k1")).status, 409, "a fresh pending attempt blocks");
+	h.d1.exec(`UPDATE send_keys SET updated_at = ? WHERE key = 'k1'`, new Date(Date.now() - 6 * 60_000).toISOString());
+	const retry = await h.send("k1");
+	assert.equal(retry.ok, true);
+	assert.equal(h.delivered.length, 1);
+	assert.equal(h.row("k1").state, "sent");
+});
+
+test("a stale sending attempt is never claimed again", async () => {
+	const h = await harness({ failStore: 1 });
+	await assert.rejects(h.send("k1"), /storage down/);
+	h.d1.exec(`UPDATE send_keys SET updated_at = ? WHERE key = 'k1'`, new Date(Date.now() - 60 * 60_000).toISOString());
+	assert.equal((await h.send("k1")).status, 409);
+	assert.equal(h.delivered.length, 1);
+});
+
 test("a deferred delivery records the provider ID when it finishes", async () => {
 	const h = await harness();
 	let delivery;
@@ -150,6 +181,18 @@ test("a failed deferred delivery fails the key, refunds the budget and moves the
 	await delivery;
 	assert.equal(h.delivered.length, 1);
 	assert.equal(h.row("k1").state, "sent");
+});
+
+test("a deferred delivery error that doesn't prove rejection keeps the Sent copy and the attempt", async () => {
+	const h = await harness({ failDelivery: 1, deliveryError: () => new Error("timed out") });
+	let delivery;
+	const result = await h.send("k1", {}, { defer: (p) => { delivery = p; } });
+	await delivery;
+	assert.deepEqual(h.row("k1"), { state: "sending", provider_id: null, email_id: null, error: "timed out" });
+	assert.deepEqual(h.moved, []);
+	assert.equal(h.d1.exec(`SELECT COUNT(*) AS n FROM send_budget`)[0].n, 1);
+	assert.equal((await h.send("k1")).status, 409);
+	assert.equal(result.ok, true);
 });
 
 test("a deferred send whose Sent copy fails to store fails the key and refunds the budget", async () => {

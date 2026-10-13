@@ -12,7 +12,7 @@ import type { ScheduleMode, ScheduledPayload, ScheduledRow } from "../../lib/sch
 import type { SendEmailRequest } from "../../lib/send";
 import { budgetError, type SendActor } from "../../lib/send-budget";
 import { DEFAULT_AGENT_LIMITS, SEND_LIMITS } from "../../../shared/send-limits";
-import { SEND_KEY_TTL_MS, type SendKeyClaim } from "../../lib/send-keys";
+import { SEND_KEY_PENDING_STALE_MS, SEND_KEY_TTL_MS, type SendKeyClaim } from "../../lib/send-keys";
 import {
 	MAX_REFERENCED_IDS,
 	SUBJECT_JOIN_WINDOW_MS,
@@ -356,8 +356,10 @@ export class D1Mailbox {
 	}
 
 	/**
-	 * Claim a send attempt (send-keys.ts). New keys and keys whose last
-	 * attempt failed are claimed as pending; anything else reports its state.
+	 * Claim a send attempt (send-keys.ts). New keys, keys whose last attempt
+	 * failed, and pending attempts older than SEND_KEY_PENDING_STALE_MS (the
+	 * caller died before delivery started) are claimed as pending; anything
+	 * else reports its state.
 	 */
 	async claimSendKey(key: string, contentHash: string | null = null): Promise<SendKeyClaim> {
 		const now = new Date().toISOString();
@@ -367,8 +369,9 @@ export class D1Mailbox {
 				sql: `INSERT INTO send_keys (mailbox_id, key, state, content_hash, created_at, updated_at) VALUES (?1, ?2, 'pending', ?3, ?4, ?4)
 					ON CONFLICT (mailbox_id, key) DO UPDATE SET state = 'pending', content_hash = ?3, provider_id = NULL, error = NULL, updated_at = ?4
 					WHERE send_keys.state = 'failed'
+						OR (send_keys.state = 'pending' AND COALESCE(send_keys.updated_at, send_keys.created_at) < ?5)
 					RETURNING state`,
-				params: [this.#id, key, contentHash, now],
+				params: [this.#id, key, contentHash, now, new Date(Date.now() - SEND_KEY_PENDING_STALE_MS).toISOString()],
 			},
 		]);
 		if (claimed.length > 0) return { state: "new" };

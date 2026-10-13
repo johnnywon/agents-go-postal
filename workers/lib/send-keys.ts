@@ -10,13 +10,16 @@
  *
  * A retry with the same key and the same message returns the first send. The
  * same key with a different message is a conflict. An attempt that failed
- * before delivery is marked failed and the key can be used again. An attempt
- * left in sending may have been delivered: a retry gets its status instead of
- * a second copy.
+ * before delivery is marked failed and the key can be used again, as can a
+ * pending attempt whose caller died before delivery started. An attempt left
+ * in sending may have been delivered: a retry gets its status instead of a
+ * second copy.
  */
 
 export const SEND_KEY_MAX_LENGTH = 200;
 export const SEND_KEY_TTL_MS = 7 * 24 * 60 * 60_000;
+/** A pending attempt this old never started delivery; startSendKey still lets only one caller deliver. */
+export const SEND_KEY_PENDING_STALE_MS = 5 * 60_000;
 
 export type SendAttemptState = "pending" | "sending" | "sent" | "failed";
 

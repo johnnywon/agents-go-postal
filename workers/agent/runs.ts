@@ -23,6 +23,8 @@ import type { Sql } from "../store/sql";
 export const AUTO_DRAFT_MAX_RETRIES = 3;
 /** A run still marked running after this long died; the queue's redelivery takes it over. */
 export const RUN_STALE_MS = 10 * 60_000;
+/** A run still running after this long has no redelivery coming; the hourly cron marks it failed. */
+export const RUN_ABANDONED_MS = 60 * 60_000;
 
 export type RunState = "queued" | "running" | "drafted" | "skipped" | "superseded" | "failed";
 
@@ -119,16 +121,24 @@ export async function settleRun(sql: Sql, emailId: string, state: RunState, fiel
 /**
  * One attempt at a run. "retry" asks the queue to try again later; on the
  * last attempt the run is marked failed and the queue moves the message on to
- * its dead-letter queue.
+ * its dead-letter queue. `{ wait }` means the run is still marked running,
+ * by another delivery or by a worker that died: try again in `wait` seconds,
+ * once a dead run can be taken over.
  */
 export async function attemptRun(
 	sql: Sql,
 	job: AutoDraftJob,
 	drafter: Drafter,
 	options: { final: boolean; discardDraft: (mailboxId: string, draftId: string) => Promise<unknown> },
-): Promise<"done" | "retry"> {
-	const run = await claimRun(sql, job.emailId);
-	if (!run) return "done";
+): Promise<"done" | "retry" | { wait: number }> {
+	const now = Date.now();
+	const run = await claimRun(sql, job.emailId, now);
+	if (!run) {
+		const row = await sql.first(`SELECT state, updated_at FROM auto_draft_runs WHERE email_id = ?`, job.emailId);
+		if (row?.state !== "running") return "done";
+		const staleAt = Date.parse(String(row.updated_at)) + RUN_STALE_MS;
+		return { wait: Math.max(1, Math.ceil((staleAt - now) / 1000) + 5) };
+	}
 	let outcome: DraftOutcome;
 	try {
 		const { attempts: _, ...target } = run;
@@ -172,6 +182,15 @@ export async function listRuns(sql: Sql, options: { mailboxId?: string | null; l
 		attempts: Number(r.attempts), reason: r.reason == null ? null : String(r.reason), draftId: r.draft_id == null ? null : String(r.draft_id),
 		createdAt: String(r.created_at), updatedAt: String(r.updated_at),
 	}));
+}
+
+/** Mark failed the runs left running with no redelivery coming. */
+export async function failAbandonedRuns(sql: Sql, now = Date.now()): Promise<number> {
+	return (await sql.run(
+		`UPDATE auto_draft_runs SET state = 'failed', reason = 'the run stopped before it finished', updated_at = ?
+		WHERE state = 'running' AND updated_at < ?`,
+		new Date(now).toISOString(), new Date(now - RUN_ABANDONED_MS).toISOString(),
+	)).changes;
 }
 
 /** Runs are kept as long as the activity log. */

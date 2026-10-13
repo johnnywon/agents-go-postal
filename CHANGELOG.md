@@ -2,6 +2,17 @@
 
 Versions follow [semantic versioning](https://semver.org). Before 1.0, a minor version can break things. Each entry names any new D1 migration. `npm run deploy` applies it; if you deploy another way, run `wrangler d1 migrations apply DB --remote` before you deploy that version.
 
+## 0.7.2
+
+More fixes from the 0.7.0 review.
+
+- A send whose caller died before delivery started left its key pending for 7 days, so every retry of that draft got 409. A pending attempt older than 5 minutes can now be claimed again.
+- A send error marked the attempt failed even when the message may have gone out (a timeout or an internal error), so a scheduled send could be delivered twice. Now only an error code that proves the mail service refused the message marks it failed and gives back the send limit slot. Any other error leaves the attempt in sending with the error saved, a deferred send keeps its Sent copy, and the cron stops retrying that scheduled send.
+- Auto-draft: when the worker running a draft died, the queue's redelivery acked the message and the run stayed running with no draft. The redelivery now retries once the run can be taken over, and the hourly cron marks failed any run still running after an hour.
+- Redraft: typing in the body while a redraft ran lost the edit and left a stray draft. The body is now read-only and autosave waits until the redraft returns. Keys typed meanwhile stay in the composer instead of triggering mail shortcuts.
+
+No D1 migration.
+
 ## 0.7.1
 
 Fixes from a review of 0.7.0.

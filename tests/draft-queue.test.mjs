@@ -97,6 +97,44 @@ function message(body, attempts) {
 	return { body, attempts, calls, ack: () => calls.push("ack"), retry: (options) => calls.push(["retry", options?.delaySeconds]) };
 }
 
+test("a redelivery that finds the run still running waits for it to go stale instead of acking", async () => {
+	const d1 = await openD1();
+	let calls = 0;
+	const agent = { handleNewEmail: async () => { calls++; return { status: "drafted", draftId: "d1" }; } };
+	const env = { DB: d1.DB, EMAIL_AGENT: { idFromName: (n) => n, get: () => agent } };
+	await runs.recordRun(d1.sql, target("e1"));
+	await runs.claimRun(d1.sql, "e1"); // a worker took it and was evicted
+
+	const m = message({ emailId: "e1" }, 2);
+	await consumeAutoDrafts({ messages: [m] }, env);
+	assert.equal(m.calls[0][0], "retry");
+	const wait = m.calls[0][1];
+	assert.ok(wait > runs.RUN_STALE_MS / 1000 - 5 && wait <= runs.RUN_STALE_MS / 1000 + 5, `wait ${wait}s`);
+	assert.equal(calls, 0);
+	assert.equal(state(d1, "e1").state, "running");
+
+	// After the wait the run is stale and the next delivery takes it over.
+	d1.exec(`UPDATE auto_draft_runs SET updated_at = ? WHERE email_id = 'e1'`, new Date(Date.now() - runs.RUN_STALE_MS - 1_000).toISOString());
+	const again = message({ emailId: "e1" }, 3);
+	await consumeAutoDrafts({ messages: [again] }, env);
+	assert.deepEqual(again.calls, ["ack"]);
+	assert.equal(state(d1, "e1").state, "drafted");
+});
+
+test("a run left running with no redelivery coming is marked failed", async () => {
+	const d1 = await openD1();
+	await runs.recordRun(d1.sql, target("e1"));
+	await runs.recordRun(d1.sql, target("e2", { threadId: "t2" }));
+	await runs.claimRun(d1.sql, "e1");
+	await runs.claimRun(d1.sql, "e2");
+	const now = Date.now();
+	d1.exec(`UPDATE auto_draft_runs SET updated_at = ? WHERE email_id = 'e1'`, new Date(now - runs.RUN_ABANDONED_MS - 1_000).toISOString());
+	assert.equal(await runs.failAbandonedRuns(d1.sql, now), 1);
+	assert.equal(state(d1, "e1").state, "failed");
+	assert.match(state(d1, "e1").reason, /stopped/);
+	assert.equal(state(d1, "e2").state, "running");
+});
+
 test("the consumer retries with backoff, then lets the queue dead-letter the message", async () => {
 	const d1 = await openD1();
 	let fail = true;

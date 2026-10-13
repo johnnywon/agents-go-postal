@@ -22,15 +22,20 @@ export interface EditorProps {
 	autoFocus?: boolean;
 	label?: string;
 	onReady?: (editor: TipTap) => void;
+	/** Block typing, e.g. while an agent rewrites the body. */
+	readOnly?: boolean;
 }
 
-export function Editor({ value, onChange, placeholder, size = "inline", autoFocus, label = "Message body", onReady }: EditorProps) {
+export function Editor({ value, onChange, placeholder, size = "inline", autoFocus, label = "Message body", onReady, readOnly = false }: EditorProps) {
 	const last = useRef(value);
+	const locked = useRef(readOnly);
+	locked.current = readOnly;
 	const editor = useEditor({
 		immediatelyRender: false,
 		extensions: [StarterKit.configure({ link: false, underline: false }), Underline, LinkExtension.configure({ openOnClick: false, autolink: true })],
 		content: value,
-		editorProps: { attributes: { "aria-label": label, role: "textbox", "aria-multiline": "true" } },
+		// Read-only, it stays focusable so keys land in the composer, not on the mail list's shortcuts.
+		editorProps: { attributes: () => ({ "aria-label": label, role: "textbox", "aria-multiline": "true", ...(locked.current ? { tabindex: "0", "aria-readonly": "true" } : {}) }) },
 		onUpdate: ({ editor: e }) => {
 			const html = e.isEmpty ? "" : e.getHTML();
 			last.current = html;
@@ -47,6 +52,14 @@ export function Editor({ value, onChange, placeholder, size = "inline", autoFocu
 		last.current = value;
 		editor.commands.setContent(value || "", { emitUpdate: false });
 	}, [value, editor]);
+
+	useEffect(() => {
+		if (!editor || editor.isDestroyed) return;
+		editor.setEditable(!readOnly, false);
+		// The button that started the lock is disabled now, which drops focus to the page.
+		const active = document.activeElement as HTMLButtonElement | null;
+		if (readOnly && (!active || active === document.body || active.disabled || active === editor.view.dom)) editor.view.dom.focus({ preventScroll: true });
+	}, [editor, readOnly]);
 
 	useEffect(() => {
 		if (!editor || !autoFocus) return;

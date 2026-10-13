@@ -7,7 +7,7 @@
  * and scheduled sends from the cron.
  */
 import type { z } from "zod";
-import { sendEmail } from "../email-sender";
+import { sendEmail, sendWasRejected } from "../email-sender";
 import { storeAttachments } from "./attachments";
 import {
 	buildReferencesChain,
@@ -64,10 +64,13 @@ export type SendResult =
 export interface SendOptions {
 	/**
 	 * Hand delivery to the caller (e.g. waitUntil) after the Sent copy is
-	 * stored. The attempt stays in sending until delivery settles; a failed
-	 * delivery refunds the budget, fails the key and moves the copy to Drafts.
-	 * Without it, delivery runs first and a failure throws before anything is
-	 * stored, so the caller can retry.
+	 * stored. The attempt stays in sending until delivery settles; a delivery
+	 * the mail service rejected refunds the budget, fails the key and moves the
+	 * copy to Drafts. Without it, delivery runs first and a rejection throws
+	 * before anything is stored, so the caller can retry.
+	 *
+	 * Any other delivery error may have come after the message was accepted, so
+	 * the attempt stays in sending with the error saved and is not retried.
 	 */
 	defer?: (delivery: Promise<unknown>) => void;
 	/**
@@ -195,7 +198,11 @@ async function sendOnce(
 		try {
 			({ messageId: providerId } = await deliver());
 		} catch (e) {
-			await stub.refundSendBudget(budget.id);
+			if (sendWasRejected(e)) await stub.refundSendBudget(budget.id);
+			else {
+				onDelivered();
+				if (key) await stub.recordSendProvider(key, null, (e as Error).message || "Delivery failed");
+			}
 			throw e;
 		}
 		onDelivered();
@@ -249,6 +256,11 @@ async function sendOnce(
 			async (e) => {
 				const error = (e as Error).message || "Delivery failed";
 				console.error(`Deferred ${label} delivery failed:`, error);
+				// It may have gone out: keep the Sent copy and leave the attempt in sending.
+				if (!sendWasRejected(e)) {
+					if (key) await stub.recordSendProvider(key, null, error).catch(() => {});
+					return;
+				}
 				// Nothing went out: give back the slot and put the message where the sender will see it.
 				await stub.refundSendBudget(budget.id).catch(() => {});
 				await stub.moveEmail(messageId, Folders.DRAFT).catch(() => {});

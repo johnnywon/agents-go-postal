@@ -91,9 +91,9 @@ test("the cron prunes past the retention set in prefs", async () => {
 	}
 	const store = new Map([["config/prefs.json", JSON.stringify({ activityDays: 120 })]]);
 	const env = { DB: d1.DB, BUCKET: { get: async (k) => (store.has(k) ? { json: async () => JSON.parse(store.get(k)) } : null) } };
-	assert.deepEqual(await pruneAgentHistory(env, now), { days: 120, activity: 2, runs: 2 });
+	assert.deepEqual(await pruneAgentHistory(env, now), { days: 120, activity: 2, runs: 2, abandoned: 0 });
 	store.clear();
-	assert.deepEqual(await pruneAgentHistory(env, now), { days: 90, activity: 1, runs: 1 });
+	assert.deepEqual(await pruneAgentHistory(env, now), { days: 90, activity: 1, runs: 1, abandoned: 0 });
 });
 
 test("GET /api/v1/activity lists entries, with filters", async () => {

@@ -41,6 +41,8 @@ export async function sendDueScheduled(env: Env, sql: Sql, now = Date.now()) {
 		const mailboxId = String(row.mailbox_id);
 		const mailbox = new D1Mailbox(sql, env.BUCKET, mailboxId);
 		let error: string | null;
+		// An attempt left in sending may have gone out; retrying can't send it again, so stop.
+		let stuck = false;
 		try {
 			const draft = await mailbox.getEmail(emailId);
 			if (!draft || draft.folder_id !== Folders.DRAFT) {
@@ -50,16 +52,20 @@ export async function sendDueScheduled(env: Env, sql: Sql, now = Date.now()) {
 			const payload = JSON.parse(String(row.payload)) as ScheduledPayload;
 			const result = await sendMail(env, mailboxId, mailbox, payload.email, sendModeOf(payload), { idempotencyKey: `draft:${emailId}` });
 			error = result.ok ? null : result.error;
+			stuck = !result.ok && result.attempt?.state === "sending";
 		} catch (e) {
 			error = (e as Error).message || "Delivery failed";
+			const key = await sql.first(`SELECT state FROM send_keys WHERE mailbox_id = ? AND key = ?`, mailboxId, `draft:${emailId}`).catch(() => null);
+			stuck = key?.state === "sending";
 		}
 		if (error) {
-			// Count the attempt. With attempts left it retries in 15 minutes; after the last, it keeps its error.
+			// Count the attempt. With attempts left it retries in 15 minutes; after the last, or when stuck, it keeps its error.
+			const attempts = stuck ? SCHEDULE_MAX_ATTEMPTS : null;
 			await sql.run(
-				`UPDATE scheduled_sends SET attempts = attempts + 1, error = ?, claimed_at = NULL,
-					send_at = CASE WHEN attempts + 1 < ? THEN ? ELSE send_at END
+				`UPDATE scheduled_sends SET attempts = COALESCE(?, attempts + 1), error = ?, claimed_at = NULL,
+					send_at = CASE WHEN ? IS NULL AND attempts + 1 < ? THEN ? ELSE send_at END
 				WHERE email_id = ?`,
-				error.slice(0, 1000), SCHEDULE_MAX_ATTEMPTS, new Date(now + SCHEDULE_RETRY_MS).toISOString(), emailId,
+				attempts, error.slice(0, 1000), attempts, SCHEDULE_MAX_ATTEMPTS, new Date(now + SCHEDULE_RETRY_MS).toISOString(), emailId,
 			);
 			failed.push(emailId);
 			continue;
