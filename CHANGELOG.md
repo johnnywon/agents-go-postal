@@ -19,7 +19,7 @@ The reader.
 - In a small window the reader slid under the agent rail, so MAILROOM AGENT sat on top of the toolbar and the sender's address was cut to "<". The reader now shrinks, its toolbar wraps and the sender line breaks.
 
 - Who sent a message and when is now the page's letterhead: name and address over the receiving address on the left, the date over the time on the right, above a hairline. The initial square and the angle brackets are gone.
-- Labels are no longer chips. In the reader they sit on the letterhead's "to" line as tag and name; in the list they are tags beside the star, with the name on hover, so a labelled row is no taller than any other.
+- Labels are no longer chips. In the reader they sit on a thin rail across the top of the message, right-aligned over the date; in the list they are tags beside the star, with the name on hover, so a labelled row is no taller than any other.
 
 No D1 migration.
 

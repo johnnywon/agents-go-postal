@@ -84,7 +84,8 @@ html:has(.postal), html:has(.postal) body { background: var(--pg-base, #141518);
   .pg-models-note,
   .pg-tools-list div,
   .pg-images-note,
-  .pg-mhead
+  .pg-mhead,
+  .pg-mrail
 ) { border-radius: 0 !important; }
 .postal .pg-sr { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 .postal .pg-flex { flex: 1; min-width: 0; }
@@ -532,8 +533,9 @@ html:has(.postal), html:has(.postal) body { background: var(--pg-base, #141518);
 .pg-mhead-to { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; min-width: 0; line-height: 18px; font-size: 13px; color: var(--pg-text-6); white-space: nowrap; }
 .pg-mhead-to .pg-addr { font-size: 12px; }
 .pg-mhead-where { display: inline-flex; align-items: center; gap: 6px; min-width: 0; }
-/* Labels file the message, so they sit on the line that says where it was delivered: tag and name, no chip. */
-.pg-mhead-label { display: inline-flex; align-items: center; gap: 5px; margin-left: 8px; font-size: 12px; color: var(--pg-text-5); }
+/* The label rail: a thin band across the top of the page, labels right-aligned over the date. Only when the message has labels. */
+.pg-mrail { display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: center; gap: 2px 14px; min-height: 28px; padding: 4px 28px; border-bottom: 1px solid var(--pg-line-soft); background: var(--pg-well); }
+.pg-mrail-label { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; line-height: 18px; color: var(--pg-text-6); white-space: nowrap; }
 .pg-mhead-word { flex: none; font-size: 12px; color: var(--pg-text-6); }
 .pg-mhead-when { flex: none; display: flex; flex-direction: column; align-items: flex-end; gap: 4px; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .pg-mhead-when span:first-child { line-height: 22px; font-size: 13px; font-weight: 500; color: var(--pg-text-3); }
@@ -1028,6 +1030,7 @@ html:has(.postal), html:has(.postal) body { background: var(--pg-base, #141518);
   .pg-mail-frame { margin: 0 -16px; border-width: 1px 0; }
   .pg-mail-frame[data-kind="plain"] .pg-mail-body { padding: 18px 16px 20px; }
   .pg-mhead { padding: 14px 16px 13px; }
+  .pg-mrail { padding-inline: 16px; }
   .pg-mail-frame[data-kind="plain"] .pg-images-note { margin: -18px -16px 14px; padding-left: 16px; }
   .pg-mail-frame[data-kind="html"] .pg-images-note { padding-left: 16px; }
   .pg-mail-frame[data-kind="html"] .pg-attachments { margin: 0 16px; }

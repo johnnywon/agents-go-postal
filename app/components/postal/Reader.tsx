@@ -145,6 +145,14 @@ export function Reader(props: ReaderProps) {
 	// The message's letterhead: who and where on the left, when on the right, inside the page.
 	const when = (head ? fullDate(head.date) : row ? fullDate(row.date) : "").split(" · ");
 	const letterhead = (
+		<>
+			{rowLabels.length > 0 && (
+				<div className="pg-mrail" aria-label="Labels">
+					{rowLabels.map((l) => (
+						<span key={l.id} className="pg-mrail-label"><LabelTag id={l.id} size={10} />{l.name}</span>
+					))}
+				</div>
+			)}
 		<header className="pg-mhead">
 			<div className="pg-mhead-who">
 				<div className="pg-mhead-from">
@@ -158,9 +166,6 @@ export function Reader(props: ReaderProps) {
 						<Swatch identity={identity} />
 						<AddressText address={mailbox} identity={identity} bold={false} />
 					</span>
-					{rowLabels.map((l) => (
-						<span key={l.id} className="pg-mhead-label" title={`Label: ${l.name}`}><LabelTag id={l.id} size={11} />{l.name}</span>
-					))}
 					{attachmentCount > 0 && (
 						<button
 							type="button"
@@ -180,6 +185,7 @@ export function Reader(props: ReaderProps) {
 				</time>
 			)}
 		</header>
+		</>
 	);
 	return (
 		<section className="pg-reader" aria-label="Message" ref={sectionRef}>
