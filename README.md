@@ -5,14 +5,14 @@
 Cloudflare receives and sends your domain's mail but doesn't include a mail client. Open Mailroom is one: every address on every domain in one list, on desktop or phone, with an agent that can search, label, draft and send. It runs entirely in your Cloudflare account.
 
 [![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/johnnywon/open-mailroom)
-[![Version 0.6.0](https://img.shields.io/badge/version-0.6.0-blue)](https://github.com/johnnywon/open-mailroom/releases)
+[![Version 0.7.0](https://img.shields.io/badge/version-0.7.0-blue)](https://github.com/johnnywon/open-mailroom/releases)
 [![CI](https://github.com/johnnywon/open-mailroom/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/johnnywon/open-mailroom/actions/workflows/ci.yml)
 [![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
 [![Runs on Cloudflare Workers](https://img.shields.io/badge/runs%20on-Cloudflare%20Workers-f38020?logo=cloudflare&logoColor=white)](https://developers.cloudflare.com/workers/)
 
 Needs a domain on Cloudflare, R2 and Cloudflare Access. Sending needs the Workers Paid plan and Cloudflare Email Sending, which is in public beta.
 
-**v0.6.0, ready to deploy.** One production deployment has handled real mail on it every day since May 2026. Before 1.0, an upgrade can need a step, such as a D1 migration or a config change, and the [changelog](CHANGELOG.md) names it in every release. Pin a [release](https://github.com/johnnywon/open-mailroom/releases) tag to choose when you upgrade.
+**v0.7.0, ready to deploy.** One production deployment has handled real mail on it every day since May 2026. Before 1.0, an upgrade can need a step, such as a D1 migration or a config change, and the [changelog](CHANGELOG.md) names it in every release. Pin a [release](https://github.com/johnnywon/open-mailroom/releases) tag to choose when you upgrade.
 
 <picture>
   <source media="(prefers-color-scheme: light)" srcset="docs/images/inbox-light.jpg">
@@ -106,7 +106,7 @@ One Worker in your account. Mail is stored in D1, one database for every address
 **What to know first**
 
 - Email Sending is in public beta and needs Workers Paid. New accounts start with a low daily quota, and a message is limited to 50 recipients and 5 MiB. Receiving uses Email Routing, which isn't in beta and works on Workers Free.
-- Agents can send when you ask them to. There's no approval step yet; it's the first item on the [roadmap](#roadmap).
+- Agents can send when you ask them to, up to 20 messages a day per address. There's no approval step yet; it's the first item on the [roadmap](#roadmap). Settings > Activity shows what they did.
 - There's no mail export, IMAP or SMTP yet. `wrangler d1 time-travel` restores the last 30 days.
 - Everyone who passes Access sees every address.
 
@@ -120,7 +120,7 @@ Each step, with commands, is in [docs/setup.md](docs/setup.md).
 
 ## Roadmap
 
-- **Now:** an approval queue with an activity log, and scoped agent access.
+- **Now:** an approval queue, and scoped agent access.
 - **Next:** one-command setup, mail import, starting on Workers Free, rules in plain words.
 - **Later:** shared inboxes, Queue events, search by meaning, notifications and offline.
 

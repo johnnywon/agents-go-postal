@@ -115,7 +115,7 @@ test("threading and send limits", async () => {
 	assert.equal(await ok(A, "findThreadBySubject", "Re: Invoice October", "zed@example.net"), null);
 	assert.equal(await ok(A, "findThreadByMessageIds", ["unknown@example.net", "e2@example.net"]), "e1");
 	assert.equal(await ok(A, "findThreadByMessageIds", ["unknown@example.net"]), null);
-	assert.equal(await ok(A, "checkSendRateLimit"), null);
+	assert.equal((await ok(A, "takeSendBudget", "person", 1)).ok, true);
 });
 
 test("scheduled send", async () => {

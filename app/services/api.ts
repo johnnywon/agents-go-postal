@@ -5,6 +5,7 @@
 import type { BulkAction } from "~/lib/bulk-optimistic";
 import type { Email, Mailbox } from "~/types";
 import type { Prefs } from "shared/prefs";
+import type { DraftNotes } from "shared/draft-notes";
 import type { CatalogModel, KeyedProvider, ModelRef, ProviderId } from "shared/models";
 
 const REQUEST_TIMEOUT_MS = 30_000;
@@ -93,6 +94,49 @@ function del<T>(url: string) {
 }
 
 // ---------- Typed response shapes ----------
+
+export type ActivityActor = "chat" | "auto-draft" | "mcp";
+
+export interface ActivityEntry {
+	id: number;
+	at: string;
+	mailboxId: string | null;
+	actor: ActivityActor;
+	client: string | null;
+	action: "read" | "draft" | "send" | "delete" | "label" | "move" | "settings";
+	tool: string;
+	target: string | null;
+	summary: string | null;
+	ok: boolean;
+}
+
+export interface ActivityPage {
+	entries: ActivityEntry[];
+	next: number | null;
+}
+
+export interface AutoDraftRun {
+	emailId: string;
+	mailboxId: string;
+	sender: string;
+	state: "queued" | "running" | "drafted" | "skipped" | "superseded" | "failed";
+	attempts: number;
+	reason: string | null;
+	draftId: string | null;
+	createdAt: string;
+	updatedAt: string;
+}
+
+export interface Playbook {
+	id: string;
+	name: string;
+	whenToUse: string;
+	instructions: string;
+	exampleReply: string;
+	position: number;
+}
+
+export type PlaybookInput = Pick<Playbook, "name"> & Partial<Pick<Playbook, "whenToUse" | "instructions" | "exampleReply" | "position">>;
 
 
 export interface Conversation {
@@ -365,6 +409,28 @@ const api = {
 
 	// Storage
 	getStorageStatus: () => get<StorageStatusResponse>("/api/v1/storage/status"),
+
+	// Activity and auto-draft runs (Settings > Activity)
+	getActivity: (filter: { mailbox?: string; actor?: string; before?: number }) =>
+		get<ActivityPage>("/api/v1/activity", {
+			params: Object.fromEntries(Object.entries(filter).filter(([, v]) => v !== undefined && v !== "").map(([k, v]) => [k, String(v)])),
+		}),
+	getAutoDraftRuns: (mailbox?: string) => get<AutoDraftRun[]>("/api/v1/auto-draft/runs", mailbox ? { params: { mailbox } } : undefined),
+
+	// Playbooks (Settings > Agent)
+	getPlaybooks: (mailboxId: string) => get<Playbook[]>(`/api/v1/mailboxes/${encodeURIComponent(mailboxId)}/playbooks`),
+	createPlaybook: (mailboxId: string, input: PlaybookInput) => post<Playbook>(`/api/v1/mailboxes/${encodeURIComponent(mailboxId)}/playbooks`, input),
+	updatePlaybook: (mailboxId: string, id: string, input: Partial<PlaybookInput>) =>
+		put<Playbook>(`/api/v1/mailboxes/${encodeURIComponent(mailboxId)}/playbooks/${encodeURIComponent(id)}`, input),
+	deletePlaybook: (mailboxId: string, id: string) =>
+		del<{ deleted: boolean }>(`/api/v1/mailboxes/${encodeURIComponent(mailboxId)}/playbooks/${encodeURIComponent(id)}`),
+
+	// Redraft an agent draft with an instruction. The draft is replaced; the reply carries its new id.
+	redraft: (mailboxId: string, draftId: string, instruction: string) =>
+		post<{ draft: { id: string; subject: string; recipient: string; body: string }; notes: DraftNotes }>(
+			`/api/v1/mailboxes/${encodeURIComponent(mailboxId)}/drafts/${encodeURIComponent(draftId)}/redraft`,
+			{ instruction },
+		),
 
 };
 

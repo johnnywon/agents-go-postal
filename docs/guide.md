@@ -14,7 +14,9 @@ How the app works day to day. Back to the [README](../README.md).
 - **Per-address isolation.** Every address has its own folders, threads, settings and prompt. Every query on one address filters on it.
 - **AI agent.** A side panel that can read, search, label, draft and send on Workers AI, or on OpenRouter's zero data retention endpoints with your key. It searches and labels across every address at once (`search_all_mail`, `label_matching`, up to 500 conversations per call). "Draft reply" in either composer (or "Draft" in a new message) asks it for a first draft. Labels the agent has applied are marked with a sparkle. It sends a draft with `send_draft` when you ask it to. Automatic drafting of new mail is off by default (`AUTO_DRAFT_ENABLED`); it only drafts, and skips mailing lists, bulk mail, auto-replies and no-reply senders.
 - **MCP server** for connecting outside agents, including `send_draft`, and `list_shortcuts`, `set_shortcut` and `reset_shortcuts` for the keyboard shortcuts.
-- **Sends go out once.** Each send can carry an `Idempotency-Key` header. A retry with the same key returns the first send instead of sending again. The composer sets one per message, and every way of sending a saved draft uses `draft:<id>`, so a draft is sent once whether you, the agent or the schedule sends it.
+- **Sends go out once.** Each send can carry an `Idempotency-Key` header. A retry with the same key returns the first send instead of sending again. The composer sets one per message, and every way of sending a saved draft uses `draft:<id>`, so a draft is sent once whether you, the agent or the schedule sends it. The same key with a different message is refused, and a send that reached the mail service but wasn't saved to Sent reports that instead of sending a second copy.
+- **Activity log.** Settings > Activity lists every read, draft, send, delete and label change by the agent, auto-draft and MCP clients, with the MCP client's name. Entries are kept 90, 120 or 180 days.
+- **Playbooks and redraft.** Each address can have drafting playbooks (Settings > Agent). Auto-draft picks one or none, and the composer shows which. Type an instruction such as "shorter" under an agent draft and Redraft rewrites it.
 - **Cloudflare Access required.** Outside local development the Worker refuses every request until Access is configured.
 
 ## The postal view
@@ -58,6 +60,16 @@ When the text reads like a request ("unread newsletters from this week"), the wi
 ## Scheduled send
 
 Choose a time from the arrow next to Send in the compose window. The message is saved to Drafts with a "Scheduled" badge, and a one-minute cron sends it through the normal sending path, up to a minute after its time. Cancel removes the schedule and keeps the draft. Editing or deleting the draft before the send time cancels it. A send that fails is retried every 15 minutes, up to three attempts; after that the draft stays in Drafts marked "Send failed". Attachments count toward a 1.5 MB limit per scheduled message.
+
+## Agent drafts
+
+**Playbooks.** In Settings > Agent, each address can have up to 20 playbooks: a name, when to use it, instructions, and an example reply. Auto-draft lists them in its prompt, follows the one that fits the new email or none, and records the choice with the draft. Changes save as you make them.
+
+**Redraft.** A draft an agent wrote shows a line above the format bar: who wrote it, the playbook, and how often it was redrafted. Type an instruction ("shorter", "decline politely") and choose Redraft. The model sees the draft, the address's prompt and playbook, and the email it answers, after the same prompt-injection check auto-draft runs. It has no tools; its only output replaces the draft's text, and the quote stays. A draft with attachments can't be redrafted.
+
+**Auto-draft runs.** Each new message gets one run. New mail in the same thread supersedes a run that hasn't finished, and a draft from a superseded run is discarded. Each sender gets 3 auto-drafts a day per address; later mail from them is stored but not drafted. With the optional queue (see [setup](setup.md#auto-draft-queue)) a failed draft is retried three times, 30, 60 and 120 seconds apart, then moved to a dead-letter queue. Without it, each draft is tried once. Settings > Activity lists recent runs with their state and any reason.
+
+**Send limits.** Every address sends up to 20 messages an hour and 100 a day. Agents and MCP clients together send up to 20 a day per address, inside those limits, with up to 10 recipients per message; people can add up to 50. The check and the count are one database statement, so parallel sends can't overshoot.
 
 ## Agent model
 

@@ -9,6 +9,7 @@ import { extractReplyQuote, getReplyAddresses } from "~/lib/reply";
 import { escapeHtml, getSignatureBlock, htmlToPlainText, splitEmailList } from "~/lib/utils";
 import { queryKeys } from "~/queries/keys";
 import api from "~/services/api";
+import type { DraftNotes } from "shared/draft-notes";
 import type { Email, Mailbox } from "~/types";
 import { handleOf } from "./identity";
 import { ADDRESS_RE, fullDate } from "./model";
@@ -57,6 +58,8 @@ export interface ComposeState {
 	askAgent?: boolean;
 	/** Idempotency key for this compose, so a retried Send never sends twice. */
 	sendKey?: string;
+	/** Set when an agent wrote the saved draft: how, and the redraft instructions so far. */
+	notes?: DraftNotes;
 }
 
 export function emptyCompose(from: string): ComposeState {
@@ -176,6 +179,7 @@ export function composeFromDraft(draft: Email, mailboxId: string): ComposeState 
 		draftId: draft.id,
 		originalId: draft.in_reply_to || undefined,
 		originalMailbox: mailboxId,
+		notes: draft.draft_notes,
 	};
 }
 

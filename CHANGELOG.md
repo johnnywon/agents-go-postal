@@ -2,6 +2,20 @@
 
 Versions follow [semantic versioning](https://semver.org). Before 1.0, a minor version can break things. Each entry names any new D1 migration. `npm run deploy` applies it; if you deploy another way, run `wrangler d1 migrations apply DB --remote` before you deploy that version.
 
+## 0.7.0
+
+Agent reliability.
+
+- **Send attempts.** An idempotency key now tracks its send through pending, sending, sent or failed. The mail service's message ID is saved before the Sent copy. Reusing a key for a different message returns 409. A send that reached the mail service but wasn't stored returns 409 with its state and provider ID instead of sending again. A key whose send failed before delivery can be used again.
+- **Send limits.** Agents and MCP clients together send up to 20 messages a day per address, with up to 10 recipients each; people up to 50 recipients. The hourly (20) and daily (100) limits now count sends, not Sent mail, and the check and count are atomic. A send that never reached the mail service doesn't count.
+- **Auto-draft runs.** Each new message gets a run row. Newer mail in the thread supersedes an unfinished run, and a draft from a superseded run is discarded. Each sender gets 3 auto-drafts per address a day. An optional `DRAFT_QUEUE` queue retries a failed draft three times with backoff and then dead-letters it; see [Auto-draft queue](docs/setup.md#auto-draft-queue). Without the queue each draft is tried once, as before.
+- **Activity log.** Every tool call by the chat agent, auto-draft and MCP clients is logged with the address, target, a summary and the MCP client's name. Settings > Activity lists and filters it; prefs `activityDays` keeps 90 (default), 120 or 180 days, pruned hourly by the cron. `GET /api/v1/activity`, `GET /api/v1/auto-draft/runs`.
+- **Playbooks.** Per-address drafting playbooks in Settings > Agent. Auto-draft picks one or none and the draft records which. `/api/v1/mailboxes/:id/playbooks`.
+- **Redraft.** An agent draft shows who wrote it and with which playbook, and takes a one-off instruction ("shorter") that rewrites it. Instructions are kept with the draft. `POST /api/v1/mailboxes/:id/drafts/:draftId/redraft`.
+- A deploy config that supplies its own `queues` can bind `DRAFT_QUEUE` with `max_retries: 3`; nothing else in the config changes.
+
+D1 migration: `0006_agent_reliability.sql`. `npm run deploy` applies it. Deploy this version only after the migration: sends write the new `send_budget` table.
+
 ## 0.6.0
 
 Durable Object mail storage removed.

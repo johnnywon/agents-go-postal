@@ -19,6 +19,7 @@ import type { Env } from "./types";
 import { interpretSearch, MAX_REQUEST_LENGTH } from "./lib/search-interpret";
 import { HeaderValueSchema, MailboxSettingsSchema } from "./lib/schemas";
 import { readPrefs, writePrefs } from "./lib/prefs";
+import { agentModel } from "./lib/agent-model";
 import { catalogFor, clearCatalogCache, languageModel, mergeAgentModelConfig, quickModel, readAgentModelConfig, viewOf, writeAgentModelConfig } from "./lib/agent-model";
 import { KEYED_PROVIDERS, PROVIDERS, PROVIDER_INFO, RECOMMENDED_MODEL, SUGGESTED_MODELS, validModelId } from "../shared/models";
 import { requireMailbox, type MailboxContext } from "./lib/mailbox";
@@ -26,12 +27,20 @@ import { csrf } from "./lib/csrf";
 import { decodeCursor, InvalidFilterError } from "./lib/mail-index-sql";
 import { parseMailParams } from "./lib/mail-filter-params";
 import { MAX_SEARCH_LENGTH } from "../shared/search-query";
-import { mailboxIds, mailStore, storageStatus } from "./store";
+import { mailboxIds, mailStore, storageStatus, recordsSql } from "./store";
 import { MOVE_FOLDERS } from "./lib/mail-bulk-sql";
 import { automatedMailReason } from "./lib/message-meta";
 import { resolveThreadId } from "./lib/threading";
 import { configuredAddresses } from "./lib/addresses";
 import { dryRunFolderImport, importDeps, runFolderImport } from "./lib/folder-import";
+import { startAutoDraft } from "./agent/queue";
+import { listRuns } from "./agent/runs";
+import { getSystemPrompt } from "./agent/prompt";
+import { ACTIVITY_ACTORS, listActivity, logged, TOOL_ACTIONS } from "./lib/activity";
+import { verifyDraft } from "./lib/ai";
+import { createPlaybook, deletePlaybook, listPlaybooks, PlaybookBody, updatePlaybook } from "./lib/playbooks";
+import { redraft } from "./lib/redraft";
+import { REDRAFT_INSTRUCTION_MAX } from "../shared/draft-notes";
 
 type AppContext = Context<MailboxContext>;
 
@@ -323,6 +332,28 @@ app.get("/api/v1/mail/folders", async (c) => c.json(await mailStore(c.env).all()
 /** Message counts per address, for the Storage page. */
 app.get("/api/v1/storage/status", async (c) => c.json(await storageStatus(c.env, await mailboxIds(c.env))));
 
+// -- Activity (Settings > Activity) ---------------------------------
+
+/** What agents and MCP clients did, newest first. Filter by mailbox, actor and action; page with before=<last id>. */
+app.get("/api/v1/activity", async (c) => {
+	const pick = (name: string, allowed: readonly string[]) => {
+		const v = c.req.query(name);
+		return v && allowed.includes(v) ? v : null;
+	};
+	const before = Number(c.req.query("before"));
+	return c.json(await listActivity(recordsSql(c.env), {
+		mailboxId: c.req.query("mailbox") || null,
+		actor: pick("actor", ACTIVITY_ACTORS),
+		action: pick("action", Object.values(TOOL_ACTIONS)),
+		before: Number.isInteger(before) && before > 0 ? before : null,
+		limit: Number(c.req.query("limit")) || undefined,
+	}));
+});
+
+/** The latest auto-draft runs, with their state and any skip reason or error. */
+app.get("/api/v1/auto-draft/runs", async (c) =>
+	c.json(await listRuns(recordsSql(c.env), { mailboxId: c.req.query("mailbox") || null, limit: Number(c.req.query("limit")) || undefined })));
+
 // -- Bulk actions ---------------------------------------------------
 
 app.post("/api/v1/mail/bulk", async (c) => {
@@ -481,6 +512,8 @@ app.post("/api/v1/mailboxes/:mailboxId/drafts", async (c: AppContext) => {
 	if (!parsed.success) return c.json({ error: parsed.error.issues[0]?.message ?? "Invalid request body" }, 400);
 	const { to, cc, bcc, subject, body, in_reply_to, thread_id, draft_id } = parsed.data;
 	const stub = c.var.mailbox;
+	// An agent draft keeps its notes when it is edited and saved.
+	const notes = draft_id ? await stub.getDraftNotes(draft_id) : null;
 	if (draft_id) {
 		const attachments = await stub.deleteEmail(draft_id);
 		if (attachments) await deleteAttachmentFiles(c.env.BUCKET, draft_id, attachments);
@@ -493,7 +526,54 @@ app.post("/api/v1/mailboxes/:mailboxId/drafts", async (c: AppContext) => {
 		date: now, body, in_reply_to: in_reply_to || null, email_references: null,
 		thread_id: thread_id || in_reply_to || messageId,
 	}, []);
+	if (notes) await stub.setDraftNotes(messageId, notes);
 	return c.json({ id: messageId, status: "draft", subject: subject || "", recipient: to || "", date: now }, 201);
+});
+
+/** Revise an agent draft with a one-off instruction (lib/redraft.ts). The draft is replaced; the reply has its new id. */
+app.post("/api/v1/mailboxes/:mailboxId/drafts/:id/redraft", async (c: AppContext) => {
+	const mailboxId = c.req.param("mailboxId")!;
+	const draftId = c.req.param("id")!;
+	const parsed = z.object({ instruction: z.string().max(REDRAFT_INSTRUCTION_MAX * 2) }).safeParse(await c.req.json().catch(() => null));
+	if (!parsed.success) return c.json({ error: "Say how to change the draft" }, 400);
+	const sql = recordsSql(c.env);
+	const [system, playbooks, model] = await Promise.all([getSystemPrompt(c.env, mailboxId), listPlaybooks(sql, mailboxId), agentModel(c.env)]);
+	const result = await logged(sql, { actor: "chat", bound: mailboxId }, "redraft", { draftId, instruction: parsed.data.instruction }, () =>
+		redraft(c.var.mailbox, mailboxId, draftId, parsed.data.instruction, {
+			ai: c.env.AI,
+			bucket: c.env.BUCKET,
+			system,
+			playbooks,
+			write: async (systemPrompt, prompt) => (await generateText({ model, system: systemPrompt, prompt, maxOutputTokens: 2000 })).text,
+			verify: (text) => verifyDraft(c.env.AI, text),
+		}), (r) => (r.ok ? { draftId: r.draft.id, subject: r.draft.subject } : { error: r.error }));
+	if (!result.ok) return c.json({ error: result.error }, result.status);
+	return c.json({ draft: result.draft, notes: result.notes });
+});
+
+// -- Playbooks (Settings > Agent) ----------------------------------
+
+app.get("/api/v1/mailboxes/:mailboxId/playbooks", async (c: AppContext) =>
+	c.json(await listPlaybooks(recordsSql(c.env), c.req.param("mailboxId")!)));
+
+app.post("/api/v1/mailboxes/:mailboxId/playbooks", async (c: AppContext) => {
+	const parsed = PlaybookBody.safeParse(await c.req.json().catch(() => null));
+	if (!parsed.success) return c.json({ error: parsed.error.issues[0]?.message ?? "Invalid playbook" }, 400);
+	const result = await createPlaybook(recordsSql(c.env), c.req.param("mailboxId")!, parsed.data);
+	return "error" in result ? c.json({ error: result.error }, 400) : c.json(result.playbook, 201);
+});
+
+app.put("/api/v1/mailboxes/:mailboxId/playbooks/:id", async (c: AppContext) => {
+	const parsed = PlaybookBody.partial().safeParse(await c.req.json().catch(() => null));
+	if (!parsed.success) return c.json({ error: parsed.error.issues[0]?.message ?? "Invalid playbook" }, 400);
+	const result = await updatePlaybook(recordsSql(c.env), c.req.param("mailboxId")!, c.req.param("id")!, parsed.data);
+	if ("error" in result) return c.json({ error: result.error }, 400);
+	return result.playbook ? c.json(result.playbook) : c.json({ error: "Not found" }, 404);
+});
+
+app.delete("/api/v1/mailboxes/:mailboxId/playbooks/:id", async (c: AppContext) => {
+	const deleted = await deletePlaybook(recordsSql(c.env), c.req.param("mailboxId")!, c.req.param("id")!);
+	return deleted ? c.json({ deleted: true }) : c.json({ error: "Not found" }, 404);
 });
 
 // -- Scheduled send -------------------------------------------------
@@ -685,14 +765,12 @@ async function receiveEmail(event: { to: string; raw: ReadableStream; rawSize: n
 	if (String(env.AUTO_DRAFT_ENABLED) === "true" && automated) {
 		console.log(`Auto-draft skipped for ${messageId}: ${automated}`);
 	} else if (String(env.AUTO_DRAFT_ENABLED) === "true") {
-		const agentStub = env.EMAIL_AGENT.get(env.EMAIL_AGENT.idFromName(mailboxId));
-		ctx.waitUntil(agentStub.handleNewEmail({
+		await startAutoDraft(env, ctx, {
 			mailboxId,
 			emailId: messageId,
 			sender: (parsedEmail.from?.address || "").toLowerCase(),
-			subject: parsedEmail.subject || "",
 			threadId,
-		}).catch((e) => console.error("Auto-draft trigger failed:", (e as Error).message)));
+		}).catch((e) => console.error("Auto-draft trigger failed:", (e as Error).message));
 	}
 }
 

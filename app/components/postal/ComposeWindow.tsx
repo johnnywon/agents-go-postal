@@ -9,8 +9,11 @@ import {
 } from "@phosphor-icons/react";
 import { AgentIcon } from "./AgentIcon";
 import type { Editor as TipTap } from "@tiptap/react";
+import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 import EmailIframe from "~/components/EmailIframe";
+import { DRAFT_ORIGIN_LABELS, REDRAFT_INSTRUCTION_MAX } from "shared/draft-notes";
+import api from "~/services/api";
 import { type DraftResult, useDraftWithAgent } from "./Agent";
 import {
 	type AddressInfo, type ComposeMode, type ComposeState, emptyCompose, isValidAddress, parseRecipient, readFiles, type Recipient, takeHandoff,
@@ -24,6 +27,9 @@ import { useShortcuts } from "./shortcuts";
 import { TooltipLayer } from "./Tooltip";
 
 type Sender = ReturnType<typeof useMailSender>;
+
+/** The quoted original at the end of a saved reply body. */
+const QUOTE_AT_END = /(\s*<br\s*\/?>\s*)?<blockquote[\s\S]*<\/blockquote>\s*$/i;
 type ReplyMode = Exclude<ComposeMode, "new">;
 
 export interface ComposerProps {
@@ -187,6 +193,8 @@ export function Composer(props: ComposerProps) {
 	const [saved, setSaved] = useState(false);
 	const [busy, setBusy] = useState(false);
 	const [agentBusy, setAgentBusy] = useState(false);
+	const [instruction, setInstruction] = useState("");
+	const queryClient = useQueryClient();
 	const [editor, setEditor] = useState<TipTap | null>(null);
 	const rootRef = useRef<HTMLDivElement>(null);
 	const toRef = useRef<HTMLInputElement>(null);
@@ -315,9 +323,37 @@ export function Composer(props: ComposerProps) {
 		try {
 			const r = await props.draftWithAgent(stateRef.current);
 			const html = r.text ? textToParagraphs(r.text) : r.html ?? "";
-			if (html) patch({ html, ...(r.draftId ? { draftId: r.draftId } : {}) });
+			if (html) patch({ html, ...(r.draftId ? { draftId: r.draftId, notes: { origin: "chat", playbook: null, instructions: [] } } : {}) });
 		} catch (e) {
 			setError((e as Error).message);
+		} finally {
+			setAgentBusy(false);
+		}
+	};
+
+	/** Save pending edits, then have the agent revise the saved draft. The draft gets a new id. */
+	const redraftWith = async (text: string) => {
+		const wanted = text.trim();
+		if (!wanted || agentBusy) return;
+		setAgentBusy(true);
+		setError(null);
+		try {
+			if (dirty.current) await saveNow();
+			await saving.current;
+			const s = stateRef.current;
+			if (!s.draftId) return;
+			const r = await api.redraft(s.from, s.draftId, wanted);
+			// A reply composer keeps its quote apart and adds it on save.
+			const html = s.quoteHtml ? r.draft.body.replace(QUOTE_AT_END, "") : r.draft.body;
+			const next = { ...stateRef.current, html, draftId: r.draft.id, notes: r.notes };
+			stateRef.current = next;
+			setState(next);
+			dirty.current = false;
+			setSaved(true);
+			setInstruction("");
+			for (const queryKey of [["mail"], ["mail-facets"], ["emails", s.from]]) queryClient.invalidateQueries({ queryKey });
+		} catch (e) {
+			setError((e as Error).message || "Could not redraft.");
 		} finally {
 			setAgentBusy(false);
 		}
@@ -476,6 +512,26 @@ export function Composer(props: ComposerProps) {
 								</span>
 							))}
 						</div>
+					)}
+					{state.notes && state.draftId && (
+						<form className="pg-cw-notes" onSubmit={(e) => { e.preventDefault(); redraftWith(instruction); }}>
+							<span className="pg-cw-notes-text" title={state.notes.instructions.length ? `Redrafted: ${state.notes.instructions.join("; ")}` : undefined}>
+								<AgentIcon size={12} weight="fill" />
+								{DRAFT_ORIGIN_LABELS[state.notes.origin]}
+								{state.notes.playbook && <> · {state.notes.playbook}</>}
+								{state.notes.instructions.length > 0 && <> · {state.notes.instructions.length === 1 ? "redrafted once" : `redrafted ${state.notes.instructions.length} times`}</>}
+							</span>
+							<input
+								className="pg-input"
+								value={instruction}
+								maxLength={REDRAFT_INSTRUCTION_MAX}
+								placeholder="Shorter, warmer, decline politely…"
+								aria-label="How to change the draft"
+								onChange={(e) => setInstruction(e.target.value)}
+								disabled={agentBusy}
+							/>
+							<button type="submit" className="pg-btn pg-btn-sm" disabled={!instruction.trim() || agentBusy}>{agentBusy ? "Redrafting…" : "Redraft"}</button>
+						</form>
 					)}
 					{warn && (
 						<div className="pg-warn" role="alert">

@@ -2,6 +2,8 @@
 // Licensed under the Apache 2.0 license found in the LICENSE file or at:
 //     https://opensource.org/licenses/Apache-2.0
 
+import type { DraftNotes } from "shared/draft-notes";
+
 export interface SignatureSettings {
 	enabled: boolean;
 	text: string;
@@ -41,6 +43,8 @@ export interface Email {
 	message_id?: string | null;
 	raw_headers?: string | null;
 	attachments?: Attachment[];
+	/** Drafts an agent made: how it made them. */
+	draft_notes?: DraftNotes;
 	snippet?: string | null;
 	// Thread aggregate fields (only present in threaded list view)
 	thread_count?: number;

@@ -6,6 +6,7 @@ import {
 	ArrowCounterClockwiseIcon, AtIcon, CheckIcon, CopyIcon, DatabaseIcon, DesktopIcon, GearSixIcon, KeyboardIcon, MoonIcon,
 	KeyIcon, MagnifyingGlassIcon, PlugsConnectedIcon, SignatureIcon, SignOutIcon, SlidersHorizontalIcon, SunIcon, TagIcon, WrenchIcon, XIcon,
 } from "@phosphor-icons/react";
+import { ClockCounterClockwiseIcon } from "@phosphor-icons/react";
 import { AgentIcon } from "./AgentIcon";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
@@ -19,7 +20,10 @@ import { htmlToPlainText } from "~/lib/utils";
 import { AddressText, type Identities, Swatch } from "./identity";
 import { LabelsTab } from "./LabelsTab";
 import type { SettingsTab } from "./settings-tabs";
+import { ActivityTab } from "./ActivityTab";
+import { PlaybooksSection } from "./PlaybooksSection";
 import { StorageTab } from "./StorageTab";
+import { SEND_LIMITS } from "shared/send-limits";
 import type { Prefs } from "./prefs";
 import { ShortcutMap } from "./ShortcutMap";
 import { samePrefs } from "shared/prefs";
@@ -179,6 +183,7 @@ export function SettingsModal({ tab, onTab, prefs, setPrefs, addresses, identiti
 		{ id: "shortcuts", label: "Shortcuts", icon: <KeyboardIcon size={16} /> },
 		{ id: "agent", label: "Agent", icon: <AgentIcon size={16} /> },
 		{ id: "model", label: "Model & key", icon: <KeyIcon size={16} /> },
+		{ id: "activity", label: "Activity", icon: <ClockCounterClockwiseIcon size={16} /> },
 		{ id: "storage", label: "Storage", icon: <DatabaseIcon size={16} /> },
 	];
 
@@ -309,15 +314,25 @@ export function SettingsModal({ tab, onTab, prefs, setPrefs, addresses, identiti
 							<Setting title="Auto-draft new mail" sub={<>Drafts a reply to each new message. Mailing lists and automated mail are skipped. Set <span className="pg-mono">AUTO_DRAFT_ENABLED</span> in your Worker config to change.</>}>
 								<span className="pg-tag">{autoDraft ? "on" : "off"} · config</span>
 							</Setting>
-							<Setting title="Sending" sub="The agent sends a draft when you ask it to. Auto-draft only drafts.">
+							<Setting title="Sending" sub={`The agent sends a draft when you ask it to. Auto-draft only drafts. Agents and MCP clients send up to ${SEND_LIMITS.agentDay} messages a day per address, ${SEND_LIMITS.recipients.agent} recipients each.`}>
 								<span className="pg-tag">send_draft</span>
 							</Setting>
+							{promptFor && <PlaybooksSection address={promptFor} />}
 							{/* TODO(roadmap): rules (Inquiry, Receipts, DMARC, Triage) and per-rule autonomy settings. */}
 						</>
 					)}
 					{tab === "model" && <AgentModelSection draft={agentModel} />}
 					{tab === "labels" && <LabelsTab />}
 					{tab === "shortcuts" && <ShortcutList overrides={draft.shortcuts} onChange={(shortcuts) => setDraft({ ...draft, shortcuts })} />}
+					{tab === "activity" && (
+						<ActivityTab
+							addresses={addresses}
+							identities={identities}
+							days={draft.activityDays}
+							onDays={(activityDays) => setDraft({ ...draft, activityDays })}
+							autoDraft={autoDraft}
+						/>
+					)}
 					{tab === "storage" && <StorageTab identities={identities} />}
 				</div>
 			</div>

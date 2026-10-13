@@ -52,6 +52,14 @@
 	"ai": {
 		"binding": "AI"
 	},
+	// Optional, for AUTO_DRAFT_ENABLED: run auto-drafts on a queue that retries a failed draft
+	// three times with backoff, then moves it to a dead-letter queue. Without it, each draft is
+	// tried once. Create both queues (npx wrangler queues create open-mailroom-drafts, and
+	// open-mailroom-drafts-dlq), then uncomment. Keep max_retries at 3 (workers/agent/runs.ts).
+	// "queues": {
+	// 	"producers": [{ "binding": "DRAFT_QUEUE", "queue": "open-mailroom-drafts" }],
+	// 	"consumers": [{ "queue": "open-mailroom-drafts", "max_batch_size": 5, "max_retries": 3, "dead_letter_queue": "open-mailroom-drafts-dlq" }]
+	// },
 	"durable_objects": {
 		"bindings": [
 			{

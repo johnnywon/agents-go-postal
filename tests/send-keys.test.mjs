@@ -20,7 +20,7 @@ async function keyStore(mailboxId = MAILBOX) {
 test("a key is claimed once, then reports the send that used it", async () => {
 	const { box } = await keyStore();
 	assert.deepEqual(await box.claimSendKey("k1"), { state: "new" });
-	assert.deepEqual(await box.claimSendKey("k1"), { state: "pending" });
+	assert.deepEqual(await box.claimSendKey("k1"), { state: "pending", providerId: null });
 	await box.finishSendKey("k1", "email-1");
 	assert.deepEqual(await box.claimSendKey("k1"), { state: "sent", id: "email-1" });
 });
@@ -32,13 +32,13 @@ test("keys belong to one mailbox", async () => {
 	assert.deepEqual(await other.claimSendKey("k1"), { state: "new" });
 });
 
-test("a released key can be claimed again; a sent key cannot be released", async () => {
+test("a failed key can be claimed again; a sent key cannot be failed", async () => {
 	const { box } = await keyStore();
 	await box.claimSendKey("k1");
-	await box.releaseSendKey("k1");
+	await box.failSendKey("k1", "refused");
 	assert.deepEqual(await box.claimSendKey("k1"), { state: "new" });
 	await box.finishSendKey("k1", "email-1");
-	await box.releaseSendKey("k1");
+	await box.failSendKey("k1", "refused");
 	assert.deepEqual(await box.claimSendKey("k1"), { state: "sent", id: "email-1" });
 });
 
@@ -77,11 +77,14 @@ async function harness({ rateLimit = null, failDelivery = 0, failStore = 0 } = {
 			if (failStore > 0) { failStore--; throw new Error("storage down"); }
 			stored.push(email);
 		},
-		checkSendRateLimit: async () => rateLimit,
 		markThreadRead: async () => {},
-		claimSendKey: (key) => box.claimSendKey(key),
+		takeSendBudget: async (actor, n) => (rateLimit ? { ok: false, error: rateLimit } : box.takeSendBudget(actor, n)),
+		refundSendBudget: (id) => box.refundSendBudget(id),
+		claimSendKey: (key, hash) => box.claimSendKey(key, hash),
+		startSendKey: (key) => box.startSendKey(key),
+		recordSendProvider: (key, id, error) => box.recordSendProvider(key, id, error),
 		finishSendKey: (key, id) => box.finishSendKey(key, id),
-		releaseSendKey: (key) => box.releaseSendKey(key),
+		failSendKey: (key, error) => box.failSendKey(key, error),
 	};
 	const send = (key) =>
 		sendMail(env, MAILBOX, stub, { to: "bob@example.org", from: MAILBOX, subject: "Hi", text: "Hello" }, { kind: "new" }, { idempotencyKey: key });
@@ -100,7 +103,7 @@ test("the same key sends once and returns the first send's id", async () => {
 	assert.equal(h.delivered.length, 2);
 });
 
-test("a refused send releases its key", async () => {
+test("a refused send fails its key, so it can be used again", async () => {
 	const h = await harness({ rateLimit: "Rate limit exceeded" });
 	assert.equal((await h.send("k1")).status, 429);
 	assert.deepEqual(await h.box.claimSendKey("k1"), { state: "new" });
