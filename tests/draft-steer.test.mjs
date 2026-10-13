@@ -25,13 +25,12 @@ async function setup({ verdict = "NO" } = {}) {
 		body: `<div style="white-space:pre-wrap">Hi Bob,\nThursday works. I can do 10am or 2pm, whichever suits you better.</div>${QUOTE}`,
 		in_reply_to: "orig", thread_id: "orig",
 	}, []);
-	await box.setDraftNotes("draft-1", { origin: "auto-draft", playbook: "Meetings", instructions: [] });
+	await box.setDraftNotes("draft-1", { origin: "auto-draft", instructions: [] });
 	const prompts = [];
 	const deps = {
 		ai: { run: async () => ({ response: verdict }) },
 		bucket: { delete: async () => {} },
 		system: "You are an email assistant.",
-		playbooks: [{ id: "p1", name: "Meetings", whenToUse: "Meeting requests", instructions: "Offer two times.", exampleReply: "", position: 0 }],
 		write: async (system, prompt) => { prompts.push({ system, prompt }); return "Hi Bob,\nThursday at 10am works."; },
 		verify: async (text) => text,
 	};
@@ -50,7 +49,7 @@ test("redraft replaces the draft, keeps the quote and records the instruction", 
 	assert.equal(next.in_reply_to, "orig");
 	assert.match(next.body, /Thursday at 10am works/);
 	assert.ok(next.body.endsWith(QUOTE));
-	assert.deepEqual(next.draft_notes, { origin: "auto-draft", playbook: "Meetings", instructions: ["shorter"] });
+	assert.deepEqual(next.draft_notes, { origin: "auto-draft", instructions: ["shorter"] });
 
 	const { prompt, system } = prompts[0];
 	assert.equal(system, "You are an email assistant.");
@@ -58,7 +57,6 @@ test("redraft replaces the draft, keeps the quote and records the instruction", 
 	assert.match(prompt, /I can do 10am or 2pm/);
 	assert.doesNotMatch(prompt.split("The email this draft answers")[0], /Can we meet Thursday/);
 	assert.match(prompt, /From: bob@example.org/);
-	assert.match(prompt, /Offer two times/);
 
 	const again = await redraft(box, MAILBOX, result.draft.id, "decline politely", deps);
 	assert.deepEqual(again.notes.instructions, ["shorter", "decline politely"]);
@@ -67,7 +65,7 @@ test("redraft replaces the draft, keeps the quote and records the instruction", 
 test("a thread read carries the notes of its agent drafts", async () => {
 	const { box } = await setup();
 	const thread = await box.getThreadEmails("orig");
-	assert.deepEqual(thread.map((e) => [e.id, e.draft_notes?.playbook ?? null]), [["orig", null], ["draft-1", "Meetings"]]);
+	assert.deepEqual(thread.map((e) => [e.id, e.draft_notes?.origin ?? null]), [["orig", null], ["draft-1", "auto-draft"]]);
 });
 
 test("only agent drafts are redrafted", async () => {
@@ -120,6 +118,6 @@ test("saving an edited agent draft keeps its notes", async () => {
 	}, env);
 	assert.equal(response.status, 201);
 	const { id } = await response.json();
-	assert.deepEqual((await box.getEmail(id)).draft_notes, { origin: "auto-draft", playbook: "Meetings", instructions: [] });
+	assert.deepEqual((await box.getEmail(id)).draft_notes, { origin: "auto-draft", instructions: [] });
 	assert.equal(d1.exec(`SELECT COUNT(*) AS n FROM draft_notes`)[0].n, 1);
 });

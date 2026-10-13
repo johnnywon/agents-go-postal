@@ -323,7 +323,7 @@ export function Composer(props: ComposerProps) {
 		try {
 			const r = await props.draftWithAgent(stateRef.current);
 			const html = r.text ? textToParagraphs(r.text) : r.html ?? "";
-			if (html) patch({ html, ...(r.draftId ? { draftId: r.draftId, notes: { origin: "chat", playbook: null, instructions: [] } } : {}) });
+			if (html) patch({ html, ...(r.draftId ? { draftId: r.draftId, notes: { origin: "chat", instructions: [] } } : {}) });
 		} catch (e) {
 			setError((e as Error).message);
 		} finally {
@@ -518,7 +518,6 @@ export function Composer(props: ComposerProps) {
 							<span className="pg-cw-notes-text" title={state.notes.instructions.length ? `Redrafted: ${state.notes.instructions.join("; ")}` : undefined}>
 								<AgentIcon size={12} weight="fill" />
 								{DRAFT_ORIGIN_LABELS[state.notes.origin]}
-								{state.notes.playbook && <> · {state.notes.playbook}</>}
 								{state.notes.instructions.length > 0 && <> · {state.notes.instructions.length === 1 ? "redrafted once" : `redrafted ${state.notes.instructions.length} times`}</>}
 							</span>
 							<input

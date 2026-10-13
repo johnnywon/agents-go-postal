@@ -87,7 +87,6 @@ export function describeCall(tool: string, args: Record<string, unknown>, result
 		const subject = str(args.subject) ?? str(r.subject);
 		if (to) parts.push(`to ${to}`);
 		if (subject) parts.push(subject);
-		if (str(args.playbook)) parts.push(`playbook ${args.playbook}`);
 	}
 	if (str(args.instruction)) parts.push(`"${args.instruction}"`);
 	if (str(args.query)) parts.push(`"${args.query}"`);

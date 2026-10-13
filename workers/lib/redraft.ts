@@ -5,7 +5,7 @@
 /**
  * Redraft: revise an agent draft with a one-off instruction ("shorter",
  * "decline politely"). The model sees the draft, the address's prompt and
- * playbook, and the email it answers after the same injection scan as
+ * the email it answers after the same injection scan as
  * auto-draft. It has no tools: its only output is the new body, which
  * replaces the draft. The instruction is added to the draft's notes.
  */
@@ -16,7 +16,6 @@ import type { MailboxStore } from "../store";
 import { deleteAttachmentFiles } from "./attachments";
 import { splitQuotedBlock } from "./ai";
 import { textToHtml } from "./email-helpers";
-import type { Playbook } from "./playbooks";
 import type { EmailFull } from "./schemas";
 
 export interface RedraftDeps {
@@ -24,7 +23,6 @@ export interface RedraftDeps {
 	bucket: R2Bucket;
 	/** The address's system prompt. */
 	system: string;
-	playbooks: readonly Playbook[];
 	/** One model call: system and prompt in, text out. */
 	write: (system: string, prompt: string) => Promise<string>;
 	/** The same check agent drafts get (verifyDraft). Empty means nothing usable. */
@@ -52,7 +50,7 @@ export function htmlToLines(html: string): string {
 		.trim();
 }
 
-export function redraftPrompt(input: { draft: string; instruction: string; email?: { from: string; subject: string; body: string } | null; playbook?: Playbook | null }): string {
+export function redraftPrompt(input: { draft: string; instruction: string; email?: { from: string; subject: string; body: string } | null }): string {
 	const parts = [`Revise this email draft. Follow the operator's instruction and keep everything else that still fits.
 
 Instruction: ${input.instruction}
@@ -65,9 +63,6 @@ From: ${input.email.from}
 Subject: ${input.email.subject}
 
 ${input.email.body || "(empty)"}`);
-	}
-	if (input.playbook) {
-		parts.push(`The draft follows the playbook "${input.playbook.name}": ${input.playbook.instructions.trim() || "(no instructions)"}`);
 	}
 	parts.push("Reply with only the revised email body, as plain text. No subject line, no commentary, no quoted original.");
 	return parts.join("\n\n");
@@ -102,10 +97,9 @@ export async function redraft(
 	}
 
 	const { reply, quoted } = splitQuotedBlock(draft.body ?? "");
-	const playbook = notes.playbook ? deps.playbooks.find((p) => p.name === notes.playbook) ?? null : null;
 	let text: string;
 	try {
-		text = (await deps.write(deps.system, redraftPrompt({ draft: htmlToLines(reply), instruction: wanted, email, playbook }))).trim();
+		text = (await deps.write(deps.system, redraftPrompt({ draft: htmlToLines(reply), instruction: wanted, email }))).trim();
 	} catch (e) {
 		return { ok: false, status: 502, error: `The model failed: ${(e as Error).message}`.slice(0, 300) };
 	}

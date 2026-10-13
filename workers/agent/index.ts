@@ -49,9 +49,8 @@ import { defineTool, logTools } from "./tool-def";
 import { getSystemPrompt } from "./prompt";
 import { autoDraftPrompt, createAutoDraftTools, prepareAutoDraft } from "./auto-draft";
 import type { AutoDraftTarget, DraftOutcome } from "./runs";
-import { listPlaybooks } from "../lib/playbooks";
 
-const CHAT_NOTES: DraftNotes = { origin: "chat", playbook: null, instructions: [] };
+const CHAT_NOTES: DraftNotes = { origin: "chat", instructions: [] };
 
 /**
  * The chat agent's tools. crossAddress adds tools that search and label across
@@ -421,7 +420,7 @@ export class EmailAgent extends AIChatAgent<any> {
 
 	/**
 	 * Draft a reply to a new email: read it and its thread, scan them, and let
-	 * the model draft with the address's prompt and playbooks. Called by the
+	 * the model draft with the address's prompt. Called by the
 	 * auto-draft queue (./queue.ts); an error result is retried there.
 	 */
 	async handleNewEmail(target: AutoDraftTarget): Promise<DraftOutcome> {
@@ -447,15 +446,14 @@ export class EmailAgent extends AIChatAgent<any> {
 		try {
 			const model = await agentModel(env);
 			const systemPrompt = await getSystemPrompt(env, target.mailboxId);
-			const playbooks = await listPlaybooks(sql, target.mailboxId);
 			let draftId: string | null = null;
 			const tools = logTools(createAutoDraftTools(env, {
 				mailboxId: target.mailboxId,
 				emailId: target.emailId,
 				threadId: target.threadId,
 				to: replyTo,
-			}, context, toolDraftReply, { playbooks, onDraft: (id) => { draftId = id; } }), sql, { actor: "auto-draft", bound: target.mailboxId });
-			const autoPrompt = autoDraftPrompt(target.mailboxId, target.threadId, context, playbooks);
+			}, context, toolDraftReply, { onDraft: (id) => { draftId = id; } }), sql, { actor: "auto-draft", bound: target.mailboxId });
+			const autoPrompt = autoDraftPrompt(target.mailboxId, target.threadId, context);
 
 			// Fresh context for auto-draft: no prior chat history, so old
 			// messages and tool calls don't confuse the model.
@@ -500,7 +498,7 @@ export class EmailAgent extends AIChatAgent<any> {
 						},
 						[],
 					);
-					await stub.setDraftNotes(draftId, { origin: "auto-draft", playbook: null, instructions: [] });
+					await stub.setDraftNotes(draftId, { origin: "auto-draft", instructions: [] });
 				}
 			}
 

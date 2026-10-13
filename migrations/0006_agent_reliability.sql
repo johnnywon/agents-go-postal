@@ -52,25 +52,10 @@ CREATE TABLE agent_activity (
 CREATE INDEX agent_activity_at ON agent_activity (at);
 CREATE INDEX agent_activity_mailbox_at ON agent_activity (mailbox_id, at);
 
--- Drafting playbooks per address (workers/lib/playbooks.ts).
-CREATE TABLE playbooks (
-	id TEXT PRIMARY KEY,
-	mailbox_id TEXT NOT NULL REFERENCES mailboxes(id) ON DELETE CASCADE,
-	name TEXT NOT NULL,
-	when_to_use TEXT NOT NULL DEFAULT '',
-	instructions TEXT NOT NULL DEFAULT '',
-	example_reply TEXT NOT NULL DEFAULT '',
-	position INTEGER NOT NULL DEFAULT 0,
-	created_at TEXT NOT NULL,
-	updated_at TEXT NOT NULL,
-	UNIQUE (mailbox_id, name)
-);
-
 -- How an agent draft was made. Leaves with the draft.
 CREATE TABLE draft_notes (
 	email_id TEXT PRIMARY KEY REFERENCES messages(email_id) ON DELETE CASCADE,
 	origin TEXT NOT NULL,                -- auto-draft | chat | mcp
-	playbook TEXT,                       -- the playbook's name, if one was used
 	instructions TEXT NOT NULL DEFAULT '[]', -- JSON: redraft instructions, oldest first
 	created_at TEXT NOT NULL
 );

@@ -23,7 +23,6 @@ import type { ConsoleTab } from "./console-tabs";
 import { LimitsTab, useAgentLimitsDraft } from "./LimitsTab";
 import { OverviewTab } from "./OverviewTab";
 import { ActivityTab } from "./ActivityTab";
-import { PlaybooksSection } from "./PlaybooksSection";
 import { StorageTab } from "./StorageTab";
 import type { Prefs } from "./prefs";
 import { ShortcutMap } from "./ShortcutMap";
@@ -343,7 +342,6 @@ export function ConsoleModal({ tab, onTab, prefs, setPrefs, addresses, identitie
 							<Setting title="Sending" sub={`The agent sends a draft when you ask it to. Auto-draft only drafts. Agents and MCP clients send up to ${limits.text("agentDay")} messages a day per address, ${limits.text("agentRecipients")} recipients each.`}>
 								<button type="button" className="pg-btn pg-btn-sm" onClick={() => onTab("limits")}>Limits</button>
 							</Setting>
-							{promptFor && <PlaybooksSection address={promptFor} />}
 							{/* TODO(roadmap): rules (Inquiry, Receipts, DMARC, Triage) and per-rule autonomy settings. */}
 						</>
 					)}

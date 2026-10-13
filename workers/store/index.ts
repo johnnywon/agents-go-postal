@@ -28,7 +28,7 @@ export function mailStore(env: Env): MailStore {
 	};
 }
 
-/** The same database, for agent records kept beside the mail: activity, auto-draft runs, playbooks. */
+/** The same database, for agent records kept beside the mail: activity, auto-draft runs, draft notes. */
 export function recordsSql(env: Env): Sql {
 	return d1Sql(env.DB);
 }

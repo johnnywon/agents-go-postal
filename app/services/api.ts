@@ -136,17 +136,6 @@ export interface AutoDraftRun {
 	updatedAt: string;
 }
 
-export interface Playbook {
-	id: string;
-	name: string;
-	whenToUse: string;
-	instructions: string;
-	exampleReply: string;
-	position: number;
-}
-
-export type PlaybookInput = Pick<Playbook, "name"> & Partial<Pick<Playbook, "whenToUse" | "instructions" | "exampleReply" | "position">>;
-
 
 export interface Conversation {
 	thread_key: string;
@@ -431,13 +420,6 @@ const api = {
 		}),
 	getAutoDraftRuns: (mailbox?: string) => get<AutoDraftRun[]>("/api/v1/auto-draft/runs", mailbox ? { params: { mailbox } } : undefined),
 
-	// Playbooks (Console > Drafting)
-	getPlaybooks: (mailboxId: string) => get<Playbook[]>(`/api/v1/mailboxes/${encodeURIComponent(mailboxId)}/playbooks`),
-	createPlaybook: (mailboxId: string, input: PlaybookInput) => post<Playbook>(`/api/v1/mailboxes/${encodeURIComponent(mailboxId)}/playbooks`, input),
-	updatePlaybook: (mailboxId: string, id: string, input: Partial<PlaybookInput>) =>
-		put<Playbook>(`/api/v1/mailboxes/${encodeURIComponent(mailboxId)}/playbooks/${encodeURIComponent(id)}`, input),
-	deletePlaybook: (mailboxId: string, id: string) =>
-		del<{ deleted: boolean }>(`/api/v1/mailboxes/${encodeURIComponent(mailboxId)}/playbooks/${encodeURIComponent(id)}`),
 
 	// Redraft an agent draft with an instruction. The draft is replaced; the reply carries its new id.
 	redraft: (mailboxId: string, draftId: string, instruction: string) =>

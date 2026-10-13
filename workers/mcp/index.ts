@@ -71,7 +71,7 @@ function mcpResult(result: Record<string, unknown>) {
 	return mcpText(result);
 }
 
-const MCP_NOTES: DraftNotes = { origin: "mcp", playbook: null, instructions: [] };
+const MCP_NOTES: DraftNotes = { origin: "mcp", instructions: [] };
 
 /** The result object inside an MCP response, for the activity log. */
 function mcpView(response: { content?: { type: string; text?: string }[]; isError?: boolean }): unknown {

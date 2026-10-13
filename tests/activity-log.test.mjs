@@ -61,9 +61,9 @@ test("agent tools are logged with the bound address", async () => {
 	const tools = logTools({
 		draft_reply: defineTool({ description: "", parameters: { parse: (v) => v }, execute: async () => ({ status: "draft_saved", draftId: "d9" }) }),
 	}, d1.sql, { actor: "auto-draft", bound: MAILBOX });
-	assert.deepEqual(await tools.draft_reply.execute({ subject: "Re: Hi", playbook: "Meetings" }), { status: "draft_saved", draftId: "d9" });
+	assert.deepEqual(await tools.draft_reply.execute({ subject: "Re: Hi" }), { status: "draft_saved", draftId: "d9" });
 	assert.deepEqual(rows(d1), [
-		{ mailbox_id: MAILBOX, actor: "auto-draft", client: null, action: "draft", tool: "draft_reply", target: "d9", summary: "Re: Hi · playbook Meetings", ok: 1 },
+		{ mailbox_id: MAILBOX, actor: "auto-draft", client: null, action: "draft", tool: "draft_reply", target: "d9", summary: "Re: Hi", ok: 1 },
 	]);
 });
 

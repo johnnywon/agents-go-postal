@@ -5,8 +5,6 @@
 /** How an agent draft was made, kept with the draft (draft_notes table). */
 export interface DraftNotes {
 	origin: DraftOrigin;
-	/** The playbook the drafter chose, by name. */
-	playbook: string | null;
 	/** One-off redraft instructions, oldest first. */
 	instructions: string[];
 }

@@ -40,7 +40,6 @@ import { agentOverview } from "./lib/agent-overview";
 import { getSystemPrompt } from "./agent/prompt";
 import { ACTIVITY_ACTORS, listActivity, logged, TOOL_ACTIONS } from "./lib/activity";
 import { verifyDraft } from "./lib/ai";
-import { createPlaybook, deletePlaybook, listPlaybooks, PlaybookBody, updatePlaybook } from "./lib/playbooks";
 import { redraft } from "./lib/redraft";
 import { REDRAFT_INSTRUCTION_MAX } from "../shared/draft-notes";
 
@@ -553,43 +552,17 @@ app.post("/api/v1/mailboxes/:mailboxId/drafts/:id/redraft", async (c: AppContext
 	const parsed = z.object({ instruction: z.string().max(REDRAFT_INSTRUCTION_MAX * 2) }).safeParse(await c.req.json().catch(() => null));
 	if (!parsed.success) return c.json({ error: "Say how to change the draft" }, 400);
 	const sql = recordsSql(c.env);
-	const [system, playbooks, model] = await Promise.all([getSystemPrompt(c.env, mailboxId), listPlaybooks(sql, mailboxId), agentModel(c.env)]);
+	const [system, model] = await Promise.all([getSystemPrompt(c.env, mailboxId), agentModel(c.env)]);
 	const result = await logged(sql, { actor: "chat", bound: mailboxId }, "redraft", { draftId, instruction: parsed.data.instruction }, () =>
 		redraft(c.var.mailbox, mailboxId, draftId, parsed.data.instruction, {
 			ai: c.env.AI,
 			bucket: c.env.BUCKET,
 			system,
-			playbooks,
 			write: async (systemPrompt, prompt) => (await generateText({ model, system: systemPrompt, prompt, maxOutputTokens: 2000 })).text,
 			verify: (text) => verifyDraft(c.env.AI, text),
 		}), (r) => (r.ok ? { draftId: r.draft.id, subject: r.draft.subject } : { error: r.error }));
 	if (!result.ok) return c.json({ error: result.error }, result.status);
 	return c.json({ draft: result.draft, notes: result.notes });
-});
-
-// -- Playbooks (Console > Drafting) ----------------------------------
-
-app.get("/api/v1/mailboxes/:mailboxId/playbooks", async (c: AppContext) =>
-	c.json(await listPlaybooks(recordsSql(c.env), c.req.param("mailboxId")!)));
-
-app.post("/api/v1/mailboxes/:mailboxId/playbooks", async (c: AppContext) => {
-	const parsed = PlaybookBody.safeParse(await c.req.json().catch(() => null));
-	if (!parsed.success) return c.json({ error: parsed.error.issues[0]?.message ?? "Invalid playbook" }, 400);
-	const result = await createPlaybook(recordsSql(c.env), c.req.param("mailboxId")!, parsed.data);
-	return "error" in result ? c.json({ error: result.error }, 400) : c.json(result.playbook, 201);
-});
-
-app.put("/api/v1/mailboxes/:mailboxId/playbooks/:id", async (c: AppContext) => {
-	const parsed = PlaybookBody.partial().safeParse(await c.req.json().catch(() => null));
-	if (!parsed.success) return c.json({ error: parsed.error.issues[0]?.message ?? "Invalid playbook" }, 400);
-	const result = await updatePlaybook(recordsSql(c.env), c.req.param("mailboxId")!, c.req.param("id")!, parsed.data);
-	if ("error" in result) return c.json({ error: result.error }, 400);
-	return result.playbook ? c.json(result.playbook) : c.json({ error: "Not found" }, 404);
-});
-
-app.delete("/api/v1/mailboxes/:mailboxId/playbooks/:id", async (c: AppContext) => {
-	const deleted = await deletePlaybook(recordsSql(c.env), c.req.param("mailboxId")!, c.req.param("id")!);
-	return deleted ? c.json({ deleted: true }) : c.json({ error: "Not found" }, 404);
 });
 
 // -- Scheduled send -------------------------------------------------

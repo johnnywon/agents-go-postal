@@ -125,7 +125,7 @@ export async function toolDraftReply(
 		body: string;
 		isPlainText?: boolean;
 		runVerifyDraft?: boolean;
-		/** Set for agent drafts: who made it and with which playbook. */
+		/** Set for agent drafts: who made it and how it was redrafted. */
 		notes?: DraftNotes;
 	},
 ): Promise<
