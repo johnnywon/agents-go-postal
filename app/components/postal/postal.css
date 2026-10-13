@@ -326,6 +326,10 @@ html:has(.postal), html:has(.postal) body { background: var(--pg-base, #141518);
   background: var(--pg-raised); border-bottom: 1px solid var(--pg-line-2); color: var(--pg-text-6);
 }
 .pg-search[data-suggest="true"] { border-bottom-color: var(--pg-line); }
+/* Focused, the bar and its window lift off the rails beside them: a soft shadow falls left onto the sidebar and right onto the agent panel. */
+.pg-search { transition: box-shadow .15s ease; }
+.pg-search-wrap:focus-within .pg-search { box-shadow: var(--pg-shadow-lift); }
+.pg-search-wrap:focus-within .pg-sw { box-shadow: var(--pg-shadow-lift), var(--pg-shadow-pop); }
 .pg-search > svg.pg-search-icon { flex: none; }
 .pg-search[data-active="true"] > svg.pg-search-icon { color: var(--pg-text-2); }
 .pg-search input {

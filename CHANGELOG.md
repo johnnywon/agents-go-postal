@@ -21,6 +21,7 @@ The reader.
 - Who sent a message and when is now the page's letterhead: name and address over the receiving address on the left, the date over the time on the right, above a hairline. The initial square and the angle brackets are gone.
 - Labels are no longer chips. In the reader they sit on a thin rail across the top of the message, right-aligned over the date; in the list they are tags beside the star, with the name on hover, so a labelled row is no taller than any other.
 - Quoted earlier messages in HTML replies fold behind the `···` toggle, as in text-only mail. Opened, each one sits under a hairline with its sender and date instead of a grey block.
+- Focused search lifts off the page: a soft shadow on both sides of the bar and its window.
 
 No D1 migration.
 

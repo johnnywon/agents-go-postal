@@ -186,6 +186,7 @@ button:disabled {
   --pg-scroll: oklch(0.4 0.035 250);
   --pg-scroll-hover: oklch(0.58 0.08 250);
   --pg-shadow-pop: 0 16px 32px rgba(0, 0, 0, .45);
+  --pg-shadow-lift: -12px 0 22px -6px rgba(0, 0, 0, .6), 12px 0 22px -6px rgba(0, 0, 0, .6);
   --pg-shadow-modal: 0 24px 64px rgba(0, 0, 0, .55);
   --pg-scrim: rgba(6, 7, 8, .64);
 }
@@ -236,6 +237,7 @@ button:disabled {
   --pg-scroll: oklch(0.78 0.03 250);
   --pg-scroll-hover: oklch(0.65 0.07 250);
   --pg-shadow-pop: 0 16px 32px rgba(20, 22, 26, .14);
+  --pg-shadow-lift: -12px 0 22px -6px rgba(20, 22, 26, .16), 12px 0 22px -6px rgba(20, 22, 26, .16);
   --pg-shadow-modal: 0 24px 64px rgba(20, 22, 26, .2);
   --pg-scrim: rgba(20, 22, 26, .32);
 }
