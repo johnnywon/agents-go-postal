@@ -28,7 +28,7 @@ export async function deleteAttachmentFiles(
 }
 
 /**
- * Store base64-encoded attachments to R2 and return metadata for the DO.
+ * Store base64-encoded attachments to R2 and return metadata for the store.
  */
 export async function storeAttachments(
 	bucket: Env["BUCKET"],

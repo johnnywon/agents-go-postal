@@ -158,9 +158,9 @@ export function* snippetsQuery(conversations: Conversation[], filter: MailFilter
 	return out;
 }
 
-/** The filter with its substring matches, on D1. Elsewhere it is unchanged. */
+/** The filter with its substring matches. */
 export function* withSubstrings(filter: MailFilter): Query<MailFilter> {
-	if (filter.engine !== "d1" || !filter.q.trim()) return filter;
+	if (!filter.q.trim()) return filter;
 	const substrings = yield* substringsQuery(filter);
 	return substrings ? { ...filter, substrings } : filter;
 }

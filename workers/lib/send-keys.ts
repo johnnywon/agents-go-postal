@@ -3,7 +3,7 @@
 //     https://opensource.org/licenses/Apache-2.0
 
 /**
- * Idempotency keys for sends, stored in each mailbox's send_keys table. A key
+ * Idempotency keys for sends, stored per mailbox in the send_keys table. A key
  * is claimed before delivery and marked sent once the Sent copy is stored, so
  * a retry with the same key returns the first result instead of sending twice.
  *
@@ -11,7 +11,6 @@
  * A key whose send may have been delivered stays pending: a retry is refused
  * rather than risk a second copy.
  */
-import type { Exec } from "./sql-exec";
 
 export const SEND_KEY_MAX_LENGTH = 200;
 export const SEND_KEY_TTL_MS = 7 * 24 * 60 * 60_000;
@@ -29,22 +28,4 @@ export function checkSendKey(key: string): string | null {
 	if (!key.trim()) return "Idempotency key is empty";
 	if (key.length > SEND_KEY_MAX_LENGTH) return `Idempotency key is longer than ${SEND_KEY_MAX_LENGTH} characters`;
 	return null;
-}
-
-/** Claim a key for a new send, or report what the earlier send with it did. Expired keys are dropped first. */
-export function claimSendKey(exec: Exec, key: string, now = Date.now()): SendKeyClaim {
-	exec(`DELETE FROM send_keys WHERE created_at < ?`, new Date(now - SEND_KEY_TTL_MS).toISOString());
-	const row = exec(`SELECT state, email_id FROM send_keys WHERE key = ?`, key)[0];
-	if (row) return row.state === "sent" ? { state: "sent", id: String(row.email_id) } : { state: "pending" };
-	exec(`INSERT INTO send_keys (key, state, created_at) VALUES (?, 'pending', ?)`, key, new Date(now).toISOString());
-	return { state: "new" };
-}
-
-export function finishSendKey(exec: Exec, key: string, emailId: string): void {
-	exec(`UPDATE send_keys SET state = 'sent', email_id = ? WHERE key = ?`, emailId, key);
-}
-
-/** Free a pending key after a send that never reached delivery. */
-export function releaseSendKey(exec: Exec, key: string): void {
-	exec(`DELETE FROM send_keys WHERE key = ? AND state = 'pending'`, key);
 }

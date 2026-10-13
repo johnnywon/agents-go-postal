@@ -130,7 +130,6 @@ export interface MailPage {
 	order?: "relevance" | "date" | "from" | "subject";
 	/** Too many matches to rank; the list is newest first. `sort:relevance` ranks it anyway. */
 	rankSkipped?: boolean;
-	indexing: { done: number; total: number } | null;
 }
 
 export interface FacetValue {
@@ -229,54 +228,17 @@ export interface FolderImportResult {
 	results: { mailboxId: string; folderId: string; labelId: string; labeled: number; archived: number; error?: string }[];
 }
 
-export interface IndexCounts {
-	states: Record<string, number>;
-	unread: number;
-	starred: number;
-	total: number;
-}
-
-export interface IndexStatusResponse {
+/** Message counts per address (workers/store/d1/status.ts). Unread counts the Inbox only. */
+export interface StorageStatusResponse {
 	messages: number;
-	probe: string | null;
-	job: {
-		generation: number;
-		mailboxes: string[];
-		position: number;
-		startedAt: string;
-		finishedAt: string | null;
-		error: string | null;
-	} | null;
 	mailboxes: {
 		mailboxId: string;
-		error?: string;
-		source?: { mailboxId: string | null; seq: number; pending: number; counts: IndexCounts; inboxConversations: number };
-		index: (IndexCounts & { inboxConversations: number; appliedSeq: number }) | null;
+		states: Record<string, number>;
+		unread: number;
+		starred: number;
+		total: number;
+		inboxConversations: number;
 	}[];
-}
-
-export interface CopyCounts {
-	states: Record<string, { total: number; unread: number; starred: number }>;
-	labels: Record<string, number>;
-	attachments: number;
-	scheduled: number;
-}
-
-/** The one-time copy from the Durable Objects to D1 (workers/store/copy-job.ts). */
-export interface CopyStatusResponse {
-	available: boolean;
-	storage: "d1" | "durable-objects";
-	state: "none" | "copying" | "catching-up" | "ready" | "done";
-	startedAt?: string;
-	finishedAt?: string | null;
-	error?: string | null;
-	mailboxes: { mailboxId: string; total: number; copied: number; pagesDone: boolean }[];
-	parity: {
-		ok: boolean;
-		checkedAt: string;
-		labels: { ok: boolean; source: string[]; d1: string[] };
-		mailboxes: { mailboxId: string; ok: boolean; source: CopyCounts; d1: CopyCounts; pending: number }[];
-	} | null;
 }
 
 export interface AgentModelView {
@@ -401,11 +363,8 @@ const api = {
 	importFoldersDryRun: () => post<FolderImportPlan>("/api/v1/labels/import-folders", { dryRun: true }),
 	importFolders: () => post<FolderImportResult>("/api/v1/labels/import-folders", { dryRun: false, confirm: true }),
 
-	// Mail index
-	getIndexStatus: () => get<IndexStatusResponse>("/api/v1/index/status"),
-	rebuildIndex: () => post<unknown>("/api/v1/index/rebuild"),
-	getCopyStatus: () => get<CopyStatusResponse>("/api/v1/admin/migrate-to-d1"),
-	startCopy: () => post<CopyStatusResponse>("/api/v1/admin/migrate-to-d1", { confirm: true }),
+	// Storage
+	getStorageStatus: () => get<StorageStatusResponse>("/api/v1/storage/status"),
 
 };
 

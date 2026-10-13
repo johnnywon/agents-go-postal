@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { build } from "esbuild";
+import { openD1 } from "./helpers/d1.mjs";
 
 const bundle = await build({
 	entryPoints: ["workers/index.ts"],
@@ -29,32 +30,16 @@ function message() {
 	};
 }
 
-function environment(addresses, mailboxExists = false) {
-	const calls = [];
-	const objects = new Map();
+async function environment(addresses) {
+	const d1 = await openD1();
 	return {
-		calls,
-		env: {
-			EMAIL_ADDRESSES: addresses,
-			BUCKET: {
-				head: async (key) => mailboxExists || objects.has(key) ? {} : null,
-				put: async (key, value) => objects.set(key, value),
-			},
-			MAILBOX: {
-				idFromName: (name) => name,
-				get: (id) => ({
-					setMailboxId: async () => {},
-					hasInboundMessageId: async () => false,
-					findThreadBySubject: async () => null,
-					createEmail: async (_folder, email) => calls.push([id, email.subject]),
-				}),
-			},
-		},
+		env: { EMAIL_ADDRESSES: addresses, BUCKET: { head: async () => ({}) }, DB: d1.DB },
+		stored: async () => Number((await d1.sql.first(`SELECT COUNT(*) AS n FROM messages`)).n),
 	};
 }
 
 test("unknown envelope recipients are rejected before reading the message", async () => {
-	const unconfigured = environment(["allowed@example.com"]);
+	const unconfigured = await environment(["allowed@example.com"]);
 	const unconfiguredMessage = message();
 	const unconfiguredRejections = [];
 	await receiveEmail({
@@ -64,9 +49,9 @@ test("unknown envelope recipients are rejected before reading the message", asyn
 	}, unconfigured.env, { waitUntil: () => {} });
 	assert.deepEqual(unconfiguredRejections, ["Unknown recipient"]);
 	assert.equal(unconfiguredMessage.reads, 0);
-	assert.deepEqual(unconfigured.calls, []);
+	assert.equal(await unconfigured.stored(), 0);
 
-	const missingMailbox = environment([]);
+	const missingMailbox = await environment([]);
 	const missingMailboxMessage = message();
 	const missingMailboxRejections = [];
 	await receiveEmail({
@@ -76,9 +61,9 @@ test("unknown envelope recipients are rejected before reading the message", asyn
 	}, missingMailbox.env, { waitUntil: () => {} });
 	assert.deepEqual(missingMailboxRejections, ["Unknown recipient"]);
 	assert.equal(missingMailboxMessage.reads, 0);
-	assert.deepEqual(missingMailbox.calls, []);
+	assert.equal(await missingMailbox.stored(), 0);
 
-	const configured = environment(["hello@example.com"]);
+	const configured = await environment(["hello@example.com"]);
 	const configuredMessage = message();
 	const configuredRejections = [];
 	await receiveEmail({
@@ -87,5 +72,5 @@ test("unknown envelope recipients are rejected before reading the message", asyn
 		setReject: (reason) => configuredRejections.push(reason),
 	}, configured.env, { waitUntil: () => {} });
 	assert.deepEqual(configuredRejections, []);
-	assert.equal(configured.calls.length, 1);
+	assert.equal(await configured.stored(), 1);
 });

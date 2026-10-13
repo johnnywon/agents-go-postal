@@ -43,9 +43,9 @@ The search bar, the agent's `search_all_mail` and `search_emails`, and the MCP t
 | `larger:` `smaller:` | A size including attachments: `500k`, `5mb` |
 | `list:` | A mailing list id |
 
-Unknown operators are searched as plain words. An operator with a value that doesn't parse, such as `before:soon`, is left out and named in the search bar. `cc:`, `filename:`, `larger:`, `smaller:`, `is:scheduled`, `has:pdf`, `has:image` and `has:link` are not available on the Durable Object store ([Moving to D1](setup.md#moving-to-d1)).
+Unknown operators are searched as plain words. An operator with a value that doesn't parse, such as `before:soon`, is left out and named in the search bar.
 
-On D1, a search with words lists the best match first: subject matches count most, body text least, and near-ties go to newer mail. Each row shows the text around the matched words and how many messages in the conversation matched. `sort:date`, or Newest above the list, puts newest first. Over 20,000 matching messages the list is newest first, since ranking that many takes too long; `sort:relevance` ranks it anyway. A word of three or more letters that matches no word is searched as part of a word in subjects, addresses, attachment names and attachment text, so `7731` finds `XK7731Q`. When nothing matches, the window suggests a spelling. On the Durable Object store results are newest first.
+A search with words lists the best match first: subject matches count most, body text least, and near-ties go to newer mail. Each row shows the text around the matched words and how many messages in the conversation matched. `sort:date`, or Newest above the list, puts newest first. Over 20,000 matching messages the list is newest first, since ranking that many takes too long; `sort:relevance` ranks it anyway. A word of three or more letters that matches no word is searched as part of a word in subjects, addresses, attachment names and attachment text, so `7731` finds `XK7731Q`. When nothing matches, the window suggests a spelling.
 
 With `ATTACHMENT_SEARCH` set to `true`, the text of PDF, Word, Excel, OpenDocument, text and CSV attachments up to 10 MB is searched with the body. The cron converts five files a minute, newest first, with Workers AI `toMarkdown` (text files are read directly) and keeps up to 64 KB of text per file. New mail is searchable as soon as it arrives and its attachments a minute or two later. Mail stored before the setting was on is converted the same way, newest first. When the match is in a file, the row shows the file's name and the text around the match. Turning the setting off stops new conversions; text already converted stays searchable.
 
@@ -58,8 +58,6 @@ When the text reads like a request ("unread newsletters from this week"), the wi
 ## Scheduled send
 
 Choose a time from the arrow next to Send in the compose window. The message is saved to Drafts with a "Scheduled" badge, and a one-minute cron sends it through the normal sending path, up to a minute after its time. Cancel removes the schedule and keeps the draft. Editing or deleting the draft before the send time cancels it. A send that fails is retried every 15 minutes, up to three attempts; after that the draft stays in Drafts marked "Send failed". Attachments count toward a 1.5 MB limit per scheduled message.
-
-On the Durable Object store ([Moving to D1](setup.md#moving-to-d1)), the address's Durable Object sends it with an alarm instead.
 
 ## Agent model
 
@@ -89,6 +87,6 @@ Keys and the pick are stored in R2 at `config/agent-model.json`, which no route 
 ## Stack
 
 - **Frontend:** React 19, React Router v7 (server rendered), Tailwind CSS, TanStack Query, Zustand, TipTap, `@cloudflare/kumo`
-- **Backend:** Hono, Cloudflare Workers, Durable Objects (SQLite), R2, Email Routing, Email Sending
+- **Backend:** Hono, Cloudflare Workers, D1, Durable Objects (agent and MCP sessions), R2, Email Routing, Email Sending
 - **Agent:** Cloudflare Agents SDK, AI SDK v6, Workers AI or OpenRouter (zero data retention)
 - **Auth:** Cloudflare Access JWT validation

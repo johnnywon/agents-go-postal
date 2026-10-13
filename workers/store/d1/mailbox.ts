@@ -3,8 +3,7 @@
 //     https://opensource.org/licenses/Apache-2.0
 
 /**
- * One address's mail on D1, with the same methods and return shapes as
- * MailboxDO. Every query is scoped to the mailbox.
+ * One address's mail on D1. Every query is scoped to the mailbox.
  */
 import { Folders } from "../../../shared/folders";
 import { deleteAttachmentFiles } from "../../lib/attachments";
@@ -318,7 +317,7 @@ export class D1Mailbox {
 	// ── Scheduled send ─────────────────────────────────────────────
 	//
 	// The message waits as a draft; scheduled_sends holds the request. The cron
-	// sends due rows (docs/d1-migration-plan.md, phase 4). Deleting the draft
+	// sends due rows (store/d1/scheduled.ts). Deleting the draft
 	// drops its schedule by foreign key.
 
 	async scheduleSend(input: {

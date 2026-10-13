@@ -4,7 +4,7 @@
 
 /**
  * The one sending path: new mail, replies and forwards from the API routes,
- * and scheduled sends from MailboxDO's alarm.
+ * and scheduled sends from the cron.
  */
 import type { z } from "zod";
 import { sendEmail } from "../email-sender";
@@ -30,7 +30,7 @@ export type SendMode =
 	| { kind: "reply"; originalId: string }
 	| { kind: "forward"; originalId: string };
 
-/** What sending needs from a mailbox: a DO stub, or the MailboxDO itself. */
+/** What sending needs from a mailbox (a `MailboxStore`). */
 export interface SendStub {
 	getEmail(id: string): Promise<unknown>;
 	createEmail(folder: string, email: any, attachments: any[]): Promise<unknown>;

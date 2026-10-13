@@ -48,11 +48,11 @@ const exec = (sql, ...params) => {
 	}
 	return D.exec(sql, ...params);
 };
-const filter = (q, overrides = {}) => idx.emptyFilter({ view: "anywhere", q, engine: "d1", ...overrides });
+const filter = (q, overrides = {}) => idx.emptyFilter({ view: "anywhere", q, ...overrides });
 const list = (q, overrides, options = {}) => idx.runSync(eng.d1MailQuery(filter(q, overrides), { now: NOW, ...options }), exec);
 const ids = (page) => page.conversations.map((c) => c.email_id);
 
-test("searches with words rank by relevance on D1", () => {
+test("searches with words rank by relevance", () => {
 	const page = list("quarterly report");
 	assert.equal(page.order, "relevance");
 	assert.deepEqual(ids(page), ["m2", "m1"], "the subject match beats a newer body match");
@@ -61,7 +61,6 @@ test("searches with words rank by relevance on D1", () => {
 	assert.deepEqual(ids(list("quarterly report", { dir: "asc" })), ["m2", "m1"], "oldest first is a date order");
 	assert.equal(list("quarterly report", { dir: "asc" }).order, "date");
 	assert.equal(list("is:unread").order, "date", "no words, no ranking");
-	assert.equal(idx.queryMail(exec, filter("quarterly", { engine: "index" }), { now: NOW }).order, "date", "the index doesn't rank");
 });
 
 test("a conversation shows its best match and how many messages matched", () => {

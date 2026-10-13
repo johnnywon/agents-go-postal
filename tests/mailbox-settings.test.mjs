@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
+import { openD1 } from "./helpers/d1.mjs";
 import { loadTs } from "./helpers/sqlite.mjs";
 
 const { MailboxSettingsSchema } = await loadTs("workers/lib/schemas.ts");
@@ -61,28 +62,15 @@ test("unknown mailbox setting keys are stripped at each object level", () => {
 
 const { app } = await loadTs("workers/index.ts");
 
-function environment() {
-	const mailboxes = new Map();
-	return {
-		mailboxes,
-		env: {
-			EMAIL_ADDRESSES: ["hello@example.com"],
-			BUCKET: {
-				head: async (key) => mailboxes.has(key) ? {} : null,
-				put: async (key, value) => mailboxes.set(key, value),
-			},
-			MAILBOX: {
-				idFromName: (name) => name,
-				get: () => ({ setMailboxId: async () => {} }),
-			},
-		},
-	};
+async function environment() {
+	const d1 = await openD1();
+	return { d1, env: { EMAIL_ADDRESSES: ["hello@example.com"], BUCKET: { head: async () => ({}) }, DB: d1.DB } };
 }
 
 const jsonHeaders = { "content-type": "application/json", "sec-fetch-site": "same-origin" };
 
 test("mailbox create and update routes return 400 for invalid settings", async () => {
-	const create = environment();
+	const create = await environment();
 	const created = await app.request("http://localhost/api/v1/mailboxes", {
 		method: "POST",
 		headers: jsonHeaders,
@@ -95,8 +83,8 @@ test("mailbox create and update routes return 400 for invalid settings", async (
 	assert.equal(created.status, 400);
 	assert.equal((await created.json()).error, "Invalid email");
 
-	const update = environment();
-	update.mailboxes.set("mailboxes/hello@example.com.json", "{}");
+	const update = await environment();
+	await update.d1.addMailboxes("hello@example.com");
 	const updated = await app.request("http://localhost/api/v1/mailboxes/hello@example.com", {
 		method: "PUT",
 		headers: jsonHeaders,

@@ -3,9 +3,9 @@
 //     https://opensource.org/licenses/Apache-2.0
 
 /**
- * How a message is stored on D1: the row with the index's derived columns,
- * its search rows, and the shape callers get back (today's `emails` row plus
- * attachments, as MailboxDO returns it).
+ * How a message is stored on D1: the row with its derived columns, its
+ * search rows, and the shape callers get back (an `emails` row plus
+ * attachments).
  */
 import { Folders } from "../../../shared/folders";
 import { textKind } from "../../lib/attachment-kind";
@@ -13,7 +13,7 @@ import { htmlToText, listHeaders, parseSender } from "../../lib/message-meta";
 import type { Statement } from "../sql";
 
 export const SYSTEM_FOLDERS: readonly string[] = Object.values(Folders);
-/** Bodies larger than this live in R2 (docs/d1-migration-plan.md, Large bodies). */
+/** Bodies larger than this live in R2 at `bodies/<message id>.html`, so large rows don't slow every read. */
 export const BODY_INLINE_MAX = 512 * 1024;
 const SNIPPET_LENGTH = 200;
 
@@ -45,7 +45,7 @@ export interface AttachmentInput {
 	disposition?: string | null;
 }
 
-/** Same normalization as MailboxDO and the index, in JavaScript. */
+/** Subject normalization for threading, in JavaScript. */
 export function normalizeSubject(subject: string): string {
 	let s = subject.toLowerCase();
 	for (const prefix of ["aw: ", "wg: ", "réf: ", "sv: ", "re: ", "fwd: ", "fw: "]) s = s.split(prefix).join("");
@@ -87,7 +87,7 @@ export function ftsInsert(emailId: string, f: SearchFields): Statement {
 }
 
 /**
- * The conversation a new message joins, as the index computes it: a reply
+ * The conversation a new message joins in the list: a reply
  * draft groups with what it replies to, threaded mail with its thread, and
  * unthreaded mail with the earliest message of the same subject.
  */

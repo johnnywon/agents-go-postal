@@ -26,9 +26,7 @@ import { csrf } from "./lib/csrf";
 import { decodeCursor, InvalidFilterError } from "./lib/mail-index-sql";
 import { parseMailParams } from "./lib/mail-filter-params";
 import { MAX_SEARCH_LENGTH } from "../shared/search-query";
-import { indexedMailboxIds } from "./lib/mail-index-stub";
-import { d1Status, durableObjectInternals, hasD1, mailStore, searchEngine, usesD1 } from "./store";
-import { advanceCopy, copyStartError, copyStatus, mirrorInbound, startCopy } from "./store/copy-job";
+import { mailboxIds, mailStore, storageStatus } from "./store";
 import { MOVE_FOLDERS } from "./lib/mail-bulk-sql";
 import { automatedMailReason } from "./lib/message-meta";
 import { resolveThreadId } from "./lib/threading";
@@ -116,10 +114,9 @@ if (import.meta.env?.DEV) {
 		const { perMailbox = 20 } = (await c.req.json().catch(() => ({}))) as { perMailbox?: number };
 		const senders = ["ann@store.example.com", "billing@code.example.com", "news@letters.example.net", "ops@cloud.example.org", "maria@golf.example.com", "noreply@tracker.example.net"];
 		const subjects = ["Invoice for October", "Your weekly digest", "Tee time confirmed", "Deploy finished", "Re: contract draft", "Security alert"];
-		const ids = await indexedMailboxIds(c.env);
+		const ids = await mailboxIds(c.env);
 		let created = 0;
 		for (const [m, mailboxId] of ids.entries()) {
-			if (!usesD1(c.env)) await durableObjectInternals(c.env).mailbox(mailboxId).setMailboxId(mailboxId);
 			const stub = mailStore(c.env).mailbox(mailboxId);
 			for (let i = 0; i < Math.min(perMailbox, 100); i++) {
 				const id = crypto.randomUUID();
@@ -280,17 +277,17 @@ app.put("/api/v1/mailboxes/:mailboxId", async (c) => {
 	return c.json({ id: mailboxId, name: mailboxId, email: mailboxId, settings });
 });
 
-// -- Unified mail (MailIndexDO) -------------------------------------
+// -- Unified mail --------------------------------------------------
 
-function parseMailRequest(env: Env, url: string) {
-	const parsed = parseMailParams(new URL(url).searchParams, searchEngine(env));
+function parseMailRequest(url: string) {
+	const parsed = parseMailParams(new URL(url).searchParams);
 	if (parsed.cursor) decodeCursor(parsed.cursor);
 	return parsed;
 }
 
 app.get("/api/v1/mail", async (c) => {
 	try {
-		const { filter, cursor, limit } = parseMailRequest(c.env, c.req.url);
+		const { filter, cursor, limit } = parseMailRequest(c.req.url);
 		return c.json(await mailStore(c.env).all().queryMail(filter, { cursor, limit }));
 	} catch (error) {
 		if (error instanceof InvalidFilterError) return c.json({ error: error.message }, 400);
@@ -300,7 +297,7 @@ app.get("/api/v1/mail", async (c) => {
 
 app.get("/api/v1/mail/facets", async (c) => {
 	try {
-		const { filter } = parseMailRequest(c.env, c.req.url);
+		const { filter } = parseMailRequest(c.req.url);
 		return c.json(await mailStore(c.env).all().queryFacets(filter));
 	} catch (error) {
 		if (error instanceof InvalidFilterError) return c.json({ error: error.message }, 400);
@@ -310,8 +307,8 @@ app.get("/api/v1/mail/facets", async (c) => {
 
 /** Scheduled sends across every configured mailbox, soonest first. */
 app.get("/api/v1/mail/scheduled", async (c) => {
-	const mailboxIds = await indexedMailboxIds(c.env);
-	const lists = await Promise.all(mailboxIds.map(async (mailboxId) => {
+	const ids = await mailboxIds(c.env);
+	const lists = await Promise.all(ids.map(async (mailboxId) => {
 		const rows = await mailStore(c.env).mailbox(mailboxId).listScheduled().catch((e) => {
 			console.error(`scheduled list failed for ${mailboxId}:`, (e as Error).message);
 			return [];
@@ -323,43 +320,8 @@ app.get("/api/v1/mail/scheduled", async (c) => {
 
 app.get("/api/v1/mail/folders", async (c) => c.json(await mailStore(c.env).all().folderViews()));
 
-/** Index parity: the index's counts beside each mailbox's own counts. */
-app.get("/api/v1/index/status", async (c) => {
-	if (usesD1(c.env)) return c.json(await d1Status(c.env, await indexedMailboxIds(c.env)));
-	const internals = durableObjectInternals(c.env);
-	const index = internals.index();
-	const [status, mailboxIds] = await Promise.all([index.status(), indexedMailboxIds(c.env)]);
-	const mailboxes = await Promise.all(mailboxIds.map(async (mailboxId) => {
-		try {
-			return { mailboxId, source: await internals.mailbox(mailboxId).indexStatus(), index: status.counts[mailboxId] ?? null };
-		} catch (e) {
-			return { mailboxId, error: (e as Error).message, index: status.counts[mailboxId] ?? null };
-		}
-	}));
-	return c.json({ messages: status.messages, job: status.job, probe: status.probe, mailboxes });
-});
-
-app.post("/api/v1/index/rebuild", async (c) => {
-	if (usesD1(c.env)) return c.json({ error: "D1 keeps one copy of the mail, so there is no separate index to rebuild" }, 409);
-	return c.json(await durableObjectInternals(c.env).index().startRebuild(), 202);
-});
-
-/** The one-time copy to D1: progress and the parity report. */
-app.get("/api/v1/admin/migrate-to-d1", async (c) => {
-	if (!hasD1(c.env)) return c.json({ available: false, storage: "durable-objects", state: "none", mailboxes: [], parity: null });
-	return c.json({ available: true, storage: usesD1(c.env) ? "d1" : "durable-objects", ...(await copyStatus(c.env)) });
-});
-
-/** Start the copy. The cron carries it on; this runs its first slice. */
-app.post("/api/v1/admin/migrate-to-d1", async (c) => {
-	const { confirm } = (await c.req.json().catch(() => ({}))) as { confirm?: unknown };
-	if (confirm !== true) return c.json({ error: "Send { confirm: true } to start the copy" }, 400);
-	const error = await copyStartError(c.env);
-	if (error) return c.json({ error }, 409);
-	await startCopy(c.env);
-	c.executionCtx.waitUntil(advanceCopy(c.env).catch((e) => console.error("copy to D1 failed:", (e as Error).message)));
-	return c.json(await copyStatus(c.env), 202);
-});
+/** Message counts per address, for the Storage page. */
+app.get("/api/v1/storage/status", async (c) => c.json(await storageStatus(c.env, await mailboxIds(c.env))));
 
 // -- Bulk actions ---------------------------------------------------
 
@@ -370,7 +332,7 @@ app.post("/api/v1/mail/bulk", async (c) => {
 	try {
 		const resolved = "threadKeys" in target
 			? { threadKeys: target.threadKeys, view: parseMailParams(new URLSearchParams({ view: target.view })).filter.view }
-			: { filter: parseMailParams(new URLSearchParams(target.filter), searchEngine(c.env)).filter, asOf: target.asOf, expectedCount: target.expectedCount };
+			: { filter: parseMailParams(new URLSearchParams(target.filter)).filter, asOf: target.asOf, expectedCount: target.expectedCount };
 		const result = await mailStore(c.env).all().bulk(resolved, action);
 		if ("conflict" in result) return c.json({ error: "The list changed. Check the selection and try again.", count: result.conflict }, 409);
 		if ("job" in result) return c.json(result.job, 202);
@@ -416,7 +378,7 @@ app.get("/api/v1/search/suggest", async (c) => {
 	url.searchParams.delete("q");
 	const at = Number(url.searchParams.get("at") ?? -1);
 	try {
-		const { filter } = parseMailRequest(c.env, url.toString());
+		const { filter } = parseMailRequest(url.toString());
 		return c.json(await mailStore(c.env).all().suggest(filter, text, Number.isInteger(at) ? at : -1));
 	} catch (error) {
 		if (error instanceof InvalidFilterError) return c.json({ error: error.message }, 400);
@@ -433,10 +395,10 @@ app.post("/api/v1/search/interpret", async (c) => {
 	const body = z.object({ text: z.string().max(MAX_REQUEST_LENGTH * 2), tz: z.number().int().min(-900).max(900).optional() })
 		.safeParse(await c.req.json().catch(() => null));
 	if (!body.success) return c.json({ error: "Invalid request" }, 400);
-	const [labels, addresses, model] = await Promise.all([mailStore(c.env).all().listLabels(), indexedMailboxIds(c.env), quickModel(c.env)]);
+	const [labels, addresses, model] = await Promise.all([mailStore(c.env).all().listLabels(), mailboxIds(c.env), quickModel(c.env)]);
 	const result = await interpretSearch(
 		body.data.text,
-		{ now: new Date(), engine: searchEngine(c.env), tzOffset: body.data.tz ?? 0, labels: labels.map((l) => l.name), addresses },
+		{ now: new Date(), tzOffset: body.data.tz ?? 0, labels: labels.map((l) => l.name), addresses },
 		async (prompt) => (await generateText({ model, prompt, maxOutputTokens: 1500, temperature: 0 })).text,
 	);
 	return c.json(result, "error" in result ? 502 : 200);
@@ -718,11 +680,6 @@ async function receiveEmail(event: { to: string; raw: ReadableStream; rawSize: n
 		thread_id: threadId, message_id: originalMessageId, raw_headers: JSON.stringify(parsedEmail.headers),
 	};
 	await withAttachmentCleanup(() => stub.createEmail(Folders.INBOX, inbound, attachmentData));
-	// For two weeks after the move to D1, the old mailbox gets a copy too (store/copy-job.ts).
-	if (usesD1(env)) {
-		ctx.waitUntil(mirrorInbound(env, mailboxId, Folders.INBOX, inbound, attachmentData)
-			.catch((e) => console.error(`inbound mirror failed for ${messageId}:`, (e as Error).message)));
-	}
 
 	const automated = automatedMailReason(JSON.stringify(parsedEmail.headers), parsedEmail.from?.address);
 	if (String(env.AUTO_DRAFT_ENABLED) === "true" && automated) {

@@ -1,9 +1,11 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { build } from "esbuild";
+import { openD1 } from "./helpers/d1.mjs";
 import { loadTs } from "./helpers/sqlite.mjs";
 
 const { withSecurityHeaders } = await loadTs("workers/lib/security-headers.ts");
+const { D1Mailbox } = await loadTs("workers/store/d1/mailbox.ts");
 
 test("security headers add frame protections and merge the CSP directive", () => {
 	const response = withSecurityHeaders(new Response("ok", {
@@ -50,27 +52,25 @@ const { app: apiApp } = await import(
 	`data:text/javascript;base64,${Buffer.from(apiBundle.outputFiles[0].text).toString("base64")}`
 );
 
-function apiEnvironment() {
-	return {
-		EMAIL_ADDRESSES: ["hello@example.com"],
-		BUCKET: {
-			head: async () => ({}),
-			get: async () => ({ body: new Blob(["attachment"]).stream() }),
-		},
-		MAILBOX: {
-			idFromName: (name) => name,
-			get: () => ({
-				getAttachment: async () => ({ filename: "report.pdf", mimetype: "application/pdf" }),
-			}),
-		},
+async function apiEnvironment() {
+	const d1 = await openD1();
+	const bucket = {
+		head: async () => ({}),
+		put: async () => {},
+		get: async () => ({ body: new Blob(["attachment"]).stream() }),
 	};
+	await new D1Mailbox(d1.sql, bucket, "hello@example.com").createEmail("inbox", {
+		id: "email-id", subject: "Report", sender: "ann@example.net", recipient: "hello@example.com", date: new Date().toISOString(),
+		body: "<p>hi</p>", thread_id: "email-id", message_id: "email-id@example.net", raw_headers: "[]",
+	}, [{ id: "attachment-id", email_id: "email-id", filename: "report.pdf", mimetype: "application/pdf", size: 10, content_id: null, disposition: "attachment" }]);
+	return { EMAIL_ADDRESSES: ["hello@example.com"], BUCKET: bucket, DB: d1.DB };
 }
 
 test("attachment downloads include nosniff and sandbox headers", async () => {
 	const response = await apiApp.request(
 		"http://mail.example.com/api/v1/mailboxes/hello@example.com/emails/email-id/attachments/attachment-id",
 		{},
-		apiEnvironment(),
+		await apiEnvironment(),
 	);
 	assert.equal(response.status, 200);
 	assert.equal(response.headers.get("X-Content-Type-Options"), "nosniff");
@@ -87,7 +87,7 @@ test("production bundles do not grant localhost CORS", async () => {
 				"Access-Control-Request-Method": "GET",
 			},
 		},
-		apiEnvironment(),
+		await apiEnvironment(),
 	);
 	assert.equal(response.headers.get("Access-Control-Allow-Origin"), null);
 });
@@ -112,8 +112,6 @@ const appBundle = await build({
 				"./lib/error-page": "export const errorResponse = () => new Response('error');",
 				"./index": "import { Hono } from 'hono'; export const app = new Hono(); export const receiveEmail = async () => {};",
 				"./mcp": "export class EmailMCP { static serve() { return { fetch: async () => new Response('mcp') }; } }",
-				"./durableObject": "export class MailboxDO {}",
-				"./durableObject/mail-index": "export class MailIndexDO {}",
 				"./agent": "export class EmailAgent {}",
 			};
 			build.onResolve({ filter: /.*/ }, (args) => {

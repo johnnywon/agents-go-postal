@@ -3,8 +3,8 @@
 //     https://opensource.org/licenses/Apache-2.0
 
 /**
- * Scheduled send on D1, run by the one-minute cron. MailboxDO does this with
- * an alarm at the exact time; on D1 a message goes out up to a minute late.
+ * Scheduled send, run by the one-minute cron. A message goes out up to a
+ * minute after its time.
  *
  * Each run claims due rows before sending (claimed_at), so two overlapping
  * runs can't both send one; the `draft:<id>` send key is the second guard.

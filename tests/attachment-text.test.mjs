@@ -106,7 +106,7 @@ function sources(files, convert) {
 	};
 }
 
-const search = (sql, q) => idx.runAsync(eng.d1MailQuery(idx.emptyFilter({ view: "anywhere", q, engine: "d1" }), { now: NOW }), (s, ...p) => sql.all(s, ...p));
+const search = (sql, q) => idx.runAsync(eng.d1MailQuery(idx.emptyFilter({ view: "anywhere", q }), { now: NOW }), (s, ...p) => sql.all(s, ...p));
 const ids = (page) => page.conversations.map((c) => c.email_id);
 
 test("the cron converts queued files and the text becomes searchable", async () => {

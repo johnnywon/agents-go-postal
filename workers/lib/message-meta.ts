@@ -3,13 +3,11 @@
 //     https://opensource.org/licenses/Apache-2.0
 
 /**
- * Pure helpers that turn a stored email into index metadata.
- * Shared by live index pushes and rebuild exports so both produce the same row.
+ * Pure helpers that turn a stored email into the columns the list and search
+ * read: sender parts, list headers, body text.
  */
 
-import { Folders } from "../../shared/folders";
-
-/** Body text is stored only in the full-text index, capped to keep pushes small. */
+/** Body text goes into the word index, capped per message. */
 export const BODY_TEXT_LIMIT = 32 * 1024;
 
 const NAMED_ENTITIES: Record<string, string> = {
@@ -92,11 +90,4 @@ export function automatedMailReason(rawHeaders: string | null | undefined, sende
 	}
 	if (sender && NO_REPLY_SENDER.test(sender.trim())) return `sender ${sender.trim().toLowerCase()}`;
 	return null;
-}
-
-const SYSTEM_STATES = new Set<string>(Object.values(Folders));
-
-/** Index state for a mailbox folder: system folders keep their id, custom folders become `folder:<id>`. */
-export function folderToState(folderId: string): string {
-	return SYSTEM_STATES.has(folderId) ? folderId : `folder:${folderId}`;
 }

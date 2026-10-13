@@ -1,46 +1,52 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { loadTs, openDb } from "./helpers/sqlite.mjs";
+import { openD1 } from "./helpers/d1.mjs";
+import { loadTs } from "./helpers/sqlite.mjs";
 
 const keys = await loadTs("workers/lib/send-keys.ts");
 const { sendMail } = await loadTs("workers/lib/send.ts");
 const { automatedMailReason } = await loadTs("workers/lib/message-meta.ts");
-const { applyMigrations, mailboxMigrations } = await loadTs("workers/durableObject/migrations.ts");
+const { D1Mailbox } = await loadTs("workers/store/d1/mailbox.ts");
 
 const MAILBOX = "a@example.com";
 
-function mailboxDb() {
-	const { exec, transactionSync, sqlStorage } = openDb();
-	applyMigrations(sqlStorage, mailboxMigrations, { transactionSync });
-	return exec;
+async function keyStore(mailboxId = MAILBOX) {
+	const d1 = await openD1();
+	return { d1, box: new D1Mailbox(d1.sql, {}, mailboxId), other: new D1Mailbox(d1.sql, {}, "b@example.org") };
 }
 
 // -- Key table ---------------------------------------------------------
 
-test("a key is claimed once, then reports the send that used it", () => {
-	const exec = mailboxDb();
-	assert.deepEqual(keys.claimSendKey(exec, "k1"), { state: "new" });
-	assert.deepEqual(keys.claimSendKey(exec, "k1"), { state: "pending" });
-	keys.finishSendKey(exec, "k1", "email-1");
-	assert.deepEqual(keys.claimSendKey(exec, "k1"), { state: "sent", id: "email-1" });
+test("a key is claimed once, then reports the send that used it", async () => {
+	const { box } = await keyStore();
+	assert.deepEqual(await box.claimSendKey("k1"), { state: "new" });
+	assert.deepEqual(await box.claimSendKey("k1"), { state: "pending" });
+	await box.finishSendKey("k1", "email-1");
+	assert.deepEqual(await box.claimSendKey("k1"), { state: "sent", id: "email-1" });
 });
 
-test("a released key can be claimed again; a sent key cannot be released", () => {
-	const exec = mailboxDb();
-	keys.claimSendKey(exec, "k1");
-	keys.releaseSendKey(exec, "k1");
-	assert.deepEqual(keys.claimSendKey(exec, "k1"), { state: "new" });
-	keys.finishSendKey(exec, "k1", "email-1");
-	keys.releaseSendKey(exec, "k1");
-	assert.deepEqual(keys.claimSendKey(exec, "k1"), { state: "sent", id: "email-1" });
+test("keys belong to one mailbox", async () => {
+	const { box, other } = await keyStore();
+	await box.claimSendKey("k1");
+	await box.finishSendKey("k1", "email-1");
+	assert.deepEqual(await other.claimSendKey("k1"), { state: "new" });
 });
 
-test("keys expire after a week", () => {
-	const exec = mailboxDb();
-	const start = Date.parse("2026-10-01T00:00:00Z");
-	keys.claimSendKey(exec, "old", start);
-	keys.finishSendKey(exec, "old", "email-1");
-	assert.deepEqual(keys.claimSendKey(exec, "old", start + keys.SEND_KEY_TTL_MS + 1), { state: "new" });
+test("a released key can be claimed again; a sent key cannot be released", async () => {
+	const { box } = await keyStore();
+	await box.claimSendKey("k1");
+	await box.releaseSendKey("k1");
+	assert.deepEqual(await box.claimSendKey("k1"), { state: "new" });
+	await box.finishSendKey("k1", "email-1");
+	await box.releaseSendKey("k1");
+	assert.deepEqual(await box.claimSendKey("k1"), { state: "sent", id: "email-1" });
+});
+
+test("keys expire after a week", async () => {
+	const { d1, box } = await keyStore();
+	const old = new Date(Date.now() - keys.SEND_KEY_TTL_MS - 60_000).toISOString();
+	d1.exec(`INSERT INTO send_keys (mailbox_id, key, state, email_id, created_at) VALUES (?, 'old', 'sent', 'email-1', ?)`, MAILBOX, old);
+	assert.deepEqual(await box.claimSendKey("old"), { state: "new" });
 });
 
 test("checkSendKey refuses empty and overlong keys", () => {
@@ -51,8 +57,8 @@ test("checkSendKey refuses empty and overlong keys", () => {
 
 // -- sendMail with a key -------------------------------------------------
 
-function harness({ rateLimit = null, failDelivery = 0, failStore = 0 } = {}) {
-	const exec = mailboxDb();
+async function harness({ rateLimit = null, failDelivery = 0, failStore = 0 } = {}) {
+	const { box } = await keyStore();
 	const delivered = [];
 	const stored = [];
 	const env = {
@@ -73,17 +79,17 @@ function harness({ rateLimit = null, failDelivery = 0, failStore = 0 } = {}) {
 		},
 		checkSendRateLimit: async () => rateLimit,
 		markThreadRead: async () => {},
-		claimSendKey: async (key) => keys.claimSendKey(exec, key),
-		finishSendKey: async (key, id) => keys.finishSendKey(exec, key, id),
-		releaseSendKey: async (key) => keys.releaseSendKey(exec, key),
+		claimSendKey: (key) => box.claimSendKey(key),
+		finishSendKey: (key, id) => box.finishSendKey(key, id),
+		releaseSendKey: (key) => box.releaseSendKey(key),
 	};
 	const send = (key) =>
 		sendMail(env, MAILBOX, stub, { to: "bob@example.org", from: MAILBOX, subject: "Hi", text: "Hello" }, { kind: "new" }, { idempotencyKey: key });
-	return { send, delivered, stored, exec };
+	return { send, delivered, stored, box };
 }
 
 test("the same key sends once and returns the first send's id", async () => {
-	const h = harness();
+	const h = await harness();
 	const first = await h.send("k1");
 	const second = await h.send("k1");
 	assert.equal(first.ok, true);
@@ -95,20 +101,20 @@ test("the same key sends once and returns the first send's id", async () => {
 });
 
 test("a refused send releases its key", async () => {
-	const h = harness({ rateLimit: "Rate limit exceeded" });
+	const h = await harness({ rateLimit: "Rate limit exceeded" });
 	assert.equal((await h.send("k1")).status, 429);
-	assert.deepEqual(keys.claimSendKey(h.exec, "k1"), { state: "new" });
+	assert.deepEqual(await h.box.claimSendKey("k1"), { state: "new" });
 });
 
 test("a failed delivery releases its key so a retry sends", async () => {
-	const h = harness({ failDelivery: 1 });
+	const h = await harness({ failDelivery: 1 });
 	await assert.rejects(h.send("k1"), /delivery down/);
 	assert.equal((await h.send("k1")).ok, true);
 	assert.equal(h.delivered.length, 1);
 });
 
 test("a send that delivered but did not store keeps its key, and a retry is refused", async () => {
-	const h = harness({ failStore: 1 });
+	const h = await harness({ failStore: 1 });
 	await assert.rejects(h.send("k1"), /storage down/);
 	const retry = await h.send("k1");
 	assert.equal(retry.ok, false);

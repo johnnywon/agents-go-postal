@@ -5,7 +5,7 @@ import { Miniflare } from "miniflare";
 import { statements } from "./helpers/schema.mjs";
 import { D1_SCHEMA } from "./helpers/d1-schema.mjs";
 
-// The one-minute cron sends scheduled mail on D1 (docs/d1-migration-plan.md, phase 4).
+// The one-minute cron sends scheduled mail.
 
 const A = "a@example.com";
 const SCHEMA = D1_SCHEMA;
@@ -52,10 +52,6 @@ async function schedule(subject, sendAt) {
 }
 
 const rows = (sql) => call("rows", sql);
-
-test("the cron does nothing on the Durable Object store", async () => {
-	assert.deepEqual(await call("cronOff"), { copy: "none", skipped: true });
-});
 
 test("a due message sends once, even with two runs at the same time", async () => {
 	const due = await schedule("due", T0 + 60_000);

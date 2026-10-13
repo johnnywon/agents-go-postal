@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { build } from "esbuild";
+import { openD1 } from "./helpers/d1.mjs";
 
 const bundle = await build({
 	entryPoints: ["workers/index.ts"],
@@ -49,11 +50,22 @@ function rawMessage({ messageId = "delivery@example.net", attachment = false } =
 	};
 }
 
-function environment({ failCreate = false } = {}) {
-	const stored = [];
+async function environment({ failCreate = false } = {}) {
+	const d1 = await openD1();
+	await d1.addMailboxes("hello@example.com");
 	const puts = [];
 	const deletes = [];
 	let lookupCount = 0;
+	const DB = {
+		prepare: (text) => {
+			if (/AND message_id = \?/.test(text)) lookupCount++;
+			return d1.DB.prepare(text);
+		},
+		batch: async (list) => {
+			if (failCreate && list.some((s) => /INSERT INTO messages\b/.test(s.text))) throw new Error("store failed");
+			return d1.DB.batch(list);
+		},
+	};
 	const env = {
 		EMAIL_ADDRESSES: ["hello@example.com"],
 		BUCKET: {
@@ -61,21 +73,9 @@ function environment({ failCreate = false } = {}) {
 			put: async (key) => puts.push(key),
 			delete: async (keys) => deletes.push(...(Array.isArray(keys) ? keys : [keys])),
 		},
-		MAILBOX: {
-			idFromName: (name) => name,
-			get: () => ({
-				hasInboundMessageId: async (messageId) => {
-					lookupCount++;
-					return stored.some((email) => email.message_id === messageId && email.folder_id !== "sent" && email.folder_id !== "draft");
-				},
-				findThreadBySubject: async () => null,
-				createEmail: async (folder, email) => {
-					if (failCreate) throw new Error("store failed");
-					stored.push({ ...email, folder_id: folder });
-				},
-			}),
-		},
+		DB,
 	};
+	const stored = async () => Number((await d1.sql.first(`SELECT COUNT(*) AS n FROM messages WHERE folder_id = 'inbox'`)).n);
 	return { env, stored, puts, deletes, get lookupCount() { return lookupCount; } };
 }
 
@@ -84,24 +84,24 @@ async function deliver(env, message = rawMessage()) {
 }
 
 test("duplicate Message-IDs do not create another email or R2 object", async () => {
-	const fixture = environment();
+	const fixture = await environment();
 	await deliver(fixture.env, rawMessage({ attachment: true }));
 	await deliver(fixture.env, rawMessage({ attachment: true }));
-	assert.equal(fixture.stored.length, 1);
+	assert.equal(await fixture.stored(), 1);
 	assert.equal(fixture.puts.length, 1);
 	assert.equal(fixture.deletes.length, 0);
 });
 
 test("messages without a Message-ID are always stored", async () => {
-	const fixture = environment();
+	const fixture = await environment();
 	await deliver(fixture.env, rawMessage({ messageId: null }));
 	await deliver(fixture.env, rawMessage({ messageId: null }));
-	assert.equal(fixture.stored.length, 2);
+	assert.equal(await fixture.stored(), 2);
 	assert.equal(fixture.lookupCount, 0);
 });
 
 test("attachment objects are removed when storing the email fails", async () => {
-	const fixture = environment({ failCreate: true });
+	const fixture = await environment({ failCreate: true });
 	await assert.rejects(deliver(fixture.env, rawMessage({ attachment: true })), /store failed/);
 	assert.equal(fixture.puts.length, 1);
 	assert.deepEqual(fixture.deletes, fixture.puts);

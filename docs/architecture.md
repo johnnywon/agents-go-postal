@@ -5,7 +5,7 @@ How the Worker is put together, what happens when mail arrives and when you send
 ```text
    Sender           You, in a browser    Claude Code, Cursor,   Cron, every
      |                    |              other MCP clients      minute
-     v                    v                    |                  | on D1:
+     v                    v                    |                  |
 +---------------+  +-----------------+         | /mcp             | scheduled
 | Email Routing |  | Cloudflare      |         |                  | sends,
 +---------------+  | Access          |         |                  | attachment
@@ -18,16 +18,16 @@ How the Worker is put together, what happens when mail arrives and when you send
      v                 v                  v                    v
 +-------------+  +-------------+  +----------------+  +---------------+
 | Mail store  |  | R2          |  | Agent          |  | Email Service |
-| D1, or one  |  | attachments,|  | Durable Object |  | send_email    |
-| DO per      |  | large bodies|  +----------------+  +---------------+
-| address     |  | on D1       |          |                    |
-| + an index  |  +-------------+          v                    v
+| D1, one     |  | attachments,|  | Durable Object |  | send_email    |
+| database    |  | large bodies|  +----------------+  +---------------+
+| for every   |  |             |          |                    |
+| address     |  +-------------+          v                    v
 +-------------+                   Workers AI or            Recipient
                                   OpenRouter (zero
                                   data retention)
 ```
 
-Everything runs in one Worker on your account. Mail is stored in D1, one database for every address, which is what a fresh deploy uses. Deployments from before 0.5 can still store it in a Durable Object per address with a combined index until they move ([Moving to D1](setup.md#moving-to-d1)); that store is removed in 0.6. D1 adds attachment search, the `filename:`, `cc:`, `has:pdf`, `has:image`, `has:link` and `is:scheduled` operators, and large bodies in R2, and its cron sends scheduled mail. On Durable Objects, each mailbox's own alarm sends its scheduled mail.
+Everything runs in one Worker on your account. Mail is stored in D1, one database for every address, with attachments and bodies over 512 KB in R2. A one-minute cron sends scheduled mail and, with `ATTACHMENT_SEARCH` on, makes attachment text searchable. Before 0.5, mail was stored in a Durable Object per address with a combined index; 0.6 removed that store ([Upgrading from Durable Object storage](setup.md#upgrading-from-durable-object-storage)).
 
 What happens when a message arrives:
 
@@ -66,7 +66,7 @@ Worker
   6. The Sent copy ------> Mail store
 ```
 
-A scheduled send waits in the store until its time. On D1 the cron sends it; on Durable Objects the mailbox's alarm does. Either way it runs these same steps.
+A scheduled send waits in the store until its time. The cron sends it through these same steps.
 
 ## For developers
 

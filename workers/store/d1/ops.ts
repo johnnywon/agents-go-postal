@@ -3,14 +3,14 @@
 //     https://opensource.org/licenses/Apache-2.0
 
 /**
- * Apply planned bulk ops (mail-bulk-sql.ts) on D1. MailboxDO applies the same
- * ops one mailbox at a time; here every op is one statement on `messages`,
- * scoped to its mailbox. A failing mailbox is reported and the rest still run,
- * as MailIndexDO does.
+ * Apply planned bulk ops (mail-bulk-sql.ts) on D1. Every op is one statement
+ * on `messages`, scoped to its mailbox. A failing mailbox is reported and the
+ * rest still run.
  */
 import { Folders } from "../../../shared/folders";
 import type { BulkOp } from "../../lib/mail-bulk-sql";
 import type { Sql } from "../sql";
+import type { BulkFailure } from "../types";
 import { SYSTEM_FOLDERS } from "./rows";
 
 export interface PurgedFile {
@@ -20,7 +20,7 @@ export interface PurgedFile {
 
 export interface OpsResult {
 	affected: number;
-	failed: { mailboxId: string; error: string }[];
+	failed: BulkFailure[];
 	/** R2 keys of purged mail (attachments and large bodies), for the caller to delete. */
 	purged: string[];
 }

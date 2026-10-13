@@ -4,9 +4,7 @@
 
 /**
  * Compiles a SearchQuery (shared/search-query.ts) to WHERE clauses over
- * `messages m`. The same SQL runs on the combined index (MailIndexDO) and on
- * D1, whose tables share the column names. A few operators need tables only
- * D1 has; on the index they are an error.
+ * `messages m` on D1.
  *
  * Every word, phrase and text operator goes into one FTS5 expression, so a
  * statement never holds more than one MATCH. Phase 0 found that two MATCHes
@@ -14,8 +12,6 @@
  * the database; tests/search-compile.test.mjs checks every statement.
  */
 import { type DateValue, IN_VALUES, type Leaf, type SearchQuery, type Term } from "../../shared/search-query";
-
-export type SearchEngine = "index" | "d1";
 
 export interface Clause {
 	sql: string;
@@ -93,25 +89,22 @@ export function resolveDate(value: DateValue, now: number, tzOffset: number): st
 
 type Compiled = { fts: string } | { sql: Clause } | { error: string } | null;
 
-const D1_ONLY = "works once mail is stored in D1";
-
-function compileLeaf(leaf: Leaf, engine: SearchEngine, now: number, tzOffset: number): Compiled {
+function compileLeaf(leaf: Leaf, now: number, tzOffset: number): Compiled {
 	const fts = (expr: string | null): Compiled => (expr ? { fts: expr } : null);
 	const sql = (text: string, ...params: unknown[]): Compiled => ({ sql: { sql: text, params } });
-	const d1 = (label: string, build: () => Compiled): Compiled => (engine === "d1" ? build() : { error: `${label} ${D1_ONLY}` });
 	switch (leaf.type) {
 		case "word": return fts(textLeaf(leaf.text, false, ""));
 		case "phrase": return fts(textLeaf(leaf.text, true, ""));
 		case "date": return sql(`m.date ${leaf.op === "before" ? "<" : ">="} ?`, resolveDate(leaf.value, now, tzOffset));
-		case "size": return d1(`${leaf.op}:`, () => sql(`m.size ${leaf.op === "larger" ? ">" : "<"} ?`, leaf.bytes));
+		case "size": return sql(`m.size ${leaf.op === "larger" ? ">" : "<"} ?`, leaf.bytes);
 	}
 	const { value } = leaf;
 	switch (leaf.op) {
 		case "subject": return fts(textLeaf(value, leaf.phrase, "subject : "));
 		case "from": return fts(personLeaf(value, leaf.phrase, "{sender_name sender_addr}", "sender_addr"));
 		case "to": return fts(personLeaf(value, leaf.phrase, "recipients", "recipients"));
-		case "filename": return d1("filename:", () => fts(textLeaf(value, leaf.phrase, "attachment_names : ")));
-		case "cc": return d1("cc:", () => sql(`instr(lower(COALESCE(m.cc, '')), ?) > 0`, value.replace(/^@/, "")));
+		case "filename": return fts(textLeaf(value, leaf.phrase, "attachment_names : "));
+		case "cc": return sql(`instr(lower(COALESCE(m.cc, '')), ?) > 0`, value.replace(/^@/, ""));
 		case "list": return sql(`instr(lower(COALESCE(m.list_id, '')), ?) > 0`, value);
 		case "label": {
 			const v = value.toLowerCase();
@@ -120,7 +113,6 @@ function compileLeaf(leaf: Leaf, engine: SearchEngine, now: number, tzOffset: nu
 		case "in": {
 			const view = value === "draft" ? "drafts" : value;
 			if ((IN_VALUES as readonly string[]).includes(view)) return { sql: viewClause(view)! };
-			if (engine === "index") return sql(`m.state = ?`, `folder:${value}`);
 			return sql(
 				`m.state IN (SELECT 'folder:' || f.id FROM folders f WHERE f.mailbox_id = m.mailbox_id AND (f.id = ? OR lower(f.name) = ?))`,
 				value, value,
@@ -131,7 +123,7 @@ function compileLeaf(leaf: Leaf, engine: SearchEngine, now: number, tzOffset: nu
 				case "unread": return sql(`m.unread = 1`);
 				case "read": return sql(`m.unread = 0`);
 				case "starred": return sql(`m.starred = 1`);
-				case "scheduled": return d1("is:scheduled", () => sql(`m.email_id IN (SELECT email_id FROM scheduled_sends)`));
+				case "scheduled": return sql(`m.email_id IN (SELECT email_id FROM scheduled_sends)`);
 				case "replied":
 					// A later message sent in the same conversation.
 					return sql(`m.state != 'sent' AND EXISTS (SELECT 1 FROM messages r WHERE r.thread_key = m.thread_key AND r.state = 'sent' AND r.deleted = 0 AND r.date > m.date)`);
@@ -143,12 +135,12 @@ function compileLeaf(leaf: Leaf, engine: SearchEngine, now: number, tzOffset: nu
 				case "unsubscribe": return sql(`m.unsubscribe IS NOT NULL`);
 				case "draft": return sql(`EXISTS (SELECT 1 FROM messages d WHERE d.thread_key = m.thread_key AND d.state = 'draft' AND d.deleted = 0)`);
 				case "pdf":
-					return d1("has:pdf", () => sql(`EXISTS (SELECT 1 FROM attachments a WHERE a.email_id = m.email_id AND (a.mimetype = 'application/pdf' OR lower(a.filename) LIKE '%.pdf'))`));
+					return sql(`EXISTS (SELECT 1 FROM attachments a WHERE a.email_id = m.email_id AND (a.mimetype = 'application/pdf' OR lower(a.filename) LIKE '%.pdf'))`);
 				case "image":
-					return d1("has:image", () => sql(`EXISTS (SELECT 1 FROM attachments a WHERE a.email_id = m.email_id AND a.mimetype LIKE 'image/%' AND COALESCE(a.disposition, 'attachment') != 'inline')`));
+					return sql(`EXISTS (SELECT 1 FROM attachments a WHERE a.email_id = m.email_id AND a.mimetype LIKE 'image/%' AND COALESCE(a.disposition, 'attachment') != 'inline')`);
 				case "link":
 					// Set when mail is stored (migrations/0002_has_link.sql); older mail is checked by the cron.
-					return d1("has:link", () => sql(`m.has_link = 1`));
+					return sql(`m.has_link = 1`);
 			}
 			break;
 	}
@@ -158,7 +150,6 @@ function compileLeaf(leaf: Leaf, engine: SearchEngine, now: number, tzOffset: nu
 const or = (list: string[]) => (list.length === 1 ? list[0] : `(${list.join(" OR ")})`);
 
 export interface CompileOptions {
-	engine: SearchEngine;
 	now: number;
 	tzOffset: number;
 	/** Match only the newest this-many messages, for facet counts over broad words. */
@@ -189,7 +180,7 @@ export function compileSearch(query: Pick<SearchQuery, "terms" | "errors">, opti
 			clauses.push({ sql: `m.id IN (SELECT value FROM json_each(?))`, params: [JSON.stringify(ids)] });
 			continue;
 		}
-		const parts = term.any.map((leaf) => compileLeaf(leaf, options.engine, options.now, options.tzOffset));
+		const parts = term.any.map((leaf) => compileLeaf(leaf, options.now, options.tzOffset));
 		const failed = parts.find((p): p is { error: string } => !!p && "error" in p);
 		if (failed) {
 			errors.push(failed.error);
