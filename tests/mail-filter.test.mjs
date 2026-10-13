@@ -51,6 +51,8 @@ test("open param round trip", () => {
 	assert.deepEqual(f.parseOpen(P("open=Billing@Example.org:abc-1")), { mailboxId: "billing@example.org", emailId: "abc-1" });
 	assert.equal(f.parseOpen(P("open=nocolon")), null);
 	assert.equal(f.toSearch(f.parseFilter(P("view=sent")), { mailboxId: "a@x.example.org", emailId: "e1" }), "?view=sent&open=a%40x.example.org%3Ae1");
+	assert.equal(f.toSearch(f.parseFilter(P("view=inbox")), null, "from:ann "), "?view=inbox&search=from%3Aann+");
+	assert.equal(f.toSearch(f.parseFilter(P("view=inbox")), null, "  "), "?view=inbox");
 });
 
 test("search text: operators become chips, in: sets the view, the rest is text", () => {

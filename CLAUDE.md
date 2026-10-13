@@ -12,6 +12,8 @@ Self-hosted multi-address email on Cloudflare Workers. React Router v7 UI in `ap
 
 `DESIGN.md` is the design system. `tests/design-rules.test.mjs` enforces the checkable rules (single 6px radius, no accent stripes or edge bars). The mail view lives in `app/components/postal/` with its styles in `postal.css`. The settings pages' tokens and surfaces are in `app/index.css`.
 
+Browser agents (Aside, gstack browse, Playwright) and screen readers read the accessibility tree. `tests/agent-readable.test.mjs` keeps clickable things as buttons or links, views and conversations as links to their URL, and accessible names free of ": ".
+
 ## Keyboard shortcuts
 
 Every shortcut lives in `shared/shortcuts.ts`; nothing else names a key. To add one: an entry in `SHORTCUTS` (id, group, label, keys, scope, `area` for the ? map, `primary` for an all-day key), its action in the `actions` map in `PostalMail.tsx` (typecheck fails without it), and a button title from `useShortcuts().tip(id, label)`. `tests/shortcuts.test.mjs` checks defaults don't clash. Users and agents rebind keys at runtime through prefs (`shortcuts`), Settings > Shortcuts, or the `set_shortcut` tool.

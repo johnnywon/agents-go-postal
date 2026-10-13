@@ -2,6 +2,22 @@
 
 Versions follow [semantic versioning](https://semver.org). Before 1.0, a minor version can break things. Each entry names any new D1 migration. `npm run deploy` applies it; if you deploy another way, run `wrangler d1 migrations apply DB --remote` before you deploy that version.
 
+## 0.7.5
+
+Readable to browser agents.
+
+Agents that drive a browser, such as Aside, gstack browse, Playwright and Claude in Chrome, read the accessibility tree, as screen readers do. Snapshots of 0.7.4 in Aside and gstack browse showed what they missed.
+
+- Each conversation in the list is a list item, and its subject links to it (`?view=…&open=…`). A row used to be one button labelled "Sender: Subject", which hid its date, preview and labels from Playwright snapshots, and gstack browse dropped every row: Playwright quotes a name containing ": " and gstack skips quoted lines. The whole row still opens the conversation, and Cmd or Ctrl-click on the subject opens it in a new tab.
+- Views in the sidebar and the rail are links to their URL: folders, addresses, labels and saved searches. Addresses carry their whole address and unread count ("hello@example.com, 15 unread"). The sidebar shortens them, so "support@example" didn't say which domain.
+- Text-only mail sits on the page instead of in the message frame, in the same serif. Some agents can't read inside a frame. The app writes that HTML from escaped text and sanitises it again. Mail that arrives as HTML stays in the sandboxed frame.
+- The letterhead names its parts for agents and screen readers: From, to, and Received or Sent. Nothing changes on screen.
+- The Reply bar was a clickable box with the Draft reply button inside it. They are two buttons side by side now.
+- Agent chat is a log, and each turn says who said it: You or Agent.
+- `tests/agent-readable.test.mjs` keeps it this way: no `role="button"`, no accessible names joined with ": ", rows and views as links, text-only mail on the page and chat turns labelled.
+
+No D1 migration.
+
 ## 0.7.4
 
 The reader.

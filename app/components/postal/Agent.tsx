@@ -195,7 +195,7 @@ function AgentChat({ hooks, open, reading, prefill, onOpenDraft, onBusy }: Agent
 					</button>
 				)}
 			</div>
-			<div className="pg-agent-scroll" ref={scrollRef} aria-live="polite">
+			<div className="pg-agent-scroll" ref={scrollRef} role="log" aria-label="Agent chat">
 				{messages.length === 0 ? (
 					<div className="pg-agent-empty">
 						<p>Ask about your mail. The agent reads, searches, labels, drafts and sends.</p>
@@ -264,7 +264,7 @@ function AgentChat({ hooks, open, reading, prefill, onOpenDraft, onBusy }: Agent
 function ChatMessage({ message, onOpenDraft }: { message: UIMessage; onOpenDraft: (mailboxId: string, draftId: string) => void }) {
 	if (message.role === "user") {
 		const text = message.parts.map((p) => (p.type === "text" ? p.text : "")).join("");
-		return <div className="pg-agent-q">{text}</div>;
+		return <div className="pg-agent-q" role="article" aria-label="You">{text}</div>;
 	}
 	const drafts: { mailboxId: string; draftId: string }[] = [];
 	const out: React.ReactNode[] = [];
@@ -303,7 +303,8 @@ function ChatMessage({ message, onOpenDraft }: { message: UIMessage; onOpenDraft
 			</div>,
 		);
 	}
-	return <>{out}</>;
+	if (!out.length) return null;
+	return <div className="pg-agent-turn" role="article" aria-label="Agent">{out}</div>;
 }
 
 /** Messages you sent, oldest first, without repeats in a row or auto-triggered entries. */

@@ -3,7 +3,7 @@
 //     https://opensource.org/licenses/Apache-2.0
 
 import DOMPurify from "dompurify";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 
 interface EmailIframeProps {
 	body: string;
@@ -62,6 +62,84 @@ const QUOTE = ".gmail_quote, .gmail_quote_container, blockquote[type='cite'], .y
 /** The "On … wrote:" line heading each folded earlier message. */
 const ATTRIBUTION = ".omr-quote .omr-attr, .omr-quote .gmail_attr, .omr-quote .gmail_quote > p:first-child";
 
+/**
+ * The mail body, sanitised and ready to show: links open in a new tab, blocked remote images become
+ * their alt text, quoted history folds and each "On … wrote:" line is tidied. Needs a DOM.
+ */
+export function prepareMailBody(body: string, { remoteImages, frame }: { remoteImages: boolean; frame: boolean }): HTMLDivElement {
+	const cleanBody = document.createElement("div");
+	cleanBody.appendChild(
+		DOMPurify.sanitize(body, {
+			USE_PROFILES: { html: true },
+			FORBID_TAGS: ["style"],
+			ADD_ATTR: ["target"],
+			FORCE_BODY: true,
+			RETURN_DOM_FRAGMENT: true,
+		}),
+	);
+
+	// Never let a destination replace the message or the inbox. Normalize
+	// explicit targets too; a default <base target> would not override them.
+	for (const link of cleanBody.querySelectorAll("a[href], area[href]")) {
+		const href = link.getAttribute("href")!.trim();
+		const isFragment = frame && href.startsWith("#");
+		// srcdoc inherits the inbox's base URL, so bare fragments would
+		// otherwise load the inbox inside the message frame.
+		if (isFragment) link.setAttribute("href", `about:srcdoc${href}`);
+		link.setAttribute("target", isFragment ? "_self" : "_blank");
+		link.setAttribute("rel", "noopener noreferrer");
+	}
+
+	// A blocked remote image would draw the browser's broken-image icon. Show
+	// its alt text in a quiet box instead, and drop tracking pixels outright.
+	if (!remoteImages) {
+		for (const img of cleanBody.querySelectorAll("img")) {
+			if (!/^\s*(?:https?:)?\/\//i.test(img.getAttribute("src") ?? "")) continue;
+			const w = Number.parseInt(img.getAttribute("width") ?? "", 10);
+			const h = Number.parseInt(img.getAttribute("height") ?? "", 10);
+			const alt = (img.getAttribute("alt") ?? "").trim();
+			if ((w <= 2 || h <= 2) || (!alt && !(w > 0 && h > 0))) {
+				img.remove();
+				continue;
+			}
+			const box = document.createElement("span");
+			box.className = "omr-img-off";
+			box.textContent = alt;
+			if (w > 0) box.style.width = `${w}px`;
+			if (h > 0) box.style.minHeight = `${Math.min(h, 160)}px`;
+			img.replaceWith(box);
+		}
+	}
+
+	// Earlier messages in a reply fold behind the same toggle as text-only mail.
+	// Only the outermost quote folds; the ones inside it open with it.
+	for (const quote of cleanBody.querySelectorAll<HTMLElement>(QUOTE)) {
+		if (quote.parentElement?.closest(`${QUOTE}, .omr-quote`)) continue;
+		const fold = document.createElement("details");
+		fold.className = "omr-quote";
+		const toggle = document.createElement("summary");
+		toggle.setAttribute("aria-label", "Show quoted text");
+		toggle.textContent = "···";
+		quote.replaceWith(fold);
+		fold.appendChild(toggle);
+		fold.appendChild(quote);
+	}
+
+	// Each earlier message's "On <date>, <name> <address> wrote:" line becomes the name, then the date.
+	for (const line of cleanBody.querySelectorAll<HTMLElement>(ATTRIBUTION)) {
+		const m = line.textContent?.replace(/\s+/g, " ").match(/^\s*On (.+?\d(?: ?[AP]M)?),? (?:at )?([^,<]+?) ?<([^>]+)> wrote:\s*$/i);
+		if (!m) continue;
+		const name = document.createElement("b");
+		name.textContent = m[2];
+		name.title = m[3];
+		const when = document.createElement("span");
+		when.textContent = m[1];
+		line.replaceChildren(name, " ", when);
+	}
+
+	return cleanBody;
+}
+
 export default function EmailIframe({ body, autoSize, remoteImages = true, padding: paddingProp, palette }: EmailIframeProps) {
 	const iframeRef = useRef<HTMLIFrameElement>(null);
 	const [height, setHeight] = useState(autoSize ? 100 : 0);
@@ -94,75 +172,7 @@ export default function EmailIframe({ body, autoSize, remoteImages = true, paddi
 		const iframe = iframeRef.current;
 		if (!iframe) return;
 
-		const cleanBody = document.createElement("div");
-		cleanBody.appendChild(
-			DOMPurify.sanitize(body, {
-				USE_PROFILES: { html: true },
-				FORBID_TAGS: ["style"],
-				ADD_ATTR: ["target"],
-				FORCE_BODY: true,
-				RETURN_DOM_FRAGMENT: true,
-			}),
-		);
-
-		// Never let a destination replace the message or the inbox. Normalize
-		// explicit targets too; a default <base target> would not override them.
-		for (const link of cleanBody.querySelectorAll("a[href], area[href]")) {
-			const href = link.getAttribute("href")!.trim();
-			const isFragment = href.startsWith("#");
-			// srcdoc inherits the inbox's base URL, so bare fragments would
-			// otherwise load the inbox inside the message frame.
-			if (isFragment) link.setAttribute("href", `about:srcdoc${href}`);
-			link.setAttribute("target", isFragment ? "_self" : "_blank");
-			link.setAttribute("rel", "noopener noreferrer");
-		}
-
-		// A blocked remote image would draw the browser's broken-image icon. Show
-		// its alt text in a quiet box instead, and drop tracking pixels outright.
-		if (!remoteImages) {
-			for (const img of cleanBody.querySelectorAll("img")) {
-				if (!/^\s*(?:https?:)?\/\//i.test(img.getAttribute("src") ?? "")) continue;
-				const w = Number.parseInt(img.getAttribute("width") ?? "", 10);
-				const h = Number.parseInt(img.getAttribute("height") ?? "", 10);
-				const alt = (img.getAttribute("alt") ?? "").trim();
-				if ((w <= 2 || h <= 2) || (!alt && !(w > 0 && h > 0))) {
-					img.remove();
-					continue;
-				}
-				const box = document.createElement("span");
-				box.className = "omr-img-off";
-				box.textContent = alt;
-				if (w > 0) box.style.width = `${w}px`;
-				if (h > 0) box.style.minHeight = `${Math.min(h, 160)}px`;
-				img.replaceWith(box);
-			}
-		}
-
-		// Earlier messages in a reply fold behind the same toggle as text-only mail.
-		// Only the outermost quote folds; the ones inside it open with it.
-		for (const quote of cleanBody.querySelectorAll<HTMLElement>(QUOTE)) {
-			if (quote.parentElement?.closest(`${QUOTE}, .omr-quote`)) continue;
-			const fold = document.createElement("details");
-			fold.className = "omr-quote";
-			const toggle = document.createElement("summary");
-			toggle.setAttribute("aria-label", "Show quoted text");
-			toggle.textContent = "···";
-			quote.replaceWith(fold);
-			fold.appendChild(toggle);
-			fold.appendChild(quote);
-		}
-
-		// Each earlier message's "On <date>, <name> <address> wrote:" line becomes the name, then the date.
-		for (const line of cleanBody.querySelectorAll<HTMLElement>(ATTRIBUTION)) {
-			const m = line.textContent?.replace(/\s+/g, " ").match(/^\s*On (.+?\d(?: ?[AP]M)?),? (?:at )?([^,<]+?) ?<([^>]+)> wrote:\s*$/i);
-			if (!m) continue;
-			const name = document.createElement("b");
-			name.textContent = m[2];
-			name.title = m[3];
-			const when = document.createElement("span");
-			when.textContent = m[1];
-			line.replaceChildren(name, " ", when);
-		}
+		const cleanBody = prepareMailBody(body, { remoteImages, frame: true });
 
 		const padding = `${paddingProp ?? (autoSize ? 0 : 24)}px`;
 
@@ -305,4 +315,17 @@ hr { border: 0; border-top: 1px solid ${palette.line}; }
 			title="Email content"
 		/>
 	);
+}
+
+/**
+ * Text-only mail on the page instead of in a frame. Its HTML comes from plainTextToHtml, which escapes
+ * the sender's text, and is sanitised again here. Agents and screen readers read it with the rest of the
+ * page; mail that arrives as HTML always stays in the sandboxed frame.
+ */
+export function MailText({ body }: { body: string }) {
+	const ref = useRef<HTMLDivElement>(null);
+	useLayoutEffect(() => {
+		ref.current?.replaceChildren(...prepareMailBody(body, { remoteImages: false, frame: false }).childNodes);
+	}, [body]);
+	return <div ref={ref} className="pg-mail-text" />;
 }

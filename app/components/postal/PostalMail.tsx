@@ -653,6 +653,7 @@ function PostalApp({ addresses, domains, autoDraft }: PostalProps) {
 								filter={filter}
 								go={go}
 								searching={searching}
+								search={debounced}
 								allUnread={counts.unread}
 								unreadByAddress={unreadByAddress}
 								onNew={() => openCompose()}

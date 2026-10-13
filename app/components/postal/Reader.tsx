@@ -8,7 +8,7 @@ import {
 import { AgentIcon } from "./AgentIcon";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Folders } from "shared/folders";
-import EmailIframe, { type EmailPalette, hasRemoteImages, isPlainHtml } from "~/components/EmailIframe";
+import EmailIframe, { type EmailPalette, hasRemoteImages, isPlainHtml, MailText } from "~/components/EmailIframe";
 import { isHtmlBody, plainTextToHtml } from "~/components/plain-text";
 import { getAttachmentUrl, getNonInlineAttachments, rewriteInlineImages } from "~/lib/utils";
 import { useEmail, useMarkThreadRead, useThreadReplies } from "~/queries/emails";
@@ -156,7 +156,7 @@ export function Reader(props: ReaderProps) {
 		<header className="pg-mhead">
 			<div className="pg-mhead-who">
 				<div className="pg-mhead-from">
-					{sent && <span className="pg-mhead-word">To</span>}
+					{sent ? <span className="pg-mhead-word">To</span> : <span className="pg-sr">From</span>}
 					<span className="pg-mhead-name" title={senderName}>{senderName}</span>
 					{senderAddr && senderAddr.toLowerCase() !== senderName.toLowerCase() && <span className="pg-mhead-addr" title={senderAddr}>{senderAddr}</span>}
 				</div>
@@ -179,10 +179,13 @@ export function Reader(props: ReaderProps) {
 				</div>
 			</div>
 			{when[0] && (
-				<time className="pg-mhead-when" dateTime={head?.date ?? row?.date}>
-					<span>{when[0]}</span>
-					<span>{when[1]}</span>
-				</time>
+				<>
+					<span className="pg-sr">{sent ? "Sent" : "Received"}</span>
+					<time className="pg-mhead-when" dateTime={head?.date ?? row?.date}>
+						<span>{when[0]}</span>
+						<span>{when[1]}</span>
+					</time>
+				</>
 			)}
 		</header>
 		</>
@@ -266,17 +269,17 @@ export function Reader(props: ReaderProps) {
 						/>
 					) : (
 						original && (
-							<div className="pg-reply-bar" role="button" tabIndex={0} onClick={() => reply("reply")} onKeyDown={(e) => e.key === "Enter" && reply("reply")}>
-								<ArrowBendUpLeftIcon size={16} style={{ flex: "none" }} />
-								<span className="pg-flex pg-ellipsis">Reply to {nameFromHeaders(original.raw_headers, original.sender)}</span>
+							// Two buttons side by side: Reply fills the bar, Draft reply sits at its end.
+							<div className="pg-reply-bar">
+								<button type="button" className="pg-reply-main" onClick={() => reply("reply")}>
+									<ArrowBendUpLeftIcon size={16} style={{ flex: "none" }} />
+									<span className="pg-flex pg-ellipsis">Reply to {nameFromHeaders(original.raw_headers, original.sender)}</span>
+								</button>
 								<button
 									type="button"
 									className="pg-btn pg-btn-agent"
 									title="Draft reply · The agent writes a first draft. Nothing is sent."
-									onClick={(e) => {
-										e.stopPropagation();
-										props.startReply("reply", original, undefined, true);
-									}}
+									onClick={() => props.startReply("reply", original, undefined, true)}
 								>
 									<AgentIcon size={14} weight="fill" />Draft reply
 								</button>
@@ -328,12 +331,14 @@ function Message({ head, email, mailboxId, images, onShowImages }: {
 	onShowImages: () => void;
 }) {
 	const raw = email.body || "";
-	const html = isHtmlBody(raw) ? raw : plainTextToHtml(raw);
+	// Text-only mail becomes HTML the app writes from escaped text, so it can sit on the page where every agent reads it.
+	const text = !isHtmlBody(raw);
+	const html = text ? plainTextToHtml(raw) : raw;
 	const body = rewriteInlineImages(html, mailboxId, email.id, email.attachments);
 	const remote = hasRemoteImages(body);
 	const frameRef = useRef<HTMLDivElement>(null);
 	const palette = useReaderPalette(frameRef);
-	const plain = isPlainHtml(body);
+	const plain = text || isPlainHtml(body);
 	const attachments = getNonInlineAttachments(email.attachments);
 	return (
 		<>
@@ -348,7 +353,9 @@ function Message({ head, email, mailboxId, images, onShowImages }: {
 						<button type="button" className="pg-images-show" onClick={onShowImages}>Show images</button>
 					</div>
 				)}
-				{(!plain || palette) && (
+				{text ? (
+					<MailText body={body} />
+				) : (!plain || palette) && (
 					<EmailIframe autoSize body={body} remoteImages={images} padding={plain ? 0 : 24} palette={plain ? palette : undefined} />
 				)}
 				{attachments.length > 0 && (

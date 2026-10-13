@@ -11,7 +11,7 @@ import { Fragment, useEffect, useRef, useState } from "react";
 import type { MailFilter } from "~/lib/mail-filter";
 import type { Conversation, Label, MailFacets, ScheduledSend } from "~/services/api";
 import { AddressText, type Identities, LabelTag, Swatch } from "./identity";
-import { VIEW_LABELS } from "~/lib/mail-filter";
+import { toSearch, VIEW_LABELS } from "~/lib/mail-filter";
 import { ADDRESS_FOLDERS, ALL_FOLDERS, AllAddressesIcon, InboxIcon, VIEW_ICONS } from "./NavIcons";
 import { Keys, useShortcuts } from "./shortcuts";
 import { marks, snippetMarkup } from "./search-window";
@@ -22,6 +22,8 @@ export interface ListPaneProps {
 	filter: MailFilter;
 	go: (filter: MailFilter) => void;
 	searching: boolean;
+	/** The search in the URL, kept in each row's link. */
+	search: string;
 	allUnread?: number;
 	unreadByAddress: ReadonlyMap<string, number>;
 	onNew: () => void;
@@ -149,7 +151,7 @@ export function ListPane(props: ListPaneProps) {
 	return (
 		<section className="pg-list-col" aria-label="Conversations">
 			<div className="pg-list-head">
-				<button type="button" className="pg-scope-btn" onClick={() => setScopeOpen((v) => !v)} title={`Switch address · ${scope ?? "All addresses"}`} aria-label={`Address: ${scope ?? "All addresses"}`} aria-expanded={scopeOpen} aria-haspopup="listbox">
+				<button type="button" className="pg-scope-btn" onClick={() => setScopeOpen((v) => !v)} title={`Switch address · ${scope ?? "All addresses"}`} aria-label={`Address, ${scope ?? "All addresses"}`} aria-expanded={scopeOpen} aria-haspopup="listbox">
 					<span className="pg-scope-icon">{scopeIcon}</span>
 					<CaretDownIcon size={10} weight="bold" color="var(--pg-text-6)" style={{ flex: "none" }} />
 				</button>
@@ -346,7 +348,8 @@ export function ListPane(props: ListPaneProps) {
 						</button>
 					</div>
 				)}
-				{!props.loading && rows.map((row) => {
+				{/* Each conversation is a list item whose subject links to it, so agents read its parts and its URL. The whole row still opens it. */}
+				{!props.loading && rows.length > 0 && <div role="list">{rows.map((row) => {
 					const day = dayKey(row.date);
 					const dayStart = day !== lastDay;
 					const gap = groupByDay && dayStart && lastDay !== null;
@@ -355,26 +358,26 @@ export function ListPane(props: ListPaneProps) {
 					const sched = row.state === "draft" ? props.scheduled.get(row.email_id) : undefined;
 					const identity = identities.of(row.mailbox_id);
 					const rowLabels = row.labels.map((id) => props.labelsById.get(id)).filter((l): l is Label => !!l);
+					const unread = row.unread && row.state !== "draft";
+					const open = (e: React.MouseEvent) => {
+						if (e.shiftKey && selecting) props.onCheck(row, true);
+						else props.onOpen(row);
+					};
 					return (
 						<Fragment key={row.thread_key}>
 							{gap && <div className="pg-gap" aria-hidden />}
 							<div
 								className="pg-row"
-								role="button"
-								tabIndex={0}
+								role="listitem"
 								data-key={row.thread_key}
-								data-unread={row.unread && row.state !== "draft"}
+								data-unread={unread}
 								data-checked={checked || undefined}
 								aria-current={props.currentKey === row.thread_key || undefined}
-								aria-label={`${row.unread ? "Unread. " : ""}${row.sender_name || row.sender_addr}: ${row.subject || "(no subject)"}`}
 								onClick={(e) => {
-									if (e.shiftKey && selecting) props.onCheck(row, true);
-									else props.onOpen(row);
-								}}
-								onKeyDown={(e) => {
-									if (e.key === "Enter" && e.target === e.currentTarget) props.onOpen(row);
+									if (!(e.target as Element).closest("a, button")) open(e);
 								}}
 							>
+								{unread && <span className="pg-sr">Unread</span>}
 								<div className="pg-row-when">
 									<span className={groupByDay && dayStart ? "pg-day-first" : undefined}>{dayLabel(row.date)}</span>
 									<span>{timeLabel(row.date)}</span>
@@ -384,7 +387,7 @@ export function ListPane(props: ListPaneProps) {
 										{row.starred && <StarIcon size={12} weight="fill" className="pg-star" aria-label="Starred" />}
 										{row.has_attachment && <PaperclipIcon size={12} aria-label="Attachment" />}
 										{rowLabels.map((l) => (
-											<span key={l.id} className="pg-row-label" title={l.name} aria-label={`Label: ${l.name}`}><LabelTag id={l.id} size={12} /></span>
+											<span key={l.id} className="pg-row-label" title={l.name} role="img" aria-label={`${l.name} label`}><LabelTag id={l.id} size={12} /></span>
 										))}
 									</div>
 								</div>
@@ -398,7 +401,20 @@ export function ListPane(props: ListPaneProps) {
 										</div>
 									)}
 									<div className="pg-row-sender">{row.state === "draft" ? "Draft" : row.sender_name || row.sender_addr}</div>
-									<div className="pg-row-subject"><Highlighted text={row.subject || "(no subject)"} terms={props.terms} /></div>
+									<div className="pg-row-subject">
+										<a
+											className="pg-row-link"
+											href={toSearch(filter, { mailboxId: row.mailbox_id, emailId: row.email_id }, props.search)}
+											onClick={(e) => {
+												// Cmd or Ctrl opens it in a new tab like any link.
+												if (e.metaKey || e.ctrlKey || e.altKey) return;
+												e.preventDefault();
+												open(e);
+											}}
+										>
+											<Highlighted text={row.subject || "(no subject)"} terms={props.terms} />
+										</a>
+									</div>
 									{snippetMarkup(row.snippet_html) !== null
 										? <div className="pg-row-preview" dangerouslySetInnerHTML={{ __html: snippetMarkup(row.snippet_html)! }} />
 										: row.snippet && <div className="pg-row-preview"><Highlighted text={row.snippet} terms={props.terms} /></div>}
@@ -442,7 +458,7 @@ export function ListPane(props: ListPaneProps) {
 							</div>
 						</Fragment>
 					);
-				})}
+				})}</div>}
 				{props.hasNextPage && <div ref={sentinel} className="pg-more">{props.fetchingNext ? <span className="pg-count">Loading…</span> : null}</div>}
 				{selecting && (
 					<div className="pg-bulk">
