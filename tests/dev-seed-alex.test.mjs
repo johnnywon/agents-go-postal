@@ -4,7 +4,7 @@ import { readFileSync } from "node:fs";
 import { test } from "node:test";
 import { loadTs } from "./helpers/sqlite.mjs";
 
-// The Alex profile (workers/lib/dev-seed/alex): 47 messages in seven mailboxes,
+// The Alex profile (workers/lib/dev-seed/alex): 100 messages in nine mailboxes,
 // checked as plain data against the story's fixed facts.
 
 const { buildAlex, ALEX_ADDRESSES, ALEX_LABELS, ALEX_PREFIX } = await loadTs("workers/lib/dev-seed/alex/index.ts");
@@ -189,6 +189,15 @@ test("on a later date the whole story moves in whole weeks, keeping weekdays and
 		}
 		const recovery = own(later.messages.find((m) => m.key === "O-07").html);
 		assert.ok(recovery.includes(later.clock.long(later.clock.at("2026-10-09T02:36"))), "dates in bodies move too");
+		if (shift) {
+			// Every written date moves: none reads the same as it does in the unmoved story.
+			const dates = (m) => (m.subject + " " + own(m.html)).match(/\b(?:January|February|March|April|May|June|July|August|September|October|November|December|Jan|Feb|Mar|Apr|Jun|Jul|Aug|Sep|Sept|Oct|Nov|Dec) \d{1,2}\b|\b[Tt]he \d{1,2}(?:st|nd|rd|th)\b|\b\d{4}-\d{2}-\d{2}\b/g) ?? [];
+			for (const m of later.messages) {
+				const was = dates(byKey.get(m.key));
+				const stuck = dates(m).filter((d, i) => d === was[i]);
+				assert.deepEqual(stuck, [], `${m.key} has dates that did not move`);
+			}
+		}
 	}
 	assert.equal(new StoryClock(Date.UTC(2027, 3, 1)).shiftDays % 364, 0, "out of season it moves by 52 weeks");
 });

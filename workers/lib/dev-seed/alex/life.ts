@@ -94,19 +94,19 @@ Alex`),
 			], { band: "#2447E8", rule: "#E9E8F8" })],
 			html: human(`Hi Alex,
 
-Here's the plan we talked through on Friday, with the five milestones and who owns what. The one date we can't move is the content freeze on the 16th; our fall campaign goes out the week after.
+Here's the plan we talked through on Friday, with the five milestones and who owns what. The one date we can't move is the content freeze on the ${c.nth("2026-10-16")}; our fall campaign goes out the week after.
 
-Can you check the staging date? You said the 7th was tight.
+Can you check the staging date? You said the ${c.nth("2026-10-07")} was tight.
 
 Mara`, SIGNERS.mara),
 		},
 		{
 			key: "A-14", box: "personal", folder: "sent", at: "2026-09-29T11:55", from: alex("personal"), to: [P.mara],
 			subject: "Re: Migration plan for the Westhaven site", read: true, labels: ["Clients"], thread: "A-13", replyTo: "A-13",
-			quote: "Can you check the staging date? You said the 7th was tight.",
+			quote: `Can you check the staging date? You said the ${c.nth("2026-10-07")} was tight.`,
 			html: prose(`Hi Mara,
 
-The plan looks right. I'll send you the redirect list on Thursday. The 7th works for staging if you can sign it off by the 2nd; if that slips, staging slips by the same number of days, and the review with it.
+The plan looks right. I'll send you the redirect list on Thursday. The ${c.nth("2026-10-07")} works for staging if you can sign it off by the ${c.nth("2026-10-02")}; if that slips, staging slips by the same number of days, and the review with it.
 
 Alex`),
 		},
@@ -225,7 +225,7 @@ Kai`, kai),
 				{ t: `${SHIRTS.count} shirts x ${money(SHIRTS.each)}: ${money(SHIRTS.count * SHIRTS.each)}`, gap: 6 },
 				{ t: `Screen setup: ${money(SHIRTS.setup)}` },
 				{ t: `Total: ${money(shirtTotal())}`, bold: true },
-				{ t: "Approve by Thursday to print in time for the 17th.", gap: 10 },
+				{ t: `Approve by Thursday to print in time for the ${c.nth("2026-10-17")}.`, gap: 10 },
 			], { band: "#1B1B1F", rule: "#E2DCCF" })],
 			html: human(`Hi Alex,
 
@@ -381,7 +381,7 @@ Grace`, grace),
 				["date", "item", "type", "amount_usd", "running_balance_usd"],
 				[c.iso("2026-09-24"), "Hudson Valley Community Fund grant", "income", CLUB_BOOKS.grant.toFixed(2), CLUB_BOOKS.grant.toFixed(2)],
 				[c.iso("2026-10-08"), "Snacks for the fall session", "expense", (-CLUB_BOOKS.snacks).toFixed(2), (CLUB_BOOKS.grant - CLUB_BOOKS.snacks).toFixed(2)],
-				[c.iso("2026-10-10"), "Donations through the payment link, Sep 21 to Oct 10", "income", CLUB_BOOKS.donations.toFixed(2), clubBalance().toFixed(2)],
+				[c.iso("2026-10-10"), `Donations through the payment link, ${c.short("2026-09-21")} to ${c.short("2026-10-10")}`, "income", CLUB_BOOKS.donations.toFixed(2), clubBalance().toFixed(2)],
 				[c.iso("2026-10-14"), `Second Byte quote SB-2207, ${LAPTOPS.count} Chromebooks (for approval)`, "committed", (-laptopTotal()).toFixed(2), clubAfterLaptops().toFixed(2)],
 			])],
 			html: human(`Hi Grace,

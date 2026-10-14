@@ -197,17 +197,17 @@ Three frames: the hero for the getting-started page, a small "how a lookup works
 
 Two questions:
 
-- Should the freshness badge show a date ("Sep 28") or a status ("Fresh")? I lean towards the date; it's what Priya's field actually says.
+- Should the freshness badge show a date ("${c.short("2026-09-28")}") or a status ("Fresh")? I lean towards the date; it's what Priya's field actually says.
 - Do you want Claude, ChatGPT and Cursor named in the diagram, or a generic "your assistant"?
 
-No rush, but I'd like to finish by the 9th 🙂
+No rush, but I'd like to finish by the ${c.nth("2026-10-09")} 🙂
 
 Rae`, SIGNERS.rae),
 		},
 		{
 			key: "P-08", box: "partners", folder: "sent", at: "2026-10-02T13:20", from: alex("partners"), to: [P.rae],
 			subject: "Re: Docs illustrations, first pass 🎨", read: true, labels: ["Design"], thread: "P-07", replyTo: "P-07",
-			quote: "Should the freshness badge show a date (\"Sep 28\") or a status (\"Fresh\")?",
+			quote: `Should the freshness badge show a date ("${c.short("2026-09-28")}") or a status ("Fresh")?`,
 			html: human(`Hi Rae,
 
 These are good. The lookup diagram explains the product better than my README does.
@@ -216,7 +216,7 @@ The date, please. A status would claim more than we know.
 
 Name the clients in the diagram: Claude, ChatGPT, Cursor and Codex. People look for their own tool first.
 
-The 9th works.
+The ${c.nth("2026-10-09")} works.
 
 Alex`),
 		},
@@ -236,9 +236,9 @@ ${button("figma", "Open in Figma", figmaFile)}`,
 			key: "P-10", box: "partners", folder: "inbox", at: "2026-10-07T15:12", from: P.figma, to: [alex("partners")],
 			subject: "Rae Collins mentioned you in “Partwell docs illustrations”", read: false, labels: ["Design"], thread: "P-10", auto: true,
 			html: mail("figma", {
-				preheader: "@Alex Should the badge say “Updated Sep 28” or just “Sep 28”?",
+				preheader: `@Alex Should the badge say “Updated ${c.short("2026-09-28")}” or just “${c.short("2026-09-28")}”?`,
 				heading: "Rae Collins mentioned you",
-				body: `<table cellpadding="0" cellspacing="0" role="presentation" style="margin:4px 0 16px"><tr><td style="vertical-align:top;padding-right:10px">${logo("rae-collins", 32, 32)}</td><td style="font-size:14px;line-height:22px"><strong>Rae Collins</strong> <span style="color:#757575">on Freshness badge</span><br>@Alex Should the badge say “Updated Sep 28” or just “Sep 28”? The shorter one fits on the mobile part card.</td></tr></table>
+				body: `<table cellpadding="0" cellspacing="0" role="presentation" style="margin:4px 0 16px"><tr><td style="vertical-align:top;padding-right:10px">${logo("rae-collins", 32, 32)}</td><td style="font-size:14px;line-height:22px"><strong>Rae Collins</strong> <span style="color:#757575">on Freshness badge</span><br>@Alex Should the badge say “Updated ${c.short("2026-09-28")}” or just “${c.short("2026-09-28")}”? The shorter one fits on the mobile part card.</td></tr></table>
 ${button("figma", "Reply in Figma", `${figmaFile}?comment=freshness-badge`)}`,
 				footer: "Figma · You're receiving this because you were mentioned.",
 			}),
@@ -420,10 +420,10 @@ ${button("supabase", "View project", "https://supabase.com/dashboard/project/par
 		},
 		{
 			key: "O-20", box: "ops", folder: "inbox", at: "2026-10-10T16:45", from: P.notes, to: [box("ops")],
-			subject: "Priya Shah shared “Oct 8 incident review” with you", read: true, labels: ["Incident"], thread: "O-20", auto: true,
+			subject: `Priya Shah shared “${c.short("2026-10-08")} incident review” with you`, read: true, labels: ["Incident"], thread: "O-20", auto: true,
 			html: mail("notes", {
 				preheader: "Timeline, what we change, and the next Cedar stage.",
-				heading: "Oct 8 incident review",
+				heading: `${c.short("2026-10-08")} incident review`,
 				body: `${para("notes", "<strong>Priya Shah</strong> shared a note with you.", "color:#6B7280")}
 <div style="margin:0 0 16px;padding:14px 16px;border:1px solid #E3E5E8;border-radius:8px;font-size:14px;line-height:22px">
 <strong>Timeline</strong><br>23:37 latency alert · 23:38 throttling · 00:09 case DB-4821 opened · 00:41 first customer report · 02:36 recovered<br><br>

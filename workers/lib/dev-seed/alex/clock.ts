@@ -96,6 +96,13 @@ export class StoryClock {
 		return this.day(local).replace(/^(\w{3})\w*/, "$1");
 	}
 
+	/** "9th", for "the 9th" */
+	nth(local: string | number): string {
+		const d = zoned(typeof local === "number" ? local : this.at(local)).d;
+		const s = d % 10 === 1 && d !== 11 ? "st" : d % 10 === 2 && d !== 12 ? "nd" : d % 10 === 3 && d !== 13 ? "rd" : "th";
+		return `${d}${s}`;
+	}
+
 	/** "2026-10-09", for files. */
 	iso(local: string | number): string {
 		const p = zoned(typeof local === "number" ? local : this.at(local));
