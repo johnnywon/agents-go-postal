@@ -104,7 +104,7 @@ ${para("buildnotes", '<a href="https://buildnotes.news/112/hookline" style="colo
 ${h3("3. Quietcron: notice the job that didn't run", "Georgia,serif")}
 ${para("buildnotes", "Most monitoring tells you when a scheduled job fails. Quietcron tells you when it never started: each job pings a URL when it finishes, and you hear about it when the ping is late. Setup is one line at the end of a script.")}
 ${para("buildnotes", '<a href="https://buildnotes.news/112/quietcron" style="color:#A74C2B;text-decoration:underline">The full write-up</a>')}
-${para("buildnotes", "If you run a small API that deserves a mention, reply to this email with a link and one sentence about who uses it. I read every reply, usually with the coffee pictured above.")}
+${para("buildnotes", "If you run a small API that deserves a mention, reply to this email with a link and one sentence about who uses it. I read every reply, usually over coffee.")}
 ${para("buildnotes", "Rosa Lind<br>Editor, Build Notes")}`,
 				footer: `Build Notes is written by Rosa Lind for developers who run small things. <a href="https://buildnotes.news/preferences" style="color:#6E6A60">Email preferences</a> · <a href="https://buildnotes.news/unsubscribe?list=small-apis" style="color:#6E6A60">Unsubscribe</a> · <a href="https://buildnotes.news/archive" style="color:#6E6A60">Past issues</a>`,
 			}),

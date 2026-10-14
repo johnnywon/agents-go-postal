@@ -291,7 +291,7 @@ test("photos are the verified files, shown inline by content id and credited", (
 	}
 	assert.deepEqual(used, { keyboard: ["A-03"], "food-burrito": ["A-04", "A-05"], coffee: ["H-03"], "football-stadium": ["L-01", "L-06"] });
 	assert.deepEqual(byKey.get("A-03").attachments.filter((a) => !a.contentId).map((a) => a.filename), ["keyboard.jpg"]);
-	assert.deepEqual(byKey.get("A-06").attachments.map((a) => [a.filename, a.mimetype]), [["flat-white.jpg", "image/jpeg"]]);
+	assert.deepEqual(byKey.get("A-06").attachments.map((a) => [a.filename, a.mimetype]), [["coffee.jpg", "image/jpeg"]]);
 	assert.match(byKey.get("A-04").html, /creativecommons\.org\/licenses\/by-sa\/4\.0/, "the CC BY-SA photo links its license");
 });
 

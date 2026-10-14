@@ -99,7 +99,7 @@ Not built in this pass: brand boards, avatars in the inbox list, and a preview g
 | O-21 | cedar-rollout-summary.pdf | application/pdf |
 | A-03 | keyboard.jpg | image/jpeg |
 | A-05 | UE-73419-receipt.pdf | application/pdf |
-| A-06 | flat-white.jpg (the coffee photo) | image/jpeg |
+| A-06 | coffee.jpg | image/jpeg |
 | A-13 | westhaven-migration-plan.pdf | application/pdf |
 | BAND-04 | setlist-v2.txt | text/plain |
 | BAND-06 | late-commits-tee-proof.pdf | application/pdf |

@@ -213,12 +213,12 @@ ${para("ubereats", "Your receipt is attached as a PDF.", "margin-top:14px")}`,
 		{
 			key: "A-06", box: "personal", folder: "inbox", at: "2026-10-10T11:22", from: P.maya, to: [box("personal")],
 			subject: "Coffee tomorrow if you've finished saving the internet?", read: false, labels: ["Personal"], thread: "A-06",
-			attachments: [photoFile("coffee", "flat-white.jpg")],
+			attachments: [photoFile("coffee", "coffee.jpg")],
 			html: prose(`Alex!
 
 Priya says you were up until three on Thursday night fixing the internet. Hero behavior, terrible sleep schedule.
 
-Coffee tomorrow? I'm thinking 10:30 at Larch & Pine on Fulton Street, the one with the window seats. My treat if you promise to check your phone no more than twice. Attached: proof that their flat white is worth getting out of bed for.
+Coffee tomorrow? I'm thinking 10:30 at Larch & Pine on Fulton Street, the one with the window seats. My treat if you promise to check your phone no more than twice. Attached: a picture of coffee, in case you need a reason to get out of bed.
 
 Also, congratulations in advance on losing to Jordan this week.
 
