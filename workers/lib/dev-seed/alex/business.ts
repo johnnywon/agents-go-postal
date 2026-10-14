@@ -251,7 +251,7 @@ Alex`, SIGNERS.alexSupport),
 			subject: "Slow responses tonight — is Partwell down?", read: true, labels: ["Incident", "Resolved"], thread: "SUP-06",
 			html: human(`Hi Alex,
 
-Our catalog sync started timing out around 11:40. About one request in five hits our 10-second timeout, mostly on \`/v1/parts/{id}\`. The rest succeed but take 3 to 6 seconds instead of the usual 200 ms.
+Our catalog sync started timing out around 11:40. A few requests a minute hit our 10-second timeout, mostly on \`/v1/parts/{id}\`. The rest succeed but take 3 to 6 seconds instead of the usual 200 ms.
 
 The data we do get back looks fine. Is something going on? The sync can wait until morning if needed; I just want to know whether to pause it.
 
@@ -267,7 +267,7 @@ Sorry for the slow night. Here is what happened.
 
 From 11:37 pm a customer rollout sent about twenty times our normal evening traffic, and parallel lookups with immediate retries multiplied it. Database connections ran out, so single-part reads (\`/v1/parts/{id}\`) queued and some passed your 10-second timeout. Search was slower but mostly completed. No data was lost or changed; the failed requests never ran.
 
-Recovery was recorded at 2:36 am. We added caching for repeated reads, and the customer has lowered their concurrency. Each API key is now limited to 20 concurrent requests. Your sync normally uses 4, so it shouldn't notice.
+Recovery was recorded at 2:36 am. We added caching for repeated reads, and the customer has lowered their concurrency. For now, each API key is limited to 20 concurrent requests while we watch the next few days. Your sync normally uses 4, so it shouldn't notice.
 
 Please go ahead and restart the sync. If you see timeouts or any 429 responses, reply here and I'll raise your limit straight away.
 

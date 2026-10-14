@@ -427,7 +427,7 @@ ${button("supabase", "View project", "https://supabase.com/dashboard/project/par
 				body: `${para("notes", "<strong>Priya Shah</strong> shared a note with you.", "color:#6B7280")}
 <div style="margin:0 0 16px;padding:14px 16px;border:1px solid #E3E5E8;border-radius:8px;font-size:14px;line-height:22px">
 <strong>Timeline</strong><br>23:37 latency alert · 23:38 throttling · 00:09 case DB-4821 opened · 00:41 first customer report · 02:36 recovered<br><br>
-<strong>What we change</strong><br>Read cache stays on. Per-key concurrency limit of 20. Status page update within 10 minutes of an alert.<br><br>
+<strong>What we change</strong><br>Read cache stays on. Per-key concurrency limit of 20 until the next Cedar stage runs cleanly. Status page update within 10 minutes of an alert.<br><br>
 <strong>Next rollout</strong><br>Cedar: 5 → 15 stores on Tuesday. Client cap 8 or 16: decision needed by Monday.</div>
 ${button("notes", "Open note", "https://notes.partwell.dev/workspace/partwell/oct-8-incident-review")}`,
 				footer: "Notes · notes.partwell.dev",
