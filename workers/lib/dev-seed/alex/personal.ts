@@ -263,11 +263,9 @@ function league(c: StoryClock): Slot[] {
 			key: "L-01", box: "league", folder: "inbox", at: "2026-09-22T18:40", from: P.jordan, to: everyone,
 			subject: "Sunday Deploy League: you're in 🏈", read: true, starred: true, labels: ["Fantasy"], thread: "L-01",
 			attachments: [photoPart("football-stadium", "sundaydeployleague.com")],
-			html: `${photo("football-stadium", "sundaydeployleague.com", "A college football game seen from the stands", "Illustrative college football photo", 180)}<div style="height:12px"></div>${prose(`WELCOME TO THE SUNDAY DEPLOY LEAGUE 🏈🎉🚀
+			html: `${prose(`WELCOME TO THE SUNDAY DEPLOY LEAGUE 🏈🎉🚀
 
-Eight teams, half-PPR, head-to-head, and absolutely zero mercy 😤🔥
-
-The teams:
+Eight teams, half-PPR, head-to-head, and absolutely zero mercy 😤🔥`)}${photo("football-stadium", "sundaydeployleague.com", "A college football game seen from the stands", "Illustrative college football photo", 180)}<div style="height:12px"></div>${prose(`The teams:
 
 - ${TEAMS.alex} (Alex)
 - ${TEAMS.priya} (Priya)

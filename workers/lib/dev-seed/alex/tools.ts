@@ -422,7 +422,7 @@ ${button("supabase", "View project", "https://supabase.com/dashboard/project/par
 			key: "O-20", box: "ops", folder: "inbox", at: "2026-10-10T16:45", from: P.notes, to: [box("ops")],
 			subject: "Priya Shah shared “Oct 8 incident review” with you", read: true, labels: ["Incident"], thread: "O-20", auto: true,
 			html: mail("notes", {
-				preheader: "Timeline, what worked, what we change, and the next Cedar stage.",
+				preheader: "Timeline, what we change, and the next Cedar stage.",
 				heading: "Oct 8 incident review",
 				body: `${para("notes", "<strong>Priya Shah</strong> shared a note with you.", "color:#6B7280")}
 <div style="margin:0 0 16px;padding:14px 16px;border:1px solid #E3E5E8;border-radius:8px;font-size:14px;line-height:22px">
