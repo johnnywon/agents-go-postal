@@ -31,7 +31,7 @@ Every message has a fixed time in New York, written against the story's own "now
 | alex@riverbendcode.org | 8 | 3 | 3 | 1 | 1 | | | RCC-07 |
 | Total | 100 | 29 | 50 | 15 | 3 | 2 | 1 | 12 |
 
-Drafts: B-06 (expenses for Tess), A-08 (rescheduling Mara), RCC-08 (the treasurer report). Each opens under its parent as Edit draft.
+Drafts: B-06 (expenses for Tess), A-08 (rescheduling Mara), RCC-08 (the treasurer report). Each opens under its parent as Edit draft. A-08 is an auto-draft the agent wrote for Alex to review, so it opens with Redraft.
 
 Starred: H-01, B-04, P-04, O-08, A-07, L-01, BAND-01, RCC-02, RCC-07.
 

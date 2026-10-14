@@ -9,7 +9,7 @@ import { z } from "zod";
 import { generateText } from "ai";
 import { deleteAttachmentFiles, type StoredAttachment } from "./lib/attachments";
 import { ensureDevMail, seedMail, seedProfile } from "./lib/dev-seed";
-import { DEMO, demoRefusal } from "./lib/demo";
+import { claimDemoAiCall, DEMO, demoAiCall, demoAiCap, demoRefusal } from "./lib/demo";
 import {
 	validateSender,
 	SenderValidationError,
@@ -118,6 +118,9 @@ if (DEMO) {
 	app.use("/api/v1/*", async (c, next) => {
 		const refused = demoRefusal(c.req.method, c.req.path);
 		if (refused) return c.json({ error: refused }, 403);
+		if (demoAiCall(c.req.method, c.req.path) && !(await claimDemoAiCall(recordsSql(c.env), demoAiCap(c.env.DEMO_AI_DAILY)))) {
+			return c.json({ error: "The demo's AI calls for today are used up" }, 429);
+		}
 		await next();
 	});
 }

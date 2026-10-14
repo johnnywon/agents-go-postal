@@ -11,4 +11,6 @@ export interface Env extends Cloudflare.Env {
 	DEV_SEED?: string;
 	/** Local QA and demo builds: which sample inbox to write. `alex` for the Alex Rivera profile; anything else is the default. */
 	SEED_PROFILE?: string;
+	/** Demo builds: model calls allowed per UTC day across all visitors (workers/lib/demo.ts). */
+	DEMO_AI_DAILY?: string;
 }

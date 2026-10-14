@@ -143,7 +143,7 @@ export const SearchBar = forwardRef<HTMLInputElement, SearchBarProps>(function S
 					setText(`${interpreted.from} `);
 				},
 			}];
-			if (interpreted.failed) {
+			if (interpreted.failed && !demo) {
 				rows.push({ id: "interpreted-ask", kind: "action", icon: "ask", label: "Ask the agent instead", choose: () => { leave(); props.onAsk(interpreted.from); } });
 			}
 			out.push({ id: "interpreted", title: "From your words", rows });

@@ -106,6 +106,11 @@ test("the Alex profile writes nine mailboxes and 100 messages, whatever EMAIL_AD
 	assert.equal((await list({ view: "drafts" })).conversations.length, 3);
 	const opened = await db.call("store", { mailbox: "billing@partwell.dev", method: "getEmail", params: ["seed-alex-v2-B-06"] });
 	assert.deepEqual(opened.attachments.map((a) => [a.filename, a.mimetype]), [["october-expenses.csv", "text/csv"]]);
+
+	// A-08 is the agent's draft, so it opens with Redraft; Alex's own drafts don't
+	const reschedule = await db.call("store", { mailbox: "alex@alexrivera.me", method: "getEmail", params: ["seed-alex-v2-A-08"] });
+	assert.deepEqual(reschedule.draft_notes, { origin: "auto-draft", instructions: [] });
+	assert.equal(await db.one(`SELECT COUNT(*) FROM draft_notes`), 1);
 });
 
 test("running the profile again writes the same 100 and leaves other mail alone", async () => {

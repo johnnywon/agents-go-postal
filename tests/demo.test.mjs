@@ -7,12 +7,13 @@ import { statements } from "./helpers/schema.mjs";
 import { D1_SCHEMA } from "./helpers/d1-schema.mjs";
 import { loadTs } from "./helpers/sqlite.mjs";
 
-// A demo build (OMR_DEMO=1): sample mail, no sends, no AI, no MCP, read-only settings, no sign-in, hourly reset.
+// A demo build (OMR_DEMO=1): sample mail, no sends, two capped AI actions, no MCP, read-only settings, no sign-in, hourly reset.
 
 const DEMO_DEFINE = { __OMR_DEMO__: "true" };
 const asModule = (bundle) => import(`data:text/javascript;base64,${Buffer.from(bundle.outputFiles[0].text).toString("base64")}`);
 
-const { demoRefusal, demoBlocksPath, DEMO } = await loadTs("workers/lib/demo.ts");
+const { demoRefusal, demoBlocksPath, DEMO, demoAiCall, demoAiCap, claimDemoAiCall, DEMO_AI_DAILY } = await loadTs("workers/lib/demo.ts");
+const { d1Sql } = await loadTs("workers/store/sql.ts");
 
 test("without the build flag DEMO is false", () => {
 	assert.equal(DEMO, false);
@@ -34,7 +35,7 @@ const WRITES = {
 	"POST /api/v1/mail/bulk": null,
 	"POST /api/v1/mail/bulk/undo": null,
 	"POST /api/v1/mail/empty-trash": null,
-	"POST /api/v1/search/interpret": AI,
+	"POST /api/v1/search/interpret": null,
 	"POST /api/v1/saved-searches": null,
 	"PUT /api/v1/saved-searches/:id": null,
 	"DELETE /api/v1/saved-searches/:id": null,
@@ -44,7 +45,7 @@ const WRITES = {
 	"POST /api/v1/labels/import-folders": null,
 	"POST /api/v1/mailboxes/:mailboxId/emails": SEND,
 	"POST /api/v1/mailboxes/:mailboxId/drafts": null,
-	"POST /api/v1/mailboxes/:mailboxId/drafts/:id/redraft": AI,
+	"POST /api/v1/mailboxes/:mailboxId/drafts/:id/redraft": null,
 	"POST /api/v1/mailboxes/:mailboxId/scheduled": SEND,
 	"DELETE /api/v1/mailboxes/:mailboxId/scheduled/:emailId": null,
 	"DELETE /api/v1/mailboxes/:mailboxId/emails/:id": null,
@@ -71,6 +72,18 @@ test("reads go through, and an unknown write is refused", () => {
 	assert.equal(demoRefusal("PATCH", "/api/v1/mail/bulk"), SETTINGS);
 	assert.equal(demoRefusal("POST", "/api/v1/something-new"), SETTINGS);
 	assert.equal(demoRefusal("POST", "/api/v1/labels/x/y"), SETTINGS);
+});
+
+test("two AI actions count against the daily cap; the model test and everything else stay off", () => {
+	assert.equal(demoAiCall("POST", "/api/v1/search/interpret"), true);
+	assert.equal(demoAiCall("POST", "/api/v1/mailboxes/a@example.com/drafts/d1/redraft"), true);
+	for (const [m, p] of [["GET", "/api/v1/search/interpret"], ["POST", "/api/v1/agent-model/test"], ["POST", "/api/v1/mailboxes/a@example.com/drafts"]]) assert.equal(demoAiCall(m, p), false, `${m} ${p}`);
+	assert.equal(demoAiCap(undefined), DEMO_AI_DAILY);
+	assert.equal(demoAiCap(""), DEMO_AI_DAILY);
+	assert.equal(demoAiCap("lots"), DEMO_AI_DAILY);
+	assert.equal(demoAiCap("-3"), DEMO_AI_DAILY);
+	assert.equal(demoAiCap("0"), 0);
+	assert.equal(demoAiCap("25"), 25);
 });
 
 test("the MCP server and the agent socket are off", () => {
@@ -213,4 +226,31 @@ test("the demo cron sends nothing and writes the sample inbox again on the hour"
 	const [again] = await call("cron", T0 + 3_600_000);
 	assert.equal(again.demo.messages, reset.demo.messages, "a second reset writes the same inbox");
 	assert.equal(await count(`SELECT COUNT(*) AS n FROM messages`), reset.demo.messages);
+});
+
+test("the daily AI cap: calls stop at the cap and start again the next UTC day", async () => {
+	const db = d1Sql(await mf.getD1Database("DB"));
+	const day = new Date("2026-10-14T10:00:00Z");
+	const taken = [];
+	for (let i = 0; i < 4; i++) taken.push(await claimDemoAiCall(db, 3, day));
+	assert.deepEqual(taken, [true, true, true, false]);
+	assert.equal(await claimDemoAiCall(db, 0, day), false, "a cap of 0 turns AI off");
+	assert.equal(await claimDemoAiCall(db, 3, new Date("2026-10-15T00:00:01Z")), true, "a new day has its own allowance");
+	assert.equal(await count(`SELECT COUNT(*) AS n FROM ai_budget`), 1, "earlier days are cleared");
+	const [reset] = await call("cron", Date.parse("2026-10-15T01:00:00Z"));
+	assert.ok(reset.demo, "the hourly reset ran");
+	assert.equal(await count(`SELECT COUNT(*) AS n FROM ai_budget`), 1, "the hourly reset keeps the day's count");
+});
+
+test("a demo API answers 429 once the day's AI calls are used, before any model runs", async () => {
+	const DB = await mf.getD1Database("DB");
+	await call("_sql", "DELETE FROM ai_budget");
+	const ask = (env) => api.app.request("http://localhost/api/v1/search/interpret", { method: "POST", headers: WRITE_HEADERS, body: JSON.stringify({ text: "invoices from last week" }) }, { ...ENV, DB, ...env });
+	const off = await ask({ DEMO_AI_DAILY: "0" });
+	assert.equal(off.status, 429);
+	assert.deepEqual(await off.json(), { error: "The demo's AI calls for today are used up" });
+	const first = await ask({ DEMO_AI_DAILY: "1" });
+	assert.notEqual(first.status, 429, "the first call reaches the handler");
+	assert.notEqual(first.status, 403);
+	assert.equal((await ask({ DEMO_AI_DAILY: "1" })).status, 429, "the second is refused");
 });

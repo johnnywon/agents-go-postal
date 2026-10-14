@@ -119,7 +119,9 @@ export async function seedMail(env: Env, opts: { tzOffset?: number; extra?: numb
 
 	for (const s of stored) {
 		await Promise.all(s.attachments.map((a) => env.BUCKET.put(attachmentKey(a), a.bytes, { httpMetadata: { contentType: a.mimetype } })));
-		await store.mailbox(addressOf(inbox, s.msg)).createEmail(s.msg.folder, s.email, s.attachments);
+		const mailbox = store.mailbox(addressOf(inbox, s.msg));
+		await mailbox.createEmail(s.msg.folder, s.email, s.attachments);
+		if (s.msg.draftNotes) await mailbox.setDraftNotes(s.email.id, s.msg.draftNotes);
 	}
 
 	for (const [name, id] of labelIds) {

@@ -3,12 +3,19 @@
 //     https://opensource.org/licenses/Apache-2.0
 
 // A demo build (OMR_DEMO=1 npm run build) comes up filled with the sample
-// inbox and lets anyone read, file and label it. It never sends mail, never
-// calls a model, keeps settings read-only and needs no sign-in. The cron
-// writes the sample inbox again every hour.
+// inbox and lets anyone read, file and label it. It never sends mail, keeps
+// settings read-only and needs no sign-in. The cron writes the sample inbox
+// again every hour.
+//
+// Two AI actions stay on: turning plain words into a search, and redrafting
+// an agent draft. Both run on one small Workers AI model, and together they
+// stop for the day after DEMO_AI_DAILY calls (default 200; 0 turns them off).
+// The agent chat, auto-draft, MCP and the model test stay off.
 //
 // vite.config.ts defines __OMR_DEMO__ as a literal, so in a normal build DEMO
 // is false and every branch on it, with the sample inbox, is left out.
+
+import type { Sql } from "../store/sql";
 
 declare const __OMR_DEMO__: boolean | undefined;
 
@@ -34,11 +41,18 @@ const ALLOWED: [method: string, path: RegExp][] = [
 
 const SENDS = /^\/api\/v1\/mailboxes\/[^/]+\/(emails|scheduled|emails\/[^/]+\/(reply|forward))$/;
 const AI = /^\/api\/v1\/(search\/interpret|agent-model\/test|mailboxes\/[^/]+\/drafts\/[^/]+\/redraft)$/;
+/** The AI calls a demo visitor may make, within the daily cap. */
+const AI_ALLOWED = /^\/api\/v1\/(search\/interpret|mailboxes\/[^/]+\/drafts\/[^/]+\/redraft)$/;
+
+/** The one model a demo uses for everything, whatever the settings say: small and cheap. */
+export const DEMO_AI_MODEL = "@cf/zai-org/glm-5.3-flash";
+export const DEMO_AI_DAILY = 200;
 
 /** Why a demo refuses this API request, or null when it may go ahead. */
 export function demoRefusal(method: string, path: string): string | null {
 	if (SAFE_METHODS.has(method)) return null;
 	if (ALLOWED.some(([m, re]) => m === method && re.test(path))) return null;
+	if (method === "POST" && AI_ALLOWED.test(path)) return null;
 	if (SENDS.test(path)) return "Sending is off in the demo";
 	if (AI.test(path)) return "AI is off in the demo";
 	return "Settings are read-only in the demo";
@@ -47,4 +61,30 @@ export function demoRefusal(method: string, path: string): string | null {
 /** Paths outside the API that a demo refuses: the MCP server and the agent socket. */
 export function demoBlocksPath(path: string): boolean {
 	return path === "/mcp" || path.startsWith("/mcp/") || path.startsWith("/agents/");
+}
+
+/** A model call the demo allows, counted against its daily cap. */
+export function demoAiCall(method: string, path: string): boolean {
+	return method === "POST" && AI_ALLOWED.test(path);
+}
+
+/** The daily cap from DEMO_AI_DAILY: a whole number, 0 for none. */
+export function demoAiCap(setting: string | undefined): number {
+	const n = Number(setting ?? "");
+	return setting !== undefined && setting.trim() !== "" && Number.isInteger(n) && n >= 0 ? n : DEMO_AI_DAILY;
+}
+
+/**
+ * Take one call from today's allowance (UTC day). A single conditional insert,
+ * so two visitors can't both take the last one. False when the day's calls are used.
+ */
+export async function claimDemoAiCall(sql: Sql, cap: number, now = new Date()): Promise<boolean> {
+	if (cap <= 0) return false;
+	const day = now.toISOString().slice(0, 10);
+	await sql.run("DELETE FROM ai_budget WHERE at < ?", day);
+	const { changes } = await sql.run(
+		"INSERT INTO ai_budget (at) SELECT ?1 WHERE (SELECT COUNT(*) FROM ai_budget WHERE at >= ?2) < ?3",
+		now.toISOString(), day, cap,
+	);
+	return changes > 0;
 }

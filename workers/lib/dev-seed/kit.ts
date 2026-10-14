@@ -2,6 +2,8 @@
 // Licensed under the Apache 2.0 license found in the LICENSE file or at:
 //     https://opensource.org/licenses/Apache-2.0
 
+import type { DraftNotes } from "../../../shared/draft-notes";
+
 // Local QA only: shared pieces of the sample inbox (see index.ts). Pure code, no storage.
 
 export type Role = "hello" | "billing" | "support" | "legal" | "ops" | "press";
@@ -46,6 +48,8 @@ export interface Msg {
 	list?: { id: string; unsubscribe: string; oneClick?: boolean };
 	/** Sent by a machine: adds the headers an automated sender adds. */
 	auto?: boolean;
+	/** A draft the agent wrote: its notes, so it opens with Redraft. */
+	draftNotes?: DraftNotes;
 }
 
 export interface LabelSpec {
