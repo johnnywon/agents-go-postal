@@ -4,10 +4,11 @@
 
 // Partwell's five mailboxes: hello, support, billing, partners and ops.
 
-import { button, card, esc, file, money, rows } from "../kit";
-import { BRAND, P, alex, box } from "./cast";
+import { esc, file, money } from "../kit";
+import { BRANDS, SIGNERS, button, grid, mail, meta, mono, para, rows, signature, status } from "./brands";
+import { P, alex, box } from "./cast";
 import type { StoryClock } from "./clock";
-import { photo, photoPart, prose } from "./html";
+import { human, photo, photoPart } from "./html";
 import type { Slot } from "./slots";
 
 // ── Fixed facts ─────────────────────────────────────────────────────
@@ -17,16 +18,8 @@ export const CEDAR_INVOICE = { number: "PW-1068", amount: 1200, tax: 0, po: "CED
 export const PAYOUT = { gross: 1349, fees: 39.12, net: 1309.88 };
 export const DB_ESTIMATE = 45;
 
-const small = (text: string) => `<p style="margin:0 0 4px;font-size:13px;color:#6b7280">${esc(text)}</p>`;
-const h2 = (text: string) => `<h2 style="margin:0 0 12px;font-size:20px;line-height:1.3;color:#111827">${esc(text)}</h2>`;
-const p = (html: string) => `<p style="margin:0 0 12px">${html}</p>`;
-const mono = (text: string) => `<pre style="white-space:pre-wrap;margin:12px 0;padding:12px;background:#f6f8fa;border-radius:6px;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px;line-height:1.5;color:#1f2933">${esc(text)}</pre>`;
-
-/** A small table with a header row, for metrics. */
-function grid(head: string[], body: string[][]): string {
-	const cell = (v: string, i: number, th = false) => `<td${i ? ' align="right"' : ""} style="padding:6px 8px 6px 0;border-bottom:1px solid #eef0f2;${th ? "font-size:12px;color:#6b7280;font-weight:600" : ""}">${esc(v)}</td>`;
-	return `<table width="100%" cellpadding="0" cellspacing="0" style="margin:12px 0;font-size:14px"><tr>${head.map((h, i) => cell(h, i, true)).join("")}</tr>${body.map((r) => `<tr>${r.map((v, i) => cell(v, i)).join("")}</tr>`).join("")}</table>`;
-}
+const h3 = (text: string, font = "inherit") => `<h3 style="margin:26px 0 6px;font-family:${font};font-size:19px;line-height:26px;font-weight:400">${esc(text)}</h3>`;
+const REPO = "alexrivera/partwell";
 
 // ── hello@ ─────────────────────────────────────────────────────────
 
@@ -37,7 +30,7 @@ function hello(c: StoryClock): Slot[] {
 		{
 			key: "H-01", box: "hello", folder: "inbox", at: "2026-09-24T10:07", from: P.lena, to: [box("hello")],
 			subject: "Could Partwell power our store assistant?", read: true, starred: true, labels: ["Cedar"], thread: "H-01",
-			html: prose(`Hi Alex,
+			html: human(`Hi Alex,
 
 I lead engineering at Cedar Supply. We run 41 hardware and building-supply stores, and we're building an assistant for store employees. Someone at the contractor desk asks for a stainless lag bolt that fits a particular bracket, and the assistant finds the part, the substitutes and what's on the shelf.
 
@@ -52,8 +45,7 @@ Three questions before I take this to our team:
 If it fits, we'd like a four-week pilot in five stores starting early October. I'm happy to get on a call next week, any afternoon except Thursday.
 
 Thanks,
-Lena Park
-Engineering Lead, Cedar Supply`),
+Lena`, SIGNERS.lena),
 		},
 		{
 			key: "H-02", box: "hello", folder: "inbox", at: "2026-09-28T09:10", from: P.omar, to: [box("hello")], cc: [P.lena],
@@ -79,8 +71,8 @@ Engineering Lead, Cedar Supply`),
 				{ t: `- Every invoice for this pilot must show PO ${CEDAR_INVOICE.po}.` },
 				{ t: "- Either party may end the pilot with 7 days' written notice." },
 				{ t: "Authorized: Omar Reed, Finance Manager, Cedar Supply Co.", gap: 24 },
-			])],
-			html: prose(`Hello Partwell team,
+			], { band: "#244B3C", rule: "#D9DDD4" })],
+			html: human(`Hello Partwell team,
 
 Cedar Supply has approved the four-week Partwell pilot. Purchase order ${CEDAR_INVOICE.po} is attached.
 
@@ -89,52 +81,53 @@ The terms are as discussed with Lena: five stores, production API access and MCP
 Please show ${CEDAR_INVOICE.po} on the invoice. Our accounts payable system matches invoices on it.
 
 Regards,
-Omar Reed
-Finance Manager, Cedar Supply`),
+Omar`, SIGNERS.omar),
 		},
 		{
 			key: "H-03", box: "hello", folder: "archive", at: "2026-10-05T12:20", from: P.buildnotes, to: [box("hello")],
 			subject: "This week's small APIs worth trying", read: true, labels: ["Newsletters"], thread: "H-03", auto: true,
 			list: { id: "small-apis.buildnotes.news", unsubscribe: "https://buildnotes.news/unsubscribe?list=small-apis", oneClick: true },
 			attachments: [photoPart("coffee", "buildnotes.news")],
-			html: card({
-				brand: "Build Notes", color: BRAND.buildnotes, preheader: "Partwell, Hookline and Quietcron: three small APIs run by one or two people.",
-				body: `${small(`Issue 112 · ${c.day("2026-10-05")}`)}${h2("This week's small APIs worth trying")}
-${p("Every few weeks I collect small APIs, run by one or two people, that solved a real problem for a reader. Three this week. None of them paid to be here, and two of them came from your replies.")}
-${photo("coffee", "buildnotes.news", "A cup of coffee on a wooden table, seen from above")}
-<h3 style="margin:22px 0 6px;font-size:16px">1. Partwell: one schema for manufacturers' catalogs</h3>
-${p("Partwell takes the product catalogs manufacturers send out, each with its own column names, units and spreadsheet habits, and returns one schema: part number, dimensions, materials, substitutes and the date the source file last changed. There is a REST API and an MCP connector that works from Claude, ChatGPT, Cursor and Codex, so an assistant can look up a part and cite the file it came from.")}
-${p("Alex Rivera runs it alone. When I asked which feature customers wanted most, the answer was the freshness field: nobody trusts a part number without a date next to it. A reader who builds purchasing tools told me the normalized substitutes saved her team a month of mapping work.")}
-${p('<a href="https://docs.partwell.dev" style="color:#7a5a3a;font-weight:600">Read the Partwell docs</a>')}
-<h3 style="margin:22px 0 6px;font-size:16px">2. Hookline: replay yesterday's webhooks</h3>
-${p("Hookline sits in front of your webhook endpoint and keeps every delivery for fourteen days. When a deploy breaks your handler, you fix it and replay the failed events against staging, then production, one at a time or in a batch. The free plan covers ten thousand events a month.")}
-${p('<a href="https://buildnotes.news/112/hookline" style="color:#7a5a3a;font-weight:600">The full write-up</a>')}
-<h3 style="margin:22px 0 6px;font-size:16px">3. Quietcron: notice the job that didn't run</h3>
-${p("Most monitoring tells you when a scheduled job fails. Quietcron tells you when it never started: each job pings a URL when it finishes, and you hear about it when the ping is late. Setup is one line at the end of a script.")}
-${p('<a href="https://buildnotes.news/112/quietcron" style="color:#7a5a3a;font-weight:600">The full write-up</a>')}
-${p("If you run a small API that deserves a mention, reply to this email with a link and one sentence about who uses it. I read every reply, usually with the coffee pictured above.")}
-${p("Rosa Lind<br>Editor, Build Notes")}`,
-				footer: `You're getting Build Notes because you subscribed at buildnotes.news. <a href="https://buildnotes.news/unsubscribe?list=small-apis" style="color:#6b7280">Unsubscribe</a> · <a href="https://buildnotes.news/archive" style="color:#6b7280">Past issues</a>`,
+			html: mail("buildnotes", {
+				preheader: "Partwell, Hookline and Quietcron: three small APIs run by one or two people.",
+				eyebrow: `Issue 112 · ${c.day("2026-10-05")}`,
+				heading: "This week's small APIs worth trying",
+				body: `${para("buildnotes", "Every few weeks I collect small APIs, run by one or two people, that solved a real problem for a reader. Three this week. None of them paid to be here, and two of them came from your replies.")}
+${photo("coffee", "buildnotes.news", "A cup of coffee on a wooden table, seen from above", "Photo", 180, 0)}
+${h3("1. Partwell: one schema for manufacturers' catalogs", "Georgia,serif")}
+${para("buildnotes", "Partwell takes the product catalogs manufacturers send out, each with its own column names, units and spreadsheet habits, and returns one schema: part number, dimensions, materials, substitutes and the date the source file last changed. There is a REST API and an MCP connector that works from Claude, ChatGPT, Cursor and Codex, so an assistant can look up a part and cite the file it came from.")}
+${para("buildnotes", "The detail that stands out is the freshness field. Every record carries the time its manufacturer's file last changed, next to the file's name, so an answer about a part can say how old its source is. It is run by one developer, Alex Rivera, who answers support mail himself.")}
+${para("buildnotes", '<a href="https://docs.partwell.dev" style="color:#A74C2B;text-decoration:underline">Read the Partwell docs</a>')}
+${h3("2. Hookline: replay yesterday's webhooks", "Georgia,serif")}
+${para("buildnotes", "Hookline sits in front of your webhook endpoint and keeps every delivery for fourteen days. When a deploy breaks your handler, you fix it and replay the failed events against staging, then production, one at a time or in a batch. The free plan covers ten thousand events a month.")}
+${para("buildnotes", '<a href="https://buildnotes.news/112/hookline" style="color:#A74C2B;text-decoration:underline">The full write-up</a>')}
+${h3("3. Quietcron: notice the job that didn't run", "Georgia,serif")}
+${para("buildnotes", "Most monitoring tells you when a scheduled job fails. Quietcron tells you when it never started: each job pings a URL when it finishes, and you hear about it when the ping is late. Setup is one line at the end of a script.")}
+${para("buildnotes", '<a href="https://buildnotes.news/112/quietcron" style="color:#A74C2B;text-decoration:underline">The full write-up</a>')}
+${para("buildnotes", "If you run a small API that deserves a mention, reply to this email with a link and one sentence about who uses it. I read every reply, usually with the coffee pictured above.")}
+${para("buildnotes", "Rosa Lind<br>Editor, Build Notes")}`,
+				footer: `Build Notes is written by Rosa Lind for developers who run small things. <a href="https://buildnotes.news/preferences" style="color:#6E6A60">Email preferences</a> · <a href="https://buildnotes.news/unsubscribe?list=small-apis" style="color:#6E6A60">Unsubscribe</a> · <a href="https://buildnotes.news/archive" style="color:#6E6A60">Past issues</a>`,
 			}),
 		},
 		{
 			key: "H-04", box: "hello", folder: "spam", at: "2026-09-25T15:24", from: P.miles, to: [box("hello")],
 			subject: "Last chance: your featured listing for $90", read: false, thread: "H-04",
-			html: card({
-				brand: "Launchboard Directory", color: BRAND.launchboard, preheader: "Featured placement for Partwell in the API section, $90 for the month.",
-				body: `${p("Hi there,")}
-${p("Partwell caught our eye on a developer tools list this week, and we'd love to feature it in the Launchboard Directory's API section, which reaches 48,000 founders and engineers every month.")}
-${p("Featured placement normally costs $250. Because the monthly slots close Friday, we can hold one for Partwell at <strong>$90 for the full month</strong>: a top-of-category card, a backlink and a mention in our weekly roundup.")}
-${button("Claim the featured spot", "https://launchboardlistings.com/claim/partwell", BRAND.launchboard)}
-${p("Slots are first come, first served, and only three are left.")}
-${p("Best,<br>Miles Carter<br>Partnerships, Launchboard Directory")}`,
-				footer: `Launchboard Directory · <a href="https://launchboardlistings.com/optout" style="color:#6b7280">Don't email me about listings</a>`,
+			html: mail("launchboard", {
+				preheader: "Featured placement for Partwell in the API section, $90 for the month.",
+				body: `${para("launchboard", "Hi Alex,")}
+${para("launchboard", "Partwell caught our eye on a developer tools list this week, and we'd love to feature it in the Launchboard Directory's API section, which reaches 48,000 founders and engineers every month.")}
+<table width="100%" cellpadding="0" cellspacing="0" role="presentation" style="margin:6px 0 16px;background:#FFF1E9;border-radius:6px"><tr><td style="padding:14px 16px;font-size:14px;line-height:21px"><strong style="color:#26334D">Partwell</strong> <span style="color:#D94D35;font-size:12px;font-weight:700;letter-spacing:0.04em">FEATURED</span><br><span style="color:#6A7180">One API for manufacturers' product catalogs, with MCP connectors.</span></td></tr></table>
+${para("launchboard", "Featured placement normally costs $250. Because the monthly slots close Friday, we can hold one for Partwell at <strong>$90 for the full month</strong>: a top-of-category card like the one above, a backlink and a mention in our weekly roundup.")}
+${button("launchboard", "Claim the featured spot", "https://launchboardlistings.com/claim/partwell")}
+${para("launchboard", "Slots are first come, first served.", "margin-top:14px")}
+${signature(SIGNERS.miles)}`,
+				footer: `Launchboard Directory · <a href="https://launchboardlistings.com/optout" style="color:#6A7180">Don't email me about listings</a>`,
 			}),
 		},
 		{
 			key: "H-05", box: "hello", folder: "inbox", at: "2026-10-07T16:18", from: P.eli, to: [box("hello")],
 			subject: "Question about the ChatGPT connector", read: false, labels: ["Follow up"], thread: "H-05",
-			html: prose(`Hi Alex,
+			html: human(`Hi Alex,
 
 I'm a developer at Procura Works. We build purchasing software for mid-size manufacturers, and I've been testing the Partwell connector in ChatGPT this week.
 
@@ -145,8 +138,7 @@ I tried the same lookup in Claude and got the same field, so I assume it comes f
 If it is catalog-level, is a per-record date on the roadmap?
 
 Thanks,
-Eli Santos
-Procura Works`),
+Eli`, SIGNERS.eli),
 		},
 	];
 }
@@ -158,7 +150,7 @@ function support(c: StoryClock): Slot[] {
 		{
 			key: "SUP-01", box: "support", folder: "archive", at: "2026-09-21T08:43", from: P.ben, to: [box("support")],
 			subject: "Production key returning 401", read: true, labels: ["Support", "Resolved"], thread: "SUP-01",
-			html: prose(`Hi,
+			html: human(`Hi,
 
 We moved our integration from the trial to the paid plan on Friday. Same code, same endpoint, new key from the dashboard. Every request now comes back with:
 
@@ -166,14 +158,13 @@ We moved our integration from the trial to the paid plan on Friday. Same code, s
 
 The trial key still works if I swap it back in, so I don't think it's our request format. Endpoint is https://api.partwell.dev/v1/parts/search. Is there something I need to switch on for the account?
 
-Ben Ortiz
-Developer, Northline Parts`),
+Ben`, SIGNERS.ben),
 		},
 		{
 			key: "SUP-02", box: "support", folder: "sent", at: "2026-09-21T10:02", from: alex("support"), to: [P.ben],
 			subject: "Re: Production key returning 401", read: true, thread: "SUP-01", replyTo: "SUP-01",
 			quote: "The trial key still works if I swap it back in, so I don't think it's our request format.",
-			html: prose(`Hi Ben,
+			html: human(`Hi Ben,
 
 Thanks, the timing helped me find it.
 
@@ -183,14 +174,13 @@ Open Settings > API keys, choose Reveal on the production key (or roll a new one
 
 If it still fails, reply here and I'll go through the request logs with you.
 
-Alex
-Partwell Support`),
+Alex`, SIGNERS.alexSupport),
 		},
 		{
 			key: "SUP-03", box: "support", folder: "archive", at: "2026-09-21T11:14", from: P.ben, to: [box("support")],
 			subject: "Re: Production key returning 401", read: true, thread: "SUP-01", replyTo: "SUP-02",
 			quote: "Your requests since Friday are sending the key ID, which is why they come back as invalid_api_key.",
-			html: prose(`That was it. I had the key ID in our secrets file instead of the secret. Swapped in the live key and the integration is running. Go ahead and close this one.
+			html: human(`That was it. I had the key ID in our secrets file instead of the secret. Swapped in the live key and the integration is running. Go ahead and close this one.
 
 Thanks, Alex.
 
@@ -223,7 +213,7 @@ Trimmed response from step 2:
 
 Records hp-10051 .. hp-10080 never appear in any page.
 `)],
-			html: prose(`Hi Partwell team,
+			html: human(`Hi Partwell team,
 
 We're seeing records disappear when we page through search results and change a filter between pages.
 
@@ -234,14 +224,13 @@ We're seeing records disappear when we page through search results and change a 
 The full request sequence and a trimmed response are in the attached file. Is the cursor tied to the original filter? If so, what's the right way to change filters partway through a list?
 
 Thanks,
-June Park
-Developer, Harbor Assembly`),
+June`, SIGNERS.june),
 		},
 		{
 			key: "SUP-05", box: "support", folder: "sent", at: "2026-09-22T14:32", from: alex("support"), to: [P.june],
 			subject: "Re: Pagination skips records after a filter change", read: true, labels: ["Support", "Waiting on customer"], thread: "SUP-04", replyTo: "SUP-04",
 			quote: "Is the cursor tied to the original filter? If so, what's the right way to change filters partway through a list?",
-			html: prose(`Hi June,
+			html: human(`Hi June,
 
 Thanks for the repro. It made this quick to confirm.
 
@@ -255,13 +244,12 @@ then follow that response's \`next_cursor\`. The pagination guide now has this e
 
 Could you run your sequence again and confirm the in-stock list comes through complete? I'll keep this open until I hear from you.
 
-Alex
-Partwell Support`),
+Alex`, SIGNERS.alexSupport),
 		},
 		{
 			key: "SUP-06", box: "support", folder: "archive", at: "2026-10-09T00:41", from: P.ben, to: [box("support")],
 			subject: "Slow responses tonight — is Partwell down?", read: true, labels: ["Incident", "Resolved"], thread: "SUP-06",
-			html: prose(`Hi Alex,
+			html: human(`Hi Alex,
 
 Our catalog sync started timing out around 11:40. About one request in five hits our 10-second timeout, mostly on \`/v1/parts/{id}\`. The rest succeed but take 3 to 6 seconds instead of the usual 200 ms.
 
@@ -273,7 +261,7 @@ Ben`),
 			key: "SUP-07", box: "support", folder: "sent", at: "2026-10-09T02:40", from: alex("support"), to: [P.ben],
 			subject: "Re: Slow responses tonight — is Partwell down?", read: true, thread: "SUP-06", replyTo: "SUP-06",
 			quote: "Is something going on? The sync can wait until morning if needed; I just want to know whether to pause it.",
-			html: prose(`Hi Ben,
+			html: human(`Hi Ben,
 
 Sorry for the slow night. Here is what happened.
 
@@ -285,14 +273,13 @@ Please go ahead and restart the sync. If you see timeouts or any 429 responses, 
 
 You heard about this from your own timeouts before you heard it from us. Next time an alert fires, I'll post on https://status.partwell.dev first.
 
-Alex
-Partwell Support`),
+Alex`, SIGNERS.alexSupport),
 		},
 		{
 			key: "SUP-08", box: "support", folder: "archive", at: "2026-10-09T09:35", from: P.ben, to: [box("support")],
 			subject: "Re: Slow responses tonight — is Partwell down?", read: true, thread: "SUP-06", replyTo: "SUP-07",
 			quote: "Please go ahead and restart the sync.",
-			html: prose(`Restarted the sync at 7:50 and it finished cleanly: 18,412 records, no timeouts, responses back around 200 ms. All good on our side, so you can close this.
+			html: human(`Restarted the sync at 7:50 and it finished cleanly: 18,412 records, no timeouts, responses back around 200 ms. All good on our side, so you can close this.
 
 Thanks for the write-up at 2:40 in the morning. Get some sleep.
 
@@ -311,15 +298,14 @@ function billing(c: StoryClock): Slot[] {
 		{
 			key: "B-01", box: "billing", folder: "archive", at: "2026-09-21T09:06", from: P.nora, to: [box("billing")],
 			subject: "Can you resend Northline's invoice?", read: true, labels: ["Billing"], thread: "B-01",
-			html: prose(`Hello,
+			html: human(`Hello,
 
 I handle the books for Northline Parts. Ben forwarded me the setup email for our Partwell subscription, but it didn't include an invoice, and I need one for September.
 
 Could you send an invoice made out to Northline Parts showing the amount, the period it covers and any tax? A PDF is best.
 
 Thank you,
-Nora Bell
-Bookkeeper, Northline Parts`),
+Nora`, SIGNERS.nora),
 		},
 		{
 			key: "B-02", box: "billing", folder: "sent", at: "2026-09-21T10:18", from: alex("billing"), to: [P.nora],
@@ -338,38 +324,39 @@ Bookkeeper, Northline Parts`),
 				{ t: `Tax: ${money(inv.tax)}` },
 				{ t: `Total: ${money(inv.amount + inv.tax)} USD`, bold: true },
 				{ t: `Paid by card on ${c.date("2026-09-18")}. Balance due: $0.00`, gap: 10 },
-			])],
-			html: prose(`Hi Nora,
+			], { band: "#0F766E", rule: "#D8E3DF" })],
+			html: human(`Hi Nora,
 
 Here is invoice ${inv.number} for Northline Parts: the Partwell Starter plan for ${periodStart} to ${periodEnd}, ${money(inv.amount)}. No tax applies, so the total is ${money(inv.amount + inv.tax)}. It was paid by card on ${c.day("2026-09-18")}, so nothing is due.
 
 The PDF is attached. Future invoices will go to you directly; I've added your address to the account.
 
-Alex Rivera
-Partwell`),
+Alex`, SIGNERS.alexBilling),
 		},
 		{
 			key: "B-03", box: "billing", folder: "archive", at: "2026-10-09T15:05", from: P.stripe, to: [box("billing")],
 			subject: "Your Partwell payout is on its way", read: true, labels: ["Billing", "Receipts"], thread: "B-03", auto: true,
-			html: card({
-				brand: "Stripe", color: BRAND.stripe, preheader: `${money(PAYOUT.net)} is on its way to your bank account.`,
-				body: `${small("Partwell · Payout po_3PwKx81Hq2")}${h2(`${money(PAYOUT.net)} is on its way to your bank`)}
-${p(`Your payout for charges from ${c.day("2026-09-18")} to ${c.day("2026-10-06")} was sent today. It should arrive in your bank account ending in 6604 by ${c.date("2026-10-13")}.`)}
-${rows([
+			html: mail("stripe", {
+				preheader: `${money(PAYOUT.net)} is on its way to your bank account.`,
+				eyebrow: "Partwell · Payout po_3PwKx81Hq2",
+				body: `<p style="margin:0 0 4px;font-size:32px;line-height:38px;font-weight:600;color:#0A2540;font-variant-numeric:tabular-nums">${money(PAYOUT.net)}</p>
+${para("stripe", `is on its way to your bank account ending in 6604. Expected by ${esc(c.date("2026-10-13"))}.`, "color:#596171")}
+${para("stripe", `This payout covers charges from ${esc(c.day("2026-09-18"))} to ${esc(c.day("2026-10-06"))}.`)}
+${rows("stripe", [
 	[`${NORTHLINE_INVOICE.number} · Northline Parts · ${c.short("2026-09-18")}`, money(NORTHLINE_INVOICE.amount)],
 	[`${CEDAR_INVOICE.number} · Cedar Supply · ${c.short("2026-10-06")}`, money(CEDAR_INVOICE.amount)],
-	["Gross", money(PAYOUT.gross)],
-	["Stripe fees", `−${money(PAYOUT.fees)}`],
-	["Net payout", money(PAYOUT.net), "strong"],
-])}
-${button("View payout", "https://dashboard.stripe.com/payouts/po_3PwKx81Hq2", BRAND.stripe)}`,
-				footer: "You're receiving this because payout notifications are on for Partwell. Stripe, payments infrastructure.",
+	["Gross", money(PAYOUT.gross), "muted"],
+	["Stripe fees", `−${money(PAYOUT.fees)}`, "muted"],
+	["Net payout", money(PAYOUT.net), "total"],
+], 18)}
+${button("stripe", "View payout", "https://dashboard.stripe.com/payouts/po_3PwKx81Hq2")}`,
+				footer: "You're receiving this because payout notifications are on for Partwell. Stripe.",
 			}),
 		},
 		{
 			key: "B-04", box: "billing", folder: "inbox", at: "2026-10-09T00:44", from: P.omar, to: [box("billing")],
 			subject: `Please add PO ${CEDAR_INVOICE.po} to ${CEDAR_INVOICE.number}`, read: false, starred: true, labels: ["Billing", "Cedar"], thread: "B-04",
-			html: prose(`Hello,
+			html: human(`Hello,
 
 I'm catching up on approvals tonight. The ${money(CEDAR_INVOICE.amount)} card charge on ${c.day("2026-10-06")} for invoice ${CEDAR_INVOICE.number} is correct and matches our card statement.
 
@@ -378,13 +365,12 @@ The invoice PDF doesn't show our purchase order number, though, and accounts pay
 Lena tells me your team is busy with the rollout tonight, so tomorrow is fine.
 
 Regards,
-Omar Reed
-Finance Manager, Cedar Supply`),
+Omar`, SIGNERS.omar),
 		},
 		{
 			key: "B-05", box: "billing", folder: "inbox", at: "2026-10-09T10:15", from: P.tess, to: [box("billing")],
 			subject: "Two food receipts and the database adjustment", read: true, labels: ["Receipts"], thread: "B-05",
-			html: prose(`Hi Alex,
+			html: human(`Hi Alex,
 
 Three things for October before I close the month:
 
@@ -394,8 +380,7 @@ Three things for October before I close the month:
 
 A CSV is fine if that's easier.
 
-Tess Morgan
-Morgan Ledger`),
+Tess`, SIGNERS.tess),
 		},
 		{
 			key: "B-06", box: "billing", folder: "draft", at: "2026-10-09T17:40", from: alex("billing"), to: [P.tess],
@@ -409,7 +394,7 @@ Morgan Ledger`),
 				[c.iso("2026-10-09"), "Supabase", "DB-4821", "Compute upgrade estimate", DB_ESTIMATE.toFixed(2), "provisional", "Estimate only; replace with the provider's invoice"],
 				["", "", "", "Total counted (food)", "42.06", "", "Provisional database amount not included"],
 			])],
-			html: prose(`Hi Tess,
+			html: human(`Hi Tess,
 
 In order:
 
@@ -440,7 +425,7 @@ function partners(c: StoryClock): Slot[] {
 				["ATL-55121", "Hollis Fastening", "HX-1420-ZN", "Hex cap screw, 1/4-20 x 1 in, zinc", "each", "0.18", c.iso("2026-09-28")],
 				["ATL-61007", "Brennan Valve", "BV-075-BR", "Ball valve, 3/4 in, brass, full port", "each", "14.65", c.iso("2026-09-27")],
 			])],
-			html: prose(`Hi Alex,
+			html: human(`Hi Alex,
 
 A heads-up on batch CAT-0930, which goes out on ${c.day("2026-09-30")}. We're renaming the column manufacturer_part_no to manufacturer_part_number across all our catalog exports, to match the naming in the rest of the file.
 
@@ -448,14 +433,13 @@ Nothing else changes: same values, same position in the file. Three rows from th
 
 Let me know if this causes any trouble on your side.
 
-Theo Martin
-Data Partnerships, Atlas Dataworks`),
+Theo`, SIGNERS.theo),
 		},
 		{
 			key: "P-02", box: "partners", folder: "sent", at: "2026-09-23T11:08", from: alex("partners"), to: [P.theo],
 			subject: "Re: CAT-0930 schema update", read: true, thread: "P-01", replyTo: "P-01",
 			quote: "We're renaming the column manufacturer_part_no to manufacturer_part_number across all our catalog exports, to match the naming in the rest of the file.",
-			html: prose(`Hi Theo,
+			html: human(`Hi Theo,
 
 Thanks for the notice. Two questions so I can plan the importer change:
 
@@ -468,7 +452,7 @@ Alex`),
 			key: "P-03", box: "partners", folder: "archive", at: "2026-09-24T08:48", from: P.theo, to: [alex("partners")],
 			subject: "Re: CAT-0930 schema update", read: true, thread: "P-01", replyTo: "P-02",
 			quote: "Will CAT-0930 carry both columns for one batch, so customers still on the old mapping don't see a gap?",
-			html: prose(`Morning Alex,
+			html: human(`Morning Alex,
 
 It's permanent. manufacturer_part_number is the canonical name from CAT-0930 onward.
 
@@ -497,8 +481,8 @@ Theo`),
 				{ t: `Sign and return by ${c.date("2026-10-23")} to renew without a gap in access.`, gap: 4 },
 				{ t: "Licensee signature: ______________________   Date: ____________", gap: 30 },
 				{ t: "Licensor signature: ______________________   Date: ____________", gap: 16 },
-			])],
-			html: prose(`Hi Alex,
+			], { band: "#353C35", rule: "#D9D6CD" })],
+			html: human(`Hi Alex,
 
 Your Fieldstone Catalogs data license comes up for renewal on ${c.day("2026-10-31")}, and the renewal document is attached.
 
@@ -509,15 +493,14 @@ The next term runs ${termStart} to ${termEnd} at $2,400 for the year, unchanged 
 To renew without a gap, please sign and return the document by ${respondBy}. If you'd like a different account limit, tell me before then and I'll revise it.
 
 Best regards,
-Evelyn Brooks
-Licensing Manager, Fieldstone Catalogs`),
+Evelyn`, SIGNERS.evelyn),
 		},
 		{
 			key: "P-05", box: "partners", folder: "inbox", at: "2026-09-30T16:52", from: P.priya, to: [alex("partners")],
 			subject: "MCP freshness field tested in Cursor and Claude", read: true, labels: ["Dev"], thread: "P-05",
-			html: prose(`Hi Alex,
+			html: human(`Hi Alex,
 
-The freshness field is ready for review: https://github.com/partwell/partwell-api/pull/191
+The freshness field is ready for review: https://github.com/alexrivera/partwell/pull/191
 
 Every part record now carries sourceUpdatedAt, the time the manufacturer file it came from last changed, next to sourceFile. A lookup through the MCP connector returns:
 
@@ -538,16 +521,17 @@ Tests cover both tools and the CSV and JSON importers. The CAT-0930 column renam
 
 Happy to pair on the tool description tomorrow if you want.
 
-Priya`),
+Priya`, SIGNERS.priya),
 		},
 		{
 			key: "P-06", box: "partners", folder: "trash", at: "2026-10-06T10:35", from: P.fieldstone, to: [box("partners")],
 			subject: "Reminder: renewal document available", read: true, thread: "P-06", auto: true,
-			html: card({
-				brand: "Fieldstone Catalogs", color: BRAND.fieldstone, preheader: `Renewal document for agreement FC-DL-2291. Respond by ${respondBy}.`,
-				body: `${h2("A renewal document is waiting")}
-${rows([["Agreement", "FC-DL-2291"], ["Licensee", "Partwell"], ["New term", `${termStart} – ${termEnd}`], ["Respond by", c.date("2026-10-23"), "strong"]])}
-${button("View renewal document", "https://fieldstonecatalogs.com/licensing/FC-DL-2291", BRAND.fieldstone)}`,
+			html: mail("fieldstone", {
+				preheader: `Renewal document for agreement FC-DL-2291. Respond by ${respondBy}.`,
+				heading: "A renewal document is waiting",
+				body: `${para("fieldstone", "The renewal document for your Fieldstone data license is ready to review and sign.")}
+${rows("fieldstone", [["Agreement", "FC-DL-2291"], ["Licensee", "Partwell"], ["New term", `${termStart} – ${termEnd}`], ["Respond by", c.date("2026-10-23"), "total"]], 14)}
+${button("fieldstone", "View renewal document", "https://fieldstonecatalogs.com/licensing/FC-DL-2291")}`,
 				footer: "Sent automatically by Fieldstone Catalogs licensing. Your licensing manager is Evelyn Brooks.",
 			}),
 		},
@@ -560,7 +544,7 @@ ${button("View renewal document", "https://fieldstonecatalogs.com/licensing/FC-D
 export const INCIDENT = { normalPerMin: 1150, peakPerMin: 23000, normalP95: 180, peakP95: 4850, recoveredP95: 210, recoveredPerMin: 2900 };
 
 function ops(c: StoryClock): Slot[] {
-	const runUrl = "https://github.com/partwell/partwell-api/pull/184/checks";
+	const runUrl = `https://github.com/${REPO}/pull/184/checks`;
 	const metrics = `partwell-prod connection metrics (America/New_York)
 Exported ${c.iso("2026-10-09")} 00:08 by Partwell Ops
 
@@ -585,62 +569,67 @@ ${c.iso("2026-10-09")} 00:09  Case DB-4821 opened with the database provider
 		{
 			key: "O-01", box: "ops", folder: "archive", at: "2026-09-22T13:02", from: P.github, to: [box("ops")],
 			subject: "Pagination checks failed on PR 184", read: true, labels: ["Dev"], thread: "O-01", auto: true,
-			html: card({
-				brand: "GitHub", color: BRAND.github, preheader: "test (node 22) failed: pagination › rejects a cursor reused with different filters",
-				body: `${small("partwell/partwell-api · Pull request #184")}${h2("Reject cursors when the filters change")}
-${p("<strong>CI / test (node 22)</strong> failed after 2m 58s on commit 4e1c9a7.")}
-${rows([["Branch", "fix/cursor-filters"], ["Tests", "211 passed, 1 failed"], ["Failing test", "pagination › rejects a cursor reused with different filters", "strong"]])}
-${mono(`✕ pagination › rejects a cursor reused with different filters
+			html: mail("github", {
+				preheader: "test (node 22) failed: pagination › rejects a cursor reused with different filters",
+				heading: "Reject cursors when the filters change #184",
+				body: `${meta("github", [["Repository", REPO], ["Workflow", "CI / test (node 22)"], ["Branch", "fix/cursor-filters"], ["Commit", "4e1c9a7"]])}
+<p style="margin:0 0 12px">${status("Failed", "bad")} <span style="color:#59636E;font-size:13px">after 2m 58s · 211 passed, 1 failed</span></p>
+${mono("github", `✕ pagination › rejects a cursor reused with different filters
   expected status 400 cursor_filter_mismatch
   received status 200 (30 records skipped)
   at test/pagination.test.ts:88`)}
-${button("View workflow run", runUrl, BRAND.github)}`,
-				footer: "You are receiving this because you opened this pull request.",
+${button("github", "View workflow run", runUrl)}`,
+				footer: `You are receiving this because you opened this pull request. <a href="https://github.com/settings/notifications" style="color:#59636E">Manage notifications</a>`,
 			}),
 		},
 		{
 			key: "O-02", box: "ops", folder: "archive", at: "2026-09-22T14:03", from: P.github, to: [box("ops")],
 			subject: "Checks passed on PR 184", read: true, thread: "O-01", replyTo: "O-01", auto: true,
-			html: card({
-				brand: "GitHub", color: BRAND.github, preheader: "All checks have passed on Reject cursors when the filters change.",
-				body: `${small("partwell/partwell-api · Pull request #184")}${h2("All checks have passed")}
-${p("<strong>CI / test (node 22)</strong> passed after 3m 41s on commit 9b20d5e, “Return cursor_filter_mismatch when filters change”.")}
-${rows([["Branch", "fix/cursor-filters"], ["Tests", "212 passed, 0 failed", "strong"], ["Previously failing", "pagination › rejects a cursor reused with different filters"]])}
-${button("View pull request", "https://github.com/partwell/partwell-api/pull/184", BRAND.github)}`,
-				footer: "You are receiving this because you opened this pull request.",
+			html: mail("github", {
+				preheader: "All checks have passed on Reject cursors when the filters change.",
+				heading: "Reject cursors when the filters change #184",
+				body: `${meta("github", [["Repository", REPO], ["Workflow", "CI / test (node 22)"], ["Branch", "fix/cursor-filters"], ["Commit", "9b20d5e"]])}
+<p style="margin:0 0 12px">${status("All checks have passed", "ok")} <span style="color:#59636E;font-size:13px">after 3m 41s · 212 passed, 0 failed</span></p>
+${para("github", "Commit 9b20d5e, “Return cursor_filter_mismatch when filters change”, fixed the previously failing test <code style=\"font-size:12px\">pagination › rejects a cursor reused with different filters</code>.")}
+${button("github", "View pull request", `https://github.com/${REPO}/pull/184`)}`,
+				footer: `You are receiving this because you opened this pull request. <a href="https://github.com/settings/notifications" style="color:#59636E">Manage notifications</a>`,
 			}),
 		},
 		{
 			key: "O-03", box: "ops", folder: "archive", at: "2026-10-08T23:37", from: P.cloudflare, to: [box("ops")],
 			subject: "Partwell latency above threshold", read: true, labels: ["Incident", "Resolved"], thread: "O-03", auto: true,
-			html: card({
-				brand: "Cloudflare", color: BRAND.cloudflare, preheader: `p95 latency ${INCIDENT.peakP95.toLocaleString("en-US")} ms on partwell-api, above the 1,000 ms threshold. Requests up 20×.`,
-				body: `${small(`Notification · ${c.long(c.at("2026-10-08T23:37"))} ${c.zone(c.at("2026-10-08T23:37"))}`)}${h2("Latency above threshold on partwell-api")}
-${p("Your notification policy <strong>Partwell API latency</strong> fired: p95 response time has been above 1,000 ms for 5 minutes.")}
-${grid(["Metric", "Normal evening", "Last 15 minutes"], [
-	["Requests per minute", INCIDENT.normalPerMin.toLocaleString("en-US"), `${INCIDENT.peakPerMin.toLocaleString("en-US")} (${Math.round(INCIDENT.peakPerMin / INCIDENT.normalPerMin)}×)`],
-	["p95 latency", `${INCIDENT.normalP95} ms`, `${INCIDENT.peakP95.toLocaleString("en-US")} ms`],
-	["5xx error rate", "0.02%", "6.8%"],
+			html: mail("cloudflare", {
+				preheader: `Warning: p95 latency ${INCIDENT.peakP95.toLocaleString("en-US")} ms on api.partwell.dev, above the 1,000 ms threshold. Requests up 20×.`,
+				eyebrow: `Notification · ${c.long(c.at("2026-10-08T23:37"))} ${c.zone(c.at("2026-10-08T23:37"))}`,
+				heading: "Latency above threshold on api.partwell.dev",
+				body: `<p style="margin:0 0 14px">${status("Warning: firing", "warn")}</p>
+${para("cloudflare", "Your notification policy <strong>Partwell API latency</strong> fired: p95 response time has been above 1,000 ms for 5 minutes.")}
+${grid("cloudflare", ["Metric", "Normal evening", "Last 15 min", "Threshold"], [
+	["Requests per minute", INCIDENT.normalPerMin.toLocaleString("en-US"), `${INCIDENT.peakPerMin.toLocaleString("en-US")} (${Math.round(INCIDENT.peakPerMin / INCIDENT.normalPerMin)}×)`, "—"],
+	["p95 latency", `${INCIDENT.normalP95} ms`, `${INCIDENT.peakP95.toLocaleString("en-US")} ms`, "1,000 ms"],
+	["5xx error rate", "0.02%", "6.8%", "—"],
 ])}
-${p("Most affected path: <code>/v1/parts/{id}</code> (71% of requests).")}
-${button("View analytics", "https://dash.cloudflare.com/analytics/partwell-api", BRAND.cloudflare)}`,
+${para("cloudflare", "Most affected path: <code>/v1/parts/{id}</code> (71% of requests).")}
+${button("cloudflare", "View analytics", "https://dash.cloudflare.com/analytics/api.partwell.dev")}`,
 				footer: "You're receiving this because ops@partwell.dev is a recipient of the Partwell API latency policy.",
 			}),
 		},
 		{
 			key: "O-04", box: "ops", folder: "archive", at: "2026-10-08T23:38", from: P.cloudflare, to: [box("ops")],
 			subject: "Request throttling detected", read: true, thread: "O-03", replyTo: "O-03", auto: true,
-			html: card({
-				brand: "Cloudflare", color: BRAND.cloudflare, preheader: "Your rate limiting rule api-burst is throttling 18% of requests to /v1/parts.",
-				body: `${small(`Notification · ${c.long(c.at("2026-10-08T23:38"))} ${c.zone(c.at("2026-10-08T23:38"))}`)}${h2("Request throttling on partwell-api")}
-${p("Your rate limiting rule <strong>api-burst</strong> (600 requests per 10 seconds per API key) is blocking requests. The rule is working as configured; Cloudflare's network is operating normally.")}
-${grid(["Last 5 minutes", "Value"], [
+			html: mail("cloudflare", {
+				preheader: "Your rate limiting rule api-burst is throttling 18% of requests to /v1/parts on api.partwell.dev.",
+				eyebrow: `Notification · ${c.long(c.at("2026-10-08T23:38"))} ${c.zone(c.at("2026-10-08T23:38"))}`,
+				heading: "Request throttling on api.partwell.dev",
+				body: `<p style="margin:0 0 14px">${status("Warning: rule blocking requests", "warn")}</p>
+${para("cloudflare", "Your rate limiting rule <strong>api-burst</strong> (600 requests per 10 seconds per API key) is blocking requests. The rule is working as configured; Cloudflare's network is operating normally.")}
+${grid("cloudflare", ["Last 5 minutes", "Value"], [
 	["Requests per minute", INCIDENT.peakPerMin.toLocaleString("en-US")],
 	["Throttled (429) per minute", "4,140 (18%)"],
 	["Share from one API key", "94%"],
 	["p95 latency", `${INCIDENT.peakP95.toLocaleString("en-US")} ms`],
 ])}
-${button("Review rule", "https://dash.cloudflare.com/security/rate-limiting/api-burst", BRAND.cloudflare)}`,
+${button("cloudflare", "Review rule", "https://dash.cloudflare.com/security/rate-limiting/api-burst")}`,
 				footer: "You're receiving this because ops@partwell.dev is a recipient of the Partwell API latency policy.",
 			}),
 		},
@@ -648,7 +637,7 @@ ${button("Review rule", "https://dash.cloudflare.com/security/rate-limiting/api-
 			key: "O-05", box: "ops", folder: "sent", at: "2026-10-09T00:09", from: alex("ops"), to: [P.supabase],
 			subject: "DB-4821: connection pressure during customer rollout", read: true, labels: ["Incident"], thread: "O-05",
 			attachments: [file.text("connection-metrics.txt", metrics)],
-			html: prose(`Hello,
+			html: human(`Hello,
 
 I've opened case DB-4821 for project partwell-prod. Since 11:37 pm Eastern our API has been running out of database connections.
 
@@ -667,14 +656,13 @@ Two questions:
 
 Metrics for the last 40 minutes are attached.
 
-Alex Rivera
-Partwell`),
+Alex`, SIGNERS.alexPartwell),
 		},
 		{
 			key: "O-06", box: "ops", folder: "inbox", at: "2026-10-09T01:23", from: P.sofia, to: [alex("ops")],
 			subject: "Re: DB-4821: connection pressure during customer rollout", read: true, labels: ["Incident"], thread: "O-05", replyTo: "O-05",
 			quote: "Is there a safe pooling or connection setting we should change tonight?",
-			html: prose(`Hi Alex,
+			html: human(`Hi Alex,
 
 Thanks for the detailed report and the metrics file. I've looked at partwell-prod for case DB-4821.
 
@@ -688,32 +676,38 @@ For tonight, all reversible:
 
 On capacity: at twenty times your evening traffic, CPU will stay high on your current size even with pooling. The next compute size doubles CPU and raises direct connections to 120. I estimate ${money(DB_ESTIMATE)} for the rest of this billing month, prorated, and the resize takes about two minutes with a brief reconnect. Let me know if you want it scheduled and I'll keep this case open.
 
-Sofia Chen
-Support Engineer, Supabase
-Case DB-4821`),
+Sofia`, SIGNERS.sofia),
 		},
 		{
 			key: "O-07", box: "ops", folder: "archive", at: "2026-10-09T02:36", from: P.cloudflare, to: [box("ops")],
 			subject: "Partwell latency recovered", read: true, thread: "O-03", replyTo: "O-04", auto: true,
-			html: card({
-				brand: "Cloudflare", color: BRAND.cloudflare, preheader: `Resolved: p95 latency ${INCIDENT.recoveredP95} ms on partwell-api, below threshold for 10 minutes.`,
-				body: `${small(`Notification · ${c.long(c.at("2026-10-09T02:36"))} ${c.zone(c.at("2026-10-09T02:36"))}`)}${h2("Resolved: latency back below threshold")}
-${p("Your notification policy <strong>Partwell API latency</strong> has resolved. p95 response time has been below 1,000 ms for 10 minutes.")}
-${grid(["Metric", "Peak", "Now"], [
+			html: mail("cloudflare", {
+				preheader: `Resolved: p95 latency ${INCIDENT.recoveredP95} ms on api.partwell.dev, below threshold for 10 minutes.`,
+				eyebrow: `Notification · ${c.long(c.at("2026-10-09T02:36"))} ${c.zone(c.at("2026-10-09T02:36"))}`,
+				heading: "Resolved: latency back below threshold",
+				body: `<p style="margin:0 0 14px">${status("Resolved", "ok")}</p>
+${para("cloudflare", "Your notification policy <strong>Partwell API latency</strong> has resolved. p95 response time on api.partwell.dev has been below 1,000 ms for 10 minutes.")}
+${grid("cloudflare", ["Metric", "Peak", "Now"], [
 	["Requests per minute", INCIDENT.peakPerMin.toLocaleString("en-US"), INCIDENT.recoveredPerMin.toLocaleString("en-US")],
 	["p95 latency", `${INCIDENT.peakP95.toLocaleString("en-US")} ms`, `${INCIDENT.recoveredP95} ms`],
 	["5xx error rate", "6.8%", "0.03%"],
 	["Throttled (429) per minute", "4,140", "0"],
 ])}
-${rows([["Fired", `${c.time(c.at("2026-10-08T23:37"))} ${c.zone(c.at("2026-10-08T23:37"))}`], ["Resolved", `${c.time(c.at("2026-10-09T02:36"))} ${c.zone(c.at("2026-10-09T02:36"))}`], ["Duration", "2h 59m", "strong"]])}
-${p("The policy stays active and will notify you again if p95 latency is above 1,000 ms for 5 minutes.")}`,
+${grid("cloudflare", ["Timeline", "Time"], [
+	["Latency alert fired", `${c.time(c.at("2026-10-08T23:37"))} ${c.zone(c.at("2026-10-08T23:37"))}`],
+	["Throttling started", `${c.time(c.at("2026-10-08T23:38"))} ${c.zone(c.at("2026-10-08T23:38"))}`],
+	["Recovered", `${c.time(c.at("2026-10-09T02:36"))} ${c.zone(c.at("2026-10-09T02:36"))}`],
+	["Duration", "2h 59m"],
+], { strong: 3 })}
+${para("cloudflare", "The policy stays active and will notify you again if p95 latency is above 1,000 ms for 5 minutes.")}
+${button("cloudflare", "View analytics", "https://dash.cloudflare.com/analytics/api.partwell.dev")}`,
 				footer: "You're receiving this because ops@partwell.dev is a recipient of the Partwell API latency policy.",
 			}),
 		},
 		{
 			key: "O-08", box: "ops", folder: "inbox", at: "2026-10-11T19:56", from: P.priya, to: [alex("ops")],
 			subject: "Next Cedar rollout: concurrency cap stays at 8?", read: false, starred: true, labels: ["Cedar", "Follow up"], thread: "O-08",
-			html: prose(`Hi Alex,
+			html: human(`Hi Alex,
 
 Monitoring has been quiet since Thursday night's recovery: p95 between 160 and 230 ms all weekend, no 429s, and the read cache is answering about 70% of single-part lookups.
 

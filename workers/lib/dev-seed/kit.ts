@@ -7,7 +7,7 @@
 export type Role = "hello" | "billing" | "support" | "legal" | "ops" | "press";
 export const ROLES: readonly Role[] = ["hello", "billing", "support", "legal", "ops", "press"];
 /** A mailbox a seed profile writes to: the default parts, plus the Alex profile's own (alex/). */
-export type Box = Role | "partners" | "personal" | "league";
+export type Box = Role | "partners" | "personal" | "league" | "band" | "club";
 
 export type SeedFolder = "inbox" | "sent" | "draft" | "archive" | "trash" | "spam";
 
@@ -237,7 +237,7 @@ export const file = {
 		filename, mimetype: "text/csv",
 		bytes: text(table.map((r) => r.map((c) => (/[",\n]/.test(String(c)) ? `"${String(c).replace(/"/g, '""')}"` : String(c))).join(",")).join("\n") + "\n"),
 	}),
-	pdf: (filename: string, lines: PdfLine[]): Attachment => ({ filename, mimetype: "application/pdf", bytes: makePdf(lines) }),
+	pdf: (filename: string, lines: PdfLine[], style?: PdfStyle): Attachment => ({ filename, mimetype: "application/pdf", bytes: makePdf(lines, style) }),
 	ics: (filename: string, ev: { uid: string; start: number; end: number; summary: string; location?: string; description?: string; organizer?: Person; attendee?: Person; clock: Clock; method?: "REQUEST" | "PUBLISH" }): Attachment => ({
 		filename, mimetype: "text/calendar",
 		bytes: text([
@@ -272,19 +272,35 @@ export interface PdfLine {
 	bold?: boolean;
 	/** Blank space before the line, in points. */
 	gap?: number;
+	/** Text colour, #rrggbb. */
+	color?: string;
+	/** A thin rule across the page instead of text. */
+	rule?: boolean;
 }
+
+/** A brand's colour on a document: a filled band across the top of each page. */
+export interface PdfStyle {
+	band?: string;
+	/** Colour of rules. */
+	rule?: string;
+}
+
+const rgb = (hex: string) => [1, 3, 5].map((i) => (parseInt(hex.slice(i, i + 2), 16) / 255).toFixed(3)).join(" ");
 
 const ASCII = (s: string) => s.replace(/[‘’]/g, "'").replace(/[“”]/g, '"').replace(/[–—]/g, "-").replace(/…/g, "...").replace(/[^\x20-\x7e]/g, "?");
 
 /** A small valid PDF: Helvetica text, top to bottom, new pages as needed. */
-export function makePdf(lines: PdfLine[]): Uint8Array {
-	const pages: string[][] = [[]];
+export function makePdf(lines: PdfLine[], style: PdfStyle = {}): Uint8Array {
+	const band = style.band ? `${rgb(style.band)} rg 0 770 612 22 re f 0 0 0 rg` : "";
+	const pages: string[][] = [band ? [band] : []];
 	let y = 760;
 	for (const line of lines) {
-		const size = line.size ?? 11;
+		const size = line.rule ? 4 : line.size ?? 11;
 		y -= (line.gap ?? 0) + size * 1.45;
-		if (y < 60) { pages.push([]); y = 760 - size * 1.45; }
-		pages[pages.length - 1].push(`BT /${line.bold ? "F2" : "F1"} ${size} Tf 56 ${y.toFixed(1)} Td (${ASCII(line.t).replace(/[\\()]/g, "\\$&")}) Tj ET`);
+		if (y < 60) { pages.push(band ? [band] : []); y = 760 - size * 1.45; }
+		const page = pages[pages.length - 1];
+		if (line.rule) page.push(`${rgb(style.rule ?? "#c8ccd0")} RG 0.75 w 56 ${(y + 3).toFixed(1)} m 556 ${(y + 3).toFixed(1)} l S 0 0 0 RG`);
+		else page.push(`BT ${line.color ? `${rgb(line.color)} rg ` : ""}/${line.bold ? "F2" : "F1"} ${size} Tf 56 ${y.toFixed(1)} Td (${ASCII(line.t).replace(/[\\()]/g, "\\$&")}) Tj ET${line.color ? " 0 0 0 rg" : ""}`);
 	}
 	const objects: string[] = [];
 	const add = (body: string) => { objects.push(body); };

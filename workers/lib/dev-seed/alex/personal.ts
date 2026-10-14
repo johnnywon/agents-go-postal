@@ -5,15 +5,14 @@
 // Alex's own mailboxes: alex@ (food, a keyboard, a friend, an agency client)
 // and league@ (the Sunday Deploy League, eight friends, half-PPR).
 
-import { button, card, esc, file, money, rows } from "../kit";
-import { BRAND, P, alex, box } from "./cast";
+import { esc, file, money } from "../kit";
+import { SIGNERS, button, mail, para, rows } from "./brands";
+import { P, alex, box } from "./cast";
 import type { StoryClock } from "./clock";
-import { photo, photoFile, photoPart, prose } from "./html";
+import { human, photo, photoFile, photoPart, prose } from "./html";
 import type { Slot } from "./slots";
 
-const small = (text: string) => `<p style="margin:0 0 4px;font-size:13px;color:#6b7280">${esc(text)}</p>`;
-const h2 = (text: string) => `<h2 style="margin:0 0 12px;font-size:20px;line-height:1.3;color:#111827">${esc(text)}</h2>`;
-const p = (html: string) => `<p style="margin:0 0 12px">${html}</p>`;
+const h3 = (text: string) => `<h3 style="margin:22px 0 4px;font-family:'Arial Narrow',Arial,sans-serif;font-size:18px;line-height:24px;font-weight:800;letter-spacing:0.02em;text-transform:uppercase">${esc(text)}</h3>`;
 
 // ── Food orders ─────────────────────────────────────────────────────
 
@@ -35,18 +34,18 @@ export const RICE_BOWL: Order = { id: "UE-73102", restaurant: "Hana Rice House",
 export const BURRITO: Order = { id: "UE-73419", restaurant: "Night Owl Burrito Co.", items: [["Carne asada burrito", 11.5], ["Chips and salsa", 2.0]], tax: 1.2, delivery: 2.99, service: 1.5, tip: 4.0 };
 
 function orderRows(o: Order, totalLabel: string) {
-	return rows([
-		...o.items.map(([name, price]) => [name, money(price)] as [string, string]),
-		["Food", money(orderFood(o))],
-		["Tax", money(o.tax)],
-		["Delivery fee", money(o.delivery)],
-		["Service fee", money(o.service)],
-		["Tip", money(o.tip)],
-		[totalLabel, money(orderTotal(o)), "strong"],
-	]);
+	return rows("ubereats", [
+		...o.items.map(([name, price]) => [`1 × ${name}`, money(price)] as [string, string]),
+		["Subtotal", money(orderFood(o)), "muted"],
+		["Tax", money(o.tax), "muted"],
+		["Delivery fee", money(o.delivery), "muted"],
+		["Service fee", money(o.service), "muted"],
+		["Tip", money(o.tip), "muted"],
+		[totalLabel, money(orderTotal(o)), "total"],
+	], 24);
 }
 
-const uberFooter = "Uber Eats order notifications for Alex Rivera. Questions about an order? Open it in the app and choose Help.";
+const uberFooter = `Order updates for Alex Rivera. For help with an order, open it in the app and choose Help. <a href="https://www.ubereats.com/privacy" style="color:#5E5E5E">Privacy</a>`;
 
 // ── The league ──────────────────────────────────────────────────────
 
@@ -90,23 +89,32 @@ export function standings(n: number): Standing[] {
 
 const pts = (n: number) => n.toFixed(1);
 
+const TEAM_COLORS: Record<Manager, string> = { alex: "#286B45", priya: "#4E6E9E", ben: "#D66B2D", jordan: "#E7B54A", maya: "#B0457F", theo: "#2454A4", nia: "#C8372D", sam: "#5F6B74" };
+
+/** A team's badge: its initials in its colour. Original, no franchise marks. */
+export function teamBadge(who: Manager, size = 22): string {
+	const initials = TEAMS[who].replace(/^The /, "").split(/\s+/).map((w) => w[0]).slice(0, 2).join("");
+	const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40"><circle cx="20" cy="20" r="19" fill="${TEAM_COLORS[who]}"/><text x="20" y="25.5" font-family="Arial,sans-serif" font-size="15" font-weight="700" text-anchor="middle" fill="#FFF9E9">${initials}</text></svg>`;
+	return `<img src="data:image/svg+xml;base64,${btoa(svg)}" width="${size}" height="${size}" alt="" style="display:inline-block;vertical-align:middle;border:0;margin-right:8px">`;
+}
+
 function scoreboard(games: Game[]): string {
-	return `<table width="100%" cellpadding="0" cellspacing="0" style="margin:12px 0;font-size:14px">${games.map(([a, as, b, bs]) => {
+	return `<table width="100%" cellpadding="0" cellspacing="0" role="presentation" style="margin:12px 0;font-size:14px;font-variant-numeric:tabular-nums">${games.map(([a, as, b, bs]) => {
 		const aw = as > bs;
-		const side = (who: Manager, s: number, won: boolean) => `<td style="padding:8px 0;border-bottom:1px solid #eef0f2;${won ? "font-weight:700;color:#111827" : "color:#4b5563"}">${esc(TEAMS[who])} <span style="color:#6b7280;font-weight:400">(${NAMES[who]})</span></td><td align="right" style="padding:8px 0 8px 8px;border-bottom:1px solid #eef0f2;${won ? "font-weight:700;color:#111827" : "color:#4b5563"}">${pts(s)}</td>`;
-		return `<tr>${side(a, as, aw)}</tr><tr>${side(b, bs, !aw)}</tr><tr><td colspan="2" style="height:10px"></td></tr>`;
+		const side = (who: Manager, s: number, won: boolean, last: boolean) => `<td style="padding:7px 0;${last ? "border-bottom:1px solid #D6D6D6;padding-bottom:12px;" : ""}${won ? "font-weight:700;color:#14223B" : "color:#69758A"}${who === "alex" ? ";background:#F3EBD3" : ""}">${teamBadge(who)}${esc(TEAMS[who])} <span style="font-weight:400;color:#69758A">${NAMES[who]}</span></td><td align="right" style="padding:7px 4px 7px 8px;${last ? "border-bottom:1px solid #D6D6D6;padding-bottom:12px;" : ""}${won ? "font-weight:700;color:#14223B" : "color:#69758A"}${who === "alex" ? ";background:#F3EBD3" : ""}">${pts(s)}</td>`;
+		return `<tr>${side(a, as, aw, false)}</tr><tr>${side(b, bs, !aw, true)}</tr>`;
 	}).join("")}</table>`;
 }
 
 function table(n: number): string {
-	const head = (t: string, right = false) => `<td${right ? ' align="right"' : ""} style="padding:6px 0;border-bottom:1px solid #e5e7eb;font-size:12px;font-weight:600;color:#6b7280">${t}</td>`;
-	const cell = (t: string, right = false, bold = false) => `<td${right ? ' align="right"' : ""} style="padding:6px 0 6px ${right ? "8px" : "0"};border-bottom:1px solid #eef0f2;${bold ? "font-weight:700;color:#111827" : ""}">${t}</td>`;
-	return `<table width="100%" cellpadding="0" cellspacing="0" style="margin:12px 0;font-size:14px"><tr>${head("#")}${head("Team")}${head("W–L", true)}${head("PF", true)}</tr>${standings(n).map((s, i) =>
-		`<tr>${cell(String(i + 1))}${cell(`${esc(TEAMS[s.who])} <span style="color:#6b7280">(${NAMES[s.who]})</span>`, false, s.who === "alex")}${cell(`${s.w}–${s.l}`, true)}${cell(pts(s.pf), true)}</tr>`).join("")}</table>`;
+	const head = (t: string, right = false) => `<td${right ? ' align="right"' : ""} style="padding:6px 0;border-bottom:1px solid #3A3A3A;font-size:11px;letter-spacing:0.06em;text-transform:uppercase;font-weight:700;color:#69758A">${t}</td>`;
+	const cell = (t: string, who: Manager, right = false) => `<td${right ? ' align="right"' : ""} style="padding:7px ${right ? "4px" : "0"} 7px ${right ? "8px" : "0"};border-bottom:1px solid #D6D6D6;${who === "alex" ? "font-weight:700;background:#F3EBD3;" : ""}">${t}</td>`;
+	return `<table width="100%" cellpadding="0" cellspacing="0" role="presentation" style="margin:12px 0;font-size:14px;font-variant-numeric:tabular-nums"><tr>${head("#")}${head("Team")}${head("W–L", true)}${head("PF", true)}</tr>${standings(n).map((s, i) =>
+		`<tr>${cell(String(i + 1), s.who)}${cell(`${teamBadge(s.who, 18)}${esc(TEAMS[s.who])}`, s.who)}${cell(`${s.w}–${s.l}`, s.who, true)}${cell(pts(s.pf), s.who, true)}</tr>`).join("")}</table>`;
 }
 
 const leagueList = { id: "recaps.sundaydeployleague.com", unsubscribe: "https://sundaydeployleague.com/settings/email" };
-const leagueFooter = `Sunday Deploy League recaps for league@alexrivera.me. <a href="https://sundaydeployleague.com/settings/email" style="color:#6b7280">Email settings</a>`;
+const leagueFooter = `Sunday Deploy League recaps for league@alexrivera.me. Photo: illustrative college football. <a href="https://sundaydeployleague.com/settings/email" style="color:#69758A">Email settings</a>`;
 
 // ── alex@ ──────────────────────────────────────────────────────────
 
@@ -115,23 +123,26 @@ function personal(c: StoryClock): Slot[] {
 		{
 			key: "A-01", box: "personal", folder: "archive", at: "2026-10-01T22:18", from: P.ubereats, to: [box("personal")],
 			subject: `Order ${RICE_BOWL.id} confirmed`, read: true, labels: ["Personal", "Receipts"], thread: "A-01", auto: true,
-			html: card({
-				brand: "Uber Eats", color: BRAND.ubereats, preheader: `${RICE_BOWL.restaurant} is preparing your order. Arriving around 10:52 PM.`,
-				body: `${small(`Order ${RICE_BOWL.id} · ${c.day("2026-10-01")}`)}${h2(`${RICE_BOWL.restaurant} is preparing your order`)}
-${p("Estimated arrival: <strong>10:52 PM</strong>")}
+			html: mail("ubereats", {
+				preheader: `${RICE_BOWL.restaurant} is preparing your order. Arriving around 10:52 PM.`,
+				eyebrow: `Order ${RICE_BOWL.id} · ${c.day("2026-10-01")}`,
+				heading: "Your order is confirmed",
+				body: `${para("ubereats", `<strong>${esc(RICE_BOWL.restaurant)}</strong> is preparing your order.`)}
+${rows("ubereats", [["Estimated arrival", "10:52 PM", "total"]], 20)}
 ${orderRows(RICE_BOWL, "Total")}
-${button("Track your order", `https://www.ubereats.com/orders/${RICE_BOWL.id}`, BRAND.ubereats)}`,
+${button("ubereats", "Track your order", `https://www.ubereats.com/orders/${RICE_BOWL.id}`)}`,
 				footer: uberFooter,
 			}),
 		},
 		{
 			key: "A-02", box: "personal", folder: "archive", at: "2026-10-01T22:46", from: P.ubereats, to: [box("personal")],
 			subject: `A small substitution for ${RICE_BOWL.id}`, read: true, thread: "A-01", replyTo: "A-01", auto: true,
-			html: card({
-				brand: "Uber Eats", color: BRAND.ubereats, preheader: "Sparkling yuzu soda was swapped for sparkling lemon soda. Same price.",
-				body: `${small(`Order ${RICE_BOWL.id}`)}${h2("One item was substituted")}
-${p(`${esc(RICE_BOWL.restaurant)} was out of <strong>Sparkling yuzu soda</strong>, so your courier picked up <strong>Sparkling lemon soda</strong> at the same price.`)}
-${rows([["Your total", `${money(orderTotal(RICE_BOWL))} (unchanged)`, "strong"]])}`,
+			html: mail("ubereats", {
+				preheader: "Sparkling yuzu soda was swapped for sparkling lemon soda. Same price.",
+				eyebrow: `Order ${RICE_BOWL.id}`,
+				heading: "One item was substituted",
+				body: `${para("ubereats", `${esc(RICE_BOWL.restaurant)} was out of <strong>Sparkling yuzu soda</strong>, so your courier picked up <strong>Sparkling lemon soda</strong> at the same price.`)}
+${rows("ubereats", [["Your total", `${money(orderTotal(RICE_BOWL))} (unchanged)`, "total"]], 20)}`,
 				footer: uberFooter,
 			}),
 		},
@@ -139,29 +150,32 @@ ${rows([["Your total", `${money(orderTotal(RICE_BOWL))} (unchanged)`, "strong"]]
 			key: "A-03", box: "personal", folder: "archive", at: "2026-09-30T14:11", from: P.keyforge, to: [box("personal")],
 			subject: "Your backlit keyboard has shipped", read: true, labels: ["Shopping"], thread: "A-03", auto: true,
 			attachments: [photoPart("keyboard", "keyforgekeys.com"), photoFile("keyboard")],
-			html: card({
-				brand: "Keyforge Keys", color: BRAND.keyforge, preheader: `Order KF-20931 is on its way. Estimated delivery ${c.day("2026-10-02")}.`,
-				body: `${small("Order KF-20931")}${h2("Your keyboard is on its way")}
-${photo("keyboard", "keyforgekeys.com", "A backlit mechanical keyboard")}
-<div style="height:14px"></div>
-${rows([["Backlit mechanical keyboard", money(89)], ["Shipping", "Free"], ["Tax", money(5.34)], ["Total", money(94.34), "strong"]])}
-${p(`Estimated delivery: <strong>Friday, ${esc(c.day("2026-10-02"))}</strong>`)}
-${button("Track your package", "https://keyforgekeys.com/orders/KF-20931", BRAND.keyforge)}`,
-				footer: "Keyforge Keys · Returns are free within 30 days of delivery.",
+			html: mail("keyforge", {
+				preheader: `Order KF-20931 is on its way. Estimated delivery ${c.day("2026-10-02")}.`,
+				eyebrow: "Order KF-20931",
+				heading: "Your keyboard is on its way",
+				body: `${photo("keyboard", "keyforgekeys.com", "A backlit mechanical keyboard", "Photo", 220, 8)}
+<div style="height:16px"></div>
+${rows("keyforge", [["Backlit mechanical keyboard", money(89)], ["Shipping", "Free", "muted"], ["Tax", money(5.34), "muted"], ["Total", money(94.34), "total"]], 18)}
+${rows("keyforge", [["Carrier", "Parcel ground"], ["Tracking", "KF20931-77Q"], ["Estimated delivery", `Friday, ${c.day("2026-10-02")}`]])}
+${button("keyforge", "Track your package", "https://keyforgekeys.com/orders/KF-20931")}`,
+				footer: "Keyforge Keys · support@keyforgekeys.com · Returns are free within 30 days of delivery.",
 			}),
 		},
 		{
 			key: "A-04", box: "personal", folder: "archive", at: "2026-10-09T01:16", from: P.ubereats, to: [box("personal")],
 			subject: `Order ${BURRITO.id} confirmed`, read: true, labels: ["Personal", "Receipts"], thread: "A-04", auto: true,
 			attachments: [photoPart("food-burrito", "ubereats.com")],
-			html: card({
-				brand: "Uber Eats", color: BRAND.ubereats, preheader: `${BURRITO.restaurant} is preparing your order. Arriving around 1:51 AM.`,
-				body: `${small(`Order ${BURRITO.id} · ${c.day("2026-10-09")}`)}${h2(`${BURRITO.restaurant} is preparing your order`)}
-${photo("food-burrito", "ubereats.com", "A burrito cut in half", "Menu photo")}
-<div style="height:14px"></div>
-${p("Estimated arrival: <strong>1:51 AM</strong>")}
+			html: mail("ubereats", {
+				preheader: `${BURRITO.restaurant} is preparing your order. Arriving around 1:51 AM.`,
+				eyebrow: `Order ${BURRITO.id} · ${c.day("2026-10-09")}`,
+				heading: "Your order is confirmed",
+				body: `${photo("food-burrito", "ubereats.com", "A burrito cut in half", "Menu photo", 220, 0)}
+<div style="height:18px"></div>
+${para("ubereats", `<strong>${esc(BURRITO.restaurant)}</strong> is preparing your order.`)}
+${rows("ubereats", [["Estimated arrival", "1:51 AM", "total"]], 20)}
 ${orderRows(BURRITO, "Estimated total")}
-${button("Track your order", `https://www.ubereats.com/orders/${BURRITO.id}`, BRAND.ubereats)}`,
+${button("ubereats", "Track your order", `https://www.ubereats.com/orders/${BURRITO.id}`)}`,
 				footer: uberFooter,
 			}),
 		},
@@ -183,15 +197,16 @@ ${button("Track your order", `https://www.ubereats.com/orders/${BURRITO.id}`, BR
 				{ t: `Tip: ${money(BURRITO.tip)}` },
 				{ t: `Total charged: ${money(orderTotal(BURRITO))}`, bold: true, gap: 6 },
 				{ t: "One charge. This receipt is the final amount for the order confirmed at 1:16 AM.", gap: 16 },
-			])],
-			html: card({
-				brand: "Uber Eats", color: BRAND.ubereats, preheader: `Delivered at 1:48 AM. You paid ${money(orderTotal(BURRITO))}.`,
-				body: `${small(`Order ${BURRITO.id} · ${c.day("2026-10-09")}`)}${h2("Your order was delivered")}
-${photo("food-burrito", "ubereats.com", "A burrito cut in half", "Menu photo")}
-<div style="height:14px"></div>
-${p("Delivered at <strong>1:48 AM</strong>. The total matches your order confirmation; there is no second charge.")}
+			], { band: "#111111", rule: "#E2E2E2" })],
+			html: mail("ubereats", {
+				preheader: `Delivered at 1:48 AM. You paid ${money(orderTotal(BURRITO))}.`,
+				eyebrow: `Order ${BURRITO.id} · ${c.day("2026-10-09")}`,
+				heading: "Your order was delivered",
+				body: `${photo("food-burrito", "ubereats.com", "A burrito cut in half", "Menu photo", 220, 0)}
+<div style="height:18px"></div>
+${para("ubereats", "Delivered at <strong>1:48 AM</strong>. The total matches your order confirmation; there is no second charge.")}
 ${orderRows(BURRITO, "Total charged")}
-${p("Your receipt is attached as a PDF.")}`,
+${para("ubereats", "Your receipt is attached as a PDF.", "margin-top:14px")}`,
 				footer: uberFooter,
 			}),
 		},
@@ -212,7 +227,7 @@ Maya`),
 		{
 			key: "A-07", box: "personal", folder: "inbox", at: "2026-10-09T10:00", from: P.mara, to: [box("personal")],
 			subject: "Can we still review the migration this morning?", read: true, starred: true, labels: ["Clients"], thread: "A-07",
-			html: prose(`Hi Alex,
+			html: human(`Hi Alex,
 
 We have the migration review on the calendar for 11 today. I saw your note that you were up most of the night with an outage, so I wanted to check before my team joins.
 
@@ -220,14 +235,13 @@ If today is too much, could we move it? I'd still like the review before our con
 
 The staging site and the redirect list are where we left them last week.
 
-Mara Lewis
-Westhaven Studio`),
+Mara`, SIGNERS.mara),
 		},
 		{
 			key: "A-08", box: "personal", folder: "draft", at: "2026-10-09T10:32", from: alex("personal"), to: [P.mara],
 			subject: "Re: Can we still review the migration this morning?", read: true, labels: ["Clients"], thread: "A-07", replyTo: "A-07",
 			quote: "If today is too much, could we move it?",
-			html: prose(`Hi Mara,
+			html: human(`Hi Mara,
 
 Thanks for checking. Today is too tight after last night. Could we move the review to Tuesday, ${c.day("2026-10-13")} at 10:00?
 
@@ -249,7 +263,7 @@ function league(c: StoryClock): Slot[] {
 			key: "L-01", box: "league", folder: "inbox", at: "2026-09-22T18:40", from: P.jordan, to: everyone,
 			subject: "Sunday Deploy League: you're in 🏈", read: true, starred: true, labels: ["Fantasy"], thread: "L-01",
 			attachments: [photoPart("football-stadium", "sundaydeployleague.com")],
-			html: `${photo("football-stadium", "sundaydeployleague.com", "A college football game seen from the stands")}<div style="height:12px"></div>${prose(`WELCOME TO THE SUNDAY DEPLOY LEAGUE 🏈🎉🚀
+			html: `${photo("football-stadium", "sundaydeployleague.com", "A college football game seen from the stands", "Illustrative college football photo", 180)}<div style="height:12px"></div>${prose(`WELCOME TO THE SUNDAY DEPLOY LEAGUE 🏈🎉🚀
 
 Eight teams, half-PPR, head-to-head, and absolutely zero mercy 😤🔥
 
@@ -281,17 +295,18 @@ Commissioner, Sunday Deploy League`)}`,
 		{
 			key: "L-02", box: "league", folder: "archive", at: "2026-09-27T20:10", from: P.league, to: [box("league")],
 			subject: "Round 1 results: a win for the Deployers", read: true, labels: ["Fantasy"], thread: "L-02", auto: true, list: leagueList,
-			html: card({
-				brand: "Sunday Deploy League", color: BRAND.league, preheader: `${TEAMS.alex} beat ${TEAMS.ben} 112.4–108.6. All four round 1 results inside.`,
-				body: `${small(`Round 1 · Sunday, ${c.day(r1.day)}`)}${h2("Round 1 is final")}
-${scoreboard(r1.games)}
-<h3 style="margin:18px 0 4px;font-size:16px">Standings</h3>
+			html: mail("league", {
+				preheader: `${TEAMS.alex} beat ${TEAMS.ben} 112.4–108.6. All four round 1 results inside.`,
+				eyebrow: `Round 1 · Sunday, ${c.day(r1.day)}`,
+				heading: "Round 1 is final",
+				body: `${scoreboard(r1.games)}
+${h3("Standings")}
 ${table(1)}
-<h3 style="margin:18px 0 4px;font-size:16px">Round 2 matchups</h3>
-${p(r2.games.map(([a, , b]) => `${esc(TEAMS[a])} vs ${esc(TEAMS[b])}`).join("<br>"))}
-${p("Lineups lock Thursday at 8 pm.")}
-${button("Set your lineup", "https://sundaydeployleague.com/lineup", BRAND.league)}`,
-				footer: leagueFooter,
+${h3("Round 2 matchups")}
+${para("league", r2.games.map(([a, , b]) => `${teamBadge(a, 18)}${esc(TEAMS[a])} vs ${esc(TEAMS[b])}`).join("<br>"))}
+${para("league", "Lineups lock Thursday at 8 pm.")}
+${button("league", "Set your lineup", "https://sundaydeployleague.com/lineup")}`,
+				footer: `Sunday Deploy League recaps for league@alexrivera.me. <a href="https://sundaydeployleague.com/settings/email" style="color:#69758A">Email settings</a>`,
 			}),
 		},
 		{
@@ -336,16 +351,17 @@ Alex`),
 			key: "L-06", box: "league", folder: "inbox", at: "2026-10-11T19:58", from: P.league, to: [box("league")],
 			subject: "Alex wins by 0.8 — Round 3 final 🏈", read: false, labels: ["Fantasy"], thread: "L-06", auto: true, list: leagueList,
 			attachments: [photoPart("football-stadium", "sundaydeployleague.com")],
-			html: card({
-				brand: "Sunday Deploy League", color: BRAND.league, preheader: `${TEAMS.alex} 131.7, ${TEAMS.jordan} 130.9. Round 3 results and standings after three rounds.`,
-				body: `${small(`Round 3 · Sunday, ${c.day(r3.day)}`)}${h2("Alex beats Jordan by 0.8")}
-${p(`${esc(TEAMS.alex)} edged ${esc(TEAMS.jordan)} <strong>131.7–130.9</strong>, decided by the last play of the night. Jordan's 130.9 would have beaten any other team this round.`)}
-${photo("football-stadium", "sundaydeployleague.com", "A college football game seen from the stands")}
+			html: mail("league", {
+				preheader: `${TEAMS.alex} 131.7, ${TEAMS.jordan} 130.9. Round 3 results and standings after three rounds.`,
+				eyebrow: `Round 3 · Sunday, ${c.day(r3.day)}`,
+				heading: "Alex beats Jordan by 0.8",
+				body: `${para("league", `${esc(TEAMS.alex)} edged ${esc(TEAMS.jordan)} <strong>131.7–130.9</strong>, decided by the last play of the night. Jordan's 130.9 would have beaten any other team this round.`)}
+${photo("football-stadium", "sundaydeployleague.com", "A college football game seen from the stands", "Illustrative college football photo", 180)}
 ${scoreboard(r3.games)}
-<h3 style="margin:18px 0 4px;font-size:16px">Standings after three rounds</h3>
+${h3("Standings after three rounds")}
 ${table(3)}
-${p(`Trades: none completed so far. Ben's offer of Cameron Lake for Devin Fox expired on ${esc(c.day("2026-10-02"))}.`)}
-${button("See the full recap", "https://sundaydeployleague.com/rounds/3", BRAND.league)}`,
+${para("league", `Trades: none completed so far. Ben's offer of Cameron Lake for Devin Fox expired on ${esc(c.day("2026-10-02"))}.`)}
+${button("league", "See the full recap", "https://sundaydeployleague.com/rounds/3")}`,
 				footer: leagueFooter,
 			}),
 		},

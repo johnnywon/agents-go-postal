@@ -33,7 +33,7 @@ The companies and people are made up and sit under `example.com`, `example.org` 
 
 When the server starts again and the sample mail is there, it moves the dates forward so the newest message is a few minutes old, and keeps what you read, starred or labelled. After two weeks away it writes the inbox again. Mail you made yourself is never touched. Set `DEV_SEED=off` in `.dev.vars` to start with an empty inbox.
 
-`SEED_PROFILE=alex` in `.dev.vars` writes the Alex profile instead: 47 messages for Alex Rivera across seven named mailboxes, with inline photos and real attachments. `POST /api/v1/dev/seed` takes `{"profile": "alex"}` for the same. See [Alex profile](demo-alex.md).
+`SEED_PROFILE=alex` in `.dev.vars` writes the Alex profile instead: 100 messages for Alex Rivera across nine named mailboxes on four domains, with each sender's brand, inline photos and real attachments. `POST /api/v1/dev/seed` takes `{"profile": "alex"}` for the same. See [Alex profile](demo-alex.md).
 
 To wipe the sample mail and write it again, or to add plain messages for testing long lists:
 

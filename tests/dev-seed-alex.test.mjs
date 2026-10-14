@@ -69,9 +69,63 @@ const SPEC = {
 	"L-04": ["league", "inbox", true, false, ["Fantasy"], "2026-10-04 20:15"],
 	"L-05": ["league", "sent", true, false, ["Fantasy"], "2026-10-05 08:55"],
 	"L-06": ["league", "inbox", false, false, ["Fantasy"], "2026-10-11 19:58"],
+	// The extended library: tools, Rae, Cedar's next stage, family, the band and the code club
+	"A-09": ["personal", "archive", true, false, ["Family"], "2026-09-27 18:05"],
+	"A-10": ["personal", "sent", true, false, ["Family"], "2026-09-27 20:40"],
+	"A-11": ["personal", "archive", true, false, ["Receipts"], "2026-10-01 07:02"],
+	"A-12": ["personal", "archive", true, false, [], "2026-10-03 09:15"],
+	"A-13": ["personal", "archive", true, false, ["Clients"], "2026-09-29 09:40"],
+	"A-14": ["personal", "sent", true, false, ["Clients"], "2026-09-29 11:55"],
+	"B-07": ["billing", "archive", true, false, ["Billing","Receipts"], "2026-10-01 06:10"],
+	"B-08": ["billing", "archive", true, false, ["Billing","Receipts"], "2026-10-01 09:00"],
+	"B-09": ["billing", "archive", true, false, ["Billing"], "2026-10-02 08:30"],
+	"B-10": ["billing", "archive", true, false, ["Billing"], "2026-09-30 16:20"],
+	"BAND-01": ["band", "inbox", true, true, ["Band"], "2026-09-23 14:20"],
+	"BAND-02": ["band", "sent", true, false, ["Band"], "2026-09-23 17:05"],
+	"BAND-03": ["band", "archive", true, false, ["Band"], "2026-09-24 10:12"],
+	"BAND-04": ["band", "inbox", true, false, ["Band"], "2026-09-30 21:15"],
+	"BAND-05": ["band", "archive", true, false, ["Band","Receipts"], "2026-10-02 12:00"],
+	"BAND-06": ["band", "inbox", false, false, ["Band"], "2026-10-06 15:30"],
+	"BAND-07": ["band", "inbox", false, false, ["Band"], "2026-10-10 13:05"],
+	"BAND-08": ["band", "spam", false, false, [], "2026-10-08 16:40"],
+	"H-06": ["hello", "archive", true, false, ["Dev"], "2026-09-29 15:40"],
+	"H-07": ["hello", "archive", true, false, ["Dev"], "2026-10-03 11:05"],
+	"H-08": ["hello", "archive", true, false, ["Newsletters"], "2026-09-28 12:15"],
+	"H-09": ["hello", "archive", true, false, ["Dev"], "2026-09-29 10:20"],
+	"L-07": ["league", "archive", true, false, ["Fantasy"], "2026-09-28 09:12"],
+	"L-08": ["league", "inbox", true, false, ["Fantasy"], "2026-10-07 19:30"],
+	"O-09": ["ops", "archive", true, false, ["Dev"], "2026-10-01 08:00"],
+	"O-10": ["ops", "archive", true, false, ["Dev"], "2026-10-06 14:22"],
+	"O-11": ["ops", "archive", true, false, [], "2026-10-06 14:41"],
+	"O-12": ["ops", "archive", true, false, ["Dev"], "2026-09-29 09:14"],
+	"O-13": ["ops", "archive", true, false, ["Dev"], "2026-10-07 18:30"],
+	"O-14": ["ops", "sent", true, false, ["Dev"], "2026-09-25 11:20"],
+	"O-15": ["ops", "archive", true, false, [], "2026-09-25 14:02"],
+	"O-16": ["ops", "archive", true, false, ["Dev"], "2026-09-25 15:10"],
+	"O-17": ["ops", "archive", true, false, ["Dev"], "2026-09-22 10:30"],
+	"O-18": ["ops", "archive", true, false, [], "2026-09-22 14:06"],
+	"O-19": ["ops", "archive", true, false, ["Incident"], "2026-10-09 09:12"],
+	"O-20": ["ops", "inbox", true, false, ["Incident"], "2026-10-10 16:45"],
+	"O-21": ["ops", "inbox", true, false, ["Cedar"], "2026-10-10 11:40"],
+	"O-22": ["ops", "sent", true, false, ["Cedar"], "2026-10-10 13:15"],
+	"P-07": ["partners", "inbox", true, false, ["Design"], "2026-10-02 10:45"],
+	"P-08": ["partners", "sent", true, false, ["Design"], "2026-10-02 13:20"],
+	"P-09": ["partners", "archive", true, false, ["Design"], "2026-10-02 10:41"],
+	"P-10": ["partners", "inbox", false, false, ["Design"], "2026-10-07 15:12"],
+	"P-11": ["partners", "inbox", false, false, ["Design","Billing"], "2026-10-10 09:30"],
+	"RCC-01": ["club", "archive", true, false, ["Code Club"], "2026-09-21 19:30"],
+	"RCC-02": ["club", "archive", true, true, ["Code Club"], "2026-09-24 11:00"],
+	"RCC-03": ["club", "sent", true, false, ["Code Club"], "2026-09-24 20:15"],
+	"RCC-04": ["club", "inbox", true, false, ["Code Club"], "2026-09-29 18:45"],
+	"RCC-05": ["club", "inbox", true, false, ["Code Club"], "2026-10-02 10:30"],
+	"RCC-06": ["club", "archive", true, false, ["Code Club","Receipts"], "2026-10-05 14:02"],
+	"RCC-07": ["club", "inbox", false, true, ["Code Club","Follow up"], "2026-10-07 09:10"],
+	"RCC-08": ["club", "draft", true, false, ["Code Club"], "2026-10-10 21:30"],
+	"SUP-09": ["support", "inbox", true, false, ["Support"], "2026-10-06 11:30"],
+	"SUP-10": ["support", "sent", true, false, ["Support","Waiting on customer"], "2026-10-06 13:05"],
 };
 // key: parent
-const REPLIES = { "SUP-02": "SUP-01", "SUP-03": "SUP-02", "SUP-05": "SUP-04", "SUP-07": "SUP-06", "SUP-08": "SUP-07", "B-02": "B-01", "B-06": "B-05", "P-02": "P-01", "P-03": "P-02", "O-02": "O-01", "O-04": "O-03", "O-06": "O-05", "O-07": "O-04", "A-02": "A-01", "A-05": "A-04", "A-08": "A-07", "L-05": "L-04" };
+const REPLIES = { "A-10": "A-09", "A-14": "A-13", "BAND-02": "BAND-01", "BAND-03": "BAND-02", "O-11": "O-10", "O-15": "O-14", "O-18": "O-17", "O-22": "O-21", "P-08": "P-07", "RCC-03": "RCC-01", "RCC-08": "RCC-07", "SUP-10": "SUP-09", "SUP-02": "SUP-01", "SUP-03": "SUP-02", "SUP-05": "SUP-04", "SUP-07": "SUP-06", "SUP-08": "SUP-07", "B-02": "B-01", "B-06": "B-05", "P-02": "P-01", "P-03": "P-02", "O-02": "O-01", "O-04": "O-03", "O-06": "O-05", "O-07": "O-04", "A-02": "A-01", "A-05": "A-04", "A-08": "A-07", "L-05": "L-04" };
 
 const ny = (ms) => {
 	const p = zoned(ms);
@@ -84,15 +138,16 @@ const words = (text) => text.split(" ").filter(Boolean).length;
 const emoji = (text) => (text.match(/\p{Extended_Pictographic}/gu) ?? []).length;
 const fileText = (m, name) => new TextDecoder().decode(m.attachments.find((a) => a.filename === name).bytes);
 
-test("seven mailboxes with exactly 47 messages: 5, 8, 6, 6, 8, 8, 6", () => {
-	assert.equal(inbox.messages.length, 47);
+test("nine mailboxes on four domains with exactly 100 messages", () => {
+	assert.equal(inbox.messages.length, 100);
 	const counts = {};
 	for (const m of inbox.messages) counts[inbox.addresses[m.box]] = (counts[inbox.addresses[m.box]] ?? 0) + 1;
 	assert.deepEqual(counts, {
-		"hello@partwell.dev": 5, "support@partwell.dev": 8, "billing@partwell.dev": 6, "partners@partwell.dev": 6,
-		"ops@partwell.dev": 8, "alex@alexrivera.me": 8, "league@alexrivera.me": 6,
+		"hello@partwell.dev": 9, "support@partwell.dev": 10, "billing@partwell.dev": 10, "partners@partwell.dev": 11,
+		"ops@partwell.dev": 22, "alex@alexrivera.me": 14, "league@alexrivera.me": 8,
+		"booking@latecommits.band": 8, "alex@riverbendcode.org": 8,
 	});
-	assert.equal(new Set(Object.values(ALEX_ADDRESSES)).size, 7, "no two parts share an address");
+	assert.equal(new Set(Object.values(ALEX_ADDRESSES)).size, 9, "no two parts share an address");
 });
 
 test("every slot has the folder, read state, star, labels and New York time the story gives it", () => {
@@ -104,8 +159,8 @@ test("every slot has the folder, read state, star, labels and New York time the 
 	for (const l of ALEX_LABELS) assert.ok(isLabelColor(l.color), `${l.name}: ${l.color} is in the label palette`);
 	const known = new Set(ALEX_LABELS.map((l) => l.name));
 	for (const m of inbox.messages) for (const l of m.labels ?? []) assert.ok(known.has(l), `${m.key}: ${l}`);
-	assert.deepEqual(inbox.messages.filter((m) => m.folder === "draft").map((m) => m.key).sort(), ["A-08", "B-06"]);
-	assert.deepEqual(inbox.messages.filter((m) => !m.read).map((m) => m.key).sort(), ["A-06", "B-04", "H-04", "H-05", "L-06", "O-08"]);
+	assert.deepEqual(inbox.messages.filter((m) => m.folder === "draft").map((m) => m.key).sort(), ["A-08", "B-06", "RCC-08"]);
+	assert.deepEqual(inbox.messages.filter((m) => !m.read).map((m) => m.key).sort(), ["A-06", "B-04", "BAND-06", "BAND-07", "BAND-08", "H-04", "H-05", "L-06", "O-08", "P-10", "P-11", "RCC-07"]);
 });
 
 test("the incident stays at night, and the newest mail is minutes before the story's Sunday evening", () => {
@@ -154,7 +209,7 @@ test("replies thread under an earlier parent and quote only it, at its real time
 		assert.equal((m.html.match(/gmail_quote/g) ?? []).length, 1, `${m.key} doesn't quote the whole conversation`);
 	}
 	const threads = new Set(inbox.messages.map((m) => m.thread));
-	assert.equal(threads.size, 30);
+	assert.equal(threads.size, 71);
 	for (const m of inbox.messages.filter((x) => x.folder === "sent" || x.folder === "draft")) {
 		assert.equal(m.from.addr, inbox.addresses[m.box], `${m.key} comes from its mailbox`);
 	}
@@ -287,4 +342,54 @@ test("as stored: stable ids and RFC threading, inline photos as inline parts", (
 	const headers = JSON.parse(byId.get("H-03").email.raw_headers);
 	assert.ok(headers.some((h) => h.key === "list-id" && h.value === "<small-apis.buildnotes.news>"));
 	assert.ok(headers.some((h) => h.key === "list-unsubscribe"));
+});
+
+const { XAI_INVOICE, OPENAI_USAGE, RAE_INVOICE, TOOL_SUMS } = await loadTs("workers/lib/dev-seed/alex/tools.ts");
+const life = await loadTs("workers/lib/dev-seed/alex/life.ts");
+const { LOGOS } = await loadTs("workers/lib/dev-seed/alex/brands/logos.ts");
+
+test("the extended library's sums agree: vendor bills, Rae's invoice, the band's costs, the code club's books", () => {
+	const text = (key) => own(byKey.get(key).html);
+	assert.equal(TOOL_SUMS.xai(), XAI_INVOICE.total);
+	assert.equal(TOOL_SUMS.openai(), OPENAI_USAGE.total);
+	assert.equal(TOOL_SUMS.rae(), RAE_INVOICE.total);
+	assert.match(text("B-07"), /Total \$62\.40/);
+	assert.match(fileText(byKey.get("B-07"), "xAI-invoice-INV-90417.pdf"), /Total: \$62\.40 USD/);
+	assert.match(text("B-08"), /Total \$18\.22/);
+	assert.match(fileText(byKey.get("P-11"), "RC-0312.pdf"), /14 hours x \$110\.00: \$1,540\.00[^]*Total due: \$1,540\.00/);
+	assert.equal(life.studioTotal() - life.STUDIO.deposit, 95);
+	assert.match(text("BAND-05"), /Due at the door \$95\.00/);
+	assert.equal(life.shirtTotal(), 449);
+	assert.match(fileText(byKey.get("BAND-06"), "late-commits-tee-proof.pdf"), /Total: \$449\.00/);
+	assert.equal(life.laptopTotal(), 1140);
+	assert.equal(life.clubBalance(), 2764.6);
+	assert.equal(life.clubAfterLaptops(), 1624.6);
+	const csv = fileText(byKey.get("RCC-08"), "treasurer-report.csv").trim().split("\n").slice(1).map((l) => l.split(/,(?=(?:[^"]*"[^"]*")*[^"]*$)/));
+	let balance = 0;
+	for (const r of csv) {
+		balance = Math.round((balance + Number(r[3])) * 100) / 100;
+		assert.equal(Number(r[4]), balance, `running balance after ${r[1]}`);
+	}
+	assert.equal(balance, 1624.6);
+	assert.match(text("RCC-08"), /Balance today: \$2,764\.60/);
+	assert.match(text("RCC-06"), /Net \$48\.25/);
+	assert.match(text("A-11"), /Amount \$1,850\.00/);
+});
+
+test("brands: logo files match their manifest; vendor mail carries its published logo; each person signs with their own mark", () => {
+	const manifest = JSON.parse(readFileSync("workers/lib/dev-seed/alex/brands/manifest.json", "utf8"));
+	assert.deepEqual(Object.keys(LOGOS).sort(), manifest.map((m) => m.file.replace(/^(vendor|original)\//, "").replace(/\.(svg|png)$/, "")).sort());
+	for (const m of manifest) {
+		const bytes = readFileSync(`workers/lib/dev-seed/alex/brands/${m.file}`);
+		assert.equal(createHash("sha256").update(bytes).digest("hex"), m.sha256, m.file);
+		assert.equal(LOGOS[m.file.replace(/^(vendor|original)\//, "").replace(/\.(svg|png)$/, "")].split(",")[1], bytes.toString("base64"), `${m.file} in logos.ts`);
+		assert.ok(m.source && m.usage, `${m.file} records its source and usage`);
+		if (m.file.endsWith(".svg")) assert.doesNotMatch(bytes.toString(), /<script|\son[a-z]+\s*=|javascript:/i, `${m.file} is inert`);
+	}
+	const carries = { "A-01": "ubereats-wordmark", "B-03": "stripe-wordmark", "O-01": "github-lockup", "O-03": "cloudflare-logo", "O-19": "supabase-wordmark", "O-09": "vercel-logotype", "B-07": "xai-logo", "O-16": "resend-wordmark", "H-06": "openai-wordmark", "H-09": "claude-logo", "H-07": "cursor-lockup", "O-17": "linear-mark", "P-09": "figma-mark", "O-20": "affine-logo", "H-03": "buildnotes", "A-03": "keyforge", "L-06": "sunday-deploy-league", "P-06": "fieldstone", "H-04": "launchboard" };
+	for (const [key, id] of Object.entries(carries)) assert.ok(byKey.get(key).html.includes(LOGOS[id]), `${key} shows ${id}`);
+	const signs = { "SUP-01": "northline", "SUP-02": "partwell", "H-01": "cedar", "P-01": "atlas", "P-04": "fieldstone", "B-05": "morganledger", "A-07": "westhaven", "H-05": "procura", "SUP-04": "harbor", "P-05": "priya-shah", "P-07": "rae-collins", "BAND-02": "late-commits", "RCC-03": "riverbend-code-club" };
+	for (const [key, id] of Object.entries(signs)) assert.ok(own(byKey.get(key).html) !== "" && byKey.get(key).html.split('<div class="gmail_quote">')[0].includes(LOGOS[id]), `${key} is signed with ${id}`);
+	assert.ok(!byKey.get("SUP-02").html.split('<div class="gmail_quote">')[0].includes(LOGOS.northline), "a reply doesn't take the customer's mark");
+	for (const m of inbox.messages) assert.doesNotMatch(m.html, /<img[^>]+src="(?!cid:|data:image\/(svg\+xml|png);base64,)/, `${m.key}: images are inline parts or embedded logos`);
 });

@@ -6,6 +6,7 @@
 // and links that stay inside the app.
 
 import { type Attachment, esc, md } from "../kit";
+import { type Signer, signature } from "./brands";
 import { PHOTO_BASE64 } from "./photos";
 
 export type PhotoId = keyof typeof PHOTO_BASE64;
@@ -36,10 +37,11 @@ export const photoFile = (id: PhotoId, filename = `${id}.jpg`): Attachment => ({
 /** The photo as an inline part, for `<img src="cid:…">`. */
 export const photoPart = (id: PhotoId, domain: string): Attachment => ({ ...photoFile(id), contentId: `${id}.jpg@${domain}` });
 
-/** An inline photo with its credit under it. `domain` matches the photoPart the message carries. */
-export function photo(id: PhotoId, domain: string, alt: string, label = "Photo"): string {
+/** An inline photo with its credit under it. `domain` matches the photoPart the message carries. `crop` is a height to cut it to. */
+export function photo(id: PhotoId, domain: string, alt: string, label = "Photo", crop?: number, radius = 6): string {
 	const c = PHOTO_CREDITS[id];
-	return `<img src="cid:${id}.jpg@${domain}" alt="${esc(alt)}" width="${c.width}" style="display:block;width:100%;max-width:100%;height:auto;border-radius:6px">` +
+	const size = crop ? `height:${crop}px;object-fit:cover` : "height:auto";
+	return `<img src="cid:${id}.jpg@${domain}" alt="${esc(alt)}" width="${c.width}" style="display:block;width:100%;max-width:100%;${size};border-radius:${radius}px">` +
 		`<p style="margin:6px 0 0;font-size:11px;line-height:1.4;color:#6b7280">${esc(label)}: <a href="${esc(c.source)}" style="color:#6b7280">${esc(c.title)}</a> by ${esc(c.creator)}, <a href="${esc(c.licenseUrl)}" style="color:#6b7280">${esc(c.license)}</a>, via Wikimedia Commons</p>`;
 }
 
@@ -48,6 +50,11 @@ export function prose(text: string): string {
 	return text.trim().split(/```\n?/).map((part, i) => i % 2
 		? `<pre style="white-space:pre-wrap;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:13px;line-height:1.45;margin:0 0 1em">${esc(part.replace(/\n$/, ""))}</pre>`
 		: part.trim() ? md(part) : "").join("");
+}
+
+/** Mail a person wrote: plain paragraphs, then their signature. */
+export function human(text: string, signer?: Signer): string {
+	return prose(text) + (signer ? signature(signer) : "");
 }
 
 /** Hosts a link may leave the app for: the photo sources and their licenses. */
