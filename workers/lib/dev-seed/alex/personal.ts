@@ -245,7 +245,7 @@ Mara`, SIGNERS.mara),
 
 Thanks for checking. Today is too tight after last night. Could we move the review to Tuesday, ${c.day("2026-10-13")} at 10:00?
 
-Priya knows the migration and can go through the redirect list first, so Tuesday's call can focus on what she finds. I'll confirm the rest of the schedule after that review rather than guess at it now.
+Priya, who works with me on Partwell, can check the redirect list against staging first, so Tuesday's call can focus on what she finds. I'll confirm the rest of the schedule after that review rather than guess at it now.
 
 Alex`),
 		},

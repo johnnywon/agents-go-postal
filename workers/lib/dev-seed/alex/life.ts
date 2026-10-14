@@ -241,7 +241,7 @@ Inkwell Print Co.`),
 		{
 			key: "BAND-07", box: "band", folder: "inbox", at: "2026-10-10T13:05", from: P.kai, to: [box("band")],
 			subject: "We moved rehearsal", read: false, labels: ["Band"], thread: "BAND-07",
-			html: human(`Heard you were up all night keeping the internet alive, so we moved tomorrow's rehearsal from 1 to 3. Same room. Bring the tuner you borrowed from me last spring.
+			html: human(`Heard you were up all night keeping the internet alive, so we moved tomorrow's rehearsal from 1 pm to 3 pm. Same room. Bring the tuner you borrowed from me last spring.
 
 Also: shirts. Did you approve the proof?
 
@@ -380,8 +380,8 @@ Grace`, grace),
 			attachments: [file.csv("treasurer-report.csv", [
 				["date", "item", "type", "amount_usd", "running_balance_usd"],
 				[c.iso("2026-09-24"), "Hudson Valley Community Fund grant", "income", CLUB_BOOKS.grant.toFixed(2), CLUB_BOOKS.grant.toFixed(2)],
-				[c.iso("2026-10-10"), "Donations through the payment link, Sep 21 to Oct 10", "income", CLUB_BOOKS.donations.toFixed(2), (CLUB_BOOKS.grant + CLUB_BOOKS.donations).toFixed(2)],
-				[c.iso("2026-10-08"), "Snacks for the fall session", "expense", (-CLUB_BOOKS.snacks).toFixed(2), clubBalance().toFixed(2)],
+				[c.iso("2026-10-08"), "Snacks for the fall session", "expense", (-CLUB_BOOKS.snacks).toFixed(2), (CLUB_BOOKS.grant - CLUB_BOOKS.snacks).toFixed(2)],
+				[c.iso("2026-10-10"), "Donations through the payment link, Sep 21 to Oct 10", "income", CLUB_BOOKS.donations.toFixed(2), clubBalance().toFixed(2)],
 				[c.iso("2026-10-14"), `Second Byte quote SB-2207, ${LAPTOPS.count} Chromebooks (for approval)`, "committed", (-laptopTotal()).toFixed(2), clubAfterLaptops().toFixed(2)],
 			])],
 			html: human(`Hi Grace,

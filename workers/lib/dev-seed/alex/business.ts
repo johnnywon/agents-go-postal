@@ -267,7 +267,7 @@ Sorry for the slow night. Here is what happened.
 
 From 11:37 pm a customer rollout sent about twenty times our normal evening traffic, and parallel lookups with immediate retries multiplied it. Database connections ran out, so single-part reads (\`/v1/parts/{id}\`) queued and some passed your 10-second timeout. Search was slower but mostly completed. No data was lost or changed; the failed requests never ran.
 
-Recovery was recorded at 2:36 am. We added caching for repeated reads, and the customer has lowered their concurrency. Until we've watched a full business day, each API key is limited to 20 concurrent requests. Your sync normally uses 4, so it shouldn't notice.
+Recovery was recorded at 2:36 am. We added caching for repeated reads, and the customer has lowered their concurrency. Each API key is now limited to 20 concurrent requests. Your sync normally uses 4, so it shouldn't notice.
 
 Please go ahead and restart the sync. If you see timeouts or any 429 responses, reply here and I'll raise your limit straight away.
 
