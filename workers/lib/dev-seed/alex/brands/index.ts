@@ -82,13 +82,14 @@ export type BrandId = keyof typeof BRANDS;
 
 /** A logo file as an image. `alt` is empty unless the logo is the only place a name appears. */
 export function logo(id: LogoId, width: number, height: number, alt = ""): string {
-	return `<img src="${LOGOS[id]}" width="${width}" height="${height}" alt="${esc(alt)}" style="display:block;border:0;width:${width}px;height:${height}px">`;
+	// The reader styles every image max-width:100%; a min-width keeps a logo its size in a narrow cell.
+	return `<img src="${LOGOS[id]}" width="${width}" height="${height}" alt="${esc(alt)}" style="display:block;border:0;width:${width}px;min-width:${width}px;max-width:none;height:${height}px">`;
 }
 
 function header(b: Brand): string {
 	if ("id" in b.logo) return logo(b.logo.id, b.logo.width, b.logo.height, b.name);
 	const l = b.logo;
-	return `<table cellpadding="0" cellspacing="0" role="presentation"><tr><td width="28" style="vertical-align:middle">${logo(l.mark, 28, 28)}</td><td style="padding-left:10px;vertical-align:middle;font-family:${l.font ?? b.font};font-size:${l.size ?? 17}px;font-weight:${l.weight ?? 600};color:${l.color ?? b.ink};letter-spacing:${l.text === l.text.toUpperCase() ? "0.06em" : "-0.01em"}">${esc(l.text)}</td></tr></table>`;
+	return `<table cellpadding="0" cellspacing="0" role="presentation"><tr><td width="28" style="width:28px;min-width:28px;vertical-align:middle">${logo(l.mark, 28, 28)}</td><td style="padding-left:10px;vertical-align:middle;font-family:${l.font ?? b.font};font-size:${l.size ?? 17}px;font-weight:${l.weight ?? 600};color:${l.color ?? b.ink};letter-spacing:${l.text === l.text.toUpperCase() ? "0.06em" : "-0.01em"}">${esc(l.text)}</td></tr></table>`;
 }
 
 // ── The shell ───────────────────────────────────────────────────────
@@ -185,10 +186,10 @@ export interface Signer {
 	font?: string;
 }
 
-/** A human signature: name, role and a small mark. 12/18, so a plain reply stays plain. */
+/** A human signature: a 36px mark beside name and role, 12/18, so a plain reply stays plain. */
 export function signature(s: Signer): string {
 	const lines = [s.title, s.org, s.link].filter(Boolean).map((l) => esc(l as string)).join("<br>");
-	return `<table cellpadding="0" cellspacing="0" role="presentation" style="margin:18px 0 0;font-family:${s.font ?? SANS};font-size:12px;line-height:18px;color:#5b6168"><tr>${s.mark ? `<td style="vertical-align:top;padding:2px 10px 0 0">${logo(s.mark, 20, 20)}</td>` : ""}<td style="vertical-align:top"><strong style="color:${s.color ?? "#1f2328"};font-weight:600">${esc(s.name)}</strong>${lines ? `<br>${lines}` : ""}</td></tr></table>`;
+	return `<table cellpadding="0" cellspacing="0" role="presentation" style="margin:18px 0 0;font-family:${s.font ?? SANS};font-size:12px;line-height:18px;color:#5b6168"><tr>${s.mark ? `<td width="36" style="width:36px;min-width:36px;vertical-align:middle;padding:0 12px 0 0">${logo(s.mark, 36, 36)}</td>` : ""}<td style="vertical-align:middle"><strong style="color:${s.color ?? "#1f2328"};font-weight:600">${esc(s.name)}</strong>${lines ? `<br>${lines}` : ""}</td></tr></table>`;
 }
 
 export const SIGNERS = {
