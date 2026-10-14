@@ -117,7 +117,7 @@ ${para("buildnotes", "Rosa Lind<br>Editor, Build Notes")}`,
 				body: `${para("launchboard", "Hi Alex,")}
 ${para("launchboard", "Partwell caught our eye on a developer tools list this week, and we'd love to feature it in the Launchboard Directory's API section, which reaches 48,000 founders and engineers every month.")}
 <table width="100%" cellpadding="0" cellspacing="0" role="presentation" style="margin:6px 0 16px;background:#FFF1E9;border-radius:6px"><tr><td style="padding:14px 16px;font-size:14px;line-height:21px"><strong style="color:#26334D">Partwell</strong> <span style="color:#D94D35;font-size:12px;font-weight:700;letter-spacing:0.04em">FEATURED</span><br><span style="color:#6A7180">One API for manufacturers' product catalogs, with MCP connectors.</span></td></tr></table>
-${para("launchboard", "Featured placement normally costs $250. Because the monthly slots close Friday, we can hold one for Partwell at <strong>$90 for the full month</strong>: a top-of-category card like the one above, a backlink and a mention in our weekly roundup.")}
+${para("launchboard", "Featured placement normally costs $250. Because this month's slots close tonight, we can hold one for Partwell at <strong>$90 for the full month</strong>: a top-of-category card like the one above, a backlink and a mention in our weekly roundup.")}
 ${button("launchboard", "Claim the featured spot", "https://launchboardlistings.com/claim/partwell")}
 ${para("launchboard", "Slots are first come, first served.", "margin-top:14px")}
 ${signature(SIGNERS.miles)}`,
@@ -372,7 +372,7 @@ Omar`, SIGNERS.omar),
 			subject: "Two food receipts and the database adjustment", read: true, labels: ["Receipts"], thread: "B-05",
 			html: human(`Hi Alex,
 
-Three things for October before I close the month:
+Three things for October so far:
 
 - Uber Eats UE-73419. I have an order confirmation dated ${c.day("2026-10-09")} for $23.19. Please send the final receipt; I can't book a confirmation.
 - Uber Eats UE-73102 from ${c.day("2026-10-01")}. The confirmation says $18.87 and there is a substitution email after it. Did the substitution change the amount?
@@ -709,7 +709,7 @@ ${button("cloudflare", "View analytics", "https://dash.cloudflare.com/analytics/
 			subject: "Next Cedar rollout: concurrency cap stays at 8?", read: false, starred: true, labels: ["Cedar", "Follow up"], thread: "O-08",
 			html: human(`Hi Alex,
 
-Monitoring has been quiet since Thursday night's recovery: p95 between 160 and 230 ms all weekend, no 429s, and the read cache is answering about 70% of single-part lookups.
+Monitoring has been quiet since the recovery early Friday: p95 between 160 and 230 ms all weekend, no 429s, and the read cache is answering about 70% of single-part lookups.
 
 Lena wants to take Cedar's assistant from 5 stores to 15 on Tuesday. Their client is capped at 8 concurrent requests with backoff on retries, and I'd keep that cap for this stage rather than raise it to 16 as they asked. At 15 stores and a cap of 8, the load test peaked at 41% of database CPU.
 

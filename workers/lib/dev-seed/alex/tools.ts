@@ -157,7 +157,7 @@ ${button("openai", "View usage", "https://platform.openai.com/usage")}`,
 			}),
 		},
 		{
-			key: "B-09", box: "billing", folder: "archive", at: "2026-10-02T08:30", from: P.anthropic, to: [box("billing")],
+			key: "B-09", box: "billing", folder: "archive", at: "2026-10-07T08:30", from: P.anthropic, to: [box("billing")],
 			subject: "You've used half of your monthly spend limit", read: true, labels: ["Billing"], thread: "B-09", auto: true,
 			html: mail("claude", {
 				preheader: "Partwell has used $51.30 of its $100.00 monthly spend limit on the Claude API.",
@@ -176,7 +176,7 @@ ${button("claude", "Review limits", "https://console.anthropic.com/settings/limi
 Closing September this week. Two things I don't have:
 
 - The Stripe payout report for September, as a CSV from the Stripe dashboard.
-- Fieldstone's invoice for the catalog license. Their last one came in October of last year, so it may not be due yet. If so, tell me and I'll accrue it.
+- Fieldstone's invoice for the catalog license. Their last one came at the start of the term last November, so the next may not be due until then. If so, tell me and I'll accrue it.
 
 Tess`, SIGNERS.tess),
 		},
@@ -335,7 +335,7 @@ ${button("xai", "Manage API keys", "https://console.x.ai/team/partwell-normalize
 				preheader: "partwell-normalizer has used $80.12 of its $100.00 monthly limit.",
 				eyebrow: "USAGE · PARTWELL-NORMALIZER",
 				heading: "80% of this month's limit is used",
-				body: `${rows("xai", [["Spent this month", "$80.12"], ["Monthly limit", "$100.00"], ["Largest key", "catalog-batch-prod, $71.40"]])}
+				body: `${rows("xai", [["Spent this month", "$80.12"], ["Monthly limit", "$100.00"], ["Largest key", "catalog-batch-prod, $71.40"], ["Largest day", `${c.short("2026-10-01")}, $58.20`]])}
 ${para("xai", "When the limit is reached, requests return an error until the next month or until you raise it.")}
 ${button("xai", "Change limit", "https://console.x.ai/team/partwell-normalizer/billing")}`,
 				footer: "xAI · API usage notices go to team admins.",
@@ -428,7 +428,7 @@ ${button("supabase", "View project", "https://supabase.com/dashboard/project/par
 <div style="margin:0 0 16px;padding:14px 16px;border:1px solid #E3E5E8;border-radius:8px;font-size:14px;line-height:22px">
 <strong>Timeline</strong><br>23:37 latency alert · 23:38 throttling · 00:09 case DB-4821 opened · 00:41 first customer report · 02:36 recovered<br><br>
 <strong>What we change</strong><br>Read cache stays on. Per-key concurrency limit of 20. Status page update within 10 minutes of an alert.<br><br>
-<strong>Next rollout</strong><br>Cedar: 5 → 15 stores, client cap 8. Decision needed by Monday.</div>
+<strong>Next rollout</strong><br>Cedar: 5 → 15 stores on Tuesday. Client cap 8 or 16: decision needed by Monday.</div>
 ${button("notes", "Open note", "https://notes.partwell.dev/workspace/partwell/oct-8-incident-review")}`,
 				footer: "Notes · notes.partwell.dev",
 			}),

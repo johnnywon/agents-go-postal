@@ -216,7 +216,7 @@ ${para("ubereats", "Your receipt is attached as a PDF.", "margin-top:14px")}`,
 			attachments: [photoFile("coffee", "flat-white.jpg")],
 			html: prose(`Alex!
 
-Priya says you were up until three on Thursday fixing the internet. Hero behavior, terrible sleep schedule.
+Priya says you were up until three on Thursday night fixing the internet. Hero behavior, terrible sleep schedule.
 
 Coffee tomorrow? I'm thinking 10:30 at Larch & Pine on Fulton Street, the one with the window seats. My treat if you promise to check your phone no more than twice. Attached: proof that their flat white is worth getting out of bed for.
 

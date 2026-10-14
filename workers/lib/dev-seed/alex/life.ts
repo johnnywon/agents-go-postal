@@ -32,7 +32,7 @@ export const clubAfterLaptops = () => (cents(clubBalance()) - cents(laptopTotal(
 function personal(c: StoryClock): Slot[] {
 	return [
 		{
-			key: "A-09", box: "personal", folder: "archive", at: "2026-09-27T18:05", from: P.elena, to: [box("personal")],
+			key: "A-09", box: "personal", folder: "archive", at: "2026-09-26T18:05", from: P.elena, to: [box("personal")],
 			subject: "Sunday dinner?", read: true, labels: ["Family"], thread: "A-09",
 			html: prose(`Hi sweetheart,
 
@@ -44,12 +44,12 @@ Love,
 Mom`),
 		},
 		{
-			key: "A-10", box: "personal", folder: "sent", at: "2026-09-27T20:40", from: alex("personal"), to: [P.elena],
+			key: "A-10", box: "personal", folder: "sent", at: "2026-09-26T20:40", from: alex("personal"), to: [P.elena],
 			subject: "Re: Sunday dinner?", read: true, labels: ["Family"], thread: "A-09", replyTo: "A-09",
 			quote: "Your father wants to know if your band is playing anywhere he can drive to, and whether he needs earplugs.",
 			html: prose(`Hi Mom,
 
-I can't do tomorrow, I'm behind on a customer launch. Next Sunday, ${esc(c.day("2026-10-04"))}? Save me some stew.
+I can't do tomorrow, I'm behind on work before a customer pilot starts. Next Sunday, ${esc(c.day("2026-10-04"))}? Save me some stew.
 
 We're playing The Foundry Room on Saturday, ${esc(c.day("2026-10-17"))}. Doors at 8, we're on at 9:30. Tell Dad yes to the earplugs, and I'll put you both on the guest list.
 
@@ -133,7 +133,7 @@ Nia`),
 			subject: "Waiver claim: who took my kicker", read: true, labels: ["Fantasy"], thread: "L-08",
 			html: prose(`Alex,
 
-The waiver report says you claimed the kicker I had queued for Wednesday night. You don't even play a kicker most weeks.
+Last night's waivers gave you the kicker I had queued. You started a kicker on his bye week on Sunday. You don't get to have nice things.
 
 I'll trade you a backup running back for him. Think about it before Thursday's lock.
 
@@ -243,7 +243,7 @@ Inkwell Print Co.`),
 		{
 			key: "BAND-07", box: "band", folder: "inbox", at: "2026-10-10T13:05", from: P.kai, to: [box("band")],
 			subject: "We moved rehearsal", read: false, labels: ["Band"], thread: "BAND-07",
-			html: human(`Heard you were up all night keeping the internet alive, so we moved tomorrow's rehearsal from 1 to 3. Same room. Bring the tuner you borrowed from me in 2024.
+			html: human(`Heard you were up all night keeping the internet alive, so we moved tomorrow's rehearsal from 1 to 3. Same room. Bring the tuner you borrowed from me last spring.
 
 Also: shirts. Did you approve the proof?
 
@@ -311,7 +311,7 @@ Program Officer, Hudson Valley Community Fund`),
 
 Good news first: the grant came through today, ${money(CLUB_BOOKS.grant)} for equipment and supplies.
 
-My plan: 12 refurbished Chromebooks gets us to 21 machines, and with the library's 3 on Thursdays, one per kid. I'm asking two refurbishers for quotes; I expect around ${money(LAPTOPS.each)} each. That leaves room for chargers, a few mice and snacks for the whole session.
+My plan: 12 refurbished Chromebooks gets us to 21 machines. With the library's 3 that's one per kid on Thursdays; on Tuesdays three kids pair up. I'm asking two refurbishers for quotes; I expect around ${money(LAPTOPS.each)} each. That leaves room for chargers, a few mice and snacks for the whole session.
 
 I'll bring the quotes to the board meeting.
 
@@ -382,7 +382,7 @@ Grace`, grace),
 			attachments: [file.csv("treasurer-report.csv", [
 				["date", "item", "type", "amount_usd", "running_balance_usd"],
 				[c.iso("2026-09-24"), "Hudson Valley Community Fund grant", "income", CLUB_BOOKS.grant.toFixed(2), CLUB_BOOKS.grant.toFixed(2)],
-				[c.iso("2026-10-05"), "Donations through the payment link, Sep 21 to Oct 10", "income", CLUB_BOOKS.donations.toFixed(2), (CLUB_BOOKS.grant + CLUB_BOOKS.donations).toFixed(2)],
+				[c.iso("2026-10-10"), "Donations through the payment link, Sep 21 to Oct 10", "income", CLUB_BOOKS.donations.toFixed(2), (CLUB_BOOKS.grant + CLUB_BOOKS.donations).toFixed(2)],
 				[c.iso("2026-10-08"), "Snacks for the fall session", "expense", (-CLUB_BOOKS.snacks).toFixed(2), clubBalance().toFixed(2)],
 				[c.iso("2026-10-14"), `Second Byte quote SB-2207, ${LAPTOPS.count} Chromebooks (for approval)`, "committed", (-laptopTotal()).toFixed(2), clubAfterLaptops().toFixed(2)],
 			])],
