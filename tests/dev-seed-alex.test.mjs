@@ -189,12 +189,23 @@ test("on a later date the whole story moves in whole weeks, keeping weekdays and
 		}
 		const recovery = own(later.messages.find((m) => m.key === "O-07").html);
 		assert.ok(recovery.includes(later.clock.long(later.clock.at("2026-10-09T02:36"))), "dates in bodies move too");
+		// Month names follow the moved calendar: bills name the month before they arrive, rent the month it's paid in.
+		const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+		const of = (key) => later.messages.find((m) => m.key === key);
+		const monthOf = (m, back = 0) => MONTHS[(zoned(m.at).mo + 12 - back) % 12];
+		for (const key of ["B-07", "B-08", "O-09"]) assert.ok(of(key).subject.endsWith(`for ${monthOf(of(key), 1)}`), `${key} bills ${monthOf(of(key), 1)}`);
+		assert.equal(of("A-11").subject, `Rent payment received for ${monthOf(of("A-11"))}`);
+		const batch = /goes out on (\w+) (\d+)/.exec(own(of("P-01").html));
+		assert.equal(of("P-01").subject, `CAT-${String(MONTHS.indexOf(batch[1]) + 1).padStart(2, "0")}${batch[2].padStart(2, "0")} schema update`, "the batch is named for the day it goes out");
 		if (shift) {
 			// Every written date moves: none reads the same as it does in the unmoved story.
 			const dates = (m) => (m.subject + " " + own(m.html)).match(/\b(?:January|February|March|April|May|June|July|August|September|October|November|December|Jan|Feb|Mar|Apr|Jun|Jul|Aug|Sep|Sept|Oct|Nov|Dec) \d{1,2}\b|\b[Tt]he \d{1,2}(?:st|nd|rd|th)\b|\b\d{4}-\d{2}-\d{2}\b/g) ?? [];
 			for (const m of later.messages) {
 				const was = dates(byKey.get(m.key));
-				const stuck = dates(m).filter((d, i) => d === was[i]);
+				// A billing period is a calendar month, so its first and last days rightly stay put.
+				const LAST = { Jan: 31, Feb: 29, Mar: 31, Apr: 30, May: 31, Jun: 30, Jul: 31, Aug: 31, Sep: 30, Oct: 31, Nov: 30, Dec: 31 };
+				const monthEdge = (d) => { const [mo, day] = d.split(" "); return +day === 1 || +day === LAST[mo.slice(0, 3)]; };
+				const stuck = dates(m).filter((d, i) => d === was[i] && !monthEdge(d));
 				assert.deepEqual(stuck, [], `${m.key} has dates that did not move`);
 			}
 		}

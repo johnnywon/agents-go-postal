@@ -20,6 +20,8 @@ export const DB_ESTIMATE = 45;
 
 const h3 = (text: string, font = "inherit") => `<h3 style="margin:26px 0 6px;font-family:${font};font-size:19px;line-height:26px;font-weight:400">${esc(text)}</h3>`;
 const REPO = "alexrivera/partwell";
+/** Atlas names a batch for the day it goes out: CAT-0930. */
+const batchId = (c: StoryClock) => `CAT-${c.iso("2026-09-30").slice(5).replace("-", "")}`;
 
 // ── hello@ ─────────────────────────────────────────────────────────
 
@@ -42,7 +44,7 @@ Three questions before I take this to our team:
 - Can every answer carry its source? If the assistant recommends a part, staff need to see which manufacturer file it came from.
 - How fresh is the data? Some suppliers update prices weekly, and a few change part numbers without telling anyone.
 
-If it fits, we'd like a four-week pilot in five stores starting early October. I'm happy to get on a call next week, any afternoon except Thursday.
+If it fits, we'd like a four-week pilot in five stores starting ${c.part("2026-10-01")}. I'm happy to get on a call next week, any afternoon except Thursday.
 
 Thanks,
 Lena`, SIGNERS.lena),
@@ -300,7 +302,7 @@ function billing(c: StoryClock): Slot[] {
 			subject: "Can you resend Northline's invoice?", read: true, labels: ["Billing"], thread: "B-01",
 			html: human(`Hello,
 
-I handle the books for Northline Parts. Ben forwarded me the setup email for our Partwell subscription, but it didn't include an invoice, and I need one for September.
+I handle the books for Northline Parts. Ben forwarded me the setup email for our Partwell subscription, but it didn't include an invoice, and I need one for ${c.month("2026-09-21T09:06").name}.
 
 Could you send an invoice made out to Northline Parts showing the amount, the period it covers and any tax? A PDF is best.
 
@@ -372,7 +374,7 @@ Omar`, SIGNERS.omar),
 			subject: "Two food receipts and the database adjustment", read: true, labels: ["Receipts"], thread: "B-05",
 			html: human(`Hi Alex,
 
-Three things for October so far:
+Three things for the books:
 
 - Uber Eats UE-73419. I have an order confirmation dated ${c.day("2026-10-09")} for $23.19. Please send the final receipt; I can't book a confirmation.
 - Uber Eats UE-73102 from ${c.day("2026-10-01")}. The confirmation says $18.87 and there is a substitution email after it. Did the substitution change the amount?
@@ -386,7 +388,7 @@ Tess`, SIGNERS.tess),
 			key: "B-06", box: "billing", folder: "draft", at: "2026-10-09T17:40", from: alex("billing"), to: [P.tess],
 			subject: "Re: Two food receipts and the database adjustment", read: true, labels: ["Receipts"], thread: "B-05", replyTo: "B-05",
 			quote: "If you have their estimate, send it and I'll book it as provisional until the invoice arrives.",
-			attachments: [file.csv("october-expenses.csv", [
+			attachments: [file.csv(`${c.month("2026-10-09T17:40").name.toLowerCase()}-expenses.csv`, [
 				["date", "vendor", "reference", "document", "amount_usd", "counted", "note"],
 				[c.iso("2026-10-01"), "Uber Eats", "UE-73102", "Order confirmation", "18.87", "yes", "Drink substitution did not change the total"],
 				[c.iso("2026-10-09"), "Uber Eats", "UE-73419", "Order confirmation", "23.19", "no", "Same purchase as the final receipt below"],
@@ -418,8 +420,8 @@ function partners(c: StoryClock): Slot[] {
 	return [
 		{
 			key: "P-01", box: "partners", folder: "archive", at: "2026-09-23T09:32", from: P.theo, to: [box("partners")],
-			subject: "CAT-0930 schema update", read: true, labels: ["Vendors"], thread: "P-01",
-			attachments: [file.csv("CAT-0930-sample.csv", [
+			subject: `${batchId(c)} schema update`, read: true, labels: ["Vendors"], thread: "P-01",
+			attachments: [file.csv(`${batchId(c)}-sample.csv`, [
 				["sku", "manufacturer", "manufacturer_part_number", "description", "unit", "price_usd", "updated_at"],
 				["ATL-55120", "Hollis Fastening", "HX-1420-SS", "Hex cap screw, 1/4-20 x 1 in, stainless", "each", "0.42", c.iso("2026-09-28")],
 				["ATL-55121", "Hollis Fastening", "HX-1420-ZN", "Hex cap screw, 1/4-20 x 1 in, zinc", "each", "0.18", c.iso("2026-09-28")],
@@ -427,7 +429,7 @@ function partners(c: StoryClock): Slot[] {
 			])],
 			html: human(`Hi Alex,
 
-A heads-up on batch CAT-0930, which goes out on ${c.day("2026-09-30")}. We're renaming the column manufacturer_part_no to manufacturer_part_number across all our catalog exports, to match the naming in the rest of the file.
+A heads-up on batch ${batchId(c)}, which goes out on ${c.day("2026-09-30")}. We're renaming the column manufacturer_part_no to manufacturer_part_number across all our catalog exports, to match the naming in the rest of the file.
 
 Nothing else changes: same values, same position in the file. Three rows from the batch are attached so you can check your importer against them.
 
@@ -437,26 +439,26 @@ Theo`, SIGNERS.theo),
 		},
 		{
 			key: "P-02", box: "partners", folder: "sent", at: "2026-09-23T11:08", from: alex("partners"), to: [P.theo],
-			subject: "Re: CAT-0930 schema update", read: true, thread: "P-01", replyTo: "P-01",
+			subject: `Re: ${batchId(c)} schema update`, read: true, thread: "P-01", replyTo: "P-01",
 			quote: "We're renaming the column manufacturer_part_no to manufacturer_part_number across all our catalog exports, to match the naming in the rest of the file.",
 			html: human(`Hi Theo,
 
 Thanks for the notice. Two questions so I can plan the importer change:
 
 - Is the rename permanent, or could manufacturer_part_no come back in later batches?
-- Will CAT-0930 carry both columns for one batch, so customers still on the old mapping don't see a gap?
+- Will ${batchId(c)} carry both columns for one batch, so customers still on the old mapping don't see a gap?
 
 Alex`),
 		},
 		{
 			key: "P-03", box: "partners", folder: "archive", at: "2026-09-24T08:48", from: P.theo, to: [alex("partners")],
-			subject: "Re: CAT-0930 schema update", read: true, thread: "P-01", replyTo: "P-02",
-			quote: "Will CAT-0930 carry both columns for one batch, so customers still on the old mapping don't see a gap?",
+			subject: `Re: ${batchId(c)} schema update`, read: true, thread: "P-01", replyTo: "P-02",
+			quote: `Will ${batchId(c)} carry both columns for one batch, so customers still on the old mapping don't see a gap?`,
 			html: human(`Morning Alex,
 
-It's permanent. manufacturer_part_number is the canonical name from CAT-0930 onward.
+It's permanent. manufacturer_part_number is the canonical name from ${batchId(c)} onward.
 
-For the transition, CAT-0930 carries both columns with identical values. From the batch after it, only manufacturer_part_number will be present.
+For the transition, ${batchId(c)} carries both columns with identical values. From the batch after it, only manufacturer_part_number will be present.
 
 Theo`),
 		},
@@ -507,7 +509,7 @@ Every part record now carries sourceUpdatedAt, the time the manufacturer file it
 \`\`\`
 {
   "partNumber": "HX-1420-SS",
-  "sourceFile": "atlas/CAT-0930.csv",
+  "sourceFile": "atlas/${batchId(c)}.csv",
   "sourceUpdatedAt": "${c.utc("2026-09-28T10:05")}"
 }
 \`\`\`
@@ -517,7 +519,7 @@ I tested get_part and search_parts from Cursor and from Claude. Two observations
 - Claude quotes the date without being asked when it cites a part ("from Atlas Dataworks' catalog, updated ${c.day("2026-09-28")}"). Cursor shows the field in the tool output, but its agent only mentions it if you ask about freshness. Probably fine, but worth a line in the tool description.
 - sourceUpdatedAt is per source file, not per record. For Atlas that's accurate because they send whole batches. For suppliers that patch single rows it can make a price look older than it is, never newer. I'd ship it now and add a per-record date when a supplier gives us one.
 
-Tests cover both tools and the CSV and JSON importers. The CAT-0930 column rename is handled in the same PR, with the old name accepted for one batch.
+Tests cover both tools and the CSV and JSON importers. The ${batchId(c)} column rename is handled in the same PR, with the old name accepted for one batch.
 
 Happy to pair on the tool description tomorrow if you want.
 

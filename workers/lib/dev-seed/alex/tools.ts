@@ -106,7 +106,7 @@ Ben`, SIGNERS.ben),
 			quote: "What would Growth cost us, and does it start from today or the next billing date?",
 			html: human(`Hi Ben,
 
-Growth is $399 a month: ten API keys, two million requests and a separate staging environment. It starts the day you switch, and the unused part of September's Starter payment comes off the first Growth invoice, so you don't pay twice for ${esc(c.day("2026-10-06"))} onwards.
+Growth is $399 a month: ten API keys, two million requests and a separate staging environment. It starts the day you switch, and the unused part of ${c.month("2026-09-18").name}'s Starter payment comes off the first Growth invoice, so you don't pay twice for ${esc(c.day("2026-10-06"))} onwards.
 
 Nora will get the invoice as usual. Say the word and I'll switch the account.
 
@@ -116,17 +116,20 @@ Alex`, SIGNERS.alexSupport),
 }
 
 function billing(c: StoryClock): Slot[] {
+	// Monthly bills cover the calendar month before the one they arrive in.
+	const billed = c.month("2026-10-01T06:10", 1);
+	const closing = c.closing("2026-09-30T16:20");
 	const xaiRows: [string, string][] = XAI_INVOICE.lines.map(([k, v]) => [k, money(v)]);
 	return [
 		{
 			key: "B-07", box: "billing", folder: "archive", at: "2026-10-01T06:10", from: P.xaiBilling, to: [box("billing")],
-			subject: "Your xAI API invoice for September", read: true, labels: ["Billing", "Receipts"], thread: "B-07", auto: true,
+			subject: `Your xAI API invoice for ${billed.name}`, read: true, labels: ["Billing", "Receipts"], thread: "B-07", auto: true,
 			attachments: [file.pdf("xAI-invoice-INV-90417.pdf", [
 				{ t: "xAI", size: 20, bold: true },
 				{ t: "Invoice INV-90417", size: 14, gap: 4 },
 				{ t: "Billed to: Partwell (billing@partwell.dev)", gap: 16 },
 				{ t: "Team: partwell-normalizer", gap: 2 },
-				{ t: `Period: ${c.date("2026-09-01")} to ${c.date("2026-09-30")}`, gap: 2 },
+				{ t: `Period: ${c.date(billed.first)} to ${c.date(billed.last)}`, gap: 2 },
 				{ t: "", rule: true, gap: 10 },
 				...XAI_INVOICE.lines.map(([k, v], i) => ({ t: `${k}: ${money(v)}`, gap: i ? 0 : 6 })),
 				{ t: "", rule: true, gap: 6 },
@@ -134,10 +137,10 @@ function billing(c: StoryClock): Slot[] {
 				{ t: "Charged to the card on file.", gap: 8 },
 			], { band: "#0A0A0A", rule: "#292929" })],
 			html: mail("xai", {
-				preheader: `Invoice INV-90417: ${money(XAI_INVOICE.total)} for API usage in September.`,
+				preheader: `Invoice INV-90417: ${money(XAI_INVOICE.total)} for API usage in ${billed.name}.`,
 				eyebrow: "INVOICE INV-90417 · PARTWELL-NORMALIZER",
-				heading: `${money(XAI_INVOICE.total)} for September`,
-				body: `${para("xai", "Your API usage for September has been charged to the card on file. The invoice is attached.")}
+				heading: `${money(XAI_INVOICE.total)} for ${billed.name}`,
+				body: `${para("xai", `Your API usage for ${billed.name} has been charged to the card on file. The invoice is attached.`)}
 ${rows("xai", [...xaiRows, ["Total", money(XAI_INVOICE.total), "total"]])}
 ${button("xai", "View invoice", "https://console.x.ai/team/partwell-normalizer/billing")}`,
 				footer: "xAI · API billing. Questions about this invoice: reply to this email.",
@@ -145,10 +148,10 @@ ${button("xai", "View invoice", "https://console.x.ai/team/partwell-normalizer/b
 		},
 		{
 			key: "B-08", box: "billing", folder: "archive", at: "2026-10-01T09:00", from: P.openai, to: [box("billing")],
-			subject: "Your OpenAI API usage for September", read: true, labels: ["Billing", "Receipts"], thread: "B-08", auto: true,
+			subject: `Your OpenAI API usage for ${billed.name}`, read: true, labels: ["Billing", "Receipts"], thread: "B-08", auto: true,
 			html: mail("openai", {
-				preheader: `Project partwell-connector-tests used ${money(OPENAI_USAGE.total)} in September.`,
-				heading: "September usage",
+				preheader: `Project partwell-connector-tests used ${money(OPENAI_USAGE.total)} in ${billed.name}.`,
+				heading: `${billed.name} usage`,
 				body: `${meta("openai", [["Organization", "Partwell"], ["Project", "partwell-connector-tests"]])}
 ${rows("openai", [...OPENAI_USAGE.lines.map(([k, v]) => [k, money(v)] as [string, string]), ["Total", money(OPENAI_USAGE.total), "total"]])}
 ${para("openai", "Your monthly budget for this project is $50.00. You can change it in your project's limits.", "color:#6B6B6B")}
@@ -170,13 +173,13 @@ ${button("claude", "Review limits", "https://console.anthropic.com/settings/limi
 		},
 		{
 			key: "B-10", box: "billing", folder: "archive", at: "2026-09-30T16:20", from: P.tess, to: [box("billing")],
-			subject: "September close: payout report and the Fieldstone invoice", read: true, labels: ["Billing"], thread: "B-10",
+			subject: `${closing} close: payout report and the Fieldstone invoice`, read: true, labels: ["Billing"], thread: "B-10",
 			html: human(`Hi Alex,
 
-Closing September this week. Two things I don't have:
+Closing ${closing} this week. Two things I don't have:
 
-- The Stripe payout report for September, as a CSV from the Stripe dashboard.
-- Fieldstone's invoice for the catalog license. Their last one came at the start of the term last November, so the next may not be due until then. If so, tell me and I'll accrue it.
+- The Stripe payout report for ${closing}, as a CSV from the Stripe dashboard.
+- Fieldstone's invoice for the catalog license. Their last one came at the start of the term last ${c.month("2026-11-01").name}, so the next may not be due until then. If so, tell me and I'll accrue it.
 
 Tess`, SIGNERS.tess),
 		},
@@ -274,14 +277,15 @@ Rae`, SIGNERS.rae),
 
 function ops(c: StoryClock): Slot[] {
 	const vercelProject = "https://vercel.com/partwell/partwell-docs";
+	const used = c.month("2026-10-01T08:00", 1);
 	return [
 		{
 			key: "O-09", box: "ops", folder: "archive", at: "2026-10-01T08:00", from: P.vercel, to: [box("ops")],
-			subject: "Your Vercel usage for September", read: true, labels: ["Dev"], thread: "O-09", auto: true,
+			subject: `Your Vercel usage for ${used.name}`, read: true, labels: ["Dev"], thread: "O-09", auto: true,
 			html: mail("vercel", {
-				preheader: "partwell-docs: 1.42M edge requests and 18.6 GB of data transfer in September.",
-				heading: "September usage",
-				body: `${meta("vercel", [["Team", "partwell"], ["Project", "partwell-docs"], ["Period", `${c.short("2026-09-01")} – ${c.short("2026-09-30")}`]])}
+				preheader: `partwell-docs: 1.42M edge requests and 18.6 GB of data transfer in ${used.name}.`,
+				heading: `${used.name} usage`,
+				body: `${meta("vercel", [["Team", "partwell"], ["Project", "partwell-docs"], ["Period", `${c.short(used.first)} – ${c.short(used.last)}`]])}
 ${grid("vercel", ["Resource", "Used", "Included"], [["Edge requests", "1.42M", "10M"], ["Fast data transfer", "18.6 GB", "1 TB"], ["Function invocations", "212K", "1M"], ["Build minutes", "96", "6,000"]], { mono: [1, 2] })}
 ${para("vercel", "Nothing is over the included amount this month.")}
 ${button("vercel", "View usage", `${vercelProject}/usage`)}`,
@@ -335,7 +339,7 @@ ${button("xai", "Manage API keys", "https://console.x.ai/team/partwell-normalize
 				preheader: "partwell-normalizer has used $80.12 of its $100.00 monthly limit.",
 				eyebrow: "USAGE · PARTWELL-NORMALIZER",
 				heading: "80% of this month's limit is used",
-				body: `${rows("xai", [["Spent this month", "$80.12"], ["Monthly limit", "$100.00"], ["Largest key", "catalog-batch-prod, $71.40"], ["Largest day", `${c.short("2026-10-01")}, $58.20`]])}
+				body: `${rows("xai", [["Spent this month", "$80.12"], ["Monthly limit", "$100.00"], ["Largest key", "catalog-batch-prod, $71.40"], ["Largest day", `${c.short(c.month("2026-10-07T18:30").first)}, $58.20`]])}
 ${para("xai", "When the limit is reached, requests return an error until the next month or until you raise it.")}
 ${button("xai", "Change limit", "https://console.x.ai/team/partwell-normalizer/billing")}`,
 				footer: "xAI · API usage notices go to team admins.",
@@ -450,7 +454,7 @@ ${button("notes", "Open note", "https://notes.partwell.dev/workspace/partwell/oc
 				{ t: "Proposal", size: 13, bold: true, gap: 12 },
 				{ t: `- Tuesday ${c.day("2026-10-13")}: 15 stores.`, gap: 4 },
 				{ t: "- Raise the client cap from 8 to 16 at the same time." },
-				{ t: "- All 41 stores in early November if the 15-store stage holds for a week." },
+				{ t: `- All 41 stores in ${c.part("2026-11-05")} if the 15-store stage holds for a week.` },
 			], { band: "#244B3C", rule: "#D9DDD4" })],
 			html: human(`Hi Alex,
 

@@ -103,6 +103,32 @@ export class StoryClock {
 		return `${d}${s}`;
 	}
 
+	/** The calendar month a story time falls in after the move, or the one `back` months before: its name, first day and last day. */
+	month(local: string | number, back = 0): { name: string; first: number; last: number } {
+		const p = zoned(typeof local === "number" ? local : this.at(local));
+		const first = fromZoned(p.y, p.mo - back, 1, 12, 0);
+		const last = fromZoned(p.y, p.mo - back + 1, 0, 12, 0);
+		return { name: MONTHS[zoned(first).mo], first, last };
+	}
+
+	/** The same day of the month, a month later: when the next rent is due. */
+	monthLater(local: string | number): number {
+		const p = zoned(typeof local === "number" ? local : this.at(local));
+		return fromZoned(p.y, p.mo + 1, p.d, 12, 0);
+	}
+
+	/** The month a bookkeeper closes on that date: the current one from the 25th, otherwise the one before. */
+	closing(local: string | number): string {
+		const d = zoned(typeof local === "number" ? local : this.at(local)).d;
+		return this.month(local, d >= 25 ? 0 : 1).name;
+	}
+
+	/** "early October", "mid-October" or "late October" */
+	part(local: string | number): string {
+		const p = zoned(typeof local === "number" ? local : this.at(local));
+		return `${p.d <= 10 ? "early " : p.d <= 20 ? "mid-" : "late "}${MONTHS[p.mo]}`;
+	}
+
 	/** "2026-10-09", for files. */
 	iso(local: string | number): string {
 		const p = zoned(typeof local === "number" ? local : this.at(local));

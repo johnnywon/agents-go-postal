@@ -14,7 +14,7 @@ The profile creates its nine mailboxes whatever `EMAIL_ADDRESSES` holds; the add
 
 ## Clock
 
-Every message has a fixed time in New York, written against the story's own "now": Sunday, October 11, 2026 at 8:02 pm. On a later date the whole story moves forward in whole weeks, so weekdays and times of day stay as written: the incident runs 11:37 pm to 2:40 am, the league plays on Sundays. Dates inside bodies, quotes and attachments move with it. From February to August it moves in 52-week steps instead, to the last autumn, so the league stays in football season. The newest message is therefore between 4 minutes and a week old. The dev server writes the profile again when the week turns.
+Every message has a fixed time in New York, written against the story's own "now": Sunday, October 11, 2026 at 8:02 pm. On a later date the whole story moves forward in whole weeks, so weekdays and times of day stay as written: the incident runs 11:37 pm to 2:40 am, the league plays on Sundays. Dates inside bodies, quotes and attachments move with it, and month names follow the moved calendar: a monthly bill names the month before it arrives, rent the month it is paid in, the bank statement the month before, and the accountant the month being closed. Atlas's batch ID (CAT-0930) and the expense CSV's name (october-expenses.csv) follow their dates too. From February to August it moves in 52-week steps instead, to the last autumn, so the league stays in football season. The newest message is therefore between 4 minutes and a week old. The dev server writes the profile again when the week turns.
 
 ## Mailboxes
 
