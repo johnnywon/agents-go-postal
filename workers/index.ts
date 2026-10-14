@@ -455,11 +455,12 @@ app.post("/api/v1/search/interpret", async (c) => {
 	const body = z.object({ text: z.string().max(MAX_REQUEST_LENGTH * 2), tz: z.number().int().min(-900).max(900).optional() })
 		.safeParse(await c.req.json().catch(() => null));
 	if (!body.success) return c.json({ error: "Invalid request" }, 400);
-	const [labels, addresses, model] = await Promise.all([mailStore(c.env).all().listLabels(), mailboxIds(c.env), quickModel(c.env)]);
+	const [labels, addresses] = await Promise.all([mailStore(c.env).all().listLabels(), mailboxIds(c.env)]);
+	// The model is made inside the guarded call, so a missing binding falls back to a word search like any model failure.
 	const result = await interpretSearch(
 		body.data.text,
 		{ now: new Date(), tzOffset: body.data.tz ?? 0, labels: labels.map((l) => l.name), addresses },
-		async (prompt) => (await generateText({ model, prompt, maxOutputTokens: 1500, temperature: 0 })).text,
+		async (prompt) => (await generateText({ model: await quickModel(c.env), prompt, maxOutputTokens: 1500, temperature: 0 })).text,
 	);
 	return c.json(result, "error" in result ? 502 : 200);
 });

@@ -250,7 +250,8 @@ test("a demo API answers 429 once the day's AI calls are used, before any model 
 	assert.equal(off.status, 429);
 	assert.deepEqual(await off.json(), { error: "The demo's AI calls for today are used up" });
 	const first = await ask({ DEMO_AI_DAILY: "1" });
-	assert.notEqual(first.status, 429, "the first call reaches the handler");
-	assert.notEqual(first.status, 403);
+	// The test has no AI binding, so the handler falls back to a word search.
+	assert.equal(first.status, 502, "the first call reaches the handler");
+	assert.equal((await first.json()).query, "invoices from last week");
 	assert.equal((await ask({ DEMO_AI_DAILY: "1" })).status, 429, "the second is refused");
 });
