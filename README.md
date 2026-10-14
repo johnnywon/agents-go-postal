@@ -1,18 +1,18 @@
-# Open Mailroom
+# PluraMail
 
 **An inbox your agents can work. Self-hosted email UI and MCP server for every address on your domains, on Cloudflare Workers.**
 
-Cloudflare receives and sends your domain's mail but doesn't include a mail client. Open Mailroom is one: every address on every domain in one list, on desktop or phone, with an agent that can search, label, draft and send. It runs entirely in your Cloudflare account.
+Cloudflare receives and sends your domain's mail but doesn't include a mail client. PluraMail is one: every address on every domain in one list, on desktop or phone, with an agent that can search, label, draft and send. It runs entirely in your Cloudflare account.
 
-[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/johnnywon/open-mailroom)
-[![Version 0.7.4](https://img.shields.io/badge/version-0.7.4-blue)](https://github.com/johnnywon/open-mailroom/releases)
-[![CI](https://github.com/johnnywon/open-mailroom/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/johnnywon/open-mailroom/actions/workflows/ci.yml)
+[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/johnnywon/pluramail)
+[![Version 0.8.0](https://img.shields.io/badge/version-0.8.0-blue)](https://github.com/johnnywon/pluramail/releases)
+[![CI](https://github.com/johnnywon/pluramail/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/johnnywon/pluramail/actions/workflows/ci.yml)
 [![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
 [![Runs on Cloudflare Workers](https://img.shields.io/badge/runs%20on-Cloudflare%20Workers-f38020?logo=cloudflare&logoColor=white)](https://developers.cloudflare.com/workers/)
 
 Needs a domain on Cloudflare, R2 and Cloudflare Access. Sending needs the Workers Paid plan and Cloudflare Email Sending, which is in public beta.
 
-**v0.7.4, ready to deploy.** One production deployment has handled real mail on it every day since May 2026. Before 1.0, an upgrade can need a step, such as a D1 migration or a config change, and the [changelog](CHANGELOG.md) names it in every release. Pin a [release](https://github.com/johnnywon/open-mailroom/releases) tag to choose when you upgrade.
+**v0.8.0, ready to deploy.** One production deployment has handled real mail on it every day since May 2026. Before 1.0, an upgrade can need a step, such as a D1 migration or a config change, and the [changelog](CHANGELOG.md) names it in every release. Pin a [release](https://github.com/johnnywon/pluramail/releases) tag to choose when you upgrade.
 
 <picture>
   <source media="(prefers-color-scheme: light)" srcset="docs/images/inbox-light.jpg">
@@ -124,7 +124,7 @@ Each step, with commands, is in [docs/setup.md](docs/setup.md).
 - **Next:** one-command setup, mail import, starting on Workers Free, rules in plain words.
 - **Later:** shared inboxes, Queue events, search by meaning, notifications and offline.
 
-Details are in [docs/roadmap.md](docs/roadmap.md). [Open an issue](https://github.com/johnnywon/open-mailroom/issues) to argue for one or propose another.
+Details are in [docs/roadmap.md](docs/roadmap.md). [Open an issue](https://github.com/johnnywon/pluramail/issues) to argue for one or propose another.
 
 ## Docs
 

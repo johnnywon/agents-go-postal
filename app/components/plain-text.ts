@@ -74,8 +74,8 @@ function body(lines: string[]): string {
 				}
 			}
 			while (quoted.length && quoted[quoted.length - 1].trim() === "") quoted.pop();
-			const head = attribution ? `<div class="omr-attr">${linkify(line.trim())}</div>` : "";
-			html += `<details class="omr-quote"><summary aria-label="Show quoted text">···</summary>${head}<blockquote>${body(quoted)}</blockquote></details>`;
+			const head = attribution ? `<div class="pm-attr">${linkify(line.trim())}</div>` : "";
+			html += `<details class="pm-quote"><summary aria-label="Show quoted text">···</summary>${head}<blockquote>${body(quoted)}</blockquote></details>`;
 			i = j - 1;
 		} else {
 			run.push(line);
@@ -90,10 +90,10 @@ export function plainTextToHtml(text: string): string {
 	const lines = text.replace(/\r\n?/g, "\n").split("\n").map((l) => l.replace(/\s+$/, ""));
 	// The signature starts at the first "-- " line (its space trimmed above) and runs to any quoted reply below it.
 	const sig = lines.indexOf("--");
-	if (sig === -1) return `<div class="omr-plain">${body(lines)}</div>`;
+	if (sig === -1) return `<div class="pm-plain">${body(lines)}</div>`;
 	let end = lines.findIndex((l, i) => i > sig && (l.startsWith(">") || ATTRIBUTION.test(l.trim())));
 	if (end === -1) end = lines.length;
 	const signature = lines.slice(sig + 1, end);
-	const sigHtml = signature.some((l) => l.trim() !== "") ? `<div class="omr-sig">${paragraphs(signature)}</div>` : "";
-	return `<div class="omr-plain">${body(lines.slice(0, sig))}${sigHtml}${body(lines.slice(end))}</div>`;
+	const sigHtml = signature.some((l) => l.trim() !== "") ? `<div class="pm-sig">${paragraphs(signature)}</div>` : "";
+	return `<div class="pm-plain">${body(lines.slice(0, sig))}${sigHtml}${body(lines.slice(end))}</div>`;
 }

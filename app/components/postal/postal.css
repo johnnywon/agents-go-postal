@@ -18,6 +18,8 @@ html:has(.postal), html:has(.postal) body { background: var(--pg-base, #141518);
 .postal *, .postal *::before, .postal *::after { box-sizing: border-box; }
 .postal :is(h1, h2, h3) { font-family: var(--pg-font); }
 :where(.postal) a { color: var(--pg-link); }
+/* Views and conversations are links so agents see where they go; they keep the look of the rows around them. */
+:where(.postal) :where(.pg-nav, .pg-navrail, .pg-row-subject) a { color: inherit; text-decoration: none; }
 /* Resets sit at zero specificity so component classes win. */
 :where(.postal) button { font: inherit; color: inherit; background: none; border: 0; padding: 0; margin: 0; cursor: pointer; }
 :where(.postal) button:disabled { opacity: .4; cursor: default; }
@@ -85,7 +87,9 @@ html:has(.postal), html:has(.postal) body { background: var(--pg-base, #141518);
   .pg-tools-list div,
   .pg-images-note,
   .pg-mhead,
-  .pg-mrail
+  .pg-mrail,
+  .pg-mail-text .pm-sig,
+  .pg-mail-text .pm-attr
 ) { border-radius: 0 !important; }
 .postal .pg-sr { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 .postal .pg-flex { flex: 1; min-width: 0; }
@@ -200,7 +204,7 @@ html:has(.postal), html:has(.postal) body { background: var(--pg-base, #141518);
 .pg-segmented { display: flex; gap: 2px; padding: 2px; background: var(--pg-raised); border: 1px solid var(--pg-line-2); flex: none; }
 .pg-segmented > button { height: 24px; padding: 0 10px; display: flex; align-items: center; gap: 5px; font-size: 12px; white-space: nowrap; color: var(--pg-text-6); }
 .pg-segmented > button:hover { color: var(--pg-text-2); }
-.pg-segmented > button[aria-pressed="true"] { background: var(--pg-segment); color: var(--pg-text-1); font-weight: 600; }
+.pg-segmented > button[aria-checked="true"] { background: var(--pg-segment); color: var(--pg-text-1); font-weight: 600; }
 .pg-popover {
   position: absolute; z-index: 30;
   background: var(--pg-raised); border: 1px solid var(--pg-line-2);
@@ -284,6 +288,14 @@ html:has(.postal), html:has(.postal) body { background: var(--pg-base, #141518);
 .pg-nav-label:hover { background: var(--pg-hover); }
 .pg-nav-caption { display: block; padding: 2px 10px 4px; }
 .pg-nav-label[aria-current="true"] { background: var(--pg-active); color: var(--pg-text-1); font-weight: 600; }
+/* A label row: its link covers the row, and the agent button sits above the link. */
+.pg-nav-label:has(> .pg-nav-label-link) { position: relative; }
+.pg-nav-label-link { flex: 1; min-width: 0; display: flex; align-items: center; gap: 9px; }
+.pg-nav-label-link::after { content: ""; position: absolute; inset: 0; }
+.pg-nav-label .pg-sparkle { position: relative; }
+.pg-nav-label:has(> [aria-current="true"]) { background: var(--pg-active); color: var(--pg-text-1); font-weight: 600; }
+.pg-nav-label-link:focus-visible { outline: none; }
+.pg-nav-label:has(> .pg-nav-label-link:focus-visible) { outline: 2px solid var(--pg-mail); outline-offset: -2px; }
 .pg-sparkle {
   width: 20px; height: 20px; flex: none; display: flex; align-items: center; justify-content: center;
   color: var(--pg-text-9); transition: background .12s, color .12s;
@@ -433,7 +445,7 @@ html:has(.postal), html:has(.postal) body { background: var(--pg-base, #141518);
 .pg-flt-dates { display: grid; grid-template-columns: repeat(4, 1fr); gap: 2px; margin: 2px 8px 8px; padding: 2px; background: var(--pg-input); border: 1px solid var(--pg-line); }
 .pg-flt-dates button { height: 24px; display: flex; align-items: center; justify-content: center; font-size: 12px; white-space: nowrap; color: var(--pg-text-6); }
 .pg-flt-dates button:hover { color: var(--pg-text-2); }
-.pg-flt-dates button[aria-pressed="true"] { background: var(--pg-segment); color: var(--pg-text-1); font-weight: 600; }
+.pg-flt-dates button[aria-checked="true"] { background: var(--pg-segment); color: var(--pg-text-1); font-weight: 600; }
 .pg-flt-foot { display: flex; align-items: center; gap: 8px; height: 44px; padding: 0 8px 0 14px; border-top: 1px solid var(--pg-line); }
 .pg-flt-foot .pg-match { flex: 1; font: 11px var(--pg-mono); color: var(--pg-text-6); }
 
@@ -472,6 +484,9 @@ html:has(.postal), html:has(.postal) body { background: var(--pg-base, #141518);
 .pg-row-sender { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; line-height: 1.3; font-weight: 500; color: var(--pg-text-3); }
 .pg-row[data-unread="true"] .pg-row-sender { font-weight: 650; color: var(--pg-text-1); }
 .pg-row-subject { margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; line-height: 1.35; color: var(--pg-text-4); }
+/* The subject is the row's link; the focus ring goes round the whole row. */
+.pg-row-link:focus-visible { outline: none; }
+.pg-row:has(.pg-row-link:focus-visible) { outline: 2px solid var(--pg-mail); }
 .pg-row[data-unread="true"] .pg-row-subject { font-weight: 500; color: var(--pg-text-2); }
 .pg-row-preview { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; margin-top: 4px; color: var(--pg-text-8); font-size: 13px; line-height: 1.45; text-wrap: pretty; }
 .pg-row-labels { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
@@ -492,7 +507,15 @@ html:has(.postal), html:has(.postal) body { background: var(--pg-base, #141518);
 .pg-row-checkonly > button { width: 28px; height: 26px; display: flex; align-items: center; justify-content: center; }
 .pg-row-checkonly > button:hover { background: var(--pg-hover-raised); }
 @media (hover: hover) {
-  .pg-row:hover .pg-row-tools, .pg-row:has(:focus-visible) .pg-row-tools { display: flex; }
+  /* The toolbar keeps its place with nothing drawn, and only Select stays in the accessibility tree: an agent can select
+     a row without hovering it, and hover draws the rest without moving anything under the pointer. Not opacity: Aside
+     leaves transparent elements out of its snapshot. */
+  .pg-row-tools { display: flex; }
+  .postal .pg-row:not(:hover, :has(:focus-visible)) .pg-row-tools { border-color: transparent; background: transparent; box-shadow: none; animation: none; }
+  .postal .pg-row:not(:hover, :has(:focus-visible)) .pg-row-tools > :not(:first-child),
+  .postal .pg-row:not(:hover, :has(:focus-visible)) .pg-row-tools > :first-child > * { visibility: hidden; }
+  /* Undrawn, the toolbar has no pointer cursor for browser agents to mistake for something to click. */
+  .postal .pg-row:not(:hover, :has(:focus-visible)) .pg-row-tools * { cursor: auto; }
   .pg-list[data-selecting="true"] .pg-row:is(:hover, :has(:focus-visible)) .pg-row-checkonly { display: none !important; }
 }
 .pg-list[data-selecting="true"] .pg-row .pg-row-checkonly { display: block; }
@@ -551,6 +574,29 @@ html:has(.postal), html:has(.postal) body { background: var(--pg-base, #141518);
 .pg-mail-frame[data-kind="plain"] .pg-mail-body { padding: 24px 28px 28px; min-height: 64px; }
 .pg-mail-frame[data-kind="html"] .pg-mail-body { background: #fff; }
 .pg-mail-frame iframe { display: block; width: 100%; border: 0; }
+/* Text-only mail sits on the page, in the serif and colours plain mail had inside its frame. */
+.pg-mail-text {
+  max-width: 66ch; color: var(--pg-text-2); overflow-wrap: break-word; -webkit-font-smoothing: antialiased;
+  font: 16px/1.65 "Iowan Old Style", Charter, "Bitstream Charter", "Source Serif 4", Cambria, Georgia, serif;
+}
+.pg-mail-text a { color: var(--pg-link); text-decoration: underline; text-underline-offset: 2px; }
+.pg-mail-text p { margin: 0 0 1em; }
+.pg-mail-text :is(.pm-plain, .pm-sig, blockquote) > :last-child { margin-bottom: 0; }
+.pg-mail-text blockquote { margin: 0; padding: 0; font-size: 15px; color: var(--pg-text-6); }
+.pg-mail-text .pm-sig { margin-top: 1.25em; padding-top: 1em; border-top: 1px solid var(--pg-line-2); font-size: 14px; color: var(--pg-text-6); }
+.pg-mail-text .pm-sig p { margin-bottom: .5em; }
+.pg-mail-text .pm-quote { margin: 1em 0 0; }
+.pg-mail-text .pm-quote > summary {
+  display: inline-block; list-style: none; cursor: pointer; padding: 0 8px; border: 1px solid var(--pg-line-2); border-radius: 6px;
+  font: 12px/18px -apple-system, BlinkMacSystemFont, sans-serif; letter-spacing: .1em; color: var(--pg-text-6); user-select: none;
+}
+.pg-mail-text .pm-quote > summary::-webkit-details-marker { display: none; }
+.pg-mail-text .pm-attr {
+  margin: 16px 0 10px; padding-top: 12px; border-top: 1px solid var(--pg-line-2);
+  font: 13px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; color: var(--pg-text-6);
+}
+.pg-mail-text .pm-quote > .pm-attr:first-of-type { margin-top: 12px; }
+.pg-mail-text .pm-attr b { margin-right: 4px; font-weight: 600; color: var(--pg-text-2); }
 /* Blocked images: a quiet row at the top of the page, not a bar above it. */
 .pg-images-note {
   --pg-note-text: var(--pg-text-6); --pg-note-strong: var(--pg-text-3); --pg-note-line: var(--pg-line-soft); --pg-note-hover: var(--pg-hover);
@@ -598,6 +644,10 @@ html:has(.postal), html:has(.postal) body { background: var(--pg-base, #141518);
   border: 1px solid var(--pg-line-2); cursor: text; color: var(--pg-text-7); width: 100%; text-align: left;
 }
 .pg-reply-bar:hover { border-color: var(--pg-line-4); background: var(--pg-input); }
+.pg-reply-bar:has(> .pg-reply-main) { padding-left: 0; }
+.pg-reply-main { flex: 1; min-width: 0; align-self: stretch; display: flex; align-items: center; gap: 10px; padding-left: 14px; cursor: text; text-align: left; }
+.pg-reply-main:focus-visible { outline: none; }
+.pg-reply-bar:has(> .pg-reply-main:focus-visible) { outline: 2px solid var(--pg-mail); outline-offset: -2px; }
 .pg-idle { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; color: var(--pg-text-6); }
 /* Error pages (404, crashes) share the empty reader's look: one line, a way back. */
 .pg-fault { min-height: 100vh; min-height: 100dvh; display: flex; background: var(--pg-base); color: var(--pg-text-3); font-family: var(--pg-font); }
@@ -614,7 +664,7 @@ html:has(.postal), html:has(.postal) body { background: var(--pg-base, #141518);
 .pg-modes { display: flex; gap: 1px; margin-left: 6px; padding: 2px; border: 1px solid var(--pg-line); }
 .pg-modes button { width: 26px; height: 22px; display: flex; align-items: center; justify-content: center; color: var(--pg-text-6); }
 .pg-modes button:hover { color: var(--pg-text-1); }
-.pg-modes button[aria-pressed="true"] { background: var(--pg-segment); color: var(--pg-text-1); }
+.pg-modes button[aria-checked="true"] { background: var(--pg-segment); color: var(--pg-text-1); }
 .pg-head-btn { width: 26px; height: 26px; display: flex; align-items: center; justify-content: center; color: var(--pg-text-6); flex: none; }
 .pg-head-btn:hover { background: var(--pg-hover-raised); color: var(--pg-text-2); }
 .pg-quote { margin: 0 14px 4px; padding: 10px 12px; background: var(--pg-base); border: 1px solid var(--pg-line-soft); font-size: 12px; line-height: 1.55; color: var(--pg-text-7); }
@@ -755,6 +805,7 @@ html:has(.postal), html:has(.postal) body { background: var(--pg-base, #141518);
 .pg-bot.is-small { width: 20px; height: 20px; }
 .pg-agent-scroll { flex: 1; overflow-y: auto; display: flex; flex-direction: column; }
 .pg-agent-thread { padding: 14px 12px; display: flex; flex-direction: column; gap: 10px; }
+.pg-agent-turn { display: flex; flex-direction: column; gap: 10px; }
 .pg-agent-q { align-self: flex-end; max-width: 88%; background: var(--pg-hover-raised); padding: 8px 10px; font-size: 13px; line-height: 1.45; color: var(--pg-text-2); white-space: pre-wrap; overflow-wrap: anywhere; }
 .postal[data-theme="dark"] .pg-agent-q { background: #24262b; }
 .pg-agent-tool { display: flex; gap: 6px; font: 11px var(--pg-mono); color: var(--pg-text-6); min-width: 0; }
@@ -1175,7 +1226,7 @@ html:has(.postal), html:has(.postal) body { background: var(--pg-base, #141518);
 .pg-prov-filter { display: flex; flex-wrap: wrap; gap: 4px; }
 .pg-prov-filter button { height: 30px; padding: 0 10px; font-size: var(--pg-t-12); color: var(--pg-text-5); border: 1px solid transparent; }
 .pg-prov-filter button:hover { color: var(--pg-text-1); background: var(--pg-hover); }
-.pg-prov-filter button[aria-pressed="true"] { color: var(--pg-text-1); border-color: var(--pg-line-4); background: var(--pg-raised); }
+.pg-prov-filter button[aria-checked="true"] { color: var(--pg-text-1); border-color: var(--pg-line-4); background: var(--pg-raised); }
 .pg-models-list { border: 1px solid var(--pg-line); background: var(--pg-raised); font-variant-numeric: tabular-nums; }
 .pg-models-list + .pg-models-list { margin-top: 14px; }
 .pg-models-cols, .pg-model-row { display: grid; grid-template-columns: 18px minmax(0, 1fr) 64px 132px; gap: 14px; align-items: center; padding: 0 14px; }

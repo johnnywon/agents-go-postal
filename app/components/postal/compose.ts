@@ -366,7 +366,7 @@ export function textToParagraphs(text: string): string {
 
 // ── Pop-out handoff ──────────────────────────────────────────────────
 
-export const HANDOFF_KEY = "omr-compose-handoff";
+export const HANDOFF_KEY = "pm-compose-handoff";
 
 export function handOff(state: ComposeState): boolean {
 	try {
@@ -374,7 +374,7 @@ export function handOff(state: ComposeState): boolean {
 	} catch {
 		return false;
 	}
-	const win = window.open(`${window.location.pathname}${window.location.search}#compose`, `omr-compose-${Date.now()}`, "width=760,height=780");
+	const win = window.open(`${window.location.pathname}${window.location.search}#compose`, `pm-compose-${Date.now()}`, "width=760,height=780");
 	return !!win;
 }
 

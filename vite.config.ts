@@ -11,8 +11,9 @@ import tsconfigPaths from "vite-tsconfig-paths";
 
 // A deployment kept in another repo can point at its own Wrangler config and
 // public/ folder (brand files) without copying them into this checkout.
-const wranglerConfig = process.env.OMR_WRANGLER_CONFIG;
-const publicDir = process.env.OMR_PUBLIC_DIR;
+// OMR_* are the names from before 0.8.0.
+const wranglerConfig = process.env.PLURAMAIL_WRANGLER_CONFIG ?? process.env.OMR_WRANGLER_CONFIG;
+const publicDir = process.env.PLURAMAIL_PUBLIC_DIR ?? process.env.OMR_PUBLIC_DIR;
 
 // Dependencies Vite otherwise discovers only after the first request. Re-optimizing them
 // mid-load gives the open page a second copy of React ("Invalid hook call").
@@ -38,7 +39,15 @@ const PREBUNDLE = [
   "zustand",
 ];
 
+// PLURAMAIL_DEMO=1 makes a demo build: filled with the sample inbox, no sends, no AI, no sign-in (workers/lib/demo.ts).
+const demo = process.env.PLURAMAIL_DEMO === "1";
+
 export default defineConfig({
+  // The sample inbox arrives in the developer's working hours. Workers run in UTC, so the build hands over this machine's offset.
+  define: {
+    __PLURAMAIL_TZ_OFFSET__: JSON.stringify(new Date().getTimezoneOffset()),
+    __PLURAMAIL_DEMO__: JSON.stringify(demo),
+  },
   publicDir: publicDir ? resolve(publicDir) : "public",
   optimizeDeps: { include: PREBUNDLE },
   plugins: [

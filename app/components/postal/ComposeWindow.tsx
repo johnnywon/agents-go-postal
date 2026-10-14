@@ -25,6 +25,7 @@ import { formatSize, sendTimeLabel } from "./model";
 import { usePrefs, useResolvedTheme } from "./prefs";
 import { useShortcuts } from "./shortcuts";
 import { TooltipLayer } from "./Tooltip";
+import { useDemo } from "~/lib/demo";
 
 type Sender = ReturnType<typeof useMailSender>;
 
@@ -180,6 +181,7 @@ function QuotePreview({ head, body }: { head: string; body: string }) {
 /** One composer for new mail, replies and forwards, wherever it appears. */
 export function Composer(props: ComposerProps) {
 	const { tip } = useShortcuts();
+	const demo = useDemo();
 	const { identities, info, sender, variant } = props;
 	const [state, setState] = useState<ComposeState>(props.initial);
 	const [mode, setMode] = useState<"normal" | "min" | "max">(props.maximised ? "max" : "normal");
@@ -417,9 +419,9 @@ export function Composer(props: ComposerProps) {
 					{inline && replyMode ? <replyMode.Icon size={14} color="var(--pg-text-4)" /> : <PencilSimpleLineIcon size={14} color="var(--pg-text-5)" />}
 					<span className={inline ? "pg-title is-inline" : "pg-title"}>{title}</span>
 					{inline && props.onMode && (
-						<div className="pg-modes" role="group" aria-label="Reply mode">
+						<div className="pg-modes" role="radiogroup" aria-label="Reply mode">
 							{MODES.map(({ mode: m, label, Icon }) => (
-								<button key={m} type="button" title={label} aria-label={label} aria-pressed={m === state.mode} onClick={() => m !== state.mode && props.onMode?.(m, stateRef.current)}>
+								<button key={m} type="button" title={label} aria-label={label} role="radio" aria-checked={m === state.mode} onClick={() => m !== state.mode && props.onMode?.(m, stateRef.current)}>
 									<Icon size={13} />
 								</button>
 							))}
@@ -635,9 +637,11 @@ export function Composer(props: ComposerProps) {
 						>
 							<SignatureIcon size={16} />
 						</button>
-						<button type="button" className="pg-btn pg-btn-agent" data-busy={agentBusy} title={`${reply ? "Draft reply" : "Draft"} · The agent writes a first draft here. Nothing is sent.`} onMouseDown={(e) => { e.preventDefault(); askAgent(); }}>
-							<AgentIcon size={14} weight="fill" /><span className="pg-agent-label">{agentBusy ? "Drafting…" : reply ? "Draft reply" : "Draft"}</span>
-						</button>
+						{!demo && (
+							<button type="button" className="pg-btn pg-btn-agent" data-busy={agentBusy} title={`${reply ? "Draft reply" : "Draft"} · The agent writes a first draft here. Nothing is sent.`} onMouseDown={(e) => { e.preventDefault(); askAgent(); }}>
+								<AgentIcon size={14} weight="fill" /><span className="pg-agent-label">{agentBusy ? "Drafting…" : reply ? "Draft reply" : "Draft"}</span>
+							</button>
+						)}
 						<div className="pg-flex" />
 						<button type="button" className="pg-btn pg-btn-outline" title="Save as draft" onMouseDown={(e) => { e.preventDefault(); saveNow().then(() => finish("Draft saved")); }}>
 							<FloppyDiskIcon size={14} /><span className="pg-save-label">Save draft</span>

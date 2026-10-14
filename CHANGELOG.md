@@ -2,6 +2,46 @@
 
 Versions follow [semantic versioning](https://semver.org). Before 1.0, a minor version can break things. Each entry names any new D1 migration. `npm run deploy` applies it; if you deploy another way, run `wrangler d1 migrations apply DB --remote` before you deploy that version.
 
+## 0.8.0
+
+Open Mailroom is now PluraMail, the app is readable to browser agents, and a demo build fills itself with sample mail.
+
+### The name
+
+- PluraMail in the app's default title, the sidebar and agent column headers, the manifest (short name `PluraMail`), the OpenRouter X-Title, package.json, wrangler.jsonc, the docs and the README. The repo moves to github.com/johnnywon/pluramail; the old URL redirects.
+- The default worker, R2 bucket, D1 database and queue names in `wrangler.jsonc` are `pluramail`. An existing deployment keeps its own names; don't change them, or Cloudflare creates a new worker and bucket.
+- Build env vars are `PLURAMAIL_WRANGLER_CONFIG` and `PLURAMAIL_PUBLIC_DIR`. `OMR_*` still work.
+- Browser prefs move from `omr-*` to `pm-*` keys on first load. Nothing to do.
+
+### Readable to browser agents
+
+Agents that drive a browser, such as Aside, gstack browse, Playwright and Claude in Chrome, read the accessibility tree, as screen readers do. Snapshots of 0.7.4 in Aside and gstack browse showed what they missed.
+
+- Each conversation in the list is a list item, and its subject links to it (`?view=…&open=…`). A row used to be one button labelled "Sender: Subject", which hid its date, preview and labels from Playwright snapshots, and gstack browse dropped every row: Playwright quotes a name containing ": " and gstack skips quoted lines. The whole row still opens the conversation, and Cmd or Ctrl-click on the subject opens it in a new tab.
+- Views in the sidebar and the rail are links to their URL: folders, addresses, labels and saved searches. Addresses carry their whole address and unread count ("hello@example.com, 15 unread"). The sidebar shortens them, so "support@example" didn't say which domain.
+- Text-only mail sits on the page instead of in the message frame, in the same serif. Some agents can't read inside a frame. The app writes that HTML from escaped text and sanitises it again. Mail that arrives as HTML stays in the sandboxed frame.
+- The letterhead names its parts for agents and screen readers: From, to, and Received or Sent. Nothing changes on screen.
+- The Reply bar was a clickable box with the Draft reply button inside it. They are two buttons side by side now.
+- Agent chat is a log, and each turn says who said it: You or Agent.
+- With a mouse, each row's Select is a checkbox an agent can see and tick without hovering. The rest of the row toolbar still appears on hover, and nothing on screen changes. The toolbar used to be left out of the page until hover, so an agent had to open a message to act on it.
+- A choice of one is a radio group: the date and sort options, Theme and Remote images in settings, Reply mode and the model provider filter. Aside shows which item is checked or selected, but not which button is pressed, so it couldn't tell which option was on.
+- The Filter button is named "Filter, 2 on" when filters are on. Its name used to be the badge's number.
+- `tests/agent-readable.test.mjs` keeps it this way: no `role="button"`, no accessible names joined with ": ", rows and views as links, text-only mail on the page, chat turns labelled, radio groups for a choice of one, and a row's Select in the tree.
+
+### Demo build
+
+- `PLURAMAIL_DEMO=1 npm run build` makes a demo build. On its first API request it writes the sample inbox (about 470 messages, 62 attachments, 12 labels, 3 saved searches) into an empty database, with the newest message minutes old. A normal build carries none of it.
+- A demo sends nothing and needs no sign-in. Send, reply, forward and scheduled send return 403. The PluraMail Agent, Draft, auto-draft and the MCP server are off, and their controls are hidden. Settings are read-only. Incoming mail is rejected. Cloudflare Access is skipped.
+- Visitors can read, search, archive, delete, star, label and save drafts. The cron writes the sample inbox again every hour on the hour, over everything visitors changed.
+- `GET /api/v1/config` returns `demo`.
+- `npm run test:build` builds both ways and checks that only the demo build carries the sample inbox. CI runs it in place of `npm run build`.
+- The dev server's sample inbox (`workers/lib/dev-seed/`) is new in this release; [Sample inbox](docs/development.md#sample-inbox) describes it.
+- A demo allows two AI actions: search interpretation and Redraft on an agent's draft. Both run on one small Workers AI model and stop for the day after `DEMO_AI_DAILY` calls across all visitors (default 200, `0` for none), then return 429. Migration `0007_ai_budget.sql` adds the table that counts them.
+- `SEED_PROFILE=alex` picks a second sample inbox: Alex Rivera, who runs a catalog API, plays in a band and keeps a code club's books. 100 messages in nine mailboxes on four domains: customers, the tools Partwell runs on, a late-night incident and its recovery, invoices, a payout, food orders, family, a fantasy league, gigs and a grant. Each sender has its own email design; vendors use their published logos and the invented companies original marks. Four openly licensed photos show inline; PDFs, CSVs, text files and JPEGs are real attachments. Links open an in-app page (`/api/v1/sample-link`) instead of leaving the app. [Alex profile](docs/demo-alex.md) covers the mailboxes, story, brands, files and sources.
+- A seeded reply draft now opens under the message it answers.
+
+No D1 migration.
+
 ## 0.7.4
 
 The reader.

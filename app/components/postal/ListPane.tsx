@@ -7,11 +7,11 @@ import {
 	FileIcon, FunnelSimpleIcon, MagnifyingGlassIcon, PaperclipIcon, PaperPlaneTiltIcon, PencilSimpleLineIcon, SortAscendingIcon,
 	SortDescendingIcon, StarIcon, TrashIcon, TrayArrowUpIcon, TrayIcon, WarningIcon, WarningOctagonIcon, XIcon,
 } from "@phosphor-icons/react";
-import { Fragment, useEffect, useRef, useState } from "react";
+import { Fragment, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import type { MailFilter } from "~/lib/mail-filter";
 import type { Conversation, Label, MailFacets, ScheduledSend } from "~/services/api";
 import { AddressText, type Identities, LabelTag, Swatch } from "./identity";
-import { VIEW_LABELS } from "~/lib/mail-filter";
+import { toSearch, VIEW_LABELS } from "~/lib/mail-filter";
 import { ADDRESS_FOLDERS, ALL_FOLDERS, AllAddressesIcon, InboxIcon, VIEW_ICONS } from "./NavIcons";
 import { Keys, useShortcuts } from "./shortcuts";
 import { marks, snippetMarkup } from "./search-window";
@@ -22,6 +22,8 @@ export interface ListPaneProps {
 	filter: MailFilter;
 	go: (filter: MailFilter) => void;
 	searching: boolean;
+	/** The search in the URL, kept in each row's link. */
+	search: string;
 	allUnread?: number;
 	unreadByAddress: ReadonlyMap<string, number>;
 	onNew: () => void;
@@ -68,6 +70,19 @@ const EMPTY: Record<string, { Icon: typeof TrayIcon; title: string; body: string
 	starred: { Icon: StarIcon, title: "No starred mail", body: "Star a conversation to keep it here." },
 };
 
+/** Whether the main pointer can hover. Then the row toolbar waits for it and the selecting check is only a picture. */
+function useCanHover(): boolean {
+	return useSyncExternalStore(
+		(change) => {
+			const query = window.matchMedia("(hover: hover)");
+			query.addEventListener("change", change);
+			return () => query.removeEventListener("change", change);
+		},
+		() => window.matchMedia("(hover: hover)").matches,
+		() => false,
+	);
+}
+
 function Highlighted({ text, terms }: { text: string; terms: string[] }) {
 	return <>{marks(text, terms).map((p, i) => (p.mark ? <mark key={i}>{p.text}</mark> : p.text))}</>;
 }
@@ -75,6 +90,7 @@ function Highlighted({ text, terms }: { text: string; terms: string[] }) {
 export function ListPane(props: ListPaneProps) {
 	const { identities, filter, go, rows } = props;
 	const { tip } = useShortcuts();
+	const canHover = useCanHover();
 	const scope = scopeOf(filter);
 	const labelView = labelOf(filter);
 	const [scopeOpen, setScopeOpen] = useState(false);
@@ -149,7 +165,7 @@ export function ListPane(props: ListPaneProps) {
 	return (
 		<section className="pg-list-col" aria-label="Conversations">
 			<div className="pg-list-head">
-				<button type="button" className="pg-scope-btn" onClick={() => setScopeOpen((v) => !v)} title={`Switch address · ${scope ?? "All addresses"}`} aria-label={`Address: ${scope ?? "All addresses"}`} aria-expanded={scopeOpen} aria-haspopup="listbox">
+				<button type="button" className="pg-scope-btn" onClick={() => setScopeOpen((v) => !v)} title={`Switch address · ${scope ?? "All addresses"}`} aria-label={`Address, ${scope ?? "All addresses"}`} aria-expanded={scopeOpen} aria-haspopup="listbox">
 					<span className="pg-scope-icon">{scopeIcon}</span>
 					<CaretDownIcon size={10} weight="bold" color="var(--pg-text-6)" style={{ flex: "none" }} />
 				</button>
@@ -237,7 +253,7 @@ export function ListPane(props: ListPaneProps) {
 					>
 						<EnvelopeSimpleIcon size={16} weight={unreadOnly ? "fill" : "regular"} />
 					</button>
-					<button type="button" className="pg-icon-btn" style={{ position: "relative" }} aria-pressed={nFilters > 0} aria-expanded={fltOpen} title="Filter · Unread, starred, attachments, date and more" onClick={() => setFltOpen((v) => !v)}>
+					<button type="button" className="pg-icon-btn" style={{ position: "relative" }} aria-pressed={nFilters > 0} aria-expanded={fltOpen} aria-label={nFilters ? `Filter, ${nFilters} on` : "Filter"} title="Filter · Unread, starred, attachments, date and more" onClick={() => setFltOpen((v) => !v)}>
 						<FunnelSimpleIcon size={16} weight={nFilters ? "fill" : "regular"} />
 						{nFilters > 0 && <span className="pg-flt-badge">{nFilters}</span>}
 					</button>
@@ -288,9 +304,9 @@ export function ListPane(props: ListPaneProps) {
 									);
 								})}
 								<span className="pg-caption">RECEIVED</span>
-								<div className="pg-flt-dates">
+								<div className="pg-flt-dates" role="radiogroup" aria-label="Received">
 									{([["any", "Any"], ["today", "Today"], ["7d", "7 days"], ["30d", "30 days"]] as const).map(([value, label]) => (
-										<button key={value} type="button" aria-pressed={dateChip === value} onClick={() => setDate(value)}>{label}</button>
+										<button key={value} type="button" role="radio" aria-checked={dateChip === value} onClick={() => setDate(value)}>{label}</button>
 									))}
 								</div>
 							</div>
@@ -307,9 +323,9 @@ export function ListPane(props: ListPaneProps) {
 				<div className="pg-order">
 					<span>{props.rankSkipped ? "Too many matches to rank. Newest first." : props.order === "relevance" ? "Best match first" : "Newest first"}</span>
 					<span className="pg-flex" />
-					<div className="pg-segmented" role="group" aria-label="Order">
-						<button type="button" aria-pressed={props.order === "relevance"} onClick={() => props.onOrder("relevance")}>Relevance</button>
-						<button type="button" aria-pressed={props.order === "date"} onClick={() => props.onOrder("date")}>Newest</button>
+					<div className="pg-segmented" role="radiogroup" aria-label="Order">
+						<button type="button" role="radio" aria-checked={props.order === "relevance"} onClick={() => props.onOrder("relevance")}>Relevance</button>
+						<button type="button" role="radio" aria-checked={props.order === "date"} onClick={() => props.onOrder("date")}>Newest</button>
 					</div>
 				</div>
 			)}
@@ -346,7 +362,8 @@ export function ListPane(props: ListPaneProps) {
 						</button>
 					</div>
 				)}
-				{!props.loading && rows.map((row) => {
+				{/* Each conversation is a list item whose subject links to it, so agents read its parts and its URL. The whole row still opens it. */}
+				{!props.loading && rows.length > 0 && <div role="list">{rows.map((row) => {
 					const day = dayKey(row.date);
 					const dayStart = day !== lastDay;
 					const gap = groupByDay && dayStart && lastDay !== null;
@@ -355,26 +372,26 @@ export function ListPane(props: ListPaneProps) {
 					const sched = row.state === "draft" ? props.scheduled.get(row.email_id) : undefined;
 					const identity = identities.of(row.mailbox_id);
 					const rowLabels = row.labels.map((id) => props.labelsById.get(id)).filter((l): l is Label => !!l);
+					const unread = row.unread && row.state !== "draft";
+					const open = (e: React.MouseEvent) => {
+						if (e.shiftKey && selecting) props.onCheck(row, true);
+						else props.onOpen(row);
+					};
 					return (
 						<Fragment key={row.thread_key}>
 							{gap && <div className="pg-gap" aria-hidden />}
 							<div
 								className="pg-row"
-								role="button"
-								tabIndex={0}
+								role="listitem"
 								data-key={row.thread_key}
-								data-unread={row.unread && row.state !== "draft"}
+								data-unread={unread}
 								data-checked={checked || undefined}
 								aria-current={props.currentKey === row.thread_key || undefined}
-								aria-label={`${row.unread ? "Unread. " : ""}${row.sender_name || row.sender_addr}: ${row.subject || "(no subject)"}`}
 								onClick={(e) => {
-									if (e.shiftKey && selecting) props.onCheck(row, true);
-									else props.onOpen(row);
-								}}
-								onKeyDown={(e) => {
-									if (e.key === "Enter" && e.target === e.currentTarget) props.onOpen(row);
+									if (!(e.target as Element).closest("a, button")) open(e);
 								}}
 							>
+								{unread && <span className="pg-sr">Unread</span>}
 								<div className="pg-row-when">
 									<span className={groupByDay && dayStart ? "pg-day-first" : undefined}>{dayLabel(row.date)}</span>
 									<span>{timeLabel(row.date)}</span>
@@ -384,7 +401,7 @@ export function ListPane(props: ListPaneProps) {
 										{row.starred && <StarIcon size={12} weight="fill" className="pg-star" aria-label="Starred" />}
 										{row.has_attachment && <PaperclipIcon size={12} aria-label="Attachment" />}
 										{rowLabels.map((l) => (
-											<span key={l.id} className="pg-row-label" title={l.name} aria-label={`Label: ${l.name}`}><LabelTag id={l.id} size={12} /></span>
+											<span key={l.id} className="pg-row-label" title={l.name} role="img" aria-label={`${l.name} label`}><LabelTag id={l.id} size={12} /></span>
 										))}
 									</div>
 								</div>
@@ -398,7 +415,20 @@ export function ListPane(props: ListPaneProps) {
 										</div>
 									)}
 									<div className="pg-row-sender">{row.state === "draft" ? "Draft" : row.sender_name || row.sender_addr}</div>
-									<div className="pg-row-subject"><Highlighted text={row.subject || "(no subject)"} terms={props.terms} /></div>
+									<div className="pg-row-subject">
+										<a
+											className="pg-row-link"
+											href={toSearch(filter, { mailboxId: row.mailbox_id, emailId: row.email_id }, props.search)}
+											onClick={(e) => {
+												// Cmd or Ctrl opens it in a new tab like any link.
+												if (e.metaKey || e.ctrlKey || e.altKey) return;
+												e.preventDefault();
+												open(e);
+											}}
+										>
+											<Highlighted text={row.subject || "(no subject)"} terms={props.terms} />
+										</a>
+									</div>
 									{snippetMarkup(row.snippet_html) !== null
 										? <div className="pg-row-preview" dangerouslySetInnerHTML={{ __html: snippetMarkup(row.snippet_html)! }} />
 										: row.snippet && <div className="pg-row-preview"><Highlighted text={row.snippet} terms={props.terms} /></div>}
@@ -415,8 +445,9 @@ export function ListPane(props: ListPaneProps) {
 										</div>
 									)}
 								</div>
+								{/* Select stays first: with a mouse, it's the one button kept in the accessibility tree while the toolbar waits for hover. */}
 								<div className="pg-row-tools" onClick={(e) => e.stopPropagation()}>
-									<button type="button" title={tip("select", "Select", "shift-click for a range")} aria-label="Select" aria-pressed={checked} onClick={(e) => props.onCheck(row, e.shiftKey)}>
+									<button type="button" title={tip("select", "Select", "shift-click for a range")} aria-label="Select" role="checkbox" aria-checked={checked} onClick={(e) => props.onCheck(row, e.shiftKey)}>
 										<span className="pg-check" data-on={checked}>{checked && <CheckIcon size={10} weight="bold" />}</span>
 									</button>
 									<span className="pg-sep" />
@@ -434,15 +465,16 @@ export function ListPane(props: ListPaneProps) {
 										<button type="button" title="Move to trash" aria-label="Move to trash" onClick={() => props.onRowAction(row, "trash")}><TrashIcon size={15} /></button>
 									)}
 								</div>
-								<div className="pg-row-checkonly" onClick={(e) => e.stopPropagation()}>
-									<button type="button" title={tip("select", "Select", "shift-click for a range")} aria-label="Select" aria-pressed={checked} onClick={(e) => props.onCheck(row, e.shiftKey)}>
+								{/* With a mouse, hover always brings up the toolbar's Select first, so this check is only a picture. */}
+								<div className="pg-row-checkonly" aria-hidden={canHover || undefined} onClick={(e) => e.stopPropagation()}>
+									<button type="button" tabIndex={canHover ? -1 : undefined} title={tip("select", "Select", "shift-click for a range")} aria-label="Select" role="checkbox" aria-checked={checked} onClick={(e) => props.onCheck(row, e.shiftKey)}>
 										<span className="pg-check" data-on={checked}>{checked && <CheckIcon size={10} weight="bold" />}</span>
 									</button>
 								</div>
 							</div>
 						</Fragment>
 					);
-				})}
+				})}</div>}
 				{props.hasNextPage && <div ref={sentinel} className="pg-more">{props.fetchingNext ? <span className="pg-count">Loading…</span> : null}</div>}
 				{selecting && (
 					<div className="pg-bulk">

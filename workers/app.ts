@@ -10,6 +10,7 @@ import { runCron } from "./cron";
 import { consumeAutoDrafts } from "./agent/queue";
 import type { AutoDraftJob } from "./agent/runs";
 import { accessConfigError, accessJwks, getAccessUrls } from "./lib/access-config";
+import { DEMO, demoBlocksPath } from "./lib/demo";
 import { errorResponse } from "./lib/error-page";
 import { foreignOrigin } from "./lib/csrf";
 import { withSecurityHeaders } from "./lib/security-headers";
@@ -43,8 +44,11 @@ app.use("*", async (c, next) => {
 
 // Cloudflare Access JWT validation middleware (production only)
 app.use("*", async (c, next) => {
-	// Skip validation in development
-	if (import.meta.env.DEV) {
+	// Skip validation in development. A demo build is open to anyone and has no MCP server or agent.
+	if (DEMO && demoBlocksPath(c.req.path)) {
+		return c.json({ error: "The agent and MCP server are off in the demo" }, 403);
+	}
+	if (import.meta.env.DEV || DEMO) {
 		return next();
 	}
 

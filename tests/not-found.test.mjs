@@ -10,8 +10,8 @@ const bundle = await build({
 	entryPoints: ["app/routes/not-found.tsx"], bundle: true, platform: "node", format: "esm", write: false,
 	jsx: "automatic", packages: "external", alias: { "~": "./app", shared: "./shared" }, loader: { ".svg": "text" },
 });
-const out = "node_modules/.cache/omr-tests/not-found.mjs";
-mkdirSync("node_modules/.cache/omr-tests", { recursive: true });
+const out = "node_modules/.cache/pm-tests/not-found.mjs";
+mkdirSync("node_modules/.cache/pm-tests", { recursive: true });
 writeFileSync(out, bundle.outputFiles[0].text);
 const notFound = await import(new URL(`../${out}`, import.meta.url).href);
 

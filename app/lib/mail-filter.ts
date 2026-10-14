@@ -134,10 +134,11 @@ export function openParam(ref: OpenRef): string {
 	return `${ref.mailboxId}:${ref.emailId}`;
 }
 
-/** Full URL search for a filter plus the open conversation. */
-export function toSearch(filter: MailFilter, open?: OpenRef | null): string {
+/** Full URL search for a filter plus the open conversation and the search text. */
+export function toSearch(filter: MailFilter, open?: OpenRef | null, search = ""): string {
 	const params = filterToParams(filter);
 	if (open) params.set("open", openParam(open));
+	if (search.trim()) params.set("search", search);
 	return `?${params}`;
 }
 

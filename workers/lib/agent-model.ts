@@ -20,6 +20,7 @@ import {
 	prettyName, RECOMMENDED_MODEL, validModelId, type WorkersAiEntry, type ZdrEndpoint, zdrOnly,
 } from "../../shared/models";
 import type { Env } from "../types";
+import { DEMO, DEMO_AI_MODEL } from "./demo";
 
 export const WORKERS_AI_MODEL = RECOMMENDED_MODEL.id;
 export const OPENROUTER_BASE = "https://openrouter.ai/api/v1";
@@ -153,7 +154,7 @@ export function languageModel(env: Env, ref: ModelRef, key?: string): LanguageMo
 	switch (ref.provider) {
 		case "openrouter":
 			return createOpenAICompatible({
-				name: "openrouter", baseURL: OPENROUTER_BASE, apiKey: key, headers: { "X-Title": "Open Mailroom" }, fetch: zeroRetentionFetch,
+				name: "openrouter", baseURL: OPENROUTER_BASE, apiKey: key, headers: { "X-Title": "PluraMail" }, fetch: zeroRetentionFetch,
 			}).chatModel(ref.id);
 		default:
 			return createWorkersAI({ binding: env.AI })(ref.id as Parameters<ReturnType<typeof createWorkersAI>>[0]);
@@ -169,6 +170,7 @@ export const WORKERS_AI_FAST_MODEL = "@cf/meta/llama-3.3-70b-instruct-fp8-fast";
 
 /** The model for short structured answers: the picked model on another provider, else the fast Workers AI model. */
 export async function quickModel(env: Env): Promise<LanguageModel> {
+	if (DEMO) return languageModel(env, { provider: "workers-ai", id: DEMO_AI_MODEL });
 	const config = await readAgentModelConfig(env);
 	const active = activeModel(config);
 	if (active.provider !== "workers-ai") return languageModel(env, active, config.keys[active.provider]);
@@ -177,6 +179,7 @@ export async function quickModel(env: Env): Promise<LanguageModel> {
 
 /** The model the agent should use right now. */
 export async function agentModel(env: Env): Promise<LanguageModel> {
+	if (DEMO) return languageModel(env, { provider: "workers-ai", id: DEMO_AI_MODEL });
 	const config = await readAgentModelConfig(env);
 	let active = activeModel(config);
 	if (active.provider === "workers-ai" && active.id !== WORKERS_AI_MODEL) {

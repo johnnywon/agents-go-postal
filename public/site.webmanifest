@@ -1,7 +1,7 @@
 {
   "id": "/",
-  "name": "Open Mailroom",
-  "short_name": "Mailroom",
+  "name": "PluraMail",
+  "short_name": "PluraMail",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",

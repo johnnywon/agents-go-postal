@@ -10,6 +10,8 @@
  */
 import { failAbandonedRuns, pruneRuns } from "./agent/runs";
 import { pruneActivity } from "./lib/activity";
+import { DEMO } from "./lib/demo";
+import { resetDemo } from "./lib/dev-seed";
 import { readPrefs } from "./lib/prefs";
 import { extractAttachmentTextBatch, sendDueScheduledMail, recordsSql } from "./store";
 import type { Env } from "./types";
@@ -27,6 +29,8 @@ export async function pruneAgentHistory(env: Env, now = Date.now()) {
 }
 
 export async function runCron(env: Env, now = Date.now()) {
+	// A demo sends nothing. Once an hour it writes the sample inbox again over what visitors changed.
+	if (DEMO) return { demo: new Date(now).getUTCMinutes() === 0 ? await resetDemo(env, now) : null };
 	const scheduled = await sendDueScheduledMail(env, now);
 	if (scheduled.failed.length > 0) console.error(`scheduled send failed for ${scheduled.failed.length} message(s)`);
 	const attachments = String(env.ATTACHMENT_SEARCH ?? "") === "true"
