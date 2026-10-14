@@ -21,23 +21,23 @@ function rawMessage({ messageId = "delivery@example.net", attachment = false } =
 		...(messageId ? [`Message-ID: <${messageId}>`] : []),
 		...(attachment ? [
 			"MIME-Version: 1.0",
-			'Content-Type: multipart/mixed; boundary="mailroom-boundary"',
+			'Content-Type: multipart/mixed; boundary="pluramail-boundary"',
 		] : []),
 		"Subject: Inbound test",
 	];
 	const body = attachment
 		? [
-			"--mailroom-boundary",
+			"--pluramail-boundary",
 			"Content-Type: text/plain; charset=utf-8",
 			"",
 			"Hello",
-			"--mailroom-boundary",
+			"--pluramail-boundary",
 			'Content-Type: text/plain; name="note.txt"',
 			'Content-Disposition: attachment; filename="note.txt"',
 			"Content-Transfer-Encoding: base64",
 			"",
 			"SGVsbG8=",
-			"--mailroom-boundary--",
+			"--pluramail-boundary--",
 			"",
 		].join("\r\n")
 		: "Hello";
