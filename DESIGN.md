@@ -1,6 +1,6 @@
-# Open Mailroom design
+# PluraMail design
 
-Open Mailroom has one mail view, the postal view, described here. Everything else opens over it: Settings as a dialog, errors as a page in the same look.
+PluraMail has one mail view, the postal view, described here. Everything else opens over it: Settings as a dialog, errors as a page in the same look.
 
 ## Postal
 
@@ -36,9 +36,9 @@ An address always renders as **bold handle**, muted `@`, then the domain in its 
 
 ### Layout
 
-- Left column 236px (collapses to a 52px rail), centre, and the agent column 328px (collapses to a 44px rail: its head mirrors the left rail's, the caret then the robot on the outer edge, over "MAILROOM AGENT" set vertically in mono). Both rail states persist per browser.
+- Left column 236px (collapses to a 52px rail), centre, and the agent column 328px (collapses to a 44px rail: its head mirrors the left rail's, the caret then the robot on the outer edge, over "PLURAMAIL AGENT" set vertically in mono). Both rail states persist per browser.
 - The reader takes what the other columns leave and never slides under the agent rail. When it is under 560px wide (a small window with both rails), its toolbar wraps to a second row and the sender line breaks, name and address over the date.
-- Every column starts with a 38px header bar on one line: MAILROOM, the search bar, MAILROOM AGENT.
+- Every column starts with a 38px header bar on one line: PLURAMAIL, the search bar, PLURAMAIL AGENT.
 - While search is focused, the bar and its window lift off the columns beside them: a soft side shadow (`--pg-shadow-lift`) falls onto the sidebar and the agent panel.
 - Mail is always which addresses plus which folder, and the list header reads them in that order, each with its own icon: the address picker as its mark and a caret (the PO-box wall for All addresses, a domain's or address's swatch otherwise; the name is in its title and the menu), a caret-right, then the folder with its sidebar icon and name (or a label with its tag). The folder is a menu too, with no caret. The two are one unit: the folder menu lists exactly what the sidebar shows under the picked parent (`ALL_FOLDERS` then the labels for All addresses, `ADDRESS_FOLDERS` for a domain or address, both in `NavIcons.tsx`, which the sidebar also reads), and switching address keeps the folder when the new parent has it.
 - One meaning per icon. The PO-box wall is the whole mailroom: the sidebar header, the collapsed rail and the All addresses choice. The tray is the Inbox folder, everywhere. `VIEW_ICONS` in `NavIcons.tsx` maps each folder to its icon.

@@ -2,9 +2,18 @@
 
 Versions follow [semantic versioning](https://semver.org). Before 1.0, a minor version can break things. Each entry names any new D1 migration. `npm run deploy` applies it; if you deploy another way, run `wrangler d1 migrations apply DB --remote` before you deploy that version.
 
-## 0.7.5
+## 0.8.0
 
-Readable to browser agents.
+Open Mailroom is now PluraMail, and the app is readable to browser agents.
+
+### The name
+
+- PluraMail in the app's default title, the sidebar and agent column headers, the manifest (short name `PluraMail`), the OpenRouter X-Title, package.json, wrangler.jsonc, the docs and the README. The repo moves to github.com/johnnywon/pluramail; the old URL redirects.
+- The default worker, R2 bucket, D1 database and queue names in `wrangler.jsonc` are `pluramail`. An existing deployment keeps its own names; don't change them, or Cloudflare creates a new worker and bucket.
+- Build env vars are `PLURAMAIL_WRANGLER_CONFIG` and `PLURAMAIL_PUBLIC_DIR`. `OMR_*` still work.
+- Browser prefs move from `omr-*` to `pm-*` keys on first load. Nothing to do.
+
+### Readable to browser agents
 
 Agents that drive a browser, such as Aside, gstack browse, Playwright and Claude in Chrome, read the accessibility tree, as screen readers do. Snapshots of 0.7.4 in Aside and gstack browse showed what they missed.
 

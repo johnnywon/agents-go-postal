@@ -23,8 +23,8 @@ test("a message frame writes its document only when it changed", () => {
 test("quoted earlier messages fold and have no background", () => {
 	const source = readFileSync("app/components/EmailIframe.tsx", "utf8");
 	assert.match(source, /const QUOTE = "\.gmail_quote, [^"]*blockquote\[type='cite'\]/);
-	assert.match(source, /fold\.className = "omr-quote"/);
-	const quoteRules = source.match(/(?:^|\n)\s*(?:\.omr-quote )?blockquote \{[^}]*\}/g) ?? [];
+	assert.match(source, /fold\.className = "pm-quote"/);
+	const quoteRules = source.match(/(?:^|\n)\s*(?:\.pm-quote )?blockquote \{[^}]*\}/g) ?? [];
 	assert.ok(quoteRules.length > 0);
 	for (const rule of quoteRules) assert.doesNotMatch(rule, /background/);
 });

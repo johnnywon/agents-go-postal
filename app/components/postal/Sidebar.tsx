@@ -95,7 +95,7 @@ export function Sidebar(props: SidebarProps) {
 		<nav className="pg-nav" aria-label="Mail" data-overlay={props.overlay || undefined} data-drawer={props.drawer}>
 			<button type="button" className="pg-rail-head" onClick={props.onCollapse} title={tip("sidebar", "Collapse sidebar")}>
 				<AllAddressesIcon size={14} />
-				<span className="pg-flex" style={{ lineHeight: 1, textAlign: "left" }}>MAILROOM</span>
+				<span className="pg-flex" style={{ lineHeight: 1, textAlign: "left" }}>PLURAMAIL</span>
 				<CaretDoubleLeftIcon size={14} weight="bold" />
 			</button>
 			<div className="pg-nav-scroll">

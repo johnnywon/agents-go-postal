@@ -60,7 +60,7 @@ export function hasRemoteImages(html: string): boolean {
 const QUOTE = ".gmail_quote, .gmail_quote_container, blockquote[type='cite'], .yahoo_quoted, .protonmail_quote";
 
 /** The "On … wrote:" line heading each folded earlier message. */
-const ATTRIBUTION = ".omr-quote .omr-attr, .omr-quote .gmail_attr, .omr-quote .gmail_quote > p:first-child";
+const ATTRIBUTION = ".pm-quote .pm-attr, .pm-quote .gmail_attr, .pm-quote .gmail_quote > p:first-child";
 
 /**
  * The mail body, sanitised and ready to show: links open in a new tab, blocked remote images become
@@ -103,7 +103,7 @@ export function prepareMailBody(body: string, { remoteImages, frame }: { remoteI
 				continue;
 			}
 			const box = document.createElement("span");
-			box.className = "omr-img-off";
+			box.className = "pm-img-off";
 			box.textContent = alt;
 			if (w > 0) box.style.width = `${w}px`;
 			if (h > 0) box.style.minHeight = `${Math.min(h, 160)}px`;
@@ -114,9 +114,9 @@ export function prepareMailBody(body: string, { remoteImages, frame }: { remoteI
 	// Earlier messages in a reply fold behind the same toggle as text-only mail.
 	// Only the outermost quote folds; the ones inside it open with it.
 	for (const quote of cleanBody.querySelectorAll<HTMLElement>(QUOTE)) {
-		if (quote.parentElement?.closest(`${QUOTE}, .omr-quote`)) continue;
+		if (quote.parentElement?.closest(`${QUOTE}, .pm-quote`)) continue;
 		const fold = document.createElement("details");
-		fold.className = "omr-quote";
+		fold.className = "pm-quote";
 		const toggle = document.createElement("summary");
 		toggle.setAttribute("aria-label", "Show quoted text");
 		toggle.textContent = "···";
@@ -241,19 +241,19 @@ a { color: #2563eb; }
 img { max-width: 100%; height: auto; }
 blockquote { margin: 1em 0; padding: 0 0 0 16px; color: #5f6673; }
 /* Folded history: the toggle, then each earlier message under a hairline with its "On … wrote:" line in small sans. Flat, no fills or indents. */
-.omr-quote { margin: 1em 0 0; }
-.omr-quote > summary {
+.pm-quote { margin: 1em 0 0; }
+.pm-quote > summary {
 	display: inline-block; list-style: none; cursor: pointer; padding: 0 8px; border: 1px solid #dcdcd8; border-radius: 6px;
 	color: #74767c; font: 12px/18px -apple-system, BlinkMacSystemFont, sans-serif; letter-spacing: .1em; user-select: none;
 }
-.omr-quote > summary::-webkit-details-marker { display: none; }
-.omr-quote blockquote { margin: 0; padding: 0; }
-.omr-quote .omr-attr, .omr-quote .gmail_attr, .omr-quote .gmail_quote > p:first-child {
+.pm-quote > summary::-webkit-details-marker { display: none; }
+.pm-quote blockquote { margin: 0; padding: 0; }
+.pm-quote .pm-attr, .pm-quote .gmail_attr, .pm-quote .gmail_quote > p:first-child {
 	margin: 16px 0 10px; padding-top: 12px; border-top: 1px solid #e4e4e0;
 	font: 13px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; color: #74767c;
 }
-.omr-quote .omr-attr b, .omr-quote .gmail_attr b, .omr-quote .gmail_quote > p:first-child b { font-weight: 600; color: #3a3c40; margin-right: 4px; }
-.omr-quote > .omr-attr:first-of-type, .omr-quote > .gmail_quote > p:first-child, .omr-quote > .gmail_quote > .gmail_attr { margin-top: 12px; }
+.pm-quote .pm-attr b, .pm-quote .gmail_attr b, .pm-quote .gmail_quote > p:first-child b { font-weight: 600; color: #3a3c40; margin-right: 4px; }
+.pm-quote > .pm-attr:first-of-type, .pm-quote > .gmail_quote > p:first-child, .pm-quote > .gmail_quote > .gmail_attr { margin-top: 12px; }
 pre {
 	background: #f3f4f6;
 	padding: 12px;
@@ -266,7 +266,7 @@ td, th { padding: 4px 8px; }
 p { margin: 4px 0; }
 h1, h2, h3 { margin: 8px 0 4px; }
 ul, ol { padding-left: 20px; margin: 4px 0; }
-.omr-img-off {
+.pm-img-off {
 	display: inline-flex; align-items: center; justify-content: center; max-width: 100%;
 	padding: 4px 8px; border: 1px dashed #c9c9c4; color: #74767c;
 	font: 12px/1.3 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; vertical-align: middle; text-align: center;
@@ -284,17 +284,17 @@ body {
 }
 a { color: ${palette.link}; text-underline-offset: 2px; }
 p { margin: 0 0 1em; }
-.omr-plain > :last-child, .omr-sig > :last-child, blockquote > :last-child { margin-bottom: 0; }
+.pm-plain > :last-child, .pm-sig > :last-child, blockquote > :last-child { margin-bottom: 0; }
 blockquote { color: ${palette.muted}; }
 pre { background: ${palette.quote}; }
 hr { border: 0; border-top: 1px solid ${palette.line}; }
-.omr-sig { margin-top: 1.25em; padding-top: 1em; border-top: 1px solid ${palette.line}; color: ${palette.muted}; font-size: 14px; }
-.omr-sig p { margin-bottom: .5em; }
-.omr-quote { margin: 1em 0 0; }
-.omr-quote > summary { border-color: ${palette.line}; color: ${palette.muted}; }
-.omr-quote .omr-attr, .omr-quote .gmail_attr, .omr-quote .gmail_quote > p:first-child { border-top-color: ${palette.line}; color: ${palette.muted}; }
-.omr-quote .omr-attr b, .omr-quote .gmail_attr b, .omr-quote .gmail_quote > p:first-child b { color: ${palette.text}; }
-.omr-quote blockquote { font-size: 15px; }
+.pm-sig { margin-top: 1.25em; padding-top: 1em; border-top: 1px solid ${palette.line}; color: ${palette.muted}; font-size: 14px; }
+.pm-sig p { margin-bottom: .5em; }
+.pm-quote { margin: 1em 0 0; }
+.pm-quote > summary { border-color: ${palette.line}; color: ${palette.muted}; }
+.pm-quote .pm-attr, .pm-quote .gmail_attr, .pm-quote .gmail_quote > p:first-child { border-top-color: ${palette.line}; color: ${palette.muted}; }
+.pm-quote .pm-attr b, .pm-quote .gmail_attr b, .pm-quote .gmail_quote > p:first-child b { color: ${palette.text}; }
+.pm-quote blockquote { font-size: 15px; }
 </style>` : ""}
 </head>
 <body>${cleanBody.innerHTML}${heightScript}${keyScript}</body>

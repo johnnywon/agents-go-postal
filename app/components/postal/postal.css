@@ -88,8 +88,8 @@ html:has(.postal), html:has(.postal) body { background: var(--pg-base, #141518);
   .pg-images-note,
   .pg-mhead,
   .pg-mrail,
-  .pg-mail-text .omr-sig,
-  .pg-mail-text .omr-attr
+  .pg-mail-text .pm-sig,
+  .pg-mail-text .pm-attr
 ) { border-radius: 0 !important; }
 .postal .pg-sr { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 .postal .pg-flex { flex: 1; min-width: 0; }
@@ -581,22 +581,22 @@ html:has(.postal), html:has(.postal) body { background: var(--pg-base, #141518);
 }
 .pg-mail-text a { color: var(--pg-link); text-decoration: underline; text-underline-offset: 2px; }
 .pg-mail-text p { margin: 0 0 1em; }
-.pg-mail-text :is(.omr-plain, .omr-sig, blockquote) > :last-child { margin-bottom: 0; }
+.pg-mail-text :is(.pm-plain, .pm-sig, blockquote) > :last-child { margin-bottom: 0; }
 .pg-mail-text blockquote { margin: 0; padding: 0; font-size: 15px; color: var(--pg-text-6); }
-.pg-mail-text .omr-sig { margin-top: 1.25em; padding-top: 1em; border-top: 1px solid var(--pg-line-2); font-size: 14px; color: var(--pg-text-6); }
-.pg-mail-text .omr-sig p { margin-bottom: .5em; }
-.pg-mail-text .omr-quote { margin: 1em 0 0; }
-.pg-mail-text .omr-quote > summary {
+.pg-mail-text .pm-sig { margin-top: 1.25em; padding-top: 1em; border-top: 1px solid var(--pg-line-2); font-size: 14px; color: var(--pg-text-6); }
+.pg-mail-text .pm-sig p { margin-bottom: .5em; }
+.pg-mail-text .pm-quote { margin: 1em 0 0; }
+.pg-mail-text .pm-quote > summary {
   display: inline-block; list-style: none; cursor: pointer; padding: 0 8px; border: 1px solid var(--pg-line-2); border-radius: 6px;
   font: 12px/18px -apple-system, BlinkMacSystemFont, sans-serif; letter-spacing: .1em; color: var(--pg-text-6); user-select: none;
 }
-.pg-mail-text .omr-quote > summary::-webkit-details-marker { display: none; }
-.pg-mail-text .omr-attr {
+.pg-mail-text .pm-quote > summary::-webkit-details-marker { display: none; }
+.pg-mail-text .pm-attr {
   margin: 16px 0 10px; padding-top: 12px; border-top: 1px solid var(--pg-line-2);
   font: 13px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; color: var(--pg-text-6);
 }
-.pg-mail-text .omr-quote > .omr-attr:first-of-type { margin-top: 12px; }
-.pg-mail-text .omr-attr b { margin-right: 4px; font-weight: 600; color: var(--pg-text-2); }
+.pg-mail-text .pm-quote > .pm-attr:first-of-type { margin-top: 12px; }
+.pg-mail-text .pm-attr b { margin-right: 4px; font-weight: 600; color: var(--pg-text-2); }
 /* Blocked images: a quiet row at the top of the page, not a bar above it. */
 .pg-images-note {
   --pg-note-text: var(--pg-text-6); --pg-note-strong: var(--pg-text-3); --pg-note-line: var(--pg-line-soft); --pg-note-hover: var(--pg-hover);

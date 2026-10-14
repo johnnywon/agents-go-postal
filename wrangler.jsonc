@@ -1,6 +1,6 @@
 {
 	"$schema": "node_modules/wrangler/config-schema.json",
-	"name": "open-mailroom",
+	"name": "pluramail",
 	// Set to your Cloudflare account ID, or remove to have wrangler ask.
 	// "account_id": "<your-account-id>",
 	"compatibility_date": "2025-11-28",
@@ -13,7 +13,7 @@
 	],
 	"vars": {
 		// Display name in page titles. Icons and the link preview card live in public/brand/.
-		"APP_NAME": "Open Mailroom",
+		"APP_NAME": "PluraMail",
 		// Production deploys must also define POLICY_AUD and TEAM_DOMAIN.
 		// TEAM_DOMAIN must include https://; it may be the base Access URL or full /cdn-cgi/access/certs URL.
 		// The worker now fails closed outside local development if Access is not configured.
@@ -36,16 +36,16 @@
 	"r2_buckets": [
 		{
 			"binding": "BUCKET",
-			"bucket_name": "open-mailroom",
-			"preview_bucket_name": "open-mailroom"
+			"bucket_name": "pluramail",
+			"preview_bucket_name": "pluramail"
 		}
 	],
 	// npm run deploy applies the migrations before it deploys. The Deploy to Cloudflare button
-	// creates the database and fills in database_id; by hand, run npx wrangler d1 create open-mailroom.
+	// creates the database and fills in database_id; by hand, run npx wrangler d1 create pluramail.
 	"d1_databases": [
 		{
 			"binding": "DB",
-			"database_name": "open-mailroom",
+			"database_name": "pluramail",
 			"migrations_dir": "migrations"
 		}
 	],
@@ -54,11 +54,11 @@
 	},
 	// Optional, for AUTO_DRAFT_ENABLED: run auto-drafts on a queue that retries a failed draft
 	// three times with backoff, then moves it to a dead-letter queue. Without it, each draft is
-	// tried once. Create both queues (npx wrangler queues create open-mailroom-drafts, and
-	// open-mailroom-drafts-dlq), then uncomment. Keep max_retries at 3 (workers/agent/runs.ts).
+	// tried once. Create both queues (npx wrangler queues create pluramail-drafts, and
+	// pluramail-drafts-dlq), then uncomment. Keep max_retries at 3 (workers/agent/runs.ts).
 	// "queues": {
-	// 	"producers": [{ "binding": "DRAFT_QUEUE", "queue": "open-mailroom-drafts" }],
-	// 	"consumers": [{ "queue": "open-mailroom-drafts", "max_batch_size": 5, "max_retries": 3, "dead_letter_queue": "open-mailroom-drafts-dlq" }]
+	// 	"producers": [{ "binding": "DRAFT_QUEUE", "queue": "pluramail-drafts" }],
+	// 	"consumers": [{ "queue": "pluramail-drafts", "max_batch_size": 5, "max_retries": 3, "dead_letter_queue": "pluramail-drafts-dlq" }]
 	// },
 	"durable_objects": {
 		"bindings": [

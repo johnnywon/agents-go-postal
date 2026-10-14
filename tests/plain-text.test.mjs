@@ -12,8 +12,8 @@ await writeFile(tmp, bundle.outputFiles[0].text);
 const { isHtmlBody, linkify, plainTextToHtml } = await import(tmp.href).finally(() => rm(tmp));
 
 test("blank lines make paragraphs, and a run of them counts as one", () => {
-	assert.equal(plainTextToHtml("does this come in?\n\n\n\njw\n"), '<div class="omr-plain"><p>does this come in?</p><p>jw</p></div>');
-	assert.equal(plainTextToHtml("Best Regards,\r\nDevansh"), '<div class="omr-plain"><p>Best Regards,<br>Devansh</p></div>');
+	assert.equal(plainTextToHtml("does this come in?\n\n\n\njw\n"), '<div class="pm-plain"><p>does this come in?</p><p>jw</p></div>');
+	assert.equal(plainTextToHtml("Best Regards,\r\nDevansh"), '<div class="pm-plain"><p>Best Regards,<br>Devansh</p></div>');
 });
 
 test("text is escaped", () => {
@@ -30,19 +30,19 @@ test("bare URLs and addresses become links, trailing punctuation stays out", () 
 
 test("the signature after a '-- ' line is set apart", () => {
 	const html = plainTextToHtml("Thanks\n\n-- \nJane\nexample.com");
-	assert.equal(html, '<div class="omr-plain"><p>Thanks</p><div class="omr-sig"><p>Jane<br>example.com</p></div></div>');
-	assert.doesNotMatch(plainTextToHtml("a -- b"), /omr-sig/);
+	assert.equal(html, '<div class="pm-plain"><p>Thanks</p><div class="pm-sig"><p>Jane<br>example.com</p></div></div>');
+	assert.doesNotMatch(plainTextToHtml("a -- b"), /pm-sig/);
 });
 
 test("quoted replies fold behind a toggle with their attribution", () => {
 	const html = plainTextToHtml("Sounds good.\n\nOn Mon, Oct 12, 2026 at 9:00 AM Jane <jane@example.com> wrote:\n> Lunch?\n>\n> J");
-	assert.match(html, /^<div class="omr-plain"><p>Sounds good\.<\/p><details class="omr-quote"><summary[^>]*>···<\/summary><div class="omr-attr">On Mon/);
+	assert.match(html, /^<div class="pm-plain"><p>Sounds good\.<\/p><details class="pm-quote"><summary[^>]*>···<\/summary><div class="pm-attr">On Mon/);
 	assert.match(html, /<blockquote><p>Lunch\?<\/p><p>J<\/p><\/blockquote><\/details><\/div>$/);
 });
 
 test("a signature above a quoted reply keeps the quote out of it", () => {
 	const html = plainTextToHtml("Yes\n-- \nJ\n\nOn Tue, Jane wrote:\n> Lunch?");
-	assert.match(html, /<div class="omr-sig"><p>J<\/p><\/div><details class="omr-quote">/);
+	assert.match(html, /<div class="pm-sig"><p>J<\/p><\/div><details class="pm-quote">/);
 });
 
 test("an address in angle brackets is text, real tags are HTML", () => {
