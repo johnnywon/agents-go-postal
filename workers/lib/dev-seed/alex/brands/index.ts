@@ -186,10 +186,10 @@ export interface Signer {
 	font?: string;
 }
 
-/** A human signature: a 36px mark beside name and role, 12/18, so a plain reply stays plain. */
+/** A human signature: a 48px mark beside name and role at 13/20, as tall as the block beside it. */
 export function signature(s: Signer): string {
 	const lines = [s.title, s.org, s.link].filter(Boolean).map((l) => esc(l as string)).join("<br>");
-	return `<table cellpadding="0" cellspacing="0" role="presentation" style="margin:18px 0 0;font-family:${s.font ?? SANS};font-size:12px;line-height:18px;color:#5b6168"><tr>${s.mark ? `<td width="36" style="width:36px;min-width:36px;vertical-align:middle;padding:0 12px 0 0">${logo(s.mark, 36, 36)}</td>` : ""}<td style="vertical-align:middle"><strong style="color:${s.color ?? "#1f2328"};font-weight:600">${esc(s.name)}</strong>${lines ? `<br>${lines}` : ""}</td></tr></table>`;
+	return `<table cellpadding="0" cellspacing="0" role="presentation" style="margin:20px 0 0;font-family:${s.font ?? SANS};font-size:13px;line-height:20px;color:#5b6168"><tr>${s.mark ? `<td width="48" style="width:48px;min-width:48px;vertical-align:middle;padding:0 14px 0 0">${logo(s.mark, 48, 48)}</td>` : ""}<td style="vertical-align:middle"><strong style="color:${s.color ?? "#1f2328"};font-weight:600;font-size:14px">${esc(s.name)}</strong>${lines ? `<br>${lines}` : ""}</td></tr></table>`;
 }
 
 export const SIGNERS = {

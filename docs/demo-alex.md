@@ -61,7 +61,7 @@ Left open on purpose: Eli's connector question (H-05), June's pagination confirm
 
 ## Brands
 
-Each sender has its own look, from `workers/lib/dev-seed/alex/brands/index.ts`: colours, type sizes, padding, rules, button shape, and header. Designed mail is a table at most 600px wide with inline styles, so it works in the reader at desktop width and on a 375px phone. Human mail stays plain: paragraphs, a quoted line, and a 12/18 signature with a 20px mark. A reply carries its writer's signature, never the recipient's.
+Each sender has its own look, from `workers/lib/dev-seed/alex/brands/index.ts`: colours, type sizes, padding, rules, button shape, and header. Designed mail is a table at most 600px wide with inline styles, so it works in the reader at desktop width and on a 375px phone. Human mail stays plain: paragraphs, a quoted line, and a 13/20 signature with a 48px mark. A reply carries its writer's signature, never the recipient's.
 
 Logos are files in `brands/vendor/` (published logo files, 23, one of them a mark-only crop) and `brands/original/` (marks drawn for the invented companies and people, 20), with sources, usage notes and SHA-256 in `brands/manifest.json`. `scripts/seed-assets.mjs` writes them into `brands/logos.ts` as data URLs, so the mail shows them without fetching anything. The vendor files are unchanged from their sources: official kits for Uber Eats, Vercel, Stripe, GitHub, Cloudflare (a PNG; its kit has no SVG), Supabase, Resend, Cursor and Linear; Wikimedia Commons for OpenAI, ChatGPT, Claude, Anthropic, xAI and Figma; the AFFiNE repository for Notes. They are other companies' trademarks.
 
