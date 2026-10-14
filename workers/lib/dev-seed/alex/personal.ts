@@ -31,7 +31,7 @@ export const orderFood = (o: Order) => o.items.reduce((s, [, v]) => s + cents(v)
 export const orderTotal = (o: Order) => (cents(orderFood(o)) + cents(o.tax) + cents(o.delivery) + cents(o.service) + cents(o.tip)) / 100;
 
 export const RICE_BOWL: Order = { id: "UE-73102", restaurant: "Hana Rice House", items: [["Teriyaki chicken rice bowl", 9.95], ["Sparkling yuzu soda", 2.0]], tax: 1.06, delivery: 1.99, service: 0.87, tip: 3.0 };
-export const BURRITO: Order = { id: "UE-73419", restaurant: "Night Owl Burrito Co.", items: [["Carne asada burrito", 11.5], ["Chips and salsa", 2.0]], tax: 1.2, delivery: 2.99, service: 1.5, tip: 4.0 };
+export const BURRITO: Order = { id: "UE-73419", restaurant: "Night Owl Burrito Co.", items: [["Red chile pork burrito", 11.5], ["Chips and salsa", 2.0]], tax: 1.2, delivery: 2.99, service: 1.5, tip: 4.0 };
 
 function orderRows(o: Order, totalLabel: string) {
 	return rows("ubereats", [
@@ -170,7 +170,7 @@ ${button("keyforge", "Track your package", "https://keyforgekeys.com/orders/KF-2
 				preheader: `${BURRITO.restaurant} is preparing your order. Arriving around 1:51 AM.`,
 				eyebrow: `Order ${BURRITO.id} · ${c.day("2026-10-09")}`,
 				heading: "Your order is confirmed",
-				body: `${photo("food-burrito", "ubereats.com", "A burrito cut in half", "Menu photo", 220, 0)}
+				body: `${photo("food-burrito", "ubereats.com", "An open burrito with red chile pork on foil", "Menu photo", 220, 0)}
 <div style="height:18px"></div>
 ${para("ubereats", `<strong>${esc(BURRITO.restaurant)}</strong> is preparing your order.`)}
 ${rows("ubereats", [["Estimated arrival", "1:51 AM", "total"]], 20)}
@@ -202,7 +202,7 @@ ${button("ubereats", "Track your order", `https://www.ubereats.com/orders/${BURR
 				preheader: `Delivered at 1:48 AM. You paid ${money(orderTotal(BURRITO))}.`,
 				eyebrow: `Order ${BURRITO.id} · ${c.day("2026-10-09")}`,
 				heading: "Your order was delivered",
-				body: `${photo("food-burrito", "ubereats.com", "A burrito cut in half", "Menu photo", 220, 0)}
+				body: `${photo("food-burrito", "ubereats.com", "An open burrito with red chile pork on foil", "Menu photo", 220, 0)}
 <div style="height:18px"></div>
 ${para("ubereats", "Delivered at <strong>1:48 AM</strong>. The total matches your order confirmation; there is no second charge.")}
 ${orderRows(BURRITO, "Total charged")}

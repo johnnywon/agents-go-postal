@@ -93,7 +93,7 @@ Omar`, SIGNERS.omar),
 				eyebrow: `Issue 112 · ${c.day("2026-10-05")}`,
 				heading: "This week's small APIs worth trying",
 				body: `${para("buildnotes", "Every few weeks I collect small APIs, run by one or two people, that solved a real problem for a reader. Three this week. None of them paid to be here, and two of them came from your replies.")}
-${photo("coffee", "buildnotes.news", "A cup of coffee on a wooden table, seen from above", "Photo", 180, 0)}
+${photo("coffee", "buildnotes.news", "A cup of coffee on a red table, seen from above", "Photo", 180, 0)}
 ${h3("1. Partwell: one schema for manufacturers' catalogs", "Georgia,serif")}
 ${para("buildnotes", "Partwell takes the product catalogs manufacturers send out, each with its own column names, units and spreadsheet habits, and returns one schema: part number, dimensions, materials, substitutes and the date the source file last changed. There is a REST API and an MCP connector that works from Claude, ChatGPT, Cursor and Codex, so an assistant can look up a part and cite the file it came from.")}
 ${para("buildnotes", "The detail that stands out is the freshness field. Every record carries the time its manufacturer's file last changed, next to the file's name, so an answer about a part can say how old its source is. It is run by one developer, Alex Rivera, who answers support mail himself.")}
