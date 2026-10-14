@@ -10,6 +10,8 @@ Cloudflare receives and sends your domain's mail but doesn't include a mail clie
 [![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
 [![Runs on Cloudflare Workers](https://img.shields.io/badge/runs%20on-Cloudflare%20Workers-f38020?logo=cloudflare&logoColor=white)](https://developers.cloudflare.com/workers/)
 
+**[Try the demo](https://pluramail-demo.pluramail.workers.dev)**: a sample inbox with 100 messages in nine mailboxes, no sign-in. It sends nothing and resets every hour.
+
 Needs a domain on Cloudflare, R2 and Cloudflare Access. Sending needs the Workers Paid plan and Cloudflare Email Sending, which is in public beta.
 
 **v0.8.0, ready to deploy.** One production deployment has handled real mail on it every day since May 2026. Before 1.0, an upgrade can need a step, such as a D1 migration or a config change, and the [changelog](CHANGELOG.md) names it in every release. Pin a [release](https://github.com/johnnywon/pluramail/releases) tag to choose when you upgrade.

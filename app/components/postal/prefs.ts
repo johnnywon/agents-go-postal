@@ -23,24 +23,6 @@ const PREFS_KEY = "pm-prefs";
 const LAYOUT_KEY = "pm-layout";
 /** The shortcut keys this browser last showed, so a change made elsewhere gets a toast once. */
 export const SEEN_SHORTCUTS_KEY = "pm-shortcuts-seen";
-// Keys from before 0.8.0. Read once, copied to the new key, then removed.
-const LEGACY_KEYS: Record<string, string> = { "omr-prefs": PREFS_KEY, "omr-layout": LAYOUT_KEY, "omr-shortcuts-seen": SEEN_SHORTCUTS_KEY };
-
-export function migrateStorageKeys(): void {
-	if (typeof window === "undefined") return;
-	try {
-		for (const [old, next] of Object.entries(LEGACY_KEYS)) {
-			const value = window.localStorage.getItem(old);
-			if (value !== null && window.localStorage.getItem(next) === null) window.localStorage.setItem(next, value);
-			window.localStorage.removeItem(old);
-		}
-	} catch {
-		// Blocked storage: nothing to carry over.
-	}
-}
-
-migrateStorageKeys();
-
 export function readJson<T>(key: string, fallback: T): T {
 	if (typeof window === "undefined") return fallback;
 	try {

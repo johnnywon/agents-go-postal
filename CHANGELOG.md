@@ -4,14 +4,12 @@ Versions follow [semantic versioning](https://semver.org). Before 1.0, a minor v
 
 ## 0.8.0
 
-Open Mailroom is now PluraMail, the app is readable to browser agents, and a demo build fills itself with sample mail.
+The app is readable to browser agents, and a demo build fills itself with sample mail.
 
-### The name
+### Upgrading
 
-- PluraMail in the app's default title, the sidebar and agent column headers, the manifest (short name `PluraMail`), the OpenRouter X-Title, package.json, wrangler.jsonc, the docs and the README. The repo moves to github.com/johnnywon/pluramail; the old URL redirects.
-- The default worker, R2 bucket, D1 database and queue names in `wrangler.jsonc` are `pluramail`. An existing deployment keeps its own names; don't change them, or Cloudflare creates a new worker and bucket.
-- Build env vars are `PLURAMAIL_WRANGLER_CONFIG` and `PLURAMAIL_PUBLIC_DIR`. `OMR_*` still work.
-- Browser prefs move from `omr-*` to `pm-*` keys on first load. Nothing to do.
+- Build env vars are `PLURAMAIL_WRANGLER_CONFIG` and `PLURAMAIL_PUBLIC_DIR`. Set them in a deploy repo's scripts.
+- Browser layout (collapsed panels) starts from the defaults once.
 
 ### Readable to browser agents
 
@@ -51,10 +49,9 @@ The reader.
 - Text-only mail: blank-line runs collapse to one paragraph break, bare URLs and addresses are links, the signature under a `-- ` line is muted under a rule, and quoted replies (`>` lines and "On … wrote:") fold behind a toggle.
 - A text body with an address in angle brackets ("<jane@example.com>") was shown as HTML. Only real tags count now.
 - Images hidden is a row at the top of the message instead of a bar above it. A blocked image shows its alt text in a dashed box instead of the broken-image icon, and tracking pixels are dropped.
-- The agent panel and its collapsed rail are labelled MAILROOM AGENT, and the sidebar MAILROOM.
 - The list header reads which addresses, then which folder: the address picker as its mark and a caret, then the folder with the same icon it has in the sidebar. The scope's icon used to sit beside the folder name as if they were one control. Click the folder name to jump to a sibling: the same list the sidebar shows under that address, or under All addresses with its labels. Switching address keeps the folder you are in.
 - The message frame skips writing a document it already holds. Two writes in a row, as React makes in development, left plain mail blank in some Chromium browsers.
-- In a small window the reader slid under the agent rail, so MAILROOM AGENT sat on top of the toolbar and the sender's address was cut to "<". The reader now shrinks, its toolbar wraps and the sender line breaks.
+- In a small window the reader slid under the agent rail, so the agent rail's label sat on top of the toolbar and the sender's address was cut to "<". The reader now shrinks, its toolbar wraps and the sender line breaks.
 - Who sent a message and when is now the page's letterhead: name and address over the receiving address on the left, the date over the time on the right, above a hairline. The initial square and the angle brackets are gone.
 - Labels are no longer chips. In the reader they sit on a thin rail across the top of the message, right-aligned over the date; in the list they are tags beside the star, with the name on hover, so a labelled row is no taller than any other.
 - Quoted earlier messages in HTML replies fold behind the `···` toggle, as in text-only mail. Opened, each one sits under a hairline with its sender and date instead of a grey block.
@@ -116,7 +113,7 @@ D1 migration: `0006_agent_reliability.sql`. `npm run deploy` applies it. Deploy 
 
 Durable Object mail storage removed.
 
-- **Breaking:** mail is stored only in D1. A deployment still on `"STORAGE": "do"` must move to D1 on 0.5.x first ([Moving to D1 in the v0.5.1 docs](https://github.com/johnnywon/open-mailroom/blob/v0.5.1/docs/setup.md#moving-to-d1)). 0.6 adds the `v5` Durable Object migration with `deleted_classes: ["MailboxDO", "MailIndexDO"]`, which deletes the mail still in them when it deploys.
+- **Breaking:** mail is stored only in D1. A deployment still on `"STORAGE": "do"` must move to D1 on 0.5.x first ([Moving to D1 in the v0.5.1 docs](https://github.com/johnnywon/pluramail/blob/v0.5.1/docs/setup.md#moving-to-d1)). 0.6 adds the `v5` Durable Object migration with `deleted_classes: ["MailboxDO", "MailIndexDO"]`, which deletes the mail still in them when it deploys.
 - A deploy config that supplies its own `migrations` must append `{ "tag": "v5", "deleted_classes": ["MailboxDO", "MailIndexDO"] }` and drop the `MAILBOX` and `MAIL_INDEX` bindings.
 - Removed: the `STORAGE` and `INDEX_SYNC_ENABLED` vars, the `MAILBOX` and `MAIL_INDEX` bindings, the copy to D1 with its cron step and `/api/v1/admin/migrate-to-d1` routes, and `/api/v1/index/status` and `/api/v1/index/rebuild`. The Storage tab's counts come from `/api/v1/storage/status`.
 - The R2 `mailboxes/*.json` records are no longer read; D1's `mailboxes` table has held mailbox settings since 0.5. They can be deleted from the bucket.
@@ -126,7 +123,7 @@ D1 migration: `0005_drop_copy_job.sql`. `npm run deploy` applies it.
 
 ## 0.5.1
 
-- `npm run deploy` applies D1 migrations with the config in `OMR_WRANGLER_CONFIG`. In 0.5.0 it read the repo's example `wrangler.jsonc`, so a deployment with its own config stopped at the migration step and nothing deployed. With more than one Cloudflare account, set `CLOUDFLARE_ACCOUNT_ID`; `wrangler d1` does not read `account_id` from the config.
+- `npm run deploy` applies D1 migrations with the deployment's own Wrangler config. In 0.5.0 it read the repo's example `wrangler.jsonc`, so a deployment with its own config stopped at the migration step and nothing deployed. With more than one Cloudflare account, set `CLOUDFLARE_ACCOUNT_ID`; `wrangler d1` does not read `account_id` from the config.
 
 No D1 migration.
 
@@ -134,12 +131,12 @@ No D1 migration.
 
 D1 by default.
 
-- A new deployment stores mail in D1. `wrangler.jsonc` binds a `DB` database and sets `"STORAGE": "d1"`. The Deploy to Cloudflare button creates the database; by hand, run `npx wrangler d1 create open-mailroom` and copy the id into `d1_databases`.
-- **Upgrading a deployment that still stores mail in Durable Objects:** set `"STORAGE": "do"` in `vars` before you deploy 0.5.0, or the app opens on an empty D1 database. Nothing is lost; setting `do` and deploying brings the mail back. Then move with [Moving to D1](https://github.com/johnnywon/open-mailroom/blob/v0.5.1/docs/setup.md#moving-to-d1). The Durable Object store is removed in 0.6.
+- A new deployment stores mail in D1. `wrangler.jsonc` binds a `DB` database and sets `"STORAGE": "d1"`. The Deploy to Cloudflare button creates the database; by hand, run `npx wrangler d1 create <name>` and copy the id into `d1_databases`.
+- **Upgrading a deployment that still stores mail in Durable Objects:** set `"STORAGE": "do"` in `vars` before you deploy 0.5.0, or the app opens on an empty D1 database. Nothing is lost; setting `do` and deploying brings the mail back. Then move with [Moving to D1](https://github.com/johnnywon/pluramail/blob/v0.5.1/docs/setup.md#moving-to-d1). The Durable Object store is removed in 0.6.
 - `npm run deploy` applies D1 migrations before it deploys.
 - Each address has its own agent prompt. Settings > Agent edits one address at a time, with "Use for every address" to copy one. Draft reply and auto-draft use their address's prompt; the chat panel uses the prompt of the address whose mail is open, or the default when nothing is open.
 - The deploy button's form asks for `EMAIL_ADDRESSES` and explains the Access placeholders. `EMAIL_ADDRESSES` can be a list or a comma-separated string.
-- Removed: the `AGP_WRANGLER_CONFIG` and `AGP_PUBLIC_DIR` build vars (use `OMR_*`), the copy of `agp-*` browser prefs (a browser last opened before 0.4.0 starts with default prefs), the pre-0.3.0 agent model file shape (pick the model again in Settings > Model & key), the `/mailbox/...` and `/settings` redirects, and the cron that filled `has_link` on older D1 mail. A D1 deployment that applied `0002_has_link.sql` before 0.5.0 has had a minute per 200 messages to fill it; check with `SELECT count(*) FROM messages WHERE has_link IS NULL`.
+- Removed: the pre-0.3.0 agent model file shape (pick the model again in Settings > Model & key), the `/mailbox/...` and `/settings` redirects, and the cron that filled `has_link` on older D1 mail. A D1 deployment that applied `0002_has_link.sql` before 0.5.0 has had a minute per 200 messages to fill it; check with `SELECT count(*) FROM messages WHERE has_link IS NULL`.
 - Removed dead code: the `MAIL_UI` leftovers, `formatEmailDate`, and the phase 0 D1 bench.
 
 No D1 migration.
@@ -168,11 +165,7 @@ No D1 migration.
 
 ## 0.4.0
 
-- The project is now Open Mailroom. The repo moved to github.com/johnnywon/open-mailroom; the old URL redirects.
 - The logo is gone from the sidebar, the empty reader and error pages. The app icon stays. The link preview card shows the mark without a name.
-- Build env vars are `OMR_WRANGLER_CONFIG` and `OMR_PUBLIC_DIR`. `AGP_*` still work.
-- Browser prefs move from `agp-*` to `omr-*` keys on first load. Nothing to do.
-- The default worker and R2 bucket names in `wrangler.jsonc` are `open-mailroom`. An existing deployment keeps its own names; don't change them, or Cloudflare creates a new worker and an empty bucket.
 - README screenshots reshot, with light versions for readers on a light theme.
 
 No D1 migration.
