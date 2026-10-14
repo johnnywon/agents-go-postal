@@ -2,7 +2,7 @@
 
 A second sample inbox for demos: three weeks in the life of Alex Rivera. Alex runs Partwell, an API that normalizes manufacturers' product catalogs and serves them through MCP connectors, plays bass in a band and keeps the books for a kids' code club. 100 messages across nine mailboxes on four domains. The code is `workers/lib/dev-seed/alex/`; the tests are `tests/dev-seed-alex.test.mjs` and `tests/dev-seed-alex-store.test.mjs`.
 
-Partwell, its customers and vendors, Alex's family and friends, The Late Commits and Riverbend Code Club are invented. GitHub, Cloudflare, Stripe, Supabase, Uber Eats, Vercel, xAI, Resend, OpenAI, Anthropic, Cursor, Linear, Figma and AFFiNE appear as senders of simulated notices with their published logos. None of that mail came from them, and writing the profile contacts nobody. Amounts, usage figures, scores, case numbers and accounts are made up, and no message quotes a vendor's real price.
+Partwell, its customers and vendors, Alex's family and friends, The Late Commits and Riverbend Code Club are invented. GitHub, Cloudflare, Stripe, Supabase, Uber Eats, Vercel, xAI, Resend, OpenAI, Anthropic, Cursor, Linear, Figma and AFFiNE appear as senders of simulated notices with their published logos. None of that mail came from them, and writing the profile contacts nobody. Amounts, usage figures, scores, case numbers and accounts are made up. Fees and plan allowances in vendor notices are illustrative and may not match any vendor's current pricing.
 
 ## Loading it
 
@@ -79,6 +79,7 @@ The reader's frame loads no web fonts, so brand typefaces fall back to system st
 | Partwell | Inter, IBM Plex Mono | system sans, ui-monospace |
 | Build Notes, Fieldstone | Libre Baskerville, Source Sans 3 | Georgia, system sans |
 | Keyforge Keys | Space Grotesk, Inter | system sans |
+| Launchboard | DM Sans | system sans |
 | Sunday Deploy League | Barlow Condensed, Inter | Arial Narrow, system sans |
 
 Not built in this pass: brand boards, avatars in the inbox list, and a preview gallery. The app shows no sender avatars today.
