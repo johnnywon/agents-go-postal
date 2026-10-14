@@ -106,9 +106,7 @@ Mara`, SIGNERS.mara),
 			quote: "Can you check the staging date? You said the 7th was tight.",
 			html: prose(`Hi Mara,
 
-The plan looks right. The 7th works for staging if I have the redirect list by the 2nd; if it slips, staging slips by the same number of days, and the review with it.
-
-I'll send the redirect list for your review on Thursday.
+The plan looks right. I'll send you the redirect list on Thursday. The 7th works for staging if you can sign it off by the 2nd; if that slips, staging slips by the same number of days, and the review with it.
 
 Alex`),
 		},

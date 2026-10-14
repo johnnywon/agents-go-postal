@@ -233,7 +233,7 @@ We have the migration review on the calendar for 11 today. I saw your note that 
 
 If today is too much, could we move it? I'd still like the review before our content freeze on ${c.day("2026-10-16")}. Monday or Tuesday morning works on our side.
 
-The staging site and the redirect list are where we left them last week.
+The staging site went up on Wednesday, and the redirect list is as we left it last week.
 
 Mara`, SIGNERS.mara),
 		},
