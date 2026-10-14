@@ -418,5 +418,15 @@
   "bytes": 1639,
   "sha256": "7de210146524988b96ab074596e15cee424c66eb447c70f7c12698f0560c8209",
   "changes": "none"
+ },
+ {
+  "file": "vendor/affine-mark.svg",
+  "brand": "AFFiNE",
+  "variant": "mark only",
+  "source": "https://github.com/toeverything/AFFiNE/blob/canary/packages/frontend/admin/src/modules/auth/logo.svg",
+  "usage": "AFFiNE repository (MIT-licensed code); trademark of Toeverything",
+  "bytes": 4137,
+  "sha256": "1f5918fb559a53a8585133d0d19021c0ddac83c95483628554ccdc2617eaee82",
+  "changes": "viewBox cropped to the mark, which leaves out the lettering beneath it; paths unchanged"
  }
 ]
