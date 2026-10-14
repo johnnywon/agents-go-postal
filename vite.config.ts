@@ -39,7 +39,15 @@ const PREBUNDLE = [
   "zustand",
 ];
 
+// PLURAMAIL_DEMO=1 makes a demo build: filled with the sample inbox, no sends, no AI, no sign-in (workers/lib/demo.ts).
+const demo = process.env.PLURAMAIL_DEMO === "1";
+
 export default defineConfig({
+  // The sample inbox arrives in the developer's working hours. Workers run in UTC, so the build hands over this machine's offset.
+  define: {
+    __PLURAMAIL_TZ_OFFSET__: JSON.stringify(new Date().getTimezoneOffset()),
+    __PLURAMAIL_DEMO__: JSON.stringify(demo),
+  },
   publicDir: publicDir ? resolve(publicDir) : "public",
   optimizeDeps: { include: PREBUNDLE },
   plugins: [

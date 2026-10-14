@@ -83,6 +83,29 @@ Then uncomment `queues` in `wrangler.jsonc` and deploy. Keep `max_retries` at 3.
 
 Before 0.5, mail was stored in one Durable Object per address, with a combined index in another. 0.6 deletes that storage and the mail in it. A deployment still on it (`"STORAGE": "do"`) must upgrade to 0.5.x first, copy its mail to D1 ([Moving to D1 in the v0.5.1 docs](https://github.com/johnnywon/pluramail/blob/v0.5.1/docs/setup.md#moving-to-d1)) and switch to `"STORAGE": "d1"`, then install 0.6.
 
+## Demo build
+
+A demo build comes up filled with the [sample inbox](development.md#sample-inbox) on an empty, migrated database, so you can show the app without real mail. Anyone who opens it can read, search, file, label, star, delete and save drafts.
+
+```sh
+PLURAMAIL_DEMO=1 npm run build
+npm run deploy
+```
+
+`PLURAMAIL_DEMO=1` is read at build time. A build without it carries none of the sample inbox or the demo code. A demo build:
+
+- Sends nothing. Send, reply, forward and scheduled send return 403 `Sending is off in the demo`. The cron sends no scheduled mail. Incoming mail is rejected.
+- Allows two AI actions, on a daily cap: turning plain words into a search, and Redraft on an agent's draft. Both use one small Workers AI model (`DEMO_AI_MODEL` in `workers/lib/demo.ts`) whatever the model settings say. Together they stop after `DEMO_AI_DAILY` calls per UTC day across all visitors (default 200; `0` turns them off), then return 429 `The demo's AI calls for today are used up`. The count is in D1 (`ai_budget`), and the hourly reset keeps it. The Mailroom agent, its panel, Draft and Draft reply, auto-draft and the model test stay off. `/agents/*` and `/mcp` return 403.
+- Keeps settings read-only. Console > Save, addresses, model, limits and prefs return 403 `Settings are read-only in the demo`. Any other write not on the demo's list is refused the same way (`workers/lib/demo.ts`).
+- Needs no sign-in. It skips Cloudflare Access, so `POLICY_AUD` and `TEAM_DOMAIN` are not needed and Log out is hidden. `npm run smoke` expects an Access redirect and fails against a demo.
+- Writes the sample inbox again every hour on the hour. The reset deletes all mail, files, labels, saved searches and undo history, then writes the sample inbox with fresh dates. Between resets, a new isolate moves the dates forward when the newest message is over 30 minutes old.
+
+Sample times follow the time zone of the machine that ran the build.
+
+Give a demo its own Worker, D1 database and R2 bucket. Its Wrangler config keeps the cron trigger (the hourly reset runs on it) and leaves out `send_email`, so no real send can happen even if the demo gate were bypassed. Keep the `ai` binding for the two AI actions; without it they fail and nothing else changes. Set `EMAIL_ADDRESSES` to six addresses named `hello`, `billing`, `support`, `legal`, `ops` and `press` so every part of the sample inbox has its own mailbox. Run it locally with `PLURAMAIL_DEMO=1 npm run build && npx vite preview` against a migrated local database.
+
+For the [Alex profile](demo-alex.md), set `SEED_PROFILE` to `alex` in the demo's `vars`, `EMAIL_ADDRESSES` to its nine addresses (`hello`, `support`, `billing`, `partners` and `ops` at `partwell.dev`, `alex` and `league` at `alexrivera.me`, `booking@latecommits.band` and `alex@riverbendcode.org`) and `DOMAINS` to `partwell.dev,alexrivera.me,latecommits.band,riverbendcode.org`. Its times are New York times on any machine, and links in its mail open a page in the app instead of leaving it.
+
 ## Keeping a deployment in its own repo
 
 A deployment can keep its config and brand files outside this checkout, for example in a private repo that includes this one as a submodule. Build with:

@@ -39,7 +39,8 @@ export interface SidebarProps {
 	onConsole: () => void;
 	/** Opens Settings on its Labels tab. */
 	onManageLabels: () => void;
-	onLogout: () => void;
+	/** Absent on a demo build, which has no sign-in. */
+	onLogout?: () => void;
 	onShortcuts: () => void;
 	overlay?: boolean;
 	drawer?: "open" | "closed";
@@ -278,9 +279,11 @@ export function Sidebar(props: SidebarProps) {
 				<button type="button" className="pg-foot-btn is-square" onClick={props.onShortcuts} title={tip("help", "Keyboard shortcuts")} aria-label="Keyboard shortcuts">
 					<KeyboardIcon size={14} />
 				</button>
-				<button type="button" className="pg-foot-btn is-square" onClick={props.onLogout} title="Log out" aria-label="Log out">
-					<SignOutIcon size={14} />
-				</button>
+				{props.onLogout && (
+					<button type="button" className="pg-foot-btn is-square" onClick={props.onLogout} title="Log out" aria-label="Log out">
+						<SignOutIcon size={14} />
+					</button>
+				)}
 			</div>
 		</nav>
 	);
@@ -346,7 +349,7 @@ export function NavRail({
 			<div className="pg-rail-foot">
 				<button type="button" onClick={onConsole} title="Console" aria-label="Console"><TerminalWindowIcon size={16} /></button>
 				<button type="button" onClick={onShortcuts} title={tip("help", "Keyboard shortcuts")} aria-label="Keyboard shortcuts"><KeyboardIcon size={16} /></button>
-				<button type="button" onClick={onLogout} title="Log out" aria-label="Log out"><SignOutIcon size={16} /></button>
+				{onLogout && <button type="button" onClick={onLogout} title="Log out" aria-label="Log out"><SignOutIcon size={16} /></button>}
 			</div>
 		</nav>
 	);

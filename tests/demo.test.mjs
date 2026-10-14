@@ -1,0 +1,256 @@
+import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { after, before, test } from "node:test";
+import { build } from "esbuild";
+import { Miniflare } from "miniflare";
+import { statements } from "./helpers/schema.mjs";
+import { D1_SCHEMA } from "./helpers/d1-schema.mjs";
+import { loadTs } from "./helpers/sqlite.mjs";
+
+// A demo build (PLURAMAIL_DEMO=1): sample mail, no sends, two capped AI actions, no MCP, read-only settings, no sign-in, hourly reset.
+
+const DEMO_DEFINE = { __PLURAMAIL_DEMO__: "true" };
+const asModule = (bundle) => import(`data:text/javascript;base64,${Buffer.from(bundle.outputFiles[0].text).toString("base64")}`);
+
+const { demoRefusal, demoBlocksPath, DEMO, demoAiCall, demoAiCap, claimDemoAiCall, DEMO_AI_DAILY } = await loadTs("workers/lib/demo.ts");
+const { d1Sql } = await loadTs("workers/store/sql.ts");
+
+test("without the build flag DEMO is false", () => {
+	assert.equal(DEMO, false);
+});
+
+const SEND = "Sending is off in the demo";
+const AI = "AI is off in the demo";
+const SETTINGS = "Settings are read-only in the demo";
+
+// Every write route in the API, with what a demo does with it. A new write route fails here until it is listed.
+const WRITES = {
+	"POST /api/v1/dev/seed": SETTINGS,
+	"PUT /api/v1/prefs": SETTINGS,
+	"PUT /api/v1/agent-model": SETTINGS,
+	"POST /api/v1/agent-model/test": AI,
+	"POST /api/v1/mailboxes": SETTINGS,
+	"PUT /api/v1/mailboxes/:mailboxId": SETTINGS,
+	"PUT /api/v1/agent-limits": SETTINGS,
+	"POST /api/v1/mail/bulk": null,
+	"POST /api/v1/mail/bulk/undo": null,
+	"POST /api/v1/mail/empty-trash": null,
+	"POST /api/v1/search/interpret": null,
+	"POST /api/v1/saved-searches": null,
+	"PUT /api/v1/saved-searches/:id": null,
+	"DELETE /api/v1/saved-searches/:id": null,
+	"POST /api/v1/labels": null,
+	"PUT /api/v1/labels/:id": null,
+	"DELETE /api/v1/labels/:id": null,
+	"POST /api/v1/labels/import-folders": null,
+	"POST /api/v1/mailboxes/:mailboxId/emails": SEND,
+	"POST /api/v1/mailboxes/:mailboxId/drafts": null,
+	"POST /api/v1/mailboxes/:mailboxId/drafts/:id/redraft": null,
+	"POST /api/v1/mailboxes/:mailboxId/scheduled": SEND,
+	"DELETE /api/v1/mailboxes/:mailboxId/scheduled/:emailId": null,
+	"DELETE /api/v1/mailboxes/:mailboxId/emails/:id": null,
+	"POST /api/v1/mailboxes/:mailboxId/threads/:threadId/read": null,
+	"POST /api/v1/mailboxes/:mailboxId/emails/:id/reply": SEND,
+	"POST /api/v1/mailboxes/:mailboxId/emails/:id/forward": SEND,
+};
+
+const sample = (route) => route.replace(":mailboxId", "hello@example.com").replace(/:[a-zA-Z]+/g, "x1");
+
+test("every write route in the API has a decided demo rule", () => {
+	const source = readFileSync("workers/index.ts", "utf8");
+	const routes = [...source.matchAll(/app\.(post|put|patch|delete)\("([^"]+)"/g)].map(([, m, p]) => `${m.toUpperCase()} ${p}`);
+	assert.ok(routes.length > 20);
+	assert.deepEqual(routes.filter((r) => !(r in WRITES)), [], "add new write routes to WRITES");
+	for (const [route, expected] of Object.entries(WRITES)) {
+		const [method, path] = route.split(" ");
+		assert.equal(demoRefusal(method, sample(path)), expected, route);
+	}
+});
+
+test("reads go through, and an unknown write is refused", () => {
+	for (const method of ["GET", "HEAD", "OPTIONS"]) assert.equal(demoRefusal(method, "/api/v1/anything"), null);
+	assert.equal(demoRefusal("PATCH", "/api/v1/mail/bulk"), SETTINGS);
+	assert.equal(demoRefusal("POST", "/api/v1/something-new"), SETTINGS);
+	assert.equal(demoRefusal("POST", "/api/v1/labels/x/y"), SETTINGS);
+});
+
+test("two AI actions count against the daily cap; the model test and everything else stay off", () => {
+	assert.equal(demoAiCall("POST", "/api/v1/search/interpret"), true);
+	assert.equal(demoAiCall("POST", "/api/v1/mailboxes/a@example.com/drafts/d1/redraft"), true);
+	for (const [m, p] of [["GET", "/api/v1/search/interpret"], ["POST", "/api/v1/agent-model/test"], ["POST", "/api/v1/mailboxes/a@example.com/drafts"]]) assert.equal(demoAiCall(m, p), false, `${m} ${p}`);
+	assert.equal(demoAiCap(undefined), DEMO_AI_DAILY);
+	assert.equal(demoAiCap(""), DEMO_AI_DAILY);
+	assert.equal(demoAiCap("lots"), DEMO_AI_DAILY);
+	assert.equal(demoAiCap("-3"), DEMO_AI_DAILY);
+	assert.equal(demoAiCap("0"), 0);
+	assert.equal(demoAiCap("25"), 25);
+});
+
+test("the MCP server and the agent socket are off", () => {
+	for (const p of ["/mcp", "/mcp/session", "/agents/email-agent/x"]) assert.equal(demoBlocksPath(p), true, p);
+	for (const p of ["/", "/api/v1/mail", "/mcpx", "/agentsx"]) assert.equal(demoBlocksPath(p), false, p);
+});
+
+const api = await asModule(await build({
+	entryPoints: ["workers/index.ts"], bundle: true, platform: "node", format: "esm", write: false, define: DEMO_DEFINE,
+}));
+const ENV = { DOMAINS: "example.com", EMAIL_ADDRESSES: ["hello@example.com"], DEV_SEED: "off", AUTO_DRAFT_ENABLED: "true" };
+const WRITE_HEADERS = { "content-type": "application/json", "sec-fetch-site": "same-origin" };
+
+test("a demo API refuses sends, AI and settings with a 403 before any handler runs", async () => {
+	for (const [route, expected] of Object.entries(WRITES)) {
+		if (!expected || route.includes("dev/seed")) continue;
+		const [method, path] = route.split(" ");
+		const response = await api.app.request(`http://localhost${sample(path)}`, { method, headers: WRITE_HEADERS, body: "{}" }, ENV);
+		assert.equal(response.status, 403, route);
+		assert.deepEqual(await response.json(), { error: expected }, route);
+	}
+});
+
+test("a demo says so in its config and never auto-drafts", async () => {
+	const config = await (await api.app.request("http://localhost/api/v1/config", {}, ENV)).json();
+	assert.equal(config.demo, true);
+	assert.equal(config.autoDraft, false);
+});
+
+test("a demo rejects incoming mail", async () => {
+	let reason = null;
+	await api.receiveEmail({ to: "hello@example.com", raw: new ReadableStream(), rawSize: 0, setReject: (r) => { reason = r; } }, ENV, { waitUntil() {} });
+	assert.equal(reason, "This address does not take mail");
+});
+
+test("the dev seed route is still dev-only in a demo", async () => {
+	const response = await api.app.request("http://localhost/api/v1/dev/seed", { method: "POST", headers: WRITE_HEADERS, body: "{}" }, ENV);
+	assert.equal(response.status, 403);
+});
+
+// workers/app.ts with its heavy imports stubbed; Access is not configured.
+async function appWith(define) {
+	const stubs = {
+		"virtual:react-router/server-build": "export default {};",
+		"react-router": "export const createRequestHandler = () => () => new Response('spa');",
+		"agents": "export const routeAgentRequest = async () => new Response('agent');",
+		"jose": "export const jwtVerify = async () => ({}); export const createRemoteJWKSet = () => ({});",
+		"./cron": "export const runCron = async () => {};",
+		"./lib/access-config": "export const accessConfigError = () => 'not set up'; export const accessJwks = () => ({}); export const getAccessUrls = () => ({});",
+		"./lib/error-page": "export const errorResponse = (_r, status) => new Response('error', { status });",
+		"./index": "import { Hono } from 'hono'; export const app = new Hono(); export const receiveEmail = async () => {};",
+		"./mcp": "export class EmailMCP { static serve() { return { fetch: async () => new Response('mcp') }; } }",
+		"./agent": "export class EmailAgent {}",
+	};
+	const bundle = await build({
+		entryPoints: ["workers/app.ts"], bundle: true, platform: "node", format: "esm", write: false,
+		define: { "import.meta.env": JSON.stringify({ DEV: false, MODE: "production" }), ...define },
+		plugins: [{
+			name: "app-test-stubs",
+			setup(b) {
+				b.onResolve({ filter: /.*/ }, (args) => {
+					if (args.path === "virtual:react-router/server-build") return { path: args.path, namespace: "app-stub" };
+					if (args.importer.endsWith("/workers/app.ts") && stubs[args.path]) return { path: args.path, namespace: "app-stub" };
+				});
+				b.onLoad({ filter: /.*/, namespace: "app-stub" }, (args) => ({ contents: stubs[args.path], loader: "js", resolveDir: process.cwd() }));
+			},
+		}],
+	});
+	const mod = await asModule(bundle);
+	return (path) => mod.default.fetch(new Request(`https://mail.example.com${path}`), {}, { waitUntil() {} });
+}
+
+test("a demo needs no sign-in and has no MCP server or agent socket", async () => {
+	const fetchDemo = await appWith(DEMO_DEFINE);
+	const home = await fetchDemo("/");
+	assert.equal(home.status, 200);
+	assert.equal(await home.text(), "spa");
+	for (const p of ["/mcp", "/mcp/session", "/agents/email-agent/shared"]) assert.equal((await fetchDemo(p)).status, 403, p);
+});
+
+test("a normal production build still fails closed without Access", async () => {
+	const fetchProd = await appWith({ __PLURAMAIL_DEMO__: "false" });
+	assert.equal((await fetchProd("/")).status, 500);
+	assert.equal((await fetchProd("/mcp")).status, 500);
+});
+
+// The cron on D1, as a demo.
+const A = "hello@example.com";
+let mf;
+
+before(async () => {
+	const bundle = await build({
+		entryPoints: ["tests/fixtures/cron-worker.ts"], bundle: true, format: "esm", platform: "neutral",
+		conditions: ["workerd", "worker", "browser"], mainFields: ["module", "main"], external: ["cloudflare:workers"],
+		write: false, logLevel: "silent", define: DEMO_DEFINE,
+	});
+	mf = new Miniflare({
+		modules: true, script: bundle.outputFiles[0].text, compatibilityDate: "2025-11-28", compatibilityFlags: ["nodejs_compat"],
+		bindings: { EMAIL_ADDRESSES: [A] }, r2Buckets: ["BUCKET"], d1Databases: ["DB"],
+	});
+	for (const s of statements(D1_SCHEMA)) await call("_sql", s);
+	await call("register", A);
+});
+
+after(async () => {
+	await mf?.dispose();
+});
+
+async function call(op, ...args) {
+	const response = await mf.dispatchFetch("http://test/", { method: "POST", body: JSON.stringify({ op, args }) });
+	const body = await response.json();
+	if (body.error !== undefined) throw new Error(`${op}: ${body.error}`);
+	return body.ok;
+}
+const count = async (sql) => (await call("rows", sql))[0].n;
+
+test("the demo cron sends nothing and writes the sample inbox again on the hour", async () => {
+	const T0 = Date.parse("2026-10-13T09:00:00Z");
+	const due = await call("scheduleSend", A, {
+		sendAt: new Date(T0 - 60_000).toISOString(), mode: "new",
+		email: { to: "c@example.net", from: A, subject: "due", html: "<p>due</p>" },
+	});
+	assert.ok(due.id);
+	await call("_sql", `INSERT INTO labels (id, name, color) VALUES ('visitor', 'Visitor label', '#888888')`);
+
+	const [quiet] = await call("cron", T0 + 5 * 60_000);
+	assert.deepEqual(quiet, { demo: null });
+	assert.equal(await count(`SELECT COUNT(*) AS n FROM messages WHERE email_id = '${due.id}'`), 1, "off the hour nothing changes");
+
+	const [reset] = await call("cron", T0);
+	assert.ok(reset.demo.messages >= 300);
+	assert.deepEqual(await call("sent"), [], "nothing was sent");
+	assert.equal(await count(`SELECT COUNT(*) AS n FROM messages`), reset.demo.messages, "only sample mail is left");
+	assert.equal(await count(`SELECT COUNT(*) AS n FROM scheduled_sends`), 0);
+	assert.equal(await count(`SELECT COUNT(*) AS n FROM labels WHERE name = 'Visitor label'`), 0);
+	assert.equal(await count(`SELECT COUNT(*) AS n FROM labels`), reset.demo.labels);
+	const newest = (await call("rows", `SELECT MAX(date) AS d FROM messages WHERE folder_id = 'inbox'`))[0].d;
+	assert.ok(T0 - Date.parse(newest) < 3_600_000, `newest inbox mail is fresh: ${newest}`);
+
+	const [again] = await call("cron", T0 + 3_600_000);
+	assert.equal(again.demo.messages, reset.demo.messages, "a second reset writes the same inbox");
+	assert.equal(await count(`SELECT COUNT(*) AS n FROM messages`), reset.demo.messages);
+});
+
+test("the daily AI cap: calls stop at the cap and start again the next UTC day", async () => {
+	const db = d1Sql(await mf.getD1Database("DB"));
+	const day = new Date("2026-10-14T10:00:00Z");
+	const taken = [];
+	for (let i = 0; i < 4; i++) taken.push(await claimDemoAiCall(db, 3, day));
+	assert.deepEqual(taken, [true, true, true, false]);
+	assert.equal(await claimDemoAiCall(db, 0, day), false, "a cap of 0 turns AI off");
+	assert.equal(await claimDemoAiCall(db, 3, new Date("2026-10-15T00:00:01Z")), true, "a new day has its own allowance");
+	assert.equal(await count(`SELECT COUNT(*) AS n FROM ai_budget`), 1, "earlier days are cleared");
+	const [reset] = await call("cron", Date.parse("2026-10-15T01:00:00Z"));
+	assert.ok(reset.demo, "the hourly reset ran");
+	assert.equal(await count(`SELECT COUNT(*) AS n FROM ai_budget`), 1, "the hourly reset keeps the day's count");
+});
+
+test("a demo API answers 429 once the day's AI calls are used, before any model runs", async () => {
+	const DB = await mf.getD1Database("DB");
+	await call("_sql", "DELETE FROM ai_budget");
+	const ask = (env) => api.app.request("http://localhost/api/v1/search/interpret", { method: "POST", headers: WRITE_HEADERS, body: JSON.stringify({ text: "invoices from last week" }) }, { ...ENV, DB, ...env });
+	const off = await ask({ DEMO_AI_DAILY: "0" });
+	assert.equal(off.status, 429);
+	assert.deepEqual(await off.json(), { error: "The demo's AI calls for today are used up" });
+	const first = await ask({ DEMO_AI_DAILY: "1" });
+	assert.notEqual(first.status, 429, "the first call reaches the handler");
+	assert.notEqual(first.status, 403);
+	assert.equal((await ask({ DEMO_AI_DAILY: "1" })).status, 429, "the second is refused");
+});

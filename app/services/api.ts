@@ -310,7 +310,7 @@ export interface ModelCatalog {
 const api = {
 	// Config
 	getConfig: () =>
-		get<{ domains: string[]; emailAddresses: string[]; autoDraft?: boolean }>("/api/v1/config"),
+		get<{ domains: string[]; emailAddresses: string[]; autoDraft?: boolean; demo?: boolean }>("/api/v1/config"),
 
 	// Agent model
 	getPrefs: () => get<{ prefs: Prefs; saved: boolean }>("/api/v1/prefs"),

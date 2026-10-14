@@ -17,6 +17,7 @@ import { useMailFacets, useMailList, useViewCounts } from "~/queries/mail";
 import api, { ApiError, type BulkResult, type Conversation, type Label, type SavedSearch } from "~/services/api";
 import type { Email } from "~/types";
 import { AgentPanel, AgentRail, useDraftWithAgent } from "./Agent";
+import { DemoContext } from "~/lib/demo";
 import {
 	type ComposeMode, type ComposeState, composeFor, composeFromDraft, emptyCompose, handOff, HANDOFF_KEY, useAddressInfo,
 	useMailSender,
@@ -64,15 +65,19 @@ function useDebounced<T>(value: T, ms: number): T {
 	return v;
 }
 
-type PostalProps = { addresses: string[]; domains: string[]; autoDraft: boolean };
+type PostalProps = { addresses: string[]; domains: string[]; autoDraft: boolean; demo?: boolean };
 
 /** A popped-out composer opens this page at #compose and shows only the composer. */
 export default function PostalMail(props: PostalProps) {
 	const [popout] = useState(() => typeof window !== "undefined" && window.location.hash === "#compose");
-	return popout ? <ComposePopout addresses={props.addresses} domains={props.domains} /> : <PostalApp {...props} />;
+	return (
+		<DemoContext.Provider value={!!props.demo}>
+			{popout ? <ComposePopout addresses={props.addresses} domains={props.domains} /> : <PostalApp {...props} />}
+		</DemoContext.Provider>
+	);
 }
 
-function PostalApp({ addresses, domains, autoDraft }: PostalProps) {
+function PostalApp({ addresses, domains, autoDraft, demo }: PostalProps) {
 	const [searchParams, setSearchParams] = useSearchParams();
 	const queryClient = useQueryClient();
 	const identities = useMemo(() => buildIdentities(domains, addresses), [domains, addresses]);
@@ -179,7 +184,7 @@ function PostalApp({ addresses, domains, autoDraft }: PostalProps) {
 	const [navTemp, setNavTemp] = useState(false);
 	const [panelTemp, setPanelTemp] = useState(false);
 	const navOpen = mobile ? navTemp : narrow ? navTemp : layout.nav ?? true;
-	const panelOpen = mobile ? panelTemp : narrow ? panelTemp : layout.panel ?? true;
+	const panelOpen = !demo && (mobile ? panelTemp : narrow ? panelTemp : layout.panel ?? true);
 	const [modal, setModal] = useState<"logout" | null>(null);
 	const [toast, setToast] = useState<ToastState | null>(null);
 	const [cw, setCw] = useState<{ key: number; initial: ComposeState; max?: boolean } | null>(null);
@@ -583,7 +588,7 @@ function PostalApp({ addresses, domains, autoDraft }: PostalProps) {
 		onCollapse: toggleNav,
 		onConsole: () => openConsole(),
 		onManageLabels: () => openConsole("labels"),
-		onLogout: () => setModal("logout"),
+		onLogout: demo ? undefined : () => setModal("logout"),
 		onShortcuts: () => setHelpOpen(true),
 	};
 
@@ -750,7 +755,7 @@ function PostalApp({ addresses, domains, autoDraft }: PostalProps) {
 							/>
 						</>
 					) : (
-						!mobile && <AgentRail onOpen={togglePanel} busy={agentBusy} />
+						!mobile && !demo && <AgentRail onOpen={togglePanel} busy={agentBusy} />
 					)}
 				</div>
 				{cw && (
