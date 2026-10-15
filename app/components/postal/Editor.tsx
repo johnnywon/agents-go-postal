@@ -134,7 +134,7 @@ export function FormatBar({ editor }: { editor: TipTap | null }) {
 			<button type="button" title="Numbered list" aria-label="Numbered list" aria-pressed={state?.ordered} onMouseDown={run((e) => e.chain().focus().toggleOrderedList().run())}><ListNumbersIcon size={15} /></button>
 			<button type="button" title="Quote" aria-label="Quote" aria-pressed={state?.quote} onMouseDown={run((e) => e.chain().focus().toggleBlockquote().run())}><QuotesIcon size={15} /></button>
 			<span className="pg-sep" />
-			<button type="button" title="Insert link (⌘K)" aria-label="Insert link" aria-pressed={state?.link} onMouseDown={run(promptLink)}><LinkIcon size={15} /></button>
+			<button type="button" title={tip("link", "Insert link")} aria-label="Insert link" aria-pressed={state?.link} onMouseDown={run(promptLink)}><LinkIcon size={15} /></button>
 			<button type="button" title="Clear formatting" aria-label="Clear formatting" onMouseDown={run((e) => e.chain().focus().unsetAllMarks().clearNodes().run())}><TextTSlashIcon size={15} /></button>
 		</div>
 	);

@@ -18,6 +18,7 @@ import {
 	XIcon,
 } from "@phosphor-icons/react";
 import { AgentIcon } from "./AgentIcon";
+import { useShortcuts } from "./shortcuts";
 import { OPERATOR_HELP, OPERATORS } from "../../../shared/search-query";
 import type { Conversation } from "~/services/api";
 import { AddressText, type Identities, Swatch } from "./identity";
@@ -251,6 +252,7 @@ function Section({ section, props }: { section: WindowSection; props: SearchWind
 
 /** The window under the search box. Sections follow what is typed; SearchBar decides which. */
 export function SearchWindow(props: SearchWindowProps) {
+	const keys = useShortcuts();
 	const main = props.sections.filter((s) => !s.side);
 	const side = props.sections.filter((s) => s.side);
 	return (
@@ -277,12 +279,12 @@ export function SearchWindow(props: SearchWindowProps) {
 				</div>
 			)}
 			<div className="pg-sw-foot">
-				<span className="pg-keyhint pg-ellipsis">↑↓ move · tab complete · ↵ open · ⌘↵ search · esc close</span>
+				<span className="pg-keyhint pg-ellipsis">↑↓ move · {keys.text("searchComplete")} complete · {keys.text("searchOpen")} open · {keys.text("searchRun")} search · {keys.text("searchClose")} close</span>
 				<span className="pg-flex" />
 				{props.save === "saved" && <span className="pg-sw-saved">Saved</span>}
 				{typeof props.save === "function" && (
 					<button type="button" className="pg-sw-help-btn" onMouseDown={(e) => { e.preventDefault(); (props.save as () => void)(); }}>
-						Save search <span className="pg-keyhint">⌘S</span>
+						Save search <span className="pg-keyhint">{keys.text("searchSave")}</span>
 					</button>
 				)}
 				<button type="button" className="pg-sw-help-btn" aria-pressed={props.help} onMouseDown={(e) => { e.preventDefault(); props.onHelp(!props.help); }}>

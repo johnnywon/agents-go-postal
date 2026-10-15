@@ -8,9 +8,10 @@
 // again every hour.
 //
 // Two AI actions stay on: turning plain words into a search, and redrafting
-// an agent draft. Both run on one Workers AI model that the Free plan allows,
-// and together they stop for the day after DEMO_AI_DAILY calls (default 200;
-// 0 turns them off).
+// an agent draft, on Workers AI models the Free plan allows. Together they
+// stop for the day after DEMO_AI_DAILY actions (default 200; 0 turns them
+// off). A redraft is one action but three model calls: the injection check,
+// the rewrite and the draft check.
 // The agent chat, auto-draft, MCP and the model test stay off.
 //
 // vite.config.ts defines __PLURAMAIL_DEMO__ as a literal, so in a normal build DEMO
@@ -45,7 +46,7 @@ const AI = /^\/api\/v1\/(search\/interpret|agent-model\/test|mailboxes\/[^/]+\/d
 /** The AI calls a demo visitor may make, within the daily cap. */
 const AI_ALLOWED = /^\/api\/v1\/(search\/interpret|mailboxes\/[^/]+\/drafts\/[^/]+\/redraft)$/;
 
-/** The one model a demo uses for everything, whatever the settings say. It runs on the Workers Free plan; GLM 5.3 Flash does not. */
+/** The model a demo writes with, whatever the settings say. It runs on the Workers Free plan; GLM 5.3 Flash does not. */
 export const DEMO_AI_MODEL = "@cf/meta/llama-3.3-70b-instruct-fp8-fast";
 export const DEMO_AI_DAILY = 200;
 
