@@ -13,6 +13,10 @@ Fixes after 0.8.0.
 - Search suggestions and the Filter menu name their parts with commas for screen readers and browser agents.
 - Less copy: no Console subtitles or tab intros, empty folders show a title only, tooltips name the action and its key, and search says Search mail. The log-out dialog no longer says nothing is sent while you're away.
 - One word per action: Move to Trash, New message, Cancel. US spelling throughout. Keys shown in the editor and search come from your own shortcuts.
+- The demo's agent panel opens on a notice card that says the agent is off in the demo; anything asked gets the short form as the reply.
+- Brand: the Fold mark is the favicon, the app icons, the link card and the README logo, and sits in the sidebar's top-left corner in place of the four dots.
+- The sample photos are all CC0 and show without a caption; their credits are in the asset manifest.
+- README rewritten in a plain voice, with requirements, status and limits up front.
 - README screenshots retaken from the sample inbox.
 
 No D1 migration.
