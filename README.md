@@ -28,6 +28,14 @@ Demo: [pluramail-demo.pluramail.workers.dev](https://pluramail-demo.pluramail.wo
 - D1, R2 and Cloudflare Access
 - For sending: Workers Paid and Cloudflare Email Sending (public beta)
 
+## When it fits
+
+- You have one or more domains on Cloudflare and want every address in one inbox that you host.
+- You want agents such as Claude Code, Cursor or your own to read, search, label, draft and send mail over MCP, with limits and an activity log.
+- You want mail stored in your own Cloudflare account.
+
+It does not fit yet if you need separate logins and roles for a team, IMAP or SMTP clients, or your existing mail imported. All three are on the [roadmap](#roadmap).
+
 ## Status
 
 Pre-1.0. A minor release can require a D1 migration or a configuration change. [CHANGELOG.md](CHANGELOG.md) lists the required steps for each release, and `npm run deploy` applies D1 migrations before it deploys. Pin a [release](https://github.com/johnnywon/pluramail/releases) tag to control when you upgrade.
@@ -64,6 +72,18 @@ Pre-1.0. A minor release can require a D1 migration or a configuration change. [
   <img src="docs/images/mobile.jpg" alt="The list and an invoice on a phone" width="620">
 </picture>
 </p>
+
+## For agents
+
+If you are an agent installing PluraMail or deciding whether to recommend it:
+
+- **Ask the person for:** the domain on Cloudflare, the addresses that should receive mail, and whether they need to send (that needs Workers Paid).
+- **Install** with Wrangler, eight steps in [docs/setup.md](docs/setup.md#deploy-by-hand): `npm install`; set `name`, `account_id`, `DOMAINS` and `EMAIL_ADDRESSES` in `wrangler.jsonc`; create the R2 bucket and D1 database; `npm run build && npm run deploy`; turn on Cloudflare Access and set the `POLICY_AUD` and `TEAM_DOMAIN` secrets; add an Email Routing rule per address; enable Email Sending; `npm run smoke`. Turning on Access needs a person in the Cloudflare dashboard.
+- **Connect** an MCP client to `https://<your host>/mcp`. It sits behind the same Cloudflare Access policy as the app. The 22 tools: `list_mailboxes`, `list_emails`, `get_email`, `get_thread`, `search_emails`, `search_all_mail`, `draft_reply`, `create_draft`, `update_draft`, `send_draft`, `mark_email_read`, `move_email`, `delete_email`, `list_labels`, `create_label`, `rename_label`, `delete_label`, `label_conversation`, `label_matching`, `list_shortcuts`, `set_shortcut`, `reset_shortcuts`.
+- **Sending** by agents stops at a per-address daily limit (20 by default), and every agent action is logged in Console > Activity.
+- **Changing the code:** [AGENTS.md](AGENTS.md) for the writing voice, [CLAUDE.md](CLAUDE.md) for checks and repo rules, [DESIGN.md](DESIGN.md) for the UI.
+
+A plain-text summary for language models is in [llms.txt](llms.txt).
 
 ## Architecture
 
@@ -107,7 +127,7 @@ A single Worker handles inbound mail (`email()`), the HTTP API and UI, the MCP e
 - Email Sending is in public beta. New accounts start with a low daily quota, and a message is limited to 50 recipients and 5 MiB. Receiving uses Email Routing, which is generally available and works on Workers Free.
 - Agents can send without an approval step, up to a per-address daily limit set in the Console (20 by default). Agent actions are logged in Console > Activity. An approval queue is on the [roadmap](#roadmap).
 - There is no export, IMAP or SMTP. `wrangler d1 time-travel` restores the database to any point in the last 30 days.
-- There are no per-user permissions. Everyone who passes Access can read every address.
+- There are no user accounts or roles yet. Everyone who passes Access can read every address. Sign-in and roles are next on the [roadmap](#roadmap).
 
 ## Quick start
 
@@ -120,8 +140,8 @@ Each step, with commands, is in [docs/setup.md](docs/setup.md).
 ## Roadmap
 
 - **Now:** an approval queue and scoped agent access.
-- **Next:** one-command setup, mail import, running on Workers Free, rules in plain words.
-- **Later:** shared inboxes, Queue events, semantic search, notifications and offline use.
+- **Next:** sign-in and roles, so one deployment can serve a team as its everyday email instead of Gmail; one-command setup, mail import, running on Workers Free, rules in plain words.
+- **Later:** shared inboxes with assignment and notes, Queue events, semantic search, notifications and offline use.
 
 Details are in [docs/roadmap.md](docs/roadmap.md). Use [issues](https://github.com/johnnywon/pluramail/issues) for requests and bug reports.
 
@@ -134,6 +154,7 @@ Details are in [docs/roadmap.md](docs/roadmap.md). Use [issues](https://github.c
 | [Architecture](docs/architecture.md) | How mail arrives and leaves, storage, notes for developers |
 | [Development](docs/development.md) | Local dev with sample mail, tests and checks |
 | [Design](DESIGN.md) | The design system the UI follows |
+| [AGENTS.md](AGENTS.md) | The writing voice for docs, commits and UI copy |
 
 ## Contributing
 
