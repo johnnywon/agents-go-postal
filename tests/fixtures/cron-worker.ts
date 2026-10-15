@@ -40,6 +40,13 @@ export default {
 					if (args[0]) await env.BUCKET.put(RESET_MARKER, String(args[0]));
 					else await env.BUCKET.delete(RESET_MARKER);
 					return Response.json({ ok: true });
+				case "r2":
+					// ["list", prefix] or ["delete", key]
+					if (args[0] === "delete") {
+						await env.BUCKET.delete(String(args[1]));
+						return Response.json({ ok: true });
+					}
+					return Response.json({ ok: (await env.BUCKET.list({ prefix: String(args[1] ?? "") })).objects.map((o) => o.key) });
 				case "register":
 					await mailStore(env).mailboxes.put(String(args[0]), {});
 					return Response.json({ ok: true });

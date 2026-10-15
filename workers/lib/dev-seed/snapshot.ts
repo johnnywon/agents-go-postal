@@ -8,12 +8,12 @@
 // sample rows into demo_snapshot_* tables, and every later reset puts them back
 // in one D1 batch: D1 does the copying, the Worker only sends the statements.
 //
-// The sample messages are never deleted, so their word and substring index rows
-// stay. Only what visitors made goes, and their changes to sample rows are
-// overwritten from the copy. A sample draft a visitor edited gets its index rows
-// written again from the copy. Anything the copy can't put back (a sample
-// message or file deleted for good, a new story week) makes the caller write the
-// inbox in full and take a new copy.
+// The sample messages stay, so their word and substring index rows stay. Only
+// what visitors made goes, and their changes to sample rows are overwritten
+// from the copy. A sample message a visitor deleted (saving an edited draft
+// replaces it; emptying Trash deletes) comes back from the copy with its index
+// rows, and its files come back from copies kept in R2. Only a new story week,
+// or a copy that can't be read, makes the caller write the inbox in full.
 
 import { ftsInsert, attachmentNames } from "../../store/d1/rows";
 import { recordsSql } from "../../store";
@@ -28,6 +28,8 @@ const CLEARED = ["undo", "bulk_job", "agent_activity", "auto_draft_runs", "sched
 /** R2 prefixes the sample inbox writes. Anything else there was made by a visitor. */
 const R2_PREFIXES = ["attachments/", "bodies/"] as const;
 const META = "demo_snapshot_meta";
+/** Where the copy keeps the sample files, so a deleted one can be put back. */
+const FILE_COPIES = "demo/snapshot/";
 const snap = (table: string) => `demo_snapshot_${table}`;
 
 export interface Restored {
@@ -57,6 +59,16 @@ export async function takeSnapshot(env: Env, key: string, now = Date.now()): Pro
 	const columns = (await sql.all<{ name: string; hidden: number }>("PRAGMA table_xinfo(messages)"))
 		.filter((c) => Number(c.hidden) === 0 && c.name !== "id" && c.name !== "email_id")
 		.map((c) => c.name);
+	const files = await r2Keys(env);
+	for (let cursor: string | undefined, first = true; first || cursor; first = false) {
+		const page = await env.BUCKET.list({ prefix: FILE_COPIES, cursor, limit: 1000 });
+		if (page.objects.length > 0) await env.BUCKET.delete(page.objects.map((o) => o.key));
+		cursor = page.truncated ? page.cursor : undefined;
+	}
+	for (const f of files) {
+		const obj = await env.BUCKET.get(f);
+		if (obj) await env.BUCKET.put(FILE_COPIES + f, obj.body, { httpMetadata: obj.httpMetadata });
+	}
 	const statements: Statement[] = COPIED.flatMap((t) => [
 		{ sql: `DROP TABLE IF EXISTS ${snap(t)}` },
 		{ sql: `CREATE TABLE ${snap(t)} AS SELECT * FROM ${t}` },
@@ -64,14 +76,14 @@ export async function takeSnapshot(env: Env, key: string, now = Date.now()): Pro
 	statements.push(
 		{ sql: `CREATE TABLE IF NOT EXISTS ${META} (k TEXT PRIMARY KEY, v TEXT NOT NULL)` },
 		{ sql: `DELETE FROM ${META}` },
-		{ sql: `INSERT INTO ${META} (k, v) VALUES ('key', ?), ('taken_at', ?), ('columns', ?), ('files', ?)`, params: [key, String(now), JSON.stringify(columns), JSON.stringify(await r2Keys(env))] },
+		{ sql: `INSERT INTO ${META} (k, v) VALUES ('key', ?), ('taken_at', ?), ('columns', ?), ('files', ?)`, params: [key, String(now), JSON.stringify(columns), JSON.stringify(files)] },
 	);
 	await sql.batch(statements);
 }
 
 /**
  * Put the copied inbox back. Returns null when the copy is missing, belongs to
- * another story version, or can't restore what visitors removed.
+ * another story version, or a sample file can't be put back.
  * `shiftDates` moves the sample dates forward by the time since the copy.
  */
 export async function restoreSnapshot(env: Env, key: string, opts: { now?: number; shiftDates?: boolean; maxAgeMs?: number } = {}): Promise<Restored | null> {
@@ -87,39 +99,41 @@ export async function restoreSnapshot(env: Env, key: string, opts: { now?: numbe
 	if (meta.key !== key || !Number.isFinite(takenAt)) return null;
 	if (opts.maxAgeMs !== undefined && now - takenAt > opts.maxAgeMs) return null;
 
-	const [[counts], changed] = await sql.batch([
+	const [[counts], reindex] = await sql.batch([
+		{ sql: `SELECT (SELECT COUNT(*) FROM ${snap("messages")}) AS copied, (SELECT COUNT(*) FROM ${snap("labels")}) AS labels` },
+		// Sample messages whose index rows need writing: deleted ones, and ones whose indexed text a visitor changed.
 		{
-			sql: `SELECT (SELECT COUNT(*) FROM ${snap("messages")}) AS copied,
-				(SELECT COUNT(*) FROM messages WHERE email_id IN (SELECT email_id FROM ${snap("messages")})) AS present,
-				(SELECT COUNT(*) FROM attachments WHERE id IN (SELECT id FROM ${snap("attachments")})) AS files,
-				(SELECT COUNT(*) FROM ${snap("attachments")}) AS copiedFiles,
-				(SELECT COUNT(*) FROM ${snap("labels")}) AS labels`,
-		},
-		// Sample messages whose indexed text a visitor changed (an edited sample draft).
-		{
-			sql: `SELECT m.id, s.email_id, s.subject, s.sender_name, s.sender_addr, s.recipients, s.body, s.body_key
-				FROM messages m JOIN ${snap("messages")} s ON s.email_id = m.email_id
-				WHERE m.subject IS NOT s.subject OR m.body IS NOT s.body OR m.body_key IS NOT s.body_key OR m.recipients IS NOT s.recipients`,
+			sql: `SELECT s.id, s.email_id, s.subject, s.sender_name, s.sender_addr, s.recipients, s.body, s.body_key
+				FROM ${snap("messages")} s LEFT JOIN messages m ON m.email_id = s.email_id
+				WHERE m.id IS NULL OR m.subject IS NOT s.subject OR m.body IS NOT s.body OR m.body_key IS NOT s.body_key OR m.recipients IS NOT s.recipients`,
 		},
 	]);
-	if (Number(counts.present) !== Number(counts.copied) || Number(counts.files) !== Number(counts.copiedFiles)) return null;
 
+	// Sample files a visitor's delete took with it come back from the copies.
 	const files = new Set<string>(JSON.parse(meta.files ?? "[]"));
 	const live = await r2Keys(env);
 	const liveSet = new Set(live);
-	for (const f of files) if (!liveSet.has(f)) return null;
+	for (const f of files) {
+		if (liveSet.has(f)) continue;
+		const copy = await env.BUCKET.get(FILE_COPIES + f);
+		if (!copy) return null;
+		await env.BUCKET.put(f, copy.body, { httpMetadata: copy.httpMetadata });
+	}
 
 	const columns: string[] = JSON.parse(meta.columns ?? "[]");
 	const assign = `(${columns.join(", ")}) = (${columns.map((c) => `s.${c}`).join(", ")})`;
 	const statements: Statement[] = [
 		// What visitors made. The delete triggers take their index rows with them.
 		{ sql: `DELETE FROM messages WHERE email_id NOT IN (SELECT email_id FROM ${snap("messages")})` },
+		// Sample messages a visitor deleted come back with their ids, so labels and index rows line up.
+		{ sql: `INSERT INTO messages (id, email_id, ${columns.join(", ")}) SELECT id, email_id, ${columns.join(", ")} FROM ${snap("messages")} WHERE email_id NOT IN (SELECT email_id FROM messages)` },
 		{ sql: `UPDATE messages SET ${assign} FROM ${snap("messages")} AS s WHERE messages.email_id = s.email_id` },
 		{ sql: `DELETE FROM message_labels` },
 		{ sql: `DELETE FROM label_auto` },
 		{ sql: `DELETE FROM draft_notes` },
 		{ sql: `DELETE FROM saved_searches` },
 		{ sql: `DELETE FROM attachments WHERE id NOT IN (SELECT id FROM ${snap("attachments")})` },
+		{ sql: `INSERT OR IGNORE INTO attachments SELECT * FROM ${snap("attachments")}` },
 		{ sql: `DELETE FROM labels WHERE id NOT IN (SELECT id FROM ${snap("labels")})` },
 		{ sql: `UPDATE labels SET (name, color, position) = (s.name, s.color, s.position) FROM ${snap("labels")} AS s WHERE labels.id = s.id` },
 		{ sql: `INSERT OR IGNORE INTO labels SELECT * FROM ${snap("labels")}` },
@@ -135,8 +149,8 @@ export async function restoreSnapshot(env: Env, key: string, opts: { now?: numbe
 			params: [now - takenAt],
 		});
 	}
-	// An edited sample draft: its index rows hold the visitor's text. Write them again from the copy.
-	for (const row of changed) {
+	// Index rows for sample messages that came back or held a visitor's text, written again from the copy.
+	for (const row of reindex) {
 		const body = row.body != null ? String(row.body) : row.body_key ? (await (await env.BUCKET.get(String(row.body_key)))?.text()) ?? "" : "";
 		const names = attachmentNames(await sql.all<{ filename: string; disposition: string | null }>(`SELECT filename, disposition FROM ${snap("attachments")} WHERE email_id = ?`, row.email_id));
 		const recipients = String(row.recipients ?? "");
@@ -155,7 +169,7 @@ export async function restoreSnapshot(env: Env, key: string, opts: { now?: numbe
 	}
 	await sql.batch(statements);
 
-	const extra = live.filter((k) => !files.has(k));
+	const extra = live.filter((k) => !files.has(k) && !k.startsWith(FILE_COPIES));
 	for (let i = 0; i < extra.length; i += 1000) await env.BUCKET.delete(extra.slice(i, i + 1000));
-	return { messages: Number(counts.copied), labels: Number(counts.labels), reindexed: changed.length, removedFiles: extra.length };
+	return { messages: Number(counts.copied), labels: Number(counts.labels), reindexed: reindex.length, removedFiles: extra.length };
 }

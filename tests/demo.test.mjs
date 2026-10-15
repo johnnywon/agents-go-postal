@@ -337,3 +337,34 @@ test("after the first full write, the hourly reset puts the copied inbox back wi
 	if (word) assert.ok(await count(`SELECT COUNT(*) AS n FROM messages_fts WHERE messages_fts MATCH '${word}'`) > 0, `the draft's own subject (${word}) is found again`);
 	assert.equal(await count("SELECT COUNT(*) AS n FROM agent_activity"), 0);
 });
+
+// Regression: ISSUE-001 — editing a sample draft deletes it and its file, which forced a full write
+// Found by /qa on 2026-10-15
+// Report: .gstack/qa-reports/run-20261015T132922Z/qa-report-localhost-2026-10-15.md
+test("a reset after a visitor edits a sample draft restores it from the copy, file included", async () => {
+	const T0 = Date.parse("2026-10-14T12:00:00Z");
+	await call("cron", T0);
+	await call("cron", T0 + 3_600_000);
+	const [taken] = await call("rows", "SELECT v FROM demo_snapshot_meta WHERE k = 'taken_at'");
+	const [draft] = await call("rows", "SELECT m.email_id, m.mailbox_id, a.id AS att, a.filename FROM messages m JOIN attachments a ON a.email_id = m.email_id ORDER BY m.folder_id = 'draft' DESC, m.id LIMIT 1");
+	const files = await call("r2", "list", "attachments/");
+	// Saving an edited draft deletes the old one and its files, then writes a new draft.
+	// Emptying Trash takes the same path for any message.
+	await call("_sql", `UPDATE messages SET folder_id = CASE WHEN folder_id = 'draft' THEN 'draft' ELSE 'trash' END WHERE email_id = '${draft.email_id}'`);
+	await call("deleteEmail", draft.mailbox_id, draft.email_id);
+	const key = files.find((k) => k.includes(`/${draft.att}/`));
+	assert.ok(key, "the draft's file is in R2");
+	await call("r2", "delete", key);
+	await call("createEmail", draft.mailbox_id, "draft", { id: "edited-draft", subject: "zebra", sender: draft.mailbox_id, recipient: "x@example.net", date: new Date(T0).toISOString(), body: "<p>zebra</p>" }, []);
+
+	const [reset] = await call("cron", T0 + 2 * 3_600_000);
+	assert.equal(reset.demo.restored, true, "restored from the copy, not written again");
+	const [after] = await call("rows", "SELECT v FROM demo_snapshot_meta WHERE k = 'taken_at'");
+	assert.equal(after.v, taken.v, "the copy wasn't retaken");
+	assert.equal(await count(`SELECT COUNT(*) AS n FROM messages WHERE email_id = '${draft.email_id}'`), 1);
+	assert.equal(await count(`SELECT COUNT(*) AS n FROM attachments WHERE id = '${draft.att}'`), 1);
+	assert.equal(await count("SELECT COUNT(*) AS n FROM messages WHERE email_id = 'edited-draft'"), 0);
+	assert.ok((await call("r2", "list", "attachments/")).includes(key), "the file is back");
+	const [{ id }] = await call("rows", `SELECT id FROM messages WHERE email_id = '${draft.email_id}'`);
+	assert.equal(await count(`SELECT COUNT(*) AS n FROM messages_fts WHERE rowid = ${id}`), 1, "the draft is searchable again");
+});
