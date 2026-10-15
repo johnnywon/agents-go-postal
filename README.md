@@ -46,7 +46,7 @@ Needs a domain on Cloudflare, R2 and Cloudflare Access. Sending needs the Worker
 <p align="center">
 <picture>
   <source media="(prefers-color-scheme: light)" srcset="docs/images/mcp-light.jpg">
-  <img src="docs/images/mcp.jpg" alt="The MCP panel: the server URL and its tools" width="560">
+  <img src="docs/images/mcp.jpg" alt="The Console's Connections tab: the MCP server URL and its tools" width="700">
 </picture>
 </p>
 
@@ -57,7 +57,7 @@ Also: an in-app agent on Workers AI or zero data retention OpenRouter models, at
 <p align="center">
 <picture>
   <source media="(prefers-color-scheme: light)" srcset="docs/images/mobile-light.jpg">
-  <img src="docs/images/mobile.jpg" alt="The list and a receipt on a phone" width="620">
+  <img src="docs/images/mobile.jpg" alt="The list and an invoice on a phone" width="620">
 </picture>
 </p>
 
