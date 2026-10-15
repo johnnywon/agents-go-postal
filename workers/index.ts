@@ -267,7 +267,7 @@ app.post("/api/v1/mailboxes", async (c) => {
 	if (allowedAddresses.length > 0 && !allowedAddresses.map((a) => a.toLowerCase()).includes(email)) {
 		return c.json({ error: "Mailbox creation is restricted to configured EMAIL_ADDRESSES" }, 403);
 	}
-	if (await mailStore(c.env).mailboxes.exists(email)) return c.json({ error: "Mailbox already exists" }, 409);
+	if (await mailStore(c.env).mailboxes.exists(email)) return c.json({ error: "That address already exists" }, 409);
 	const finalSettings = await createMailbox(c.env, email, name, settings);
 	return c.json({ id: email, email, name, settings: finalSettings }, 201);
 });
@@ -526,7 +526,7 @@ app.put("/api/v1/labels/:id", async (c) => {
 app.delete("/api/v1/labels/:id", async (c) => {
 	const result = await mailStore(c.env).all().deleteLabel(c.req.param("id"));
 	if (!result) return c.json({ error: "Not found" }, 404);
-	if (!result.deleted) return c.json({ error: "Some mailboxes could not drop the label. Try again.", failed: result.failed }, 502);
+	if (!result.deleted) return c.json({ error: "Some addresses could not drop the label. Try again.", failed: result.failed }, 502);
 	return c.json(result);
 });
 

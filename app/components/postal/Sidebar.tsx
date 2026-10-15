@@ -225,7 +225,7 @@ export function Sidebar(props: SidebarProps) {
 									<PlusIcon size={12} />
 									<span>New label</span>
 								</button>
-								<button type="button" className="pg-nav-new" onClick={props.onManageLabels} title="Rename, recolour or delete labels">
+								<button type="button" className="pg-nav-new" onClick={props.onManageLabels} title="Rename, recolor or delete labels">
 									<PencilSimpleIcon size={12} />
 									<span>Manage labels</span>
 								</button>

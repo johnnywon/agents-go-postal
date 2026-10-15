@@ -2,7 +2,7 @@
 // Licensed under the Apache 2.0 license found in the LICENSE file or at:
 //     https://opensource.org/licenses/Apache-2.0
 
-import { ArchiveIcon, BookmarkSimpleIcon, ClockIcon, EnvelopeOpenIcon, EnvelopeSimpleIcon, FileIcon, KeyboardIcon, PaperPlaneTiltIcon, StarIcon, TagIcon, TrashIcon, WarningIcon } from "@phosphor-icons/react";
+import { ArchiveIcon, BookmarkSimpleIcon, ClockIcon, EnvelopeOpenIcon, EnvelopeSimpleIcon, FileIcon, KeyboardIcon, PaperPlaneTiltIcon, StarIcon, TagIcon, TrashIcon, TrayArrowUpIcon, WarningIcon } from "@phosphor-icons/react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router";
@@ -45,7 +45,7 @@ function actionText(action: BulkAction, n: number, labelName?: string): [string,
 	switch (action.type) {
 		case "archive": return [`Archived ${what}`, <ArchiveIcon size={ICON} />];
 		case "trash": return [`Moved ${what} to Trash`, <TrashIcon size={ICON} />];
-		case "restore": return [`Moved ${what} to Inbox`, <ArchiveIcon size={ICON} />];
+		case "restore": return [`Moved ${what} to Inbox`, <TrayArrowUpIcon size={ICON} />];
 		case "move": return [`Moved ${what} to ${VIEW_LABELS[action.folder] ?? action.folder}`, <ArchiveIcon size={ICON} />];
 		case "label_add": return [`Added ${labelName ?? "label"} to ${what}`, <TagIcon size={ICON} />];
 		case "label_remove": return [`Removed ${labelName ?? "label"} from ${what}`, <TagIcon size={ICON} />];
@@ -697,7 +697,7 @@ function PostalApp({ addresses, domains, autoDraft, demo }: PostalProps) {
 									try {
 										await api.cancelScheduled(s.mailboxId, s.emailId);
 										queryClient.invalidateQueries({ queryKey: ["scheduled"] });
-										showToast({ text: "Schedule cancelled. The draft stays in Drafts.", icon: <ClockIcon size={ICON} /> });
+										showToast({ text: "Schedule canceled. The draft stays in Drafts.", icon: <ClockIcon size={ICON} /> });
 									} catch (e) {
 										showToast({ text: `Could not cancel. ${(e as Error).message}`, icon: <WarningIcon size={ICON} /> });
 									}

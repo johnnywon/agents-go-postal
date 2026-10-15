@@ -240,7 +240,7 @@ export function ListPane(props: ListPaneProps) {
 				{filter.view === "trash" && props.rows.length > 0 && (
 					<button type="button" className="pg-btn pg-btn-sm pg-btn-outline" onClick={props.onEmptyTrash} title="Delete everything in Trash forever">Empty Trash</button>
 				)}
-				<button type="button" className="pg-new-btn" onClick={props.onNew} title={tip("compose", "New email")} aria-label="New email">
+				<button type="button" className="pg-new-btn" onClick={props.onNew} title={tip("compose", "New message")} aria-label="New message">
 					<PencilSimpleLineIcon size={16} />
 				</button>
 				<div className="pg-group">
@@ -407,7 +407,7 @@ export function ListPane(props: ListPaneProps) {
 								<div className="pg-row-main">
 									{/* Inside one address every row would repeat it, so the To line only shows when it tells rows apart. */}
 									{(scope !== row.mailbox_id || row.also_in.length > 0) && (
-										<div className="pg-row-to" title={`Delivered to ${row.mailbox_id} — replies send from here`}>
+										<div className="pg-row-to" title={`Delivered to ${row.mailbox_id} · Replies send from here`}>
 											<Swatch identity={identity} />
 											<AddressText address={row.mailbox_id} identity={identity} />
 											{row.also_in.length > 0 && <span className="pg-also">+{row.also_in.length}</span>}
@@ -461,7 +461,7 @@ export function ListPane(props: ListPaneProps) {
 										{row.unread ? <EnvelopeOpenIcon size={15} /> : <EnvelopeSimpleIcon size={15} />}
 									</button>
 									{filter.view !== "trash" && (
-										<button type="button" title="Move to trash" aria-label="Move to trash" onClick={() => props.onRowAction(row, "trash")}><TrashIcon size={15} /></button>
+										<button type="button" title="Move to Trash" aria-label="Move to Trash" onClick={() => props.onRowAction(row, "trash")}><TrashIcon size={15} /></button>
 									)}
 								</div>
 								{/* With a mouse, hover always brings up the toolbar's Select first, so this check is only a picture. */}
@@ -482,10 +482,10 @@ export function ListPane(props: ListPaneProps) {
 							<button type="button" className="pg-all" onClick={props.onSelectAll}>All</button>
 							<div style={{ flex: 1 }} />
 							{RESTORABLE.has(filter.view) && <button type="button" className="pg-tool" title="Move to Inbox" aria-label="Move to Inbox" onClick={() => props.onBulk("restore")}><TrayArrowUpIcon size={15} /></button>}
-							<button type="button" className="pg-tool" title="Archive" aria-label="Archive" onClick={() => props.onBulk("archive")}><ArchiveIcon size={15} /></button>
-							<button type="button" className="pg-tool" title="Read" aria-label="Mark read" onClick={() => props.onBulk("read")}><EnvelopeOpenIcon size={15} /></button>
-							<button type="button" className="pg-tool" title="Star" aria-label="Star" onClick={() => props.onBulk("star")}><StarIcon size={15} /></button>
-							{filter.view !== "trash" && <button type="button" className="pg-tool" title="Trash" aria-label="Move to trash" onClick={() => props.onBulk("trash")}><TrashIcon size={15} /></button>}
+							<button type="button" className="pg-tool" title={tip("archive", "Archive")} aria-label="Archive" onClick={() => props.onBulk("archive")}><ArchiveIcon size={15} /></button>
+							<button type="button" className="pg-tool" title={tip("markRead", "Mark read")} aria-label="Mark read" onClick={() => props.onBulk("read")}><EnvelopeOpenIcon size={15} /></button>
+							<button type="button" className="pg-tool" title={tip("star", "Star")} aria-label="Star" onClick={() => props.onBulk("star")}><StarIcon size={15} /></button>
+							{filter.view !== "trash" && <button type="button" className="pg-tool" title={tip("trash", "Move to Trash")} aria-label="Move to Trash" onClick={() => props.onBulk("trash")}><TrashIcon size={15} /></button>}
 							{filter.view !== "spam" && <button type="button" className="pg-tool" title={tip("spam", "Report spam")} aria-label="Report spam" onClick={() => props.onBulk("spam")}><WarningOctagonIcon size={15} /></button>}
 							<span className="pg-sep" />
 							<button type="button" className="pg-tool" title={tip("back", "Clear selection")} aria-label="Clear selection" onClick={props.onClearSelection} style={{ color: "var(--pg-text-6)" }}><XIcon size={14} /></button>

@@ -6,7 +6,7 @@ import type { CSSProperties } from "react";
 
 /**
  * The agent: a robot with cursor blocks for eyes and an @ on its
- * antenna. The shell takes the current colour; the eyes are always agent green.
+ * antenna. The shell takes the current color; the eyes are always agent green.
  * Takes Phosphor's props so it can stand in for a Phosphor icon; weight is ignored.
  */
 export function AgentIcon({ size = 16, color, className, style }: {

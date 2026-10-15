@@ -457,7 +457,7 @@ export function Composer(props: ComposerProps) {
 							aria-haspopup="listbox"
 							aria-expanded={fromOpen}
 							disabled={lockFrom}
-							title={lockFrom ? "Replies go out from the address the mail was delivered to. Change this in Settings." : "Send from"}
+							title={lockFrom ? "Replies go out from the address the mail was delivered to. Change this in the Console." : "Send from"}
 							onClick={() => setFromOpen((v) => !v)}
 						>
 							<Swatch identity={fromId} />
@@ -643,7 +643,7 @@ export function Composer(props: ComposerProps) {
 							</button>
 						)}
 						<div className="pg-flex" />
-						<button type="button" className="pg-btn pg-btn-outline" title="Save as draft" onMouseDown={(e) => { e.preventDefault(); saveNow().then(() => finish("Draft saved")); }}>
+						<button type="button" className="pg-btn pg-btn-outline" title="Save draft" onMouseDown={(e) => { e.preventDefault(); saveNow().then(() => finish("Draft saved")); }}>
 							<FloppyDiskIcon size={14} /><span className="pg-save-label">Save draft</span>
 						</button>
 						<button type="button" className="pg-tool-btn" title="Discard draft" aria-label="Discard draft" onMouseDown={(e) => { e.preventDefault(); discard(); }}>

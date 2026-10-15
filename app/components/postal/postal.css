@@ -1,4 +1,4 @@
-/* Postal mail UI. Values come from the design spec; colours
+/* Postal mail UI. Values come from the design spec; colors
    come from the tokens in app/index.css. State is fill, weight, a full 1px
    ring or a glyph. No accent stripes or edge bars. */
 
@@ -574,7 +574,7 @@ html:has(.postal), html:has(.postal) body { background: var(--pg-base, #141518);
 .pg-mail-frame[data-kind="plain"] .pg-mail-body { padding: 24px 28px 28px; min-height: 64px; }
 .pg-mail-frame[data-kind="html"] .pg-mail-body { background: #fff; }
 .pg-mail-frame iframe { display: block; width: 100%; border: 0; }
-/* Text-only mail sits on the page, in the serif and colours plain mail had inside its frame. */
+/* Text-only mail sits on the page, in the serif and colors plain mail had inside its frame. */
 .pg-mail-text {
   max-width: 66ch; color: var(--pg-text-2); overflow-wrap: break-word; -webkit-font-smoothing: antialiased;
   font: 16px/1.65 "Iowan Old Style", Charter, "Bitstream Charter", "Source Serif 4", Cambria, Georgia, serif;
@@ -1148,7 +1148,7 @@ html:has(.postal), html:has(.postal) body { background: var(--pg-base, #141518);
 }
 
 /* ── Model & key ──────────────────────────────────────────────────────
-   One colour, one meaning: a provider's hue only on its square, green for
+   One color, one meaning: a provider's hue only on its square, green for
    the chosen, recommended or connected, yellow for a missing key. Prices
    and context are plain aligned numbers under one column header. */
 .pg-models { padding: 14px 0 6px; }

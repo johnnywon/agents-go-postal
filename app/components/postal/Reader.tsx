@@ -215,7 +215,7 @@ export function Reader(props: ReaderProps) {
 					<div className="pg-group">
 						{props.canRestore && <button type="button" className="pg-icon-btn" title="Move to Inbox" aria-label="Move to Inbox" onClick={() => props.onAction("restore")} disabled={!row}><TrayArrowUpIcon size={16} /></button>}
 						<button type="button" className="pg-icon-btn" title={tip("archive", "Archive")} aria-label="Archive" onClick={() => props.onAction("archive")} disabled={!row}><ArchiveIcon size={16} /></button>
-						<button type="button" className="pg-icon-btn" title={tip("trash", "Move to trash")} aria-label="Move to trash" onClick={() => props.onAction("trash")} disabled={!row || !props.canTrash}><TrashIcon size={16} /></button>
+						<button type="button" className="pg-icon-btn" title={tip("trash", "Move to Trash")} aria-label="Move to Trash" onClick={() => props.onAction("trash")} disabled={!row || !props.canTrash}><TrashIcon size={16} /></button>
 						{props.canSpam && <button type="button" className="pg-icon-btn" title={tip("spam", "Report spam")} aria-label="Report spam" onClick={() => props.onAction("spam")} disabled={!row}><WarningOctagonIcon size={16} /></button>}
 					</div>
 					<div className="pg-group" style={{ position: "relative" }}>
@@ -299,7 +299,7 @@ export function Reader(props: ReaderProps) {
 
 const PALETTE_VARS = { text: "--pg-text-2", muted: "--pg-text-6", link: "--pg-link", quote: "--pg-well", line: "--pg-line-2" } as const;
 
-/** The reader's colours, for plain mail rendered on the reader surface. Follows theme changes. */
+/** The reader's colors, for plain mail rendered on the reader surface. Follows theme changes. */
 function useReaderPalette(ref: React.RefObject<HTMLElement | null>): EmailPalette | undefined {
 	const [palette, setPalette] = useState<EmailPalette>();
 	useLayoutEffect(() => {
@@ -345,7 +345,7 @@ function Message({ head, email, mailboxId, images, onShowImages }: {
 	const attachments = getNonInlineAttachments(email.attachments);
 	return (
 		<>
-			{/* Every message is a page: plain mail in the reader's colours and a serif, designed HTML mail on its own white. The images note and attachments sit inside it. */}
+			{/* Every message is a page: plain mail in the reader's colors and a serif, designed HTML mail on its own white. The images note and attachments sit inside it. */}
 			<div className="pg-mail-frame" data-kind={plain ? "plain" : "html"} ref={frameRef}>
 				{head}
 				<div className="pg-mail-body">

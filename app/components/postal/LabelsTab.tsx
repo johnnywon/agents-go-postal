@@ -12,7 +12,7 @@ import api from "~/services/api";
 
 function ColorPicker({ value, onChange, name }: { value: string; onChange: (color: string) => void; name: string }) {
 	return (
-		<div className="pg-colors" role="radiogroup" aria-label={`Colour for ${name}`}>
+		<div className="pg-colors" role="radiogroup" aria-label={`Color for ${name}`}>
 			{LABEL_COLORS.map((c) => (
 				<button key={c.bg} type="button" role="radio" aria-checked={value === c.bg} aria-label={c.name} title={c.name} className="pg-color" onClick={() => onChange(c.bg)}>
 					<LabelSwatch color={c.bg} />
@@ -38,7 +38,7 @@ function LabelRow({ label }: { label: Label }) {
 	return (
 		<li className="pg-label-row">
 			<div className="pg-label-main">
-				<button type="button" className="pg-color pg-label-color" aria-expanded={color} aria-label={`Change colour of ${label.name}`} title="Colour" onClick={() => setColor(!color)}>
+				<button type="button" className="pg-color pg-label-color" aria-expanded={color} aria-label={`Change color of ${label.name}`} title="Color" onClick={() => setColor(!color)}>
 					<LabelSwatch color={label.color} />
 				</button>
 				<form onSubmit={save} className="pg-flex">
@@ -48,7 +48,7 @@ function LabelRow({ label }: { label: Label }) {
 				{confirming ? (
 					<span className="pg-label-confirm">
 						<button type="button" className="pg-btn pg-btn-sm pg-btn-danger" onClick={() => remove.mutate(label.id)} disabled={remove.isPending}>Delete</button>
-						<button type="button" className="pg-btn pg-btn-sm pg-btn-quiet" onClick={() => setConfirming(false)}>Keep</button>
+						<button type="button" className="pg-btn pg-btn-sm pg-btn-quiet" onClick={() => setConfirming(false)}>Cancel</button>
 					</span>
 				) : (
 					<button type="button" className="pg-icon-btn" aria-label={`Delete ${label.name}`} title="Delete label" onClick={() => setConfirming(true)}>

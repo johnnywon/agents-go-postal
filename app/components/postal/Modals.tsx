@@ -343,7 +343,7 @@ export function ConsoleModal({ tab: asked, onTab, prefs, setPrefs, addresses, id
 								onChange={(e) => setPrompt(e.target.value)}
 								placeholder="You are an email assistant that helps manage this inbox. You read emails, draft replies, and help organize conversations. Write like a real person. Short, direct, flowing prose. Plain text only. (Leave empty to use the built-in default prompt)"
 							/>
-							<div style={{ fontSize: 12, color: "var(--pg-text-6)", padding: "6px 0 4px" }}>Sent as the system message when the agent works on this address: Draft reply, auto-draft, and chat while its mail is open. Controls tone, style and behaviour rules.</div>
+							<div style={{ fontSize: 12, color: "var(--pg-text-6)", padding: "6px 0 4px" }}>Sent as the system message when the agent works on this address: Draft reply, auto-draft, and chat while its mail is open. Controls tone, style and behavior rules.</div>
 							<Setting title="Model" sub={agentModel.stored ? modelName(catalog, agentModel.stored.active) : ""}>
 								<button type="button" className="pg-btn pg-btn-sm" onClick={() => onTab("model")}>Change</button>
 							</Setting>

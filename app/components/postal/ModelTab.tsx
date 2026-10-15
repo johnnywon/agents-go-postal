@@ -68,7 +68,7 @@ function hueStyle(hue: number) {
 	return { "--pg-h": hue } as React.CSSProperties;
 }
 
-/** The provider's colour square and name. The only place a provider's hue shows. */
+/** The provider's color square and name. The only place a provider's hue shows. */
 function ProviderMark({ provider }: { provider: ProviderId }) {
 	const info = PROVIDER_INFO[provider];
 	return <span className="pg-prov-mark" style={hueStyle(info.hue)}><i aria-hidden="true" />{info.label}</span>;

@@ -8,7 +8,7 @@ import type { CSSProperties, ReactNode } from "react";
  * Navigation icons, drawn like the robot in AgentIcon: a 24 grid with a 20px
  * live area, 2px round strokes, 3px corners on bodies and 1.5 on small parts.
  * Mail icons carry one solid accent in mail orange (the robot's eye block where
- * it fits); folder icons stay plain. Shells take the current colour.
+ * it fits); folder icons stay plain. Shells take the current color.
  * Each takes Phosphor's props so it can stand in for a Phosphor icon; weight is ignored.
  */
 interface NavIconProps {
@@ -93,7 +93,7 @@ export function ByAddressIcon(props: NavIconProps) {
 	);
 }
 
-/** Labels: an outline tag. The labels under it carry the colour. */
+/** Labels: an outline tag. The labels under it carry the color. */
 export function LabelsIcon(props: NavIconProps) {
 	return (
 		<Svg {...props}>

@@ -6,7 +6,7 @@ import { useId } from "react";
 
 /**
  * Domain identity: every domain gets a hue and a shape, derived from its
- * position in DOMAINS. The shape keeps domains apart for colour-blind readers.
+ * position in DOMAINS. The shape keeps domains apart for color-blind readers.
  * Shapes are never round; round is reserved for the agent.
  */
 
@@ -56,7 +56,7 @@ export function shortDomain(domain: string): string {
 	return parts.length > 1 ? parts.slice(0, -1).join(".") : domain;
 }
 
-/** Inline style that colours a swatch or domain text with the domain's hue. */
+/** Inline style that colors a swatch or domain text with the domain's hue. */
 export function hueVars(hue: number): React.CSSProperties {
 	return { "--pg-h": String(hue) } as React.CSSProperties;
 }
