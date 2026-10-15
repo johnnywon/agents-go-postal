@@ -13,6 +13,7 @@ Motion. Everything that opens and closes moves on one curve.
 - Popovers, menus, row tools, the composer, toasts and tooltips enter on the same curve without scaling text. Toasts no longer slide in off-center.
 - Reduced motion turns all of it off.
 - Key hints next to controls are off by default; turn them on in Settings > General. A deployment that already saved its settings keeps its choice. Tooltips and Settings > Shortcuts show keys either way; before, turning hints off emptied the keys in both.
+- The agent panel names the open email while you search, even when the search leaves that email out of the list; it said "(no subject)".
 - The MCP server reports its name as `pluramail` and the app's version; it said `agentic-inbox` 1.0.0.
 - README: When it fits and For agents sections, and an `llms.txt` summary. The roadmap adds sign-in and roles for teams. `AGENTS.md` sets the writing voice.
 

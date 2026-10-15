@@ -19,6 +19,7 @@ import type { Email } from "~/types";
 import { AgentPanel, AgentRail, useDraftWithAgent } from "./Agent";
 import { DemoContext } from "~/lib/demo";
 import { markLayoutMoving } from "~/lib/layout-motion";
+import { useEmail } from "~/queries/emails";
 import {
 	type ComposeMode, type ComposeState, composeFor, composeFromDraft, emptyCompose, handOff, HANDOFF_KEY, useAddressInfo,
 	useMailSender,
@@ -179,6 +180,9 @@ function PostalApp({ addresses, domains, autoDraft, demo }: PostalProps) {
 	const rowKeys = useMemo(() => rows.map((r) => r.thread_key), [rows]);
 	const checked = useMemo(() => sel.prune(selection, rowKeys), [selection, rowKeys]);
 	const openRow = open ? rows.find((r) => r.mailbox_id === open.mailboxId && r.email_id === open.emailId) : undefined;
+	// The open email can be missing from the list, as when a search leaves it out. The Reader loads it
+	// anyway, and this shares that query, so the agent still knows what is open.
+	const { data: openEmail } = useEmail(open?.mailboxId, open?.emailId);
 	const [currentKey, setCurrentKey] = useState<string | null>(null);
 	const activeKey = openRow?.thread_key ?? (open ? currentKey : null);
 	const [autoOpenedKey, setAutoOpenedKey] = useState<string | null>(null);
@@ -783,7 +787,7 @@ function PostalApp({ addresses, domains, autoDraft, demo }: PostalProps) {
 						{agentMounted && (
 							<AgentPanel
 								open={open}
-								reading={open ? openRow?.subject ?? "" : null}
+								reading={open ? openRow?.subject ?? openEmail?.subject ?? "" : null}
 								onCollapse={togglePanel}
 								overlay={!mobile && narrow}
 								inert={!panelShown}
