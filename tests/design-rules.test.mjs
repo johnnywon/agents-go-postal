@@ -988,7 +988,10 @@ test("hostile input stays fast", () => {
 		`export const A = () => (<>${'<i className="w-1 h-4" style={{ background: c }} />'.repeat(8000)}</>);`,
 	];
 	for (const text of scripts) analyse("hostile.tsx", text, FIXTURE_CONTEXT);
-	assert.ok(performance.now() - started < 5000, `hostile inputs took ${Math.round(performance.now() - started)}ms`);
+	// Time budgets hold only in CI. A busy laptop fails them with nothing wrong (WON-388); CI runs on every PR.
+	const tookMs = Math.round(performance.now() - started);
+	if (process.env.CI) assert.ok(tookMs < 5000, `hostile inputs took ${tookMs}ms`);
+	else console.log(`hostile inputs took ${tookMs}ms`);
 });
 
 // ----- the real tree ------------------------------------------------------------------------------------------
