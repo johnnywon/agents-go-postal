@@ -145,9 +145,12 @@ export async function seedMail(env: Env, opts: { tzOffset?: number; extra?: numb
 	};
 }
 
+/** Bump when the sample mail changes, so a demo drops its old copy and writes the inbox again. */
+const SAMPLE_VERSION = 2;
+
 /** The story version a copy of the inbox belongs to: the Alex profile moves in whole weeks, the default with the clock. */
 function snapshotKey(profile: SeedProfile, now: number): string {
-	return profile === "alex" ? `alex:${new StoryClock(now).shiftDays}` : "default";
+	return profile === "alex" ? `alex:${SAMPLE_VERSION}:${new StoryClock(now).shiftDays}` : `default:${SAMPLE_VERSION}`;
 }
 
 /**

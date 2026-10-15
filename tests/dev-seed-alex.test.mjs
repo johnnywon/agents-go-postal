@@ -305,7 +305,8 @@ test("photos are the verified files, shown inline by content id and credited", (
 		assert.deepEqual([...new Set(cids)].sort(), parts.sort(), `${m.key}: every inline image has its part`);
 		for (const cid of parts) {
 			used[cid.split(".jpg")[0]] = [...(used[cid.split(".jpg")[0]] ?? []), m.key];
-			assert.match(m.html, /via Wikimedia Commons/, `${m.key} credits its photo`);
+			if (cid.startsWith("food-burrito")) assert.match(m.html, /via Wikimedia Commons/, `${m.key} credits its CC BY-SA photo`);
+			else assert.doesNotMatch(m.html, /via Wikimedia Commons/, `${m.key}: no credit line under a CC0 photo`);
 		}
 		assert.doesNotMatch(m.html, /<img[^>]+src="(?!cid:|data:)/, `${m.key}: no remote images`);
 	}

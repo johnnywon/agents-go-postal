@@ -121,7 +121,7 @@ Four openly licensed photos, stored once in `workers/lib/dev-seed/alex/assets/` 
 | coffee.jpg | www.Pixel.la Free Stock Photos, CC0 1.0 | H-03 (180px crop) | A-06 |
 | keyboard.jpg | Anas Alshanti, CC0 1.0 | A-03 (220px crop) | A-03 |
 
-Inline photos are real inline parts: `content_id` set, `disposition` inline, and `<img src="cid:…">` in the HTML, which the reader rewrites to the attachment URL. Each carries a credit line linking its source page and license. The burrito is a menu photo; the stadium is a 2019 college game, captioned as illustrative.
+Inline photos are real inline parts: `content_id` set, `disposition` inline, and `<img src="cid:…">` in the HTML, which the reader rewrites to the attachment URL. The burrito, the one CC BY-SA photo, carries a credit line linking its source page and license. The CC0 photos have no caption; their credits are in the manifest. The burrito is a menu photo; the stadium is a 2019 college game.
 
 ## Links
 
