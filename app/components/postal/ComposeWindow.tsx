@@ -25,7 +25,6 @@ import { formatSize, sendTimeLabel } from "./model";
 import { usePrefs, useResolvedTheme } from "./prefs";
 import { useShortcuts } from "./shortcuts";
 import { TooltipLayer } from "./Tooltip";
-import { useDemo } from "~/lib/demo";
 
 type Sender = ReturnType<typeof useMailSender>;
 
@@ -181,7 +180,6 @@ function QuotePreview({ head, body }: { head: string; body: string }) {
 /** One composer for new mail, replies and forwards, wherever it appears. */
 export function Composer(props: ComposerProps) {
 	const { tip } = useShortcuts();
-	const demo = useDemo();
 	const { identities, info, sender, variant } = props;
 	const [state, setState] = useState<ComposeState>(props.initial);
 	const [mode, setMode] = useState<"normal" | "min" | "max">(props.maximised ? "max" : "normal");
@@ -637,11 +635,9 @@ export function Composer(props: ComposerProps) {
 						>
 							<SignatureIcon size={16} />
 						</button>
-						{!demo && (
-							<button type="button" className="pg-btn pg-btn-agent" data-busy={agentBusy} title={`${reply ? "Draft reply" : "Draft"} · The agent writes a first draft here. Nothing is sent.`} onMouseDown={(e) => { e.preventDefault(); askAgent(); }}>
-								<AgentIcon size={14} weight="fill" /><span className="pg-agent-label">{agentBusy ? "Drafting…" : reply ? "Draft reply" : "Draft"}</span>
-							</button>
-						)}
+						<button type="button" className="pg-btn pg-btn-agent" data-busy={agentBusy} title={`${reply ? "Draft reply" : "Draft"} · The agent writes a first draft here. Nothing is sent.`} onMouseDown={(e) => { e.preventDefault(); askAgent(); }}>
+							<AgentIcon size={14} weight="fill" /><span className="pg-agent-label">{agentBusy ? "Drafting…" : reply ? "Draft reply" : "Draft"}</span>
+						</button>
 						<div className="pg-flex" />
 						<button type="button" className="pg-btn pg-btn-outline" title="Save draft" onMouseDown={(e) => { e.preventDefault(); saveNow().then(() => finish("Draft saved")); }}>
 							<FloppyDiskIcon size={14} /><span className="pg-save-label">Save draft</span>

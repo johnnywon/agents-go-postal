@@ -7,9 +7,9 @@ Versions follow [semantic versioning](https://semver.org). Before 1.0, a minor v
 Fixes after 0.8.0.
 
 - Inline images apply only to HTML mail.
-- The demo's hourly reset clears the activity log, uses the cron's scheduled time, and no longer overlaps a visitor's first request seeding the inbox.
+- The demo's hourly reset puts back a copy of the sample inbox in one D1 batch instead of writing it again, so it fits the Workers Free plan. It also clears the activity log, uses the cron's scheduled time, and no longer overlaps a visitor's first request. A new story week or a missing sample message writes the inbox in full and takes a new copy.
 - A demo counts an AI action against `DEMO_AI_DAILY` only after the request passes CSRF and validation.
-- A demo shows no agent entry points: no Ask rows in search, no agent button on labels, no agent column in the shortcut map, and the agent key does nothing. Its Console shows only Settings, read-only apart from Labels.
+- A demo keeps the agent panel and its buttons; the panel and Draft say the agent is off in the demo. Its Console shows only Settings, read-only apart from Labels.
 - Search suggestions and the Filter menu name their parts with commas for screen readers and browser agents.
 - Less copy: no Console subtitles or tab intros, empty folders show a title only, tooltips name the action and its key, and search says Search mail. The log-out dialog no longer says nothing is sent while you're away.
 - One word per action: Move to Trash, New message, Cancel. US spelling throughout. Keys shown in the editor and search come from your own shortcuts.

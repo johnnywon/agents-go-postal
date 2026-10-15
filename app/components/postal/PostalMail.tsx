@@ -184,7 +184,7 @@ function PostalApp({ addresses, domains, autoDraft, demo }: PostalProps) {
 	const [navTemp, setNavTemp] = useState(false);
 	const [panelTemp, setPanelTemp] = useState(false);
 	const navOpen = mobile ? navTemp : narrow ? navTemp : layout.nav ?? true;
-	const panelOpen = !demo && (mobile ? panelTemp : narrow ? panelTemp : layout.panel ?? true);
+	const panelOpen = mobile ? panelTemp : narrow ? panelTemp : layout.panel ?? true;
 	const [modal, setModal] = useState<"logout" | null>(null);
 	const [toast, setToast] = useState<ToastState | null>(null);
 	const [cw, setCw] = useState<{ key: number; initial: ComposeState; max?: boolean } | null>(null);
@@ -486,7 +486,7 @@ function PostalApp({ addresses, domains, autoDraft, demo }: PostalProps) {
 			reply: () => reply("reply"),
 			replyAll: () => reply("reply-all"),
 			forward: () => reply("forward"),
-			agent: () => (demo ? false : (togglePanelRef.current(), true)),
+			agent: () => (togglePanelRef.current(), true),
 			sidebar: () => (toggleNav(), true),
 			panels: () => (toggleBoth(), true),
 			help: () => (setHelpOpen(true), true),
@@ -755,7 +755,7 @@ function PostalApp({ addresses, domains, autoDraft, demo }: PostalProps) {
 							/>
 						</>
 					) : (
-						!mobile && !demo && <AgentRail onOpen={togglePanel} busy={agentBusy} />
+						!mobile && <AgentRail onOpen={togglePanel} busy={agentBusy} />
 					)}
 				</div>
 				{cw && (

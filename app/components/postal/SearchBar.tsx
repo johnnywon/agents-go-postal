@@ -22,7 +22,6 @@ import {
 	windowKey,
 } from "./search-window";
 import { type FilterSuggestion, rowDomId, SearchWindow, type WindowRow, type WindowSection } from "./SearchWindow";
-import { useDemo } from "~/lib/demo";
 
 export type { FilterSuggestion } from "./SearchWindow";
 
@@ -75,7 +74,6 @@ function storage(): Storage | undefined {
 }
 
 export const SearchBar = forwardRef<HTMLInputElement, SearchBarProps>(function SearchBar(props, ref) {
-	const demo = useDemo();
 	const input = useRef<HTMLInputElement>(null);
 	useImperativeHandle(ref, () => input.current as HTMLInputElement);
 	const [focused, setFocused] = useState(false);
@@ -143,7 +141,7 @@ export const SearchBar = forwardRef<HTMLInputElement, SearchBarProps>(function S
 					setText(`${interpreted.from} `);
 				},
 			}];
-			if (interpreted.failed && !demo) {
+			if (interpreted.failed) {
 				rows.push({ id: "interpreted-ask", kind: "action", icon: "ask", label: "Ask the agent instead", choose: () => { leave(); props.onAsk(interpreted.from); } });
 			}
 			out.push({ id: "interpreted", title: "From your words", rows });
@@ -217,7 +215,7 @@ export const SearchBar = forwardRef<HTMLInputElement, SearchBarProps>(function S
 					choose: () => setText(appendTerm(text, `to:${a.address}`)),
 				})),
 			});
-			if (!demo) out.push({
+			out.push({
 				id: "ask", title: "Ask", side: true,
 				rows: [{ id: "ask", kind: "action", icon: "ask", label: "Ask the agent…", choose: () => { leave(); props.onAsk(""); } }],
 			});
@@ -273,20 +271,19 @@ export const SearchBar = forwardRef<HTMLInputElement, SearchBarProps>(function S
 							if (!interpreting) void interpret(request);
 						},
 					},
-					// A demo has the search model but no agent panel.
-					...(demo ? [] : [{
+					...[{
 						id: "ask", kind: "action" as const, icon: "ask" as const, label: "Ask the agent about it",
 						choose: () => {
 							remember(text);
 							leave();
 							props.onAsk(request);
 						},
-					}]),
+					}],
 				],
 			});
 		}
 		return out;
-	}, [ctx, text, hasQ, recent, suggest, suggestCurrent, interpreting, interpreted, props.saved, props.filters, props.addresses, props.labels, props.results, props.resultsFor, props.resultsLoading, props.resultCount, demo]); // eslint-disable-line react-hooks/exhaustive-deps
+	}, [ctx, text, hasQ, recent, suggest, suggestCurrent, interpreting, interpreted, props.saved, props.filters, props.addresses, props.labels, props.results, props.resultsFor, props.resultsLoading, props.resultCount]); // eslint-disable-line react-hooks/exhaustive-deps
 
 	// Keyboard order: the wide column, then the side column.
 	const rows = useMemo(() => [...sections.filter((s) => !s.side), ...sections.filter((s) => s.side)].flatMap((s) => s.rows), [sections]);
@@ -397,11 +394,9 @@ export const SearchBar = forwardRef<HTMLInputElement, SearchBarProps>(function S
 					</>
 				)}
 				<Keys id="search" className="pg-kbd pg-desktop-only" />
-				{!demo && (
-					<button type="button" className="pg-icon-btn pg-mobile-only" onClick={props.onAgent} aria-label="Open agent">
-						<AgentIcon size={16} weight="fill" />
-					</button>
-				)}
+				<button type="button" className="pg-icon-btn pg-mobile-only" onClick={props.onAgent} aria-label="Open agent">
+					<AgentIcon size={16} weight="fill" />
+				</button>
 			</div>
 			<span className="pg-sr-only" aria-live="polite">
 				{announced ? `${props.resultCount} result${props.resultCount === 1 ? "" : "s"}` : ""}

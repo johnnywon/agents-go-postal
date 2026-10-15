@@ -21,7 +21,6 @@ import { keycaps, SHORTCUTS, type ShortcutArea, type ShortcutDef, type ShortcutI
 import { AgentIcon } from "./AgentIcon";
 import { AllAddressesIcon, DraftsIcon, InboxIcon, SentIcon, StarredIcon } from "./NavIcons";
 import { useShortcuts } from "./shortcuts";
-import { useDemo } from "~/lib/demo";
 
 const ALL: readonly ShortcutDef[] = SHORTCUTS;
 
@@ -169,7 +168,6 @@ function Agent() {
 }
 
 export function ShortcutMap({ onAll }: { onAll: () => void }) {
-	const demo = useDemo();
 	return (
 		<div className="pg-map">
 			<div className="pg-map-search" title="Search">
@@ -181,7 +179,7 @@ export function ShortcutMap({ onAll }: { onAll: () => void }) {
 				<Sidebar />
 				<List />
 				<Reader />
-				{!demo && <Agent />}
+				<Agent />
 			</div>
 			<div className="pg-map-more">
 				{inArea("more").map((s) => (

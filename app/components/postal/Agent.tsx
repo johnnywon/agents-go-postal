@@ -11,6 +11,7 @@ import { Keys, useShortcuts } from "./shortcuts";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { AgentMarkdown } from "./agent-markdown";
 import { SHARED_AGENT, type AgentContext } from "../../../shared/agent";
+import { DEMO_AGENT_NOTICE, useDemo } from "~/lib/demo";
 
 type Hooks = {
 	useAgent: typeof import("agents/react").useAgent;
@@ -108,6 +109,89 @@ function Reading({ subject }: { subject: string | null }) {
 }
 
 export function AgentPanel(props: AgentPanelProps) {
+	return useDemo() ? <DemoAgentPanel {...props} /> : <LiveAgentPanel {...props} />;
+}
+
+/**
+ * The panel on a demo build: the same header, suggestions and box, no agent
+ * behind it. Whatever is asked gets the notice as the reply.
+ */
+function DemoAgentPanel({ reading, prefill, onCollapse, overlay }: AgentPanelProps) {
+	const { tip } = useShortcuts();
+	const [messages, setMessages] = useState<UIMessage[]>([]);
+	const [input, setInput] = useState("");
+	const inputRef = useRef<HTMLTextAreaElement>(null);
+	const scrollRef = useRef<HTMLDivElement>(null);
+	useEffect(() => {
+		if (!prefill) return;
+		setInput(prefill.text);
+		requestAnimationFrame(() => inputRef.current?.focus());
+	}, [prefill]);
+	useEffect(() => {
+		const el = scrollRef.current;
+		if (el) el.scrollTop = el.scrollHeight;
+	}, [messages]);
+	const submit = (text = input) => {
+		const t = text.trim();
+		if (!t) return;
+		setInput("");
+		const id = Date.now();
+		setMessages((m) => [
+			...m,
+			{ id: `u${id}`, role: "user", parts: [{ type: "text", text: t }] },
+			{ id: `a${id}`, role: "assistant", parts: [{ type: "text", text: DEMO_AGENT_NOTICE }] },
+		]);
+	};
+	return (
+		<aside className="pg-agent" aria-label="PluraMail Agent" data-overlay={overlay || undefined}>
+			<button type="button" className="pg-rail-head" onClick={onCollapse} title={tip("agent", "Collapse agent panel")}>
+				<CaretDoubleRightIcon size={14} weight="bold" />
+				<span className="pg-head-label">PLURAMAIL AGENT</span>
+				<AgentIcon size={14} weight="fill" color="var(--pg-green)" />
+			</button>
+			<div className="pg-agent-sub">
+				<Reading subject={reading} />
+			</div>
+			<div className="pg-agent-scroll" ref={scrollRef} role="log" aria-label="Agent chat">
+				{messages.length === 0 ? (
+					<div className="pg-agent-empty">
+						<p className="pg-agent-notice">{DEMO_AGENT_NOTICE}</p>
+						{SUGGESTIONS.map((s) => (
+							<button key={s} type="button" className="pg-btn" onClick={() => submit(s)}>{s}</button>
+						))}
+					</div>
+				) : (
+					<div className="pg-agent-thread">
+						{messages.map((m) => <ChatMessage key={m.id} message={m} onOpenDraft={() => {}} />)}
+					</div>
+				)}
+			</div>
+			<div className="pg-agent-input-wrap">
+				<form className="pg-agent-input" onSubmit={(e) => { e.preventDefault(); submit(); }}>
+					<textarea
+						ref={inputRef}
+						rows={2}
+						value={input}
+						onChange={(e) => setInput(e.target.value)}
+						onKeyDown={(e) => {
+							if (e.nativeEvent.isComposing) return;
+							if (e.key === "Enter" && !e.shiftKey) {
+								e.preventDefault();
+								submit();
+							}
+						}}
+						placeholder="Ask about your mail…"
+						aria-label="Ask the agent"
+						id="pg-agent-input"
+					/>
+					<button type="submit" className="pg-return" title="Send (↵)" aria-label="Send" disabled={!input.trim()}><ArrowElbowDownLeftIcon size={14} weight="bold" /></button>
+				</form>
+			</div>
+		</aside>
+	);
+}
+
+function LiveAgentPanel(props: AgentPanelProps) {
 	const { hooks, error } = useAgentHooks();
 	const { tip } = useShortcuts();
 	return (
@@ -412,6 +496,7 @@ function Runner({ hooks, job, onDone, onError }: { hooks: Hooks; job: DraftJob; 
  * runner element to render while a request is out.
  */
 export function useDraftWithAgent() {
+	const demo = useDemo();
 	const queryClient = useQueryClient();
 	const [job, setJob] = useState<DraftJob | null>(null);
 	const waiter = useRef<{ resolve: (r: DraftResult) => void; reject: (e: Error) => void } | null>(null);
@@ -425,6 +510,7 @@ export function useDraftWithAgent() {
 	};
 
 	const draftWithAgent = (state: ComposeState): Promise<DraftResult> => {
+		if (demo) return Promise.reject(new Error(DEMO_AGENT_NOTICE));
 		const notes = state.html.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
 		const to = state.to[0]?.addr;
 		let mailboxId = state.from;

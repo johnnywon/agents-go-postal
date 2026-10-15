@@ -16,7 +16,6 @@ import { type MailFilter, toSearch } from "~/lib/mail-filter";
 import type { Label, SavedSearch } from "~/services/api";
 import { AddressText, type Identities, LabelTag, Swatch } from "./identity";
 import { HOME, labelOf, scopeOf, scoped } from "./model";
-import { useDemo } from "~/lib/demo";
 
 
 export interface SidebarProps {
@@ -81,7 +80,6 @@ export function Sidebar(props: SidebarProps) {
 	const labelView = labelOf(filter);
 	const globalView = !scope && !labelView ? filter.view : null;
 	const [newLabel, setNewLabel] = useState<string | null>(null);
-	const demo = useDemo();
 
 	const domainUnread = (domain: string) =>
 		[...unreadByAddress.entries()].reduce((sum, [address, n]) => (address.endsWith(`@${domain}`) ? sum + n : sum), 0);
@@ -201,7 +199,7 @@ export function Sidebar(props: SidebarProps) {
 										<LabelTag id={label.id} size={13} />
 										<span className="pg-flex pg-ellipsis">{label.name}</span>
 									</NavLink>
-									{label.auto && !demo && (
+									{label.auto && (
 										<button
 											type="button"
 											className="pg-sparkle"

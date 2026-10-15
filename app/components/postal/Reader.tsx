@@ -21,7 +21,6 @@ import { AddressText, type Identities, LabelTag, Swatch } from "./identity";
 import { formatSize, fullDate, type MailAction, nameFromHeaders } from "./model";
 import type { Prefs } from "./prefs";
 import { useShortcuts } from "./shortcuts";
-import { useDemo } from "~/lib/demo";
 
 type Sender = ReturnType<typeof useMailSender>;
 
@@ -62,7 +61,6 @@ function sortAsc(list: Email[]) {
 }
 
 export function Reader(props: ReaderProps) {
-	const demo = useDemo();
 	const { row, open, identities } = props;
 	const { data: email } = useEmail(open?.mailboxId, open?.emailId);
 	const { data: thread } = useThreadReplies(open?.mailboxId, email?.thread_id);
@@ -277,16 +275,14 @@ export function Reader(props: ReaderProps) {
 									<ArrowBendUpLeftIcon size={16} style={{ flex: "none" }} />
 									<span className="pg-flex pg-ellipsis">Reply to {nameFromHeaders(original.raw_headers, original.sender)}</span>
 								</button>
-								{!demo && (
-									<button
-										type="button"
-										className="pg-btn pg-btn-agent"
-										title="Draft reply · The agent writes a first draft. Nothing is sent."
-										onClick={() => props.startReply("reply", original, undefined, true)}
-									>
-										<AgentIcon size={14} weight="fill" />Draft reply
-									</button>
-								)}
+								<button
+									type="button"
+									className="pg-btn pg-btn-agent"
+									title="Draft reply · The agent writes a first draft. Nothing is sent."
+									onClick={() => props.startReply("reply", original, undefined, true)}
+								>
+									<AgentIcon size={14} weight="fill" />Draft reply
+								</button>
 							</div>
 						)
 					)}

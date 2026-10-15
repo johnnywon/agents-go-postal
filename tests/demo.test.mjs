@@ -281,16 +281,18 @@ test("an invalid request doesn't use the day's AI allowance", async () => {
 	assert.equal(await count("SELECT COUNT(*) AS n FROM ai_budget"), 0);
 });
 
-test("a demo hides the agent entry points and the Console's agents, and its settings are read-only", async () => {
+test("a demo keeps the agent entry points, answers in the panel with a notice, and its Console is Settings only", async () => {
 	const { readFileSync } = await import("node:fs");
 	const read = (f) => readFileSync(`app/components/postal/${f}`, "utf8");
-	const search = read("SearchBar.tsx");
-	assert.equal((search.match(/label: "Ask the agent…"/g) ?? []).length, 1);
-	assert.match(search, /if \(!demo\) out\.push\(\{\n\t+id: "ask"/, "the empty-search Ask group");
-	assert.match(search, /\.\.\.\(demo \? \[\] : \[\{\n\t+id: "ask"/, "Ask the agent about it");
-	assert.match(read("Sidebar.tsx"), /label\.auto && !demo/);
-	assert.match(read("ShortcutMap.tsx"), /\{!demo && <Agent \/>\}/);
-	assert.match(read("PostalMail.tsx"), /agent: \(\) => \(demo \? false/);
+	const agent = read("Agent.tsx");
+	assert.match(agent, /return useDemo\(\) \? <DemoAgentPanel \{\.\.\.props\} \/> : <LiveAgentPanel \{\.\.\.props\} \/>;/, "the demo panel has no agent socket");
+	const demoPanel = agent.slice(agent.indexOf("function DemoAgentPanel"), agent.indexOf("function LiveAgentPanel"));
+	assert.doesNotMatch(demoPanel, /useAgent|useAgentChat/);
+	assert.match(demoPanel, /DEMO_AGENT_NOTICE/);
+	assert.match(agent, /if \(demo\) return Promise\.reject\(new Error\(DEMO_AGENT_NOTICE\)\);/, "Draft and Draft reply show the notice");
+	assert.doesNotMatch(read("SearchBar.tsx"), /demo/, "search keeps its Ask rows");
+	assert.doesNotMatch(read("Reader.tsx"), /!demo/, "the Reply bar keeps Draft reply");
+	assert.match(read("PostalMail.tsx"), /const panelOpen = mobile \? panelTemp/);
 	const consoleSrc = read("Modals.tsx");
 	assert.match(consoleSrc, /demo \? allGroups\.filter\(\(g\) => g\.title !== "Agents"\)/);
 	assert.match(consoleSrc, /READ_ONLY_IN_DEMO = new Set<ConsoleTab>\(\["general", "addresses", "signatures", "shortcuts"\]\)/);
