@@ -9,8 +9,8 @@ import { AgentIcon } from "./AgentIcon";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Folders } from "shared/folders";
 import EmailIframe, { type EmailPalette, hasRemoteImages, isPlainHtml, MailText } from "~/components/EmailIframe";
-import { isHtmlBody, plainTextToHtml } from "~/components/plain-text";
-import { getAttachmentUrl, getNonInlineAttachments, rewriteInlineImages } from "~/lib/utils";
+import { isHtmlBody } from "~/components/plain-text";
+import { getAttachmentUrl, getNonInlineAttachments, messageBodyHtml } from "~/lib/utils";
 import { useEmail, useMarkThreadRead, useThreadReplies } from "~/queries/emails";
 import type { Conversation, Label } from "~/services/api";
 import type { Email } from "~/types";
@@ -337,8 +337,7 @@ function Message({ head, email, mailboxId, images, onShowImages }: {
 	const raw = email.body || "";
 	// Text-only mail becomes HTML the app writes from escaped text, so it can sit on the page where every agent reads it.
 	const text = !isHtmlBody(raw);
-	const html = text ? plainTextToHtml(raw) : raw;
-	const body = rewriteInlineImages(html, mailboxId, email.id, email.attachments);
+	const body = messageBodyHtml(raw, mailboxId, email.id, email.attachments);
 	const remote = hasRemoteImages(body);
 	const frameRef = useRef<HTMLDivElement>(null);
 	const palette = useReaderPalette(frameRef);
