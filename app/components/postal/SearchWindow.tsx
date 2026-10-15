@@ -60,6 +60,8 @@ export interface WindowSection {
 export const rowDomId = (id: string) => `pg-sw-${id.replace(/[^\w-]/g, "_")}`;
 
 export interface SearchWindowProps {
+	/** Closed, the window stays mounted for its motion, inert. */
+	open: boolean;
 	sections: WindowSection[];
 	active: string | null;
 	terms: string[];
@@ -280,7 +282,7 @@ export function SearchWindow(props: SearchWindowProps) {
 	const main = props.sections.filter((s) => !s.side);
 	const side = props.sections.filter((s) => s.side);
 	return (
-		<div className="pg-popover pg-sw" id="pg-sw" role="listbox" aria-label="Search suggestions">
+		<div className="pg-popover pg-sw" id="pg-sw" role="listbox" aria-label="Search suggestions" data-open={props.open} inert={!props.open}>
 			{props.help ? (
 				<div className="pg-sw-body pg-sw-help" role="group" aria-label="Search operators">
 					<span className="pg-caption">Operators</span>

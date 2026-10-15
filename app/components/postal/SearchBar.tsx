@@ -21,7 +21,7 @@ import {
 	saveRecent,
 	windowKey,
 } from "./search-window";
-import { type FilterSuggestion, rowDomId, SearchWindow, type WindowRow, type WindowSection } from "./SearchWindow";
+import { type FilterSuggestion, rowDomId, SearchWindow, type SearchWindowProps, type WindowRow, type WindowSection } from "./SearchWindow";
 
 export type { FilterSuggestion } from "./SearchWindow";
 
@@ -332,6 +332,22 @@ export const SearchBar = forwardRef<HTMLInputElement, SearchBarProps>(function S
 				return;
 		}
 	};
+	// The window stays mounted so it can close with motion. Closing, it keeps what it last showed
+	// rather than emptying while it rolls up.
+	const liveWindow: Omit<SearchWindowProps, "open"> = {
+		sections,
+		active,
+		terms: props.terms,
+		identities: props.identities,
+		stale: props.resultsFor.trim() !== text.trim(),
+		help,
+		onHelp: setHelp,
+		onHover: setActive,
+		save: hasQ ? (isSaved ? "saved" : save) : null,
+	};
+	const lastWindow = useRef(liveWindow);
+	if (show) lastWindow.current = liveWindow;
+	const windowProps = show ? liveWindow : lastWindow.current;
 	const syncCursor = (e: React.SyntheticEvent<HTMLInputElement>) => setCursor(e.currentTarget.selectionStart ?? e.currentTarget.value.length);
 	const error = props.error ?? (suggestCurrent ? suggest.errors[0] : undefined);
 	const announced = hasQ && props.resultCount !== null && props.resultsFor.trim() === text.trim();
@@ -401,19 +417,7 @@ export const SearchBar = forwardRef<HTMLInputElement, SearchBarProps>(function S
 			<span className="pg-sr-only" aria-live="polite">
 				{announced ? `${props.resultCount} result${props.resultCount === 1 ? "" : "s"}` : ""}
 			</span>
-			{show && (
-				<SearchWindow
-					sections={sections}
-					active={active}
-					terms={props.terms}
-					identities={props.identities}
-					stale={props.resultsFor.trim() !== text.trim()}
-					help={help}
-					onHelp={setHelp}
-					onHover={setActive}
-					save={hasQ ? (isSaved ? "saved" : save) : null}
-				/>
-			)}
+			<SearchWindow open={show} {...windowProps} />
 		</div>
 	);
 });
