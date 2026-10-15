@@ -214,9 +214,9 @@ export function Reader(props: ReaderProps) {
 					</div>
 					<div className="pg-group">
 						{props.canRestore && <button type="button" className="pg-icon-btn" title="Move to Inbox" aria-label="Move to Inbox" onClick={() => props.onAction("restore")} disabled={!row}><TrayArrowUpIcon size={16} /></button>}
-						<button type="button" className="pg-icon-btn" title={tip("archive", "Archive", "Out of the inbox, kept in Archive")} aria-label="Archive" onClick={() => props.onAction("archive")} disabled={!row}><ArchiveIcon size={16} /></button>
-						<button type="button" className="pg-icon-btn" title={tip("trash", "Move to trash", "Recoverable from Trash")} aria-label="Move to trash" onClick={() => props.onAction("trash")} disabled={!row || !props.canTrash}><TrashIcon size={16} /></button>
-						{props.canSpam && <button type="button" className="pg-icon-btn" title={tip("spam", "Report spam", "Moves it to Spam")} aria-label="Report spam" onClick={() => props.onAction("spam")} disabled={!row}><WarningOctagonIcon size={16} /></button>}
+						<button type="button" className="pg-icon-btn" title={tip("archive", "Archive")} aria-label="Archive" onClick={() => props.onAction("archive")} disabled={!row}><ArchiveIcon size={16} /></button>
+						<button type="button" className="pg-icon-btn" title={tip("trash", "Move to trash")} aria-label="Move to trash" onClick={() => props.onAction("trash")} disabled={!row || !props.canTrash}><TrashIcon size={16} /></button>
+						{props.canSpam && <button type="button" className="pg-icon-btn" title={tip("spam", "Report spam")} aria-label="Report spam" onClick={() => props.onAction("spam")} disabled={!row}><WarningOctagonIcon size={16} /></button>}
 					</div>
 					<div className="pg-group" style={{ position: "relative" }}>
 						<button type="button" className="pg-icon-btn" title={unread ? tip("markRead", "Mark read") : tip("markUnread", "Mark unread")} aria-label={unread ? "Mark read" : "Mark unread"} onClick={() => props.onAction("read")} disabled={!row}>
@@ -225,10 +225,10 @@ export function Reader(props: ReaderProps) {
 						<button type="button" className="pg-icon-btn" title={tip("star", starred ? "Unstar" : "Star")} aria-label={starred ? "Unstar" : "Star"} aria-pressed={starred} onClick={() => props.onAction("star")} disabled={!row}>
 							<StarIcon size={16} weight={starred ? "fill" : "regular"} color={starred ? "var(--pg-yellow)" : undefined} />
 						</button>
-						<button ref={labelBtn} type="button" className="pg-icon-btn" title={tip("label", "Label", "Labels are shared by every address")} aria-label="Label" aria-expanded={pickerOpen} onClick={() => openPicker()} disabled={!row}><TagIcon size={16} /></button>
+						<button ref={labelBtn} type="button" className="pg-icon-btn" title={tip("label", "Label")} aria-label="Label" aria-expanded={pickerOpen} onClick={() => openPicker()} disabled={!row}><TagIcon size={16} /></button>
 					</div>
 					<div style={{ flex: 1 }} />
-					<button type="button" className="pg-icon-btn" title="View source · The raw message with all headers" aria-label="View source" onClick={() => head && setSource(head)} disabled={!head}><CodeIcon size={16} /></button>
+					<button type="button" className="pg-icon-btn" title="View source" aria-label="View source" onClick={() => head && setSource(head)} disabled={!head}><CodeIcon size={16} /></button>
 				</div>
 			</div>
 			<div className="pg-reader-scroll" ref={scrollRef}>

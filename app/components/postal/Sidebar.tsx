@@ -273,7 +273,7 @@ export function Sidebar(props: SidebarProps) {
 				<div style={{ flex: 1, minHeight: 12 }} />
 			</div>
 			<div className="pg-nav-foot">
-				<button type="button" className="pg-foot-btn" onClick={props.onConsole} title="Console · agents, limits, MCP and settings">
+				<button type="button" className="pg-foot-btn" onClick={props.onConsole} title="Console">
 					<TerminalWindowIcon size={14} />
 					<span>Console</span>
 				</button>

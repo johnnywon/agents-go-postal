@@ -31,9 +31,6 @@ export function StorageTab({ identities }: { identities: Identities }) {
 
 	return (
 		<>
-			<div className="pg-tab-intro">
-				Mail for every address is in one D1 database. Time Travel in the Cloudflare dashboard restores it to any minute in the last 30 days.
-			</div>
 			<div className="pg-index-card">
 				<DatabaseIcon size={18} color="var(--pg-text-5)" />
 				<div className="pg-card-text">
@@ -43,9 +40,8 @@ export function StorageTab({ identities }: { identities: Identities }) {
 			</div>
 			{rows.length > 0 && (
 				<>
-				<p className="pg-table-note" id="storage-table-note">Messages per address.</p>
 				<div className="pg-table-scroll">
-					<table className="pg-table" aria-describedby="storage-table-note">
+					<table className="pg-table" aria-label="Messages per address">
 						<thead>
 							<tr>
 								<th scope="col">Address</th>

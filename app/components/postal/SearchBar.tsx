@@ -374,7 +374,7 @@ export const SearchBar = forwardRef<HTMLInputElement, SearchBarProps>(function S
 					}}
 					onSelect={syncCursor}
 					onKeyDown={onKeyDown}
-					placeholder="Search mail — try  from:stripe  is:unread  has:attachment"
+					placeholder="Search mail"
 					spellCheck={false}
 					autoComplete="off"
 					aria-label="Search mail"

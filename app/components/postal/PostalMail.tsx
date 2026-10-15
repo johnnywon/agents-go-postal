@@ -327,7 +327,7 @@ function PostalApp({ addresses, domains, autoDraft, demo }: PostalProps) {
 					showToast({ text: text + failed, icon, onUndo: done.undoId ? () => undoAction(done.undoId) : undefined });
 				},
 				onError: (e) => {
-					const msg = e instanceof ApiError && e.status === 409 ? "The list changed. Nothing was changed." : `Could not update mail. ${(e as Error).message}`;
+					const msg = e instanceof ApiError && e.status === 409 ? "The list changed. Try again." : `Could not update mail. ${(e as Error).message}`;
 					showToast({ text: msg, icon: <WarningIcon size={ICON} /> });
 				},
 			},

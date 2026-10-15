@@ -198,7 +198,6 @@ function AgentChat({ hooks, open, reading, prefill, onOpenDraft, onBusy }: Agent
 			<div className="pg-agent-scroll" ref={scrollRef} role="log" aria-label="Agent chat">
 				{messages.length === 0 ? (
 					<div className="pg-agent-empty">
-						<p>Ask about your mail. The agent reads, searches, labels, drafts and sends.</p>
 						{SUGGESTIONS.map((s) => (
 							<button key={s} type="button" className="pg-btn" onClick={() => submit(s)}>{s}</button>
 						))}

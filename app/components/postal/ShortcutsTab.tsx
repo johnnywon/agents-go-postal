@@ -63,7 +63,7 @@ export function ShortcutList({ overrides, onChange }: { overrides: ShortcutOverr
 		<div className="pg-keys">
 			{onChange && (
 				<div className="pg-keys-intro">
-					<span>Click a shortcut's keys, then press the new key. Esc cancels.</span>
+					<span className="pg-flex" />
 					{edited && (
 						<button type="button" className="pg-btn pg-btn-sm pg-btn-quiet" onClick={() => { setRecording(null); setNote(null); onChange({}); }}>
 							Reset all

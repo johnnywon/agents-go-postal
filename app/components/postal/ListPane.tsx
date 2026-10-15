@@ -61,13 +61,13 @@ export interface ListPaneProps {
 	onHome: () => void;
 }
 
-const EMPTY: Record<string, { Icon: typeof TrayIcon; title: string; body: string }> = {
-	drafts: { Icon: FileIcon, title: "No drafts", body: "Drafts you or the agent start show up here until they're sent." },
-	sent: { Icon: PaperPlaneTiltIcon, title: "Nothing sent yet", body: "Mail you send from any address appears here, with the address it went out from." },
-	archive: { Icon: ArchiveIcon, title: "Archive is empty", body: "Press E on any message to archive it. You can undo." },
-	spam: { Icon: WarningIcon, title: "No spam", body: "Nothing suspicious has arrived." },
-	trash: { Icon: TrashIcon, title: "Trash is empty", body: "Anything you delete lands here first." },
-	starred: { Icon: StarIcon, title: "No starred mail", body: "Star a conversation to keep it here." },
+const EMPTY: Record<string, { Icon: typeof TrayIcon; title: string }> = {
+	drafts: { Icon: FileIcon, title: "No drafts" },
+	sent: { Icon: PaperPlaneTiltIcon, title: "Nothing sent yet" },
+	archive: { Icon: ArchiveIcon, title: "Archive is empty" },
+	spam: { Icon: WarningIcon, title: "No spam" },
+	trash: { Icon: TrashIcon, title: "Trash is empty" },
+	starred: { Icon: StarIcon, title: "No starred mail" },
 };
 
 /** Whether the main pointer can hover. Then the row toolbar waits for it and the selecting check is only a picture. */
@@ -153,10 +153,10 @@ export function ListPane(props: ListPaneProps) {
 	};
 
 	const empty = props.searching
-		? { Icon: MagnifyingGlassIcon, title: "No results", body: "Try fewer words, or a filter like from:, to: or label:." }
+		? { Icon: MagnifyingGlassIcon, title: "No results" }
 		: EMPTY[filter.view] ?? (unreadOnly
-			? { Icon: TrayIcon, title: "No unread mail", body: "Everything here has been read." }
-			: { Icon: TrayIcon, title: "Nothing here", body: "No messages match this view." });
+			? { Icon: TrayIcon, title: "No unread mail" }
+			: { Icon: TrayIcon, title: "Nothing here" });
 
 	let lastDay: string | null = null;
 	const groupByDay = filter.sort === "date";
@@ -253,7 +253,7 @@ export function ListPane(props: ListPaneProps) {
 					>
 						<EnvelopeSimpleIcon size={16} weight={unreadOnly ? "fill" : "regular"} />
 					</button>
-					<button type="button" className="pg-icon-btn" style={{ position: "relative" }} aria-pressed={nFilters > 0} aria-expanded={fltOpen} aria-label={nFilters ? `Filter, ${nFilters} on` : "Filter"} title="Filter · Unread, starred, attachments, date and more" onClick={() => setFltOpen((v) => !v)}>
+					<button type="button" className="pg-icon-btn" style={{ position: "relative" }} aria-pressed={nFilters > 0} aria-expanded={fltOpen} aria-label={nFilters ? `Filter, ${nFilters} on` : "Filter"} title="Filter" onClick={() => setFltOpen((v) => !v)}>
 						<FunnelSimpleIcon size={16} weight={nFilters ? "fill" : "regular"} />
 						{nFilters > 0 && <span className="pg-flt-badge">{nFilters}</span>}
 					</button>
@@ -355,7 +355,6 @@ export function ListPane(props: ListPaneProps) {
 					<div className="pg-empty">
 						<div className="pg-empty-icon"><empty.Icon size={20} /></div>
 						<h2>{empty.title}</h2>
-						<p>{empty.body}</p>
 						<button type="button" className="pg-btn" onClick={props.searching ? props.onClearSearch : props.onHome}>
 							{props.searching ? "Clear search" : "Back to Inbox"}
 							{!props.searching && <Keys id="goInbox" className="pg-keyhint pg-mono" style={{ fontSize: 10, color: "var(--pg-text-8)" }} />}

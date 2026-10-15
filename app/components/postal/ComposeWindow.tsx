@@ -430,7 +430,7 @@ export function Composer(props: ComposerProps) {
 					{inline && <span className="pg-flex" />}
 					<span className="pg-saved" aria-live="polite">{saved ? "Draft saved" : ""}</span>
 					{variant !== "standalone" && (
-						<button type="button" className="pg-cw-btn" title="Open in new window · Keep writing while you read other mail" aria-label="Open in new window" onMouseDown={(e) => { e.preventDefault(); done.current = true; props.onPopOut(stateRef.current); }}>
+						<button type="button" className="pg-cw-btn" title="Open in new window" aria-label="Open in new window" onMouseDown={(e) => { e.preventDefault(); done.current = true; props.onPopOut(stateRef.current); }}>
 							<ArrowSquareOutIcon size={15} />
 						</button>
 					)}
@@ -444,7 +444,7 @@ export function Composer(props: ComposerProps) {
 							</button>
 						</>
 					)}
-					<button type="button" className="pg-cw-btn" title="Save & close · Keeps it in Drafts" aria-label="Save and close" onMouseDown={(e) => { e.preventDefault(); close(); }}>
+					<button type="button" className="pg-cw-btn" title="Save and close" aria-label="Save and close" onMouseDown={(e) => { e.preventDefault(); close(); }}>
 						<XIcon size={15} />
 					</button>
 				</div>
@@ -562,7 +562,7 @@ export function Composer(props: ComposerProps) {
 							<button type="button" className="pg-send" title={tip("send", "Send")} onClick={() => send()} disabled={busy}>
 								Send<PaperPlaneRightIcon size={12} weight="bold" />
 							</button>
-							<button type="button" className="pg-caret" title="Schedule send · Waits in Drafts until the time you pick" aria-label="Schedule send" aria-expanded={schedOpen} onClick={() => { setSchedOpen((v) => !v); setCustom(false); }}>
+							<button type="button" className="pg-caret" title="Schedule send" aria-label="Schedule send" aria-expanded={schedOpen} onClick={() => { setSchedOpen((v) => !v); setCustom(false); }}>
 								<CaretDownIcon size={11} weight="bold" />
 							</button>
 							{schedOpen && (
@@ -646,7 +646,7 @@ export function Composer(props: ComposerProps) {
 						<button type="button" className="pg-btn pg-btn-outline" title="Save as draft" onMouseDown={(e) => { e.preventDefault(); saveNow().then(() => finish("Draft saved")); }}>
 							<FloppyDiskIcon size={14} /><span className="pg-save-label">Save draft</span>
 						</button>
-						<button type="button" className="pg-tool-btn" title="Discard draft · Deletes this draft" aria-label="Discard draft" onMouseDown={(e) => { e.preventDefault(); discard(); }}>
+						<button type="button" className="pg-tool-btn" title="Discard draft" aria-label="Discard draft" onMouseDown={(e) => { e.preventDefault(); discard(); }}>
 							<TrashIcon size={15} />
 						</button>
 					</div>
