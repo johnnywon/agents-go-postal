@@ -181,6 +181,8 @@ export default function EmailIframe({ body, autoSize, remoteImages = true, paddi
 	}, [handleMessage]);
 
 	useEffect(() => {
+		// A height held during a layout motion belongs to the frame being replaced.
+		pendingHeight.current = null;
 		const iframe = iframeRef.current;
 		if (!iframe) return;
 

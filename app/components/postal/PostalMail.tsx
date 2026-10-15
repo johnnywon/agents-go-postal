@@ -228,14 +228,16 @@ function PostalApp({ addresses, domains, autoDraft, demo }: PostalProps) {
 	const showToast = useCallback((t: Omit<ToastState, "id">) => setToast({ ...t, id: Date.now() }), []);
 	const closeToast = useCallback(() => setToast(null), []);
 
-	// A column that closes with focus inside hands it to its rail, or to the search bar on a phone.
+	// A column that closes with focus inside hands it to its rail. On a phone it lets go.
 	const handOffFocus = (side: "left" | "right") => {
 		const column = document.querySelector(`.pg-side[data-side="${side}"] > ${side === "left" ? ".pg-nav" : ".pg-agent"}`);
 		if (!column?.contains(document.activeElement)) return;
 		// After the commit: until then the rail is inert and can't take focus.
 		requestAnimationFrame(() => {
 			const rail = document.querySelector<HTMLElement>(`.pg-side[data-side="${side}"] ${side === "left" ? ".pg-navrail .pg-rail-head" : ".pg-agentrail"}`);
-			(rail?.offsetParent ? rail : searchRef.current)?.focus({ preventScroll: true });
+			// Phones have no rails. Focusing search there would open its full-screen window and the keyboard, so just let go.
+			if (rail?.offsetParent) rail.focus({ preventScroll: true });
+			else if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
 		});
 	};
 	const toggleNav = () => {

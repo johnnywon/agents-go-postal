@@ -132,17 +132,29 @@ function DemoNotice({ compact }: { compact?: boolean }) {
 	);
 }
 
+/**
+ * Puts a prefill in the box and focuses it once the panel can take focus: on its first open
+ * the panel mounts inert for a frame, and focus() on an inert element does nothing.
+ */
+function usePrefill(prefill: AgentPanelProps["prefill"], inert: boolean | undefined, setInput: (text: string) => void, inputRef: React.RefObject<HTMLTextAreaElement | null>) {
+	const focusedFor = useRef<number | null>(null);
+	useEffect(() => {
+		if (prefill) setInput(prefill.text);
+	}, [prefill, setInput]);
+	useEffect(() => {
+		if (!prefill || inert || focusedFor.current === prefill.id) return;
+		focusedFor.current = prefill.id;
+		requestAnimationFrame(() => inputRef.current?.focus());
+	}, [prefill, inert, inputRef]);
+}
+
 function DemoAgentPanel({ reading, prefill, onCollapse, overlay, inert }: AgentPanelProps) {
 	const { tip } = useShortcuts();
 	const [messages, setMessages] = useState<{ id: string; text: string }[]>([]);
 	const [input, setInput] = useState("");
 	const inputRef = useRef<HTMLTextAreaElement>(null);
 	const scrollRef = useRef<HTMLDivElement>(null);
-	useEffect(() => {
-		if (!prefill) return;
-		setInput(prefill.text);
-		requestAnimationFrame(() => inputRef.current?.focus());
-	}, [prefill]);
+	usePrefill(prefill, inert, setInput, inputRef);
 	useEffect(() => {
 		const el = scrollRef.current;
 		if (el) el.scrollTop = el.scrollHeight;
@@ -234,7 +246,7 @@ function LiveAgentPanel(props: AgentPanelProps) {
 
 const SUGGESTIONS = ["What came in today that needs a reply?", "Summarize unread mail", "Draft a reply to the open conversation"];
 
-function AgentChat({ hooks, open, reading, prefill, onOpenDraft, onBusy }: AgentPanelProps & { hooks: Hooks }) {
+function AgentChat({ hooks, open, reading, prefill, inert, onOpenDraft, onBusy }: AgentPanelProps & { hooks: Hooks }) {
 	// One agent for every address; each tool call names the address it acts on.
 	const agent = hooks.useAgent({ agent: "EmailAgent", name: SHARED_AGENT });
 	const context = useRef<AgentContext>({ open });
@@ -272,11 +284,7 @@ function AgentChat({ hooks, open, reading, prefill, onOpenDraft, onBusy }: Agent
 		el.style.height = `${el.scrollHeight}px`;
 	}, [input]);
 
-	useEffect(() => {
-		if (!prefill) return;
-		setInput(prefill.text);
-		requestAnimationFrame(() => inputRef.current?.focus());
-	}, [prefill]);
+	usePrefill(prefill, inert, setInput, inputRef);
 
 	const submit = (text = input) => {
 		const t = text.trim();
