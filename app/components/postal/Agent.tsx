@@ -116,9 +116,23 @@ export function AgentPanel(props: AgentPanelProps) {
  * The panel on a demo build: the same header, suggestions and box, no agent
  * behind it. Whatever is asked gets the notice as the reply.
  */
+/** The demo's notice: the agent is off here. Full in the empty chat, compact as the reply to anything asked. */
+function DemoNotice({ compact }: { compact?: boolean }) {
+	return (
+		<div className="pg-demo-notice" role="note" data-compact={compact || undefined}>
+			<div className="pg-demo-notice-head">
+				<AgentIcon size={14} />
+				<span className="pg-caption">Demo</span>
+			</div>
+			<b>The agent is off in the demo</b>
+			{!compact && <span>On your own deployment it reads, searches, labels, drafts and sends your mail.</span>}
+		</div>
+	);
+}
+
 function DemoAgentPanel({ reading, prefill, onCollapse, overlay }: AgentPanelProps) {
 	const { tip } = useShortcuts();
-	const [messages, setMessages] = useState<UIMessage[]>([]);
+	const [messages, setMessages] = useState<{ id: string; text: string }[]>([]);
 	const [input, setInput] = useState("");
 	const inputRef = useRef<HTMLTextAreaElement>(null);
 	const scrollRef = useRef<HTMLDivElement>(null);
@@ -136,11 +150,7 @@ function DemoAgentPanel({ reading, prefill, onCollapse, overlay }: AgentPanelPro
 		if (!t) return;
 		setInput("");
 		const id = Date.now();
-		setMessages((m) => [
-			...m,
-			{ id: `u${id}`, role: "user", parts: [{ type: "text", text: t }] },
-			{ id: `a${id}`, role: "assistant", parts: [{ type: "text", text: DEMO_AGENT_NOTICE }] },
-		]);
+		setMessages((m) => [...m, { id: `q${id}`, text: t }]);
 	};
 	return (
 		<aside className="pg-agent" aria-label="PluraMail Agent" data-overlay={overlay || undefined}>
@@ -155,14 +165,19 @@ function DemoAgentPanel({ reading, prefill, onCollapse, overlay }: AgentPanelPro
 			<div className="pg-agent-scroll" ref={scrollRef} role="log" aria-label="Agent chat">
 				{messages.length === 0 ? (
 					<div className="pg-agent-empty">
-						<p className="pg-agent-notice">{DEMO_AGENT_NOTICE}</p>
+						<DemoNotice />
 						{SUGGESTIONS.map((s) => (
 							<button key={s} type="button" className="pg-btn" onClick={() => submit(s)}>{s}</button>
 						))}
 					</div>
 				) : (
 					<div className="pg-agent-thread">
-						{messages.map((m) => <ChatMessage key={m.id} message={m} onOpenDraft={() => {}} />)}
+						{messages.map((m) => (
+							<div key={m.id} className="pg-agent-turn">
+								<div className="pg-agent-q" role="article" aria-label="You">{m.text}</div>
+								<div role="article" aria-label="Agent"><DemoNotice compact /></div>
+							</div>
+						))}
 					</div>
 				)}
 			</div>

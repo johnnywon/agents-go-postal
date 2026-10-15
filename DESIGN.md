@@ -45,6 +45,7 @@ An address always renders as **bold handle**, muted `@`, then the domain in its 
 - There is no logo in the app. The name appears only in the page title.
 - The list column is `clamp(280px, 30vw, 430px)`. Nothing may overflow at 280px.
 - At 1100 to 1300px the left column starts as its rail and opens as an overlay; the agent panel overlays the reader.
+- On a demo build the agent panel keeps its place and buttons but has no agent behind it. The chat opens on the demo notice (`.pg-demo-notice`): a raised 6px card with the robot and a mono DEMO caption, the title "The agent is off in the demo" and one muted line on what it does in a deployment. Anything asked gets the compact card, title only, as the reply.
 - At 600px and below: one pane at a time with a Back control, the left column as a drawer, the agent as a bottom sheet, the composer full screen, 44px targets and 16px inputs.
 
 ### State

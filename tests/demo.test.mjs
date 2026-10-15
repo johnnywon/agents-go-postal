@@ -292,9 +292,10 @@ test("a demo keeps the agent entry points, answers in the panel with a notice, a
 	const read = (f) => readFileSync(`app/components/postal/${f}`, "utf8");
 	const agent = read("Agent.tsx");
 	assert.match(agent, /return useDemo\(\) \? <DemoAgentPanel \{\.\.\.props\} \/> : <LiveAgentPanel \{\.\.\.props\} \/>;/, "the demo panel has no agent socket");
-	const demoPanel = agent.slice(agent.indexOf("function DemoAgentPanel"), agent.indexOf("function LiveAgentPanel"));
+	const demoPanel = agent.slice(agent.indexOf("function DemoNotice"), agent.indexOf("function LiveAgentPanel"));
 	assert.doesNotMatch(demoPanel, /useAgent|useAgentChat/);
-	assert.match(demoPanel, /DEMO_AGENT_NOTICE/);
+	assert.match(demoPanel, /<DemoNotice \/>/, "the empty chat shows the notice");
+	assert.match(demoPanel, /<DemoNotice compact \/>/, "a question gets the compact notice as the reply");
 	assert.match(agent, /if \(demo\) return Promise\.reject\(new Error\(DEMO_AGENT_NOTICE\)\);/, "Draft and Draft reply show the notice");
 	assert.doesNotMatch(read("SearchBar.tsx"), /demo/, "search keeps its Ask rows");
 	assert.doesNotMatch(read("Reader.tsx"), /!demo/, "the Reply bar keeps Draft reply");

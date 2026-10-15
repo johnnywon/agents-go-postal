@@ -805,6 +805,12 @@ html:has(.postal), html:has(.postal) body { background: var(--pg-base, #141518);
 .pg-bot.is-small { width: 20px; height: 20px; }
 .pg-agent-scroll { flex: 1; overflow-y: auto; display: flex; flex-direction: column; }
 .pg-agent-thread { padding: 14px 12px; display: flex; flex-direction: column; gap: 10px; }
+/* The demo's notice in the agent panel: the agent doesn't run on a demo build. */
+.pg-demo-notice { display: flex; flex-direction: column; gap: 6px; padding: 12px; border: 1px solid var(--pg-line-2); border-radius: 6px; background: var(--pg-raised); font-size: 12px; line-height: 1.5; color: var(--pg-text-6); }
+.pg-demo-notice-head { display: flex; align-items: center; gap: 6px; color: var(--pg-text-4); }
+.pg-demo-notice b { font-size: 13px; font-weight: 600; line-height: 1.35; color: var(--pg-text-2); }
+.pg-demo-notice[data-compact] { gap: 4px; padding: 10px 12px; }
+.pg-agent-empty .pg-demo-notice { margin-bottom: 6px; }
 .pg-agent-turn { display: flex; flex-direction: column; gap: 10px; }
 .pg-agent-q { align-self: flex-end; max-width: 88%; background: var(--pg-hover-raised); padding: 8px 10px; font-size: 13px; line-height: 1.45; color: var(--pg-text-2); white-space: pre-wrap; overflow-wrap: anywhere; }
 .postal[data-theme="dark"] .pg-agent-q { background: #24262b; }
