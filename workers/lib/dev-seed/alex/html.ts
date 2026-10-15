@@ -13,7 +13,7 @@ export type PhotoId = keyof typeof PHOTO_BASE64;
 
 /** Source and license for each photo, as assets/manifest.json records them. */
 export const PHOTO_CREDITS: Record<PhotoId, { title: string; source: string; creator: string; license: string; licenseUrl: string; width: number; height: number }> = {
-	"food-burrito": { title: "Burrito", source: "https://commons.wikimedia.org/wiki/File:Burrito.jpg", creator: "Wotancito", license: "CC BY-SA 4.0", licenseUrl: "https://creativecommons.org/licenses/by-sa/4.0/", width: 960, height: 720 },
+	"food-burrito": { title: "Beef birria burrito with sauces to taste", source: "https://commons.wikimedia.org/wiki/File:Beef_birria_burrito_with_sauces_to_taste.jpg", creator: "Ser Amantio di Nicolao", license: "CC0", licenseUrl: "https://creativecommons.org/publicdomain/zero/1.0/", width: 960, height: 540 },
 	"football-stadium": { title: "Scott Stadium during an American Football game", source: "https://commons.wikimedia.org/wiki/File:Scott_Stadium_during_an_American_Football_game.jpg", creator: "carlinmack", license: "CC0", licenseUrl: "https://creativecommons.org/publicdomain/zero/1.0/", width: 960, height: 720 },
 	coffee: { title: "Coffee cup seen from above", source: "https://commons.wikimedia.org/wiki/File:Coffee_cup_seen_from_above.jpg", creator: "www.Pixel.la Free Stock Photos", license: "CC0", licenseUrl: "https://creativecommons.org/publicdomain/zero/1.0/", width: 960, height: 540 },
 	keyboard: { title: "Keyboard", source: "https://commons.wikimedia.org/wiki/File:Keyboard_(Unsplash).jpg", creator: "Anas Alshanti", license: "CC0", licenseUrl: "https://creativecommons.org/publicdomain/zero/1.0/", width: 960, height: 606 },
