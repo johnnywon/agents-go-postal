@@ -110,3 +110,11 @@ test("a row's Select is a checkbox that stays in the accessibility tree without 
 test("the Filter button's name says how many filters are on", () => {
 	assert.match(read("app/components/postal/ListPane.tsx"), /aria-label=\{nFilters \? `Filter, \$\{nFilters\} on` : "Filter"\}/);
 });
+
+test("SearchWindow suggestions and filter menu items name their parts with commas", () => {
+	const search = read("app/components/postal/SearchWindow.tsx");
+	assert.match(search, /role="option"\n\t+aria-label=\{rowLabel\(row\)\}/);
+	assert.match(search, /\.join\(", "\)/);
+	const list = read("app/components/postal/ListPane.tsx");
+	assert.equal((list.match(/role="menuitemcheckbox" aria-checked=\{on\} aria-label=/g) ?? []).length, 2);
+});

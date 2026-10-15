@@ -77,6 +77,29 @@ function Marked({ text, terms }: { text: string; terms: string[] }) {
 	return <>{marks(text, terms).map((p, i) => (p.mark ? <mark key={i}>{p.text}</mark> : p.text))}</>;
 }
 
+/** A row's accessible name: its parts joined with ", ", so agents and screen readers don't read "Inkwell Print Co.1". */
+export function rowLabel(row: WindowRow): string {
+	const n = (count: number | null | undefined) => (count == null ? "" : count.toLocaleString());
+	const parts = (() => {
+		switch (row.kind) {
+			case "completion": return [row.completion.label, row.completion.detail, n(row.completion.count)];
+			case "result": {
+				const r = row.row;
+				const today = new Date(r.date).toDateString() === new Date().toDateString();
+				return [r.sender_name || r.sender_addr, today ? timeLabel(r.date) : dayLabel(r.date), r.subject || "(no subject)"];
+			}
+			case "filter": return [row.filter.desc, row.filter.token, n(row.filter.count)];
+			case "address": return [row.address, row.count ? n(row.count) : ""];
+			case "person": return [row.name, row.address, n(row.count)];
+			case "recent": return [row.text];
+			case "saved": return [row.name, row.name !== row.query ? row.query : "", n(row.count)];
+			case "date": return [row.label];
+			case "action": return [row.label, row.detail];
+		}
+	})();
+	return parts.filter((p) => p && String(p).trim()).join(", ");
+}
+
 function RowBody({ row, terms, identities }: { row: WindowRow; terms: string[]; identities: Identities }) {
 	switch (row.kind) {
 		case "completion":
@@ -232,6 +255,7 @@ function Section({ section, props }: { section: WindowSection; props: SearchWind
 					key={row.id}
 					id={rowDomId(row.id)}
 					role="option"
+					aria-label={rowLabel(row)}
 					aria-selected={props.active === row.id}
 					data-active={props.active === row.id}
 					data-kind={row.kind}

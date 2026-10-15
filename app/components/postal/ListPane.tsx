@@ -282,7 +282,7 @@ export function ListPane(props: ListPaneProps) {
 								] as const).map(([kind, value, label, Icon, n]) => {
 									const on = hasChip(filter, kind, value);
 									return (
-										<button key={value} type="button" role="menuitemcheckbox" aria-checked={on} className="pg-menu-item" onClick={() => go(toggleChip(filter, { kind, value }))}>
+										<button key={value} type="button" role="menuitemcheckbox" aria-checked={on} aria-label={n == null ? label : `${label}, ${n}`} className="pg-menu-item" onClick={() => go(toggleChip(filter, { kind, value }))}>
 											<span className="pg-check pg-check-neutral" data-on={on}>{on && <CheckIcon size={10} weight="bold" />}</span>
 											<Icon size={14} color="var(--pg-text-6)" style={{ flex: "none" }} />
 											<span className="pg-flex pg-ellipsis">{label}</span>
@@ -295,7 +295,7 @@ export function ListPane(props: ListPaneProps) {
 								{props.labels.map((label) => {
 									const on = hasChip(filter, "label", label.id);
 									return (
-										<button key={label.id} type="button" role="menuitemcheckbox" aria-checked={on} className="pg-menu-item" onClick={() => go(toggleChip(filter, { kind: "label", value: label.id }))}>
+										<button key={label.id} type="button" role="menuitemcheckbox" aria-checked={on} aria-label={labelFacet.has(label.id) ? `${label.name}, ${labelFacet.get(label.id)}` : label.name} className="pg-menu-item" onClick={() => go(toggleChip(filter, { kind: "label", value: label.id }))}>
 											<span className="pg-check pg-check-neutral" data-on={on}>{on && <CheckIcon size={10} weight="bold" />}</span>
 											<LabelTag id={label.id} />
 											<span className="pg-flex pg-ellipsis">{label.name}</span>
