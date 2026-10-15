@@ -1,8 +1,6 @@
 # PluraMail
 
-**An inbox your agents can work. Self-hosted email UI and MCP server for every address on your domains, on Cloudflare Workers.**
-
-Cloudflare receives and sends your domain's mail but doesn't include a mail client. PluraMail is one: every address on every domain in one list, on desktop or phone, with an agent that can search, label, draft and send. It runs entirely in your Cloudflare account.
+Self-hosted webmail and MCP server for Cloudflare Email Routing. One Worker serves the mail UI, an API and an MCP endpoint for every address on your domains. Mail is stored in D1 and R2 in your own Cloudflare account.
 
 [![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/johnnywon/pluramail)
 [![Version 0.8.1](https://img.shields.io/badge/version-0.8.1-blue)](https://github.com/johnnywon/pluramail/releases)
@@ -10,38 +8,41 @@ Cloudflare receives and sends your domain's mail but doesn't include a mail clie
 [![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
 [![Runs on Cloudflare Workers](https://img.shields.io/badge/runs%20on-Cloudflare%20Workers-f38020?logo=cloudflare&logoColor=white)](https://developers.cloudflare.com/workers/)
 
-**[Try the demo](https://pluramail-demo.pluramail.workers.dev)**: a sample inbox with 100 messages in nine mailboxes, no sign-in. It sends nothing and resets every hour.
-
-Needs a domain on Cloudflare, R2 and Cloudflare Access. Sending needs the Workers Paid plan and Cloudflare Email Sending, which is in public beta.
-
-**v0.8.1, ready to deploy.** One production deployment has handled real mail on it every day since May 2026. Before 1.0, an upgrade can need a step, such as a D1 migration or a config change, and the [changelog](CHANGELOG.md) names it in every release. Pin a [release](https://github.com/johnnywon/pluramail/releases) tag to choose when you upgrade.
+Demo: [pluramail-demo.pluramail.workers.dev](https://pluramail-demo.pluramail.workers.dev). Sample data, no sign-in, sending disabled, reset every hour.
 
 <picture>
   <source media="(prefers-color-scheme: light)" srcset="docs/images/inbox-light.jpg">
   <img src="docs/images/inbox.jpg" alt="The inbox: every address in one list, a conversation open, the agent on the right">
 </picture>
 
-## What you can run on it
+## Requirements
 
-- **Several companies or products.** `sales@`, `support@` and `billing@` on every domain land in one list, and each reply leaves from the address that received the mail.
-- **A domain per client.** One inbox, a label per client, and `to:` narrows the list to one of them.
-- **Agents working your mail.** Connect Claude Code, Cursor or your own agent over MCP to search, label, draft and send across every address.
+- A domain on Cloudflare with Email Routing
+- D1, R2 and Cloudflare Access
+- For sending: Workers Paid and Cloudflare Email Sending (public beta)
 
-## Product tour
+## Status
+
+Pre-1.0. A minor release can require a D1 migration or a configuration change. [CHANGELOG.md](CHANGELOG.md) lists the required steps for each release, and `npm run deploy` applies D1 migrations before it deploys. Pin a [release](https://github.com/johnnywon/pluramail/releases) tag to control when you upgrade.
+
+## Features
+
+- One list for every address across your domains, with views per address and per domain, labels and saved searches.
+- Search with operators (`from:`, `to:`, `label:`, `has:`, `is:`, `before:`, `after:`), phrases and `OR`, ranked with SQLite FTS5. The same syntax works in URLs, the in-app agent and the MCP tools.
+- Replies are sent from the address that received the message.
+- An in-app agent on Workers AI, or on OpenRouter models with zero data retention, that can search, label, draft and send within per-address daily limits.
+- An MCP server at `/mcp` with 22 tools, behind the same Cloudflare Access policy as the app.
+- Attachments, bulk actions with undo, scheduled send, signatures, rebindable keyboard shortcuts and a phone layout.
 
 <picture>
   <source media="(prefers-color-scheme: light)" srcset="docs/images/search-light.jpg">
   <img src="docs/images/search.jpg" alt="Search with operators, top results and filters that narrow them">
 </picture>
 
-**Search every address at once.** Operators, phrases and `OR`, ranked by relevance. The same query works in the URL, the agent and every MCP tool.
-
 <picture>
   <source media="(prefers-color-scheme: light)" srcset="docs/images/compose-light.jpg">
   <img src="docs/images/compose.jpg" alt="Replying from the address the message reached, with the original quoted">
 </picture>
-
-**Reply from the right address.** Replies go out from the address the message reached. Drafts the agent writes open in the same composer for you to review and send.
 
 <p align="center">
 <picture>
@@ -50,10 +51,6 @@ Needs a domain on Cloudflare, R2 and Cloudflare Access. Sending needs the Worker
 </picture>
 </p>
 
-**Plug in any agent over MCP.** 22 tools to read, search, draft, send, label and move, behind the same Cloudflare Access login as the app.
-
-Also: an in-app agent on Workers AI or zero data retention OpenRouter models, attachments, bulk actions with undo, scheduled send, signatures, Gmail-style keyboard shortcuts and a phone layout.
-
 <p align="center">
 <picture>
   <source media="(prefers-color-scheme: light)" srcset="docs/images/mobile-light.jpg">
@@ -61,13 +58,7 @@ Also: an in-app agent on Workers AI or zero data retention OpenRouter models, at
 </picture>
 </p>
 
-## Why not something else
-
-- **Forwarding to Gmail or Outlook.** Each address needs its own Send As setup, and an agent you connect sees your whole personal mailbox.
-- **A mailbox plan per address.** Cost grows with every address and domain, and agents reach the mail through IMAP or a vendor API.
-- **A mail server on a VPS.** A server to patch, an IP reputation to keep, and a mail client still to choose. Here Cloudflare handles delivery, SPF and DKIM, and the client and agent tools come with it.
-
-## How it works
+## Architecture
 
 ```text
    Sender           You, in a browser    Claude Code, Cursor,   Cron, every
@@ -94,27 +85,26 @@ Also: an in-app agent on Workers AI or zero data retention OpenRouter models, at
                                   data retention)
 ```
 
-One Worker in your account. Mail is stored in D1, one database for every address. How mail arrives and leaves is in [Architecture](docs/architecture.md).
+A single Worker handles inbound mail (`email()`), the HTTP API and UI, the MCP endpoint and a cron trigger for scheduled sends and attachment text. Mail metadata and search indexes are in one D1 database for all addresses; attachments and large bodies are in R2. The agent runs in a Durable Object. Details are in [docs/architecture.md](docs/architecture.md).
 
-## Before you deploy
+## Security and data
 
-**What you can rely on**
+- Mail stays in your Cloudflare account. It leaves only if you select an OpenRouter model, and the model list is limited to zero data retention endpoints.
+- Requests are refused until Cloudflare Access is configured.
+- Incoming HTML is sanitized and rendered in a sandboxed iframe.
+- Each send uses a send key, so a retried request does not send twice.
+- D1 migrations are append-only.
 
-- Your mail stays in your Cloudflare account. No outside service sees it unless you choose an OpenRouter model, and those are limited to zero data retention endpoints.
-- Every request is refused until Cloudflare Access is set up, and incoming HTML is sanitised and sandboxed.
-- A send goes out once, even when a request is retried.
-- Upgrades don't drop stored mail. Storage migrations are append-only.
+## Limitations
 
-**What to know first**
-
-- Email Sending is in public beta and needs Workers Paid. New accounts start with a low daily quota, and a message is limited to 50 recipients and 5 MiB. Receiving uses Email Routing, which isn't in beta and works on Workers Free.
-- Agents can send when you ask them to, up to a daily limit per address you set in the Console (20 by default). There's no approval step yet; it's the first item on the [roadmap](#roadmap). Console > Activity shows what they did.
-- There's no mail export, IMAP or SMTP yet. `wrangler d1 time-travel` restores the last 30 days.
-- Everyone who passes Access sees every address.
+- Email Sending is in public beta. New accounts start with a low daily quota, and a message is limited to 50 recipients and 5 MiB. Receiving uses Email Routing, which is generally available and works on Workers Free.
+- Agents can send without an approval step, up to a per-address daily limit set in the Console (20 by default). Agent actions are logged in Console > Activity. An approval queue is on the [roadmap](#roadmap).
+- There is no export, IMAP or SMTP. `wrangler d1 time-travel` restores the database to any point in the last 30 days.
+- There are no per-user permissions. Everyone who passes Access can read every address.
 
 ## Quick start
 
-1. Click **Deploy to Cloudflare** above and enter your domain and addresses. It copies the repo to your GitHub, creates the storage and deploys.
+1. Click **Deploy to Cloudflare** above and enter your domain and addresses. It copies the repository to your GitHub account, creates the storage and deploys.
 2. Turn on Cloudflare Access for the Worker and save its two values as secrets.
 3. Route each address to the Worker with Email Routing, and enable Email Sending.
 
@@ -122,11 +112,11 @@ Each step, with commands, is in [docs/setup.md](docs/setup.md).
 
 ## Roadmap
 
-- **Now:** an approval queue, and scoped agent access.
-- **Next:** one-command setup, mail import, starting on Workers Free, rules in plain words.
-- **Later:** shared inboxes, Queue events, search by meaning, notifications and offline.
+- **Now:** an approval queue and scoped agent access.
+- **Next:** one-command setup, mail import, running on Workers Free, rules in plain words.
+- **Later:** shared inboxes, Queue events, semantic search, notifications and offline use.
 
-Details are in [docs/roadmap.md](docs/roadmap.md). [Open an issue](https://github.com/johnnywon/pluramail/issues) to argue for one or propose another.
+Details are in [docs/roadmap.md](docs/roadmap.md). Use [issues](https://github.com/johnnywon/pluramail/issues) for requests and bug reports.
 
 ## Docs
 
@@ -140,7 +130,7 @@ Details are in [docs/roadmap.md](docs/roadmap.md). [Open an issue](https://githu
 
 ## Contributing
 
-Issues and pull requests are welcome. Run `npm test`, `npm run typecheck` and `npm run build` before you open one, and use `example.com`, `example.org` and `example.net` in config, docs and tests. See [docs/development.md](docs/development.md).
+Run `npm test`, `npm run typecheck` and `npm run build` before opening a pull request, and use `example.com`, `example.org` and `example.net` in config, docs and tests. See [docs/development.md](docs/development.md).
 
 ## Credits and license
 
