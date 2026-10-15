@@ -2,6 +2,21 @@
 
 Versions follow [semantic versioning](https://semver.org). Before 1.0, a minor version can break things. Each entry names any new D1 migration. `npm run deploy` applies it; if you deploy another way, run `wrangler d1 migrations apply DB --remote` before you deploy that version.
 
+## 0.8.1
+
+Fixes after 0.8.0.
+
+- Inline images apply only to HTML mail.
+- The demo's hourly reset clears the activity log, uses the cron's scheduled time, and no longer overlaps a visitor's first request seeding the inbox.
+- A demo counts an AI action against `DEMO_AI_DAILY` only after the request passes CSRF and validation.
+- A demo shows no agent entry points: no Ask rows in search, no agent button on labels, no agent column in the shortcut map, and the agent key does nothing. Its Console shows only Settings, read-only apart from Labels.
+- Search suggestions and the Filter menu name their parts with commas for screen readers and browser agents.
+- Less copy: no Console subtitles or tab intros, empty folders show a title only, tooltips name the action and its key, and search says Search mail. The log-out dialog no longer says nothing is sent while you're away.
+- One word per action: Move to Trash, New message, Cancel. US spelling throughout. Keys shown in the editor and search come from your own shortcuts.
+- README screenshots retaken from the sample inbox.
+
+No D1 migration.
+
 ## 0.8.0
 
 The app is readable to browser agents, and a demo build fills itself with sample mail.
