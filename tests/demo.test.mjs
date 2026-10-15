@@ -208,6 +208,7 @@ test("the demo cron sends nothing and writes the sample inbox again on the hour"
 	});
 	assert.ok(due.id);
 	await call("_sql", `INSERT INTO labels (id, name, color) VALUES ('visitor', 'Visitor label', '#888888')`);
+	await call("_sql", `INSERT INTO agent_activity (at, actor, action, tool, summary) VALUES ('2026-10-13T08:30:00Z', 'person', 'draft', 'redraft', 'a visitor''s instruction')`);
 
 	const [quiet] = await call("cron", T0 + 5 * 60_000);
 	assert.deepEqual(quiet, { demo: null });
@@ -220,12 +221,24 @@ test("the demo cron sends nothing and writes the sample inbox again on the hour"
 	assert.equal(await count(`SELECT COUNT(*) AS n FROM scheduled_sends`), 0);
 	assert.equal(await count(`SELECT COUNT(*) AS n FROM labels WHERE name = 'Visitor label'`), 0);
 	assert.equal(await count(`SELECT COUNT(*) AS n FROM labels`), reset.demo.labels);
+	assert.equal(await count(`SELECT COUNT(*) AS n FROM agent_activity`), 0, "visitors' activity is gone");
 	const newest = (await call("rows", `SELECT MAX(date) AS d FROM messages WHERE folder_id = 'inbox'`))[0].d;
 	assert.ok(T0 - Date.parse(newest) < 3_600_000, `newest inbox mail is fresh: ${newest}`);
 
 	const [again] = await call("cron", T0 + 3_600_000);
 	assert.equal(again.demo.messages, reset.demo.messages, "a second reset writes the same inbox");
 	assert.equal(await count(`SELECT COUNT(*) AS n FROM messages`), reset.demo.messages);
+});
+
+test("a first request during the reset doesn't seed the inbox a second time", async () => {
+	await call("_sql", "DELETE FROM messages");
+	await call("marker", new Date().toISOString());
+	await call("ensure");
+	assert.equal(await count("SELECT COUNT(*) AS n FROM messages"), 0, "the reset is writing the inbox, so the request leaves it");
+	await call("marker", new Date(Date.now() - 3_600_000).toISOString());
+	await call("ensure");
+	assert.ok(await count("SELECT COUNT(*) AS n FROM messages") > 0, "a marker left by a reset that died doesn't block seeding");
+	await call("marker", "");
 });
 
 test("the daily AI cap: calls stop at the cap and start again the next UTC day", async () => {

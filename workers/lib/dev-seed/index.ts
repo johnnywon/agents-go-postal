@@ -148,14 +148,31 @@ export async function seedMail(env: Env, opts: { tzOffset?: number; extra?: numb
  */
 export async function resetDemo(env: Env, now = Date.now()): Promise<SeedSummary> {
 	const sql = recordsSql(env);
-	for (const table of ["messages", "labels", "saved_searches", "bulk_job", "undo"]) await sql.run(`DELETE FROM ${table}`);
-	let cursor: string | undefined;
-	do {
-		const page = await env.BUCKET.list({ prefix: "attachments/", cursor, limit: 1000 });
-		if (page.objects.length > 0) await env.BUCKET.delete(page.objects.map((o) => o.key));
-		cursor = page.truncated ? page.cursor : undefined;
-	} while (cursor);
-	return seedMail(env, { now, profile: seedProfile(env) });
+	// A first request in another isolate sees an empty inbox while this runs; the marker tells it not to seed too.
+	await env.BUCKET.put(RESET_MARKER, new Date(now).toISOString());
+	try {
+		// The activity log goes too: it holds what visitors typed into Redraft.
+		for (const table of ["messages", "labels", "saved_searches", "bulk_job", "undo", "agent_activity", "auto_draft_runs"]) await sql.run(`DELETE FROM ${table}`);
+		let cursor: string | undefined;
+		do {
+			const page = await env.BUCKET.list({ prefix: "attachments/", cursor, limit: 1000 });
+			if (page.objects.length > 0) await env.BUCKET.delete(page.objects.map((o) => o.key));
+			cursor = page.truncated ? page.cursor : undefined;
+		} while (cursor);
+		return await seedMail(env, { now, profile: seedProfile(env) });
+	} finally {
+		await env.BUCKET.delete(RESET_MARKER);
+	}
+}
+
+/** Set while a demo reset rewrites the inbox. Older than this, it's left from a reset that died. */
+export const RESET_MARKER = "demo/reset-started";
+const RESET_MARKER_TTL = 10 * 60_000;
+
+async function resetRunning(env: Env): Promise<boolean> {
+	const marker = await env.BUCKET.get(RESET_MARKER);
+	if (!marker) return false;
+	return Date.now() - Date.parse(await marker.text()) < RESET_MARKER_TTL;
 }
 
 /**
@@ -191,6 +208,11 @@ export function ensureDevMail(env: Env): Promise<void> {
 	started ??= (async () => {
 		if (String(env.DEV_SEED ?? "").toLowerCase() === "off") return;
 		try {
+			// The hourly reset writes the inbox itself. Try again on a later request.
+			if (await resetRunning(env)) {
+				started = undefined;
+				return;
+			}
 			const profile = seedProfile(env);
 			const row = await recordsSql(env).first(`SELECT COUNT(*) AS n, MAX(date) AS newest FROM messages WHERE email_id LIKE ?`, `${PROFILES[profile].prefix}%`);
 			if (Number(row?.n) > 0) {
