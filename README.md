@@ -1,4 +1,9 @@
-# PluraMail
+<h1>
+<picture>
+  <source media="(prefers-color-scheme: light)" srcset="docs/images/logo-light.png">
+  <img src="docs/images/logo.png" alt="PluraMail" width="320">
+</picture>
+</h1>
 
 Self-hosted webmail and MCP server for Cloudflare Email Routing. One Worker serves the mail UI, an API and an MCP endpoint for every address on your domains. Mail is stored in D1 and R2 in your own Cloudflare account.
 

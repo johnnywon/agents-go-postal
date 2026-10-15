@@ -39,6 +39,18 @@ function Svg({ size = 16, color, className, style, width = 24, children }: NavIc
 }
 
 /** All addresses: a wall of PO boxes, the one with mail filled. */
+/** The PluraMail mark, the Fold: three flaps, the last in Signal. Only in the top-left corner (sidebar header and rail). */
+export function FoldMark({ size = 16, className, style }: { size?: number; className?: string; style?: CSSProperties }) {
+	return (
+		<svg width={size} height={size} viewBox="0 0 48 48" fill="none" strokeWidth="5" strokeLinecap="round" strokeLinejoin="round" className={className} style={{ flex: "none", ...style }} aria-hidden="true">
+			{/* Flaps keep full ink or paper contrast, not the muted header text. */}
+			<polyline points="7,9 24,20 41,9" stroke="var(--pg-text-1)" />
+			<polyline points="7,20 24,31 41,20" stroke="var(--pg-text-1)" />
+			<polyline points="7,31 24,42 41,31" stroke="#E46F2C" />
+		</svg>
+	);
+}
+
 export function AllAddressesIcon(props: NavIconProps) {
 	return (
 		<Svg {...props}>
