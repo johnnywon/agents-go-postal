@@ -486,7 +486,7 @@ function PostalApp({ addresses, domains, autoDraft, demo }: PostalProps) {
 			reply: () => reply("reply"),
 			replyAll: () => reply("reply-all"),
 			forward: () => reply("forward"),
-			agent: () => (togglePanelRef.current(), true),
+			agent: () => (demo ? false : (togglePanelRef.current(), true)),
 			sidebar: () => (toggleNav(), true),
 			panels: () => (toggleBoth(), true),
 			help: () => (setHelpOpen(true), true),

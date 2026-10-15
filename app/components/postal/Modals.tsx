@@ -19,7 +19,8 @@ import { Editor } from "./Editor";
 import { htmlToPlainText } from "~/lib/utils";
 import { AddressText, type Identities, Swatch } from "./identity";
 import { LabelsTab } from "./LabelsTab";
-import type { ConsoleTab } from "./console-tabs";
+import { AGENT_TABS, type ConsoleTab } from "./console-tabs";
+import { useDemo } from "~/lib/demo";
 import { LimitsTab, useAgentLimitsDraft } from "./LimitsTab";
 import { OverviewTab } from "./OverviewTab";
 import { ActivityTab } from "./ActivityTab";
@@ -102,7 +103,7 @@ function Setting({ title, sub, children }: { title: string; sub?: React.ReactNod
 }
 
 /** The console: what agents did and may do, then the mail client's settings. */
-export function ConsoleModal({ tab, onTab, prefs, setPrefs, addresses, identities, info, autoDraft, onClose, onSaved }: {
+export function ConsoleModal({ tab: asked, onTab, prefs, setPrefs, addresses, identities, info, autoDraft, onClose, onSaved }: {
 	tab: ConsoleTab;
 	onTab: (tab: ConsoleTab) => void;
 	prefs: Prefs;
@@ -114,6 +115,10 @@ export function ConsoleModal({ tab, onTab, prefs, setPrefs, addresses, identitie
 	onClose: () => void;
 	onSaved: (message: string) => void;
 }) {
+	// A demo has no agents, and its settings are read-only: the server refuses every save.
+	const demo = useDemo();
+	const tab: ConsoleTab = demo && (AGENT_TABS as readonly string[]).includes(asked) ? "general" : asked;
+	const readOnly = demo && READ_ONLY_IN_DEMO.has(tab);
 	const initialSigs = Object.fromEntries(addresses.map((a) => {
 		const sig = info.get(a)?.mailbox?.settings?.signature;
 		const html = sig?.html || (sig?.text ? textToParagraphs(sig.text) : "");
@@ -185,7 +190,7 @@ export function ConsoleModal({ tab, onTab, prefs, setPrefs, addresses, identitie
 		}
 	};
 
-	const groups: { title: string; tabs: { id: ConsoleTab; label: string; icon: React.ReactNode }[] }[] = [
+	const allGroups: { title: string; tabs: { id: ConsoleTab; label: string; icon: React.ReactNode }[] }[] = [
 		{
 			title: "Agents",
 			tabs: [
@@ -209,6 +214,7 @@ export function ConsoleModal({ tab, onTab, prefs, setPrefs, addresses, identitie
 			],
 		},
 	];
+	const groups = demo ? allGroups.filter((g) => g.title !== "Agents") : allGroups;
 
 	return (
 		<Modal className="is-settings is-console" label="Console" onClose={onClose}>
@@ -225,6 +231,7 @@ export function ConsoleModal({ tab, onTab, prefs, setPrefs, addresses, identitie
 					))}
 				</div>
 				<div className="pg-tab-body" role="tabpanel">
+					<fieldset className="pg-plain-fieldset" disabled={readOnly}>
 					{tab === "general" && (
 						<>
 							<Setting title="Theme" sub="Dark is the default. System follows your device.">
@@ -366,17 +373,27 @@ export function ConsoleModal({ tab, onTab, prefs, setPrefs, addresses, identitie
 						/>
 					)}
 					{tab === "storage" && <StorageTab identities={identities} />}
+					</fieldset>
 				</div>
 			</div>
 			<div className="pg-modal-foot">
 				<span className="pg-note" role="status">{error ?? (dirty ? "Unsaved changes" : "")}</span>
 				<div className="pg-flex" />
-				<button type="button" className="pg-btn" onClick={onClose}>Cancel</button>
-				<button type="button" className="pg-btn pg-btn-primary" onClick={save} disabled={saving}>Save changes</button>
+				{demo ? (
+					<button type="button" className="pg-btn" onClick={onClose}>Close</button>
+				) : (
+					<>
+						<button type="button" className="pg-btn" onClick={onClose}>Cancel</button>
+						<button type="button" className="pg-btn pg-btn-primary" onClick={save} disabled={saving}>Save changes</button>
+					</>
+				)}
 			</div>
 		</Modal>
 	);
 }
+
+/** Tabs whose changes go through Save, which a demo refuses. Labels save on their own and a demo allows them. */
+const READ_ONLY_IN_DEMO = new Set<ConsoleTab>(["general", "addresses", "signatures", "shortcuts"]);
 
 const MCP_TOOLS = [
 	["list_mailboxes", "List all mailboxes"],

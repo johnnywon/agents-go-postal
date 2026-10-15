@@ -217,7 +217,7 @@ export const SearchBar = forwardRef<HTMLInputElement, SearchBarProps>(function S
 					choose: () => setText(appendTerm(text, `to:${a.address}`)),
 				})),
 			});
-			out.push({
+			if (!demo) out.push({
 				id: "ask", title: "Ask", side: true,
 				rows: [{ id: "ask", kind: "action", icon: "ask", label: "Ask the agent…", choose: () => { leave(); props.onAsk(""); } }],
 			});
@@ -273,19 +273,20 @@ export const SearchBar = forwardRef<HTMLInputElement, SearchBarProps>(function S
 							if (!interpreting) void interpret(request);
 						},
 					},
-					{
-						id: "ask", kind: "action", icon: "ask", label: "Ask the agent about it",
+					// A demo has the search model but no agent panel.
+					...(demo ? [] : [{
+						id: "ask", kind: "action" as const, icon: "ask" as const, label: "Ask the agent about it",
 						choose: () => {
 							remember(text);
 							leave();
 							props.onAsk(request);
 						},
-					},
+					}]),
 				],
 			});
 		}
 		return out;
-	}, [ctx, text, hasQ, recent, suggest, suggestCurrent, interpreting, interpreted, props.saved, props.filters, props.addresses, props.labels, props.results, props.resultsFor, props.resultsLoading, props.resultCount]); // eslint-disable-line react-hooks/exhaustive-deps
+	}, [ctx, text, hasQ, recent, suggest, suggestCurrent, interpreting, interpreted, props.saved, props.filters, props.addresses, props.labels, props.results, props.resultsFor, props.resultsLoading, props.resultCount, demo]); // eslint-disable-line react-hooks/exhaustive-deps
 
 	// Keyboard order: the wide column, then the side column.
 	const rows = useMemo(() => [...sections.filter((s) => !s.side), ...sections.filter((s) => s.side)].flatMap((s) => s.rows), [sections]);

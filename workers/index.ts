@@ -9,7 +9,7 @@ import { z } from "zod";
 import { generateText } from "ai";
 import { deleteAttachmentFiles, type StoredAttachment } from "./lib/attachments";
 import { ensureDevMail, seedMail, seedProfile } from "./lib/dev-seed";
-import { claimDemoAiCall, DEMO, demoAiCall, demoAiCap, demoRefusal } from "./lib/demo";
+import { claimDemoAiCall, DEMO, demoAiCap, demoRefusal } from "./lib/demo";
 import {
 	validateSender,
 	SenderValidationError,
@@ -118,9 +118,6 @@ if (DEMO) {
 	app.use("/api/v1/*", async (c, next) => {
 		const refused = demoRefusal(c.req.method, c.req.path);
 		if (refused) return c.json({ error: refused }, 403);
-		if (demoAiCall(c.req.method, c.req.path) && !(await claimDemoAiCall(recordsSql(c.env), demoAiCap(c.env.DEMO_AI_DAILY)))) {
-			return c.json({ error: "The demo's AI calls for today are used up" }, 429);
-		}
 		await next();
 	});
 }
@@ -451,10 +448,20 @@ app.get("/api/v1/search/suggest", async (c) => {
  * The text comes back for the box; nothing runs here. A failure returns the
  * request itself as the query, for a word search.
  */
+/**
+ * A demo counts its two AI actions against DEMO_AI_DAILY. Handlers call this once
+ * the request is valid, so refused and malformed requests don't use the allowance.
+ */
+async function demoAiAllowed(env: Env): Promise<boolean> {
+	return !DEMO || claimDemoAiCall(recordsSql(env), demoAiCap(env.DEMO_AI_DAILY));
+}
+const DEMO_AI_USED_UP = "The demo's AI calls for today are used up";
+
 app.post("/api/v1/search/interpret", async (c) => {
 	const body = z.object({ text: z.string().max(MAX_REQUEST_LENGTH * 2), tz: z.number().int().min(-900).max(900).optional() })
 		.safeParse(await c.req.json().catch(() => null));
 	if (!body.success) return c.json({ error: "Invalid request" }, 400);
+	if (!(await demoAiAllowed(c.env))) return c.json({ error: DEMO_AI_USED_UP }, 429);
 	const [labels, addresses] = await Promise.all([mailStore(c.env).all().listLabels(), mailboxIds(c.env)]);
 	// The model is made inside the guarded call, so a missing binding falls back to a word search like any model failure.
 	const result = await interpretSearch(
@@ -566,6 +573,7 @@ app.post("/api/v1/mailboxes/:mailboxId/drafts/:id/redraft", async (c: AppContext
 	const draftId = c.req.param("id")!;
 	const parsed = z.object({ instruction: z.string().max(REDRAFT_INSTRUCTION_MAX * 2) }).safeParse(await c.req.json().catch(() => null));
 	if (!parsed.success) return c.json({ error: "Say how to change the draft" }, 400);
+	if (!(await demoAiAllowed(c.env))) return c.json({ error: DEMO_AI_USED_UP }, 429);
 	const sql = recordsSql(c.env);
 	const [system, model] = await Promise.all([getSystemPrompt(c.env, mailboxId), agentModel(c.env)]);
 	const result = await logged(sql, { actor: "person", bound: mailboxId }, "redraft", { draftId, instruction: parsed.data.instruction }, () =>

@@ -268,3 +268,30 @@ test("a demo API answers 429 once the day's AI calls are used, before any model 
 	assert.equal((await first.json()).query, "invoices from last week");
 	assert.equal((await ask({ DEMO_AI_DAILY: "1" })).status, 429, "the second is refused");
 });
+
+test("an invalid request doesn't use the day's AI allowance", async () => {
+	const DB = await mf.getD1Database("DB");
+	await call("_sql", "DELETE FROM ai_budget");
+	const url = "http://localhost/api/v1/search/interpret";
+	const env = { ...ENV, DB, DEMO_AI_DAILY: "5" };
+	const noOrigin = await api.app.request(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text: "invoices" }) }, env);
+	assert.equal(noOrigin.status, 403, "csrf refuses it");
+	const badBody = await api.app.request(url, { method: "POST", headers: WRITE_HEADERS, body: JSON.stringify({ text: 42 }) }, env);
+	assert.equal(badBody.status, 400);
+	assert.equal(await count("SELECT COUNT(*) AS n FROM ai_budget"), 0);
+});
+
+test("a demo hides the agent entry points and the Console's agents, and its settings are read-only", async () => {
+	const { readFileSync } = await import("node:fs");
+	const read = (f) => readFileSync(`app/components/postal/${f}`, "utf8");
+	const search = read("SearchBar.tsx");
+	assert.equal((search.match(/label: "Ask the agent…"/g) ?? []).length, 1);
+	assert.match(search, /if \(!demo\) out\.push\(\{\n\t+id: "ask"/, "the empty-search Ask group");
+	assert.match(search, /\.\.\.\(demo \? \[\] : \[\{\n\t+id: "ask"/, "Ask the agent about it");
+	assert.match(read("Sidebar.tsx"), /label\.auto && !demo/);
+	assert.match(read("ShortcutMap.tsx"), /\{!demo && <Agent \/>\}/);
+	assert.match(read("PostalMail.tsx"), /agent: \(\) => \(demo \? false/);
+	const consoleSrc = read("Modals.tsx");
+	assert.match(consoleSrc, /demo \? allGroups\.filter\(\(g\) => g\.title !== "Agents"\)/);
+	assert.match(consoleSrc, /READ_ONLY_IN_DEMO = new Set<ConsoleTab>\(\["general", "addresses", "signatures", "shortcuts"\]\)/);
+});
