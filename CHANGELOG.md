@@ -12,6 +12,7 @@ Motion. Everything that opens and closes moves on one curve.
 - The search window unrolls down from the bar and rolls back up; a close that turns back reverses.
 - Popovers, menus, row tools, the composer, toasts and tooltips enter on the same curve without scaling text. Toasts no longer slide in off-center.
 - Reduced motion turns all of it off.
+- Key hints next to controls are off by default; turn them on in Settings > General. A deployment that already saved its settings keeps its choice. Tooltips and Settings > Shortcuts show keys either way; before, turning hints off emptied the keys in both.
 
 No D1 migration.
 

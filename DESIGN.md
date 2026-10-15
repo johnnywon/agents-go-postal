@@ -57,7 +57,7 @@ An address always renders as **bold handle**, muted `@`, then the domain in its 
 - Current row: fill plus a full 1px ring. Checked rows: an orange tint plus a full 1px orange ring.
 - Active nav item: fill, bright text, weight 600. A selected address only brightens; its folder carries the fill.
 - Days are separated by a 10px dark band, not a heading.
-- Key hints (`/`, `Z`, `⌘J`) can be hidden in the Console; shortcuts keep working. Hints and tooltip keys come from `shared/shortcuts.ts` through `useShortcuts()`, never typed into a title, so a rebound key shows everywhere.
+- Key hints (`/`, `Z`, `⌘J`) next to controls are off by default and turn on in Console > Settings > General; shortcuts work either way. Tooltips and Settings > Shortcuts always show keys, since there the keys are the content. Hints and tooltip keys come from `shared/shortcuts.ts` through `useShortcuts()`, never typed into a title, so a rebound key shows everywhere.
 - Tooltips: one layer (`Tooltip.tsx`) serves every button. Write a `title` as `Label (Key) · hint`; the key renders as keycaps and the hint as a muted second line. The browser's own tooltip never shows. Tooltips open after 450ms, then instantly while moving between buttons, and on keyboard focus. Touch never shows them. A button whose text already says everything gets none.
 
 ### No accent stripes or edge bars

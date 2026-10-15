@@ -29,7 +29,7 @@ test("cleanPrefs keeps valid fields, takes the rest from base and drops unknown 
 	assert.deepEqual(cleanPrefs(null), DEFAULT_PREFS);
 	assert.deepEqual(cleanPrefs({ images: "always" }, { ...DEFAULT_PREFS, theme: "system" }), { ...DEFAULT_PREFS, theme: "system", images: "always" });
 	assert.ok(samePrefs(cleanPrefs({}), DEFAULT_PREFS));
-	assert.ok(!samePrefs({ ...DEFAULT_PREFS, keys: false }, DEFAULT_PREFS));
+	assert.ok(!samePrefs({ ...DEFAULT_PREFS, keys: true }, DEFAULT_PREFS));
 });
 
 test("cleanPrefs keeps rebound shortcuts that can be bound and drops the rest", () => {

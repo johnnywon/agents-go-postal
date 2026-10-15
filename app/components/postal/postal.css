@@ -160,7 +160,8 @@ html:has(.postal), html:has(.postal) body { background: var(--pg-base, #141518);
   color: var(--pg-text-6);
   line-height: 1.3;
 }
-.postal[data-keys="off"] .pg-kbd, .postal[data-keys="off"] .pg-keyhint { display: none !important; }
+/* Key hints off hides the keys next to controls. Tooltips and Settings > Shortcuts still show them: there the keys are the content. */
+.postal[data-keys="off"] :is(.pg-kbd, .pg-keyhint):not(.pg-tip *, .pg-keys-caps *) { display: none !important; }
 .pg-caption { font: 600 10px var(--pg-mono); letter-spacing: .08em; color: var(--pg-text-8); text-transform: uppercase; }
 .pg-icon-btn {
   width: 30px; height: 26px; flex: none;
