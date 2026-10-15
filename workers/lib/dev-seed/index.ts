@@ -25,6 +25,9 @@ import { ALEX_FROM_NAMES, ALEX_LABELS, ALEX_PREFIX, ALEX_SEARCHES, buildAlex } f
 import { FROM_NAMES } from "./cast";
 import { ID_PREFIX, type Inbox, LABELS, NEWEST_MINUTES, SEARCHES, addressOf, buildInbox, resolveAddresses, toStored } from "./build";
 import type { Box, LabelSpec, Role } from "./kit";
+import { StoryClock } from "./alex/clock";
+import { type Restored, restoreSnapshot, takeSnapshot } from "./snapshot";
+import { DEMO } from "../demo";
 
 declare const __PLURAMAIL_TZ_OFFSET__: number | undefined;
 
@@ -142,20 +145,59 @@ export async function seedMail(env: Env, opts: { tzOffset?: number; extra?: numb
 	};
 }
 
+/** Bump when the sample mail changes, so a demo drops its old copy and writes the inbox again. */
+const SAMPLE_VERSION = 3;
+
+/** The story version a copy of the inbox belongs to: the Alex profile moves in whole weeks, the default with the clock. */
+function snapshotKey(profile: SeedProfile, now: number): string {
+	return profile === "alex" ? `alex:${SAMPLE_VERSION}:${new StoryClock(now).shiftDays}` : `default:${SAMPLE_VERSION}`;
+}
+
 /**
  * A demo build's hourly reset: drop everything visitors made or changed (mail,
- * files, labels, saved searches, undo history), then write the sample inbox again.
+ * files, labels, saved searches, undo history, the activity log). It puts back
+ * the copy taken after the last full write (snapshot.ts), which costs the
+ * Worker almost no CPU. With no usable copy (first run, a new story week, a
+ * sample message or file gone), it writes the inbox again and takes a new copy.
  */
-export async function resetDemo(env: Env, now = Date.now()): Promise<SeedSummary> {
+export async function resetDemo(env: Env, now = Date.now()): Promise<SeedSummary | (Restored & { profile: SeedProfile; restored: true })> {
+	const profile = seedProfile(env);
+	const key = snapshotKey(profile, now);
+	// A copy that can't be applied (the batch rolls back) gets replaced by a full write, not retried every hour.
+	const restored = await restoreSnapshot(env, key, { now, shiftDates: profile !== "alex", maxAgeMs: 14 * 86_400_000 }).catch((e) => {
+		console.error(`demo reset: restore failed, writing the inbox again: ${(e as Error).message}`);
+		return null;
+	});
+	if (restored) return { profile, restored: true, ...restored };
 	const sql = recordsSql(env);
-	for (const table of ["messages", "labels", "saved_searches", "bulk_job", "undo"]) await sql.run(`DELETE FROM ${table}`);
-	let cursor: string | undefined;
-	do {
-		const page = await env.BUCKET.list({ prefix: "attachments/", cursor, limit: 1000 });
-		if (page.objects.length > 0) await env.BUCKET.delete(page.objects.map((o) => o.key));
-		cursor = page.truncated ? page.cursor : undefined;
-	} while (cursor);
-	return seedMail(env, { now, profile: seedProfile(env) });
+	// A first request in another isolate sees an empty inbox while this runs; the marker tells it not to seed too.
+	await env.BUCKET.put(RESET_MARKER, new Date(now).toISOString());
+	try {
+		for (const table of ["messages", "labels", "saved_searches", "bulk_job", "undo", "agent_activity", "auto_draft_runs"]) await sql.run(`DELETE FROM ${table}`);
+		for (const prefix of ["attachments/", "bodies/"]) {
+			let cursor: string | undefined;
+			do {
+				const page = await env.BUCKET.list({ prefix, cursor, limit: 1000 });
+				if (page.objects.length > 0) await env.BUCKET.delete(page.objects.map((o) => o.key));
+				cursor = page.truncated ? page.cursor : undefined;
+			} while (cursor);
+		}
+		const summary = await seedMail(env, { now, profile });
+		await takeSnapshot(env, key, now);
+		return summary;
+	} finally {
+		await env.BUCKET.delete(RESET_MARKER);
+	}
+}
+
+/** Set while a demo reset rewrites the inbox. Older than this, it's left from a reset that died. */
+export const RESET_MARKER = "demo/reset-started";
+const RESET_MARKER_TTL = 10 * 60_000;
+
+async function resetRunning(env: Env): Promise<boolean> {
+	const marker = await env.BUCKET.get(RESET_MARKER);
+	if (!marker) return false;
+	return Date.now() - Date.parse(await marker.text()) < RESET_MARKER_TTL;
 }
 
 /**
@@ -191,8 +233,18 @@ export function ensureDevMail(env: Env): Promise<void> {
 	started ??= (async () => {
 		if (String(env.DEV_SEED ?? "").toLowerCase() === "off") return;
 		try {
+			// The hourly reset writes the inbox itself. Try again on a later request.
+			if (await resetRunning(env)) {
+				started = undefined;
+				return;
+			}
 			const profile = seedProfile(env);
 			const row = await recordsSql(env).first(`SELECT COUNT(*) AS n, MAX(date) AS newest FROM messages WHERE email_id LIKE ?`, `${PROFILES[profile].prefix}%`);
+			// A demo's cron keeps its inbox current; rebuilding it here would cost every new isolate's first request.
+			if (DEMO) {
+				if (Number(row?.n) === 0) await resetDemo(env);
+				return;
+			}
 			if (Number(row?.n) > 0) {
 				const moved = profile === "alex" ? await refreshAlex(env, String(row?.newest)) : await refresh(env, String(row?.newest));
 				if (moved) console.log(`[dev seed] sample inbox ${moved}`);

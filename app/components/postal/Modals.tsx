@@ -19,7 +19,8 @@ import { Editor } from "./Editor";
 import { htmlToPlainText } from "~/lib/utils";
 import { AddressText, type Identities, Swatch } from "./identity";
 import { LabelsTab } from "./LabelsTab";
-import type { ConsoleTab } from "./console-tabs";
+import { AGENT_TABS, type ConsoleTab } from "./console-tabs";
+import { useDemo } from "~/lib/demo";
 import { LimitsTab, useAgentLimitsDraft } from "./LimitsTab";
 import { OverviewTab } from "./OverviewTab";
 import { ActivityTab } from "./ActivityTab";
@@ -102,7 +103,7 @@ function Setting({ title, sub, children }: { title: string; sub?: React.ReactNod
 }
 
 /** The console: what agents did and may do, then the mail client's settings. */
-export function ConsoleModal({ tab, onTab, prefs, setPrefs, addresses, identities, info, autoDraft, onClose, onSaved }: {
+export function ConsoleModal({ tab: asked, onTab, prefs, setPrefs, addresses, identities, info, autoDraft, onClose, onSaved }: {
 	tab: ConsoleTab;
 	onTab: (tab: ConsoleTab) => void;
 	prefs: Prefs;
@@ -114,6 +115,10 @@ export function ConsoleModal({ tab, onTab, prefs, setPrefs, addresses, identitie
 	onClose: () => void;
 	onSaved: (message: string) => void;
 }) {
+	// A demo has no agents, and its settings are read-only: the server refuses every save.
+	const demo = useDemo();
+	const tab: ConsoleTab = demo && (AGENT_TABS as readonly string[]).includes(asked) ? "general" : asked;
+	const readOnly = demo && READ_ONLY_IN_DEMO.has(tab);
 	const initialSigs = Object.fromEntries(addresses.map((a) => {
 		const sig = info.get(a)?.mailbox?.settings?.signature;
 		const html = sig?.html || (sig?.text ? textToParagraphs(sig.text) : "");
@@ -185,7 +190,7 @@ export function ConsoleModal({ tab, onTab, prefs, setPrefs, addresses, identitie
 		}
 	};
 
-	const groups: { title: string; tabs: { id: ConsoleTab; label: string; icon: React.ReactNode }[] }[] = [
+	const allGroups: { title: string; tabs: { id: ConsoleTab; label: string; icon: React.ReactNode }[] }[] = [
 		{
 			title: "Agents",
 			tabs: [
@@ -209,10 +214,11 @@ export function ConsoleModal({ tab, onTab, prefs, setPrefs, addresses, identitie
 			],
 		},
 	];
+	const groups = demo ? allGroups.filter((g) => g.title !== "Agents") : allGroups;
 
 	return (
 		<Modal className="is-settings is-console" label="Console" onClose={onClose}>
-			<Head icon={<TerminalWindowIcon size={16} />} title="Console" sub="Agents and settings · saved to your deployment" onClose={onClose} />
+			<Head icon={<TerminalWindowIcon size={16} />} title="Console" onClose={onClose} />
 			<div className="pg-settings">
 				<div className="pg-tabs" role="tablist" aria-label="Console sections">
 					{groups.map((g) => (
@@ -225,9 +231,10 @@ export function ConsoleModal({ tab, onTab, prefs, setPrefs, addresses, identitie
 					))}
 				</div>
 				<div className="pg-tab-body" role="tabpanel">
+					<fieldset className="pg-plain-fieldset" disabled={readOnly}>
 					{tab === "general" && (
 						<>
-							<Setting title="Theme" sub="Dark is the default. System follows your device.">
+							<Setting title="Theme">
 								<Segmented
 									label="Theme"
 									value={draft.theme}
@@ -239,13 +246,13 @@ export function ConsoleModal({ tab, onTab, prefs, setPrefs, addresses, identitie
 									]}
 								/>
 							</Setting>
-							<Setting title="Show key hints" sub="Keys like ⌘K and E next to buttons. Shortcuts work either way.">
+							<Setting title="Show key hints">
 								<Switch label="Show key hints" on={draft.keys} onChange={(keys) => setDraft({ ...draft, keys })} />
 							</Setting>
-							<Setting title="Mark as read when opened" sub="Otherwise mail stays unread until you mark it read or archive it.">
+							<Setting title="Mark as read when opened">
 								<Switch label="Mark as read when opened" on={draft.markRead} onChange={(markRead) => setDraft({ ...draft, markRead })} />
 							</Setting>
-							<Setting title="Remote images" sub="Images in HTML email load from the sender’s server and can track opens.">
+							<Setting title="Remote images">
 								<Segmented
 									label="Remote images"
 									value={draft.images}
@@ -253,14 +260,13 @@ export function ConsoleModal({ tab, onTab, prefs, setPrefs, addresses, identitie
 									options={[{ value: "ask", label: "Ask" }, { value: "always", label: "Always" }, { value: "never", label: "Never" }]}
 								/>
 							</Setting>
-							<Setting title="Reply from receiving address" sub="Replies go out from the address the mail was delivered to.">
+							<Setting title="Reply from receiving address">
 								<Switch label="Reply from receiving address" on={draft.replyFrom} onChange={(replyFrom) => setDraft({ ...draft, replyFrom })} />
 							</Setting>
 						</>
 					)}
 					{tab === "addresses" && (
 						<>
-							<div className="pg-tab-intro">Display name shown to recipients, per address. Addresses come from <span className="pg-mono">EMAIL_ADDRESSES</span> in your Worker config.</div>
 							{addresses.map((a) => {
 								const id = identities.of(a);
 								return (
@@ -275,7 +281,6 @@ export function ConsoleModal({ tab, onTab, prefs, setPrefs, addresses, identitie
 					)}
 					{tab === "signatures" && (
 						<>
-							<div className="pg-tab-intro">One signature per address. Nothing is added unless you turn it on; the signature button in the composer adds or removes it on any message.</div>
 							{addresses.map((a) => {
 								const id = identities.of(a);
 								const sig = sigs[a] ?? { html: "", enabled: false };
@@ -338,16 +343,14 @@ export function ConsoleModal({ tab, onTab, prefs, setPrefs, addresses, identitie
 								onChange={(e) => setPrompt(e.target.value)}
 								placeholder="You are an email assistant that helps manage this inbox. You read emails, draft replies, and help organize conversations. Write like a real person. Short, direct, flowing prose. Plain text only. (Leave empty to use the built-in default prompt)"
 							/>
-							<div style={{ fontSize: 12, color: "var(--pg-text-6)", padding: "6px 0 4px" }}>Sent as the system message when the agent works on this address: Draft reply, auto-draft, and chat while its mail is open. Controls tone, style and behaviour rules.</div>
+							<div style={{ fontSize: 12, color: "var(--pg-text-6)", padding: "6px 0 4px" }}>Sent as the system message when the agent works on this address: Draft reply, auto-draft, and chat while its mail is open. Controls tone, style and behavior rules.</div>
 							<Setting title="Model" sub={agentModel.stored ? modelName(catalog, agentModel.stored.active) : ""}>
 								<button type="button" className="pg-btn pg-btn-sm" onClick={() => onTab("model")}>Change</button>
 							</Setting>
-							<Setting title="Auto-draft new mail" sub={<>Drafts a reply to each new message. Mailing lists and automated mail are skipped. Set <span className="pg-mono">AUTO_DRAFT_ENABLED</span> in your Worker config to change.</>}>
+							<Setting title="Auto-draft new mail" sub={<span className="pg-mono">AUTO_DRAFT_ENABLED</span>}>
 								<span className="pg-tag">{autoDraft ? "on" : "off"} · config</span>
 							</Setting>
-							<Setting title="Sending" sub={`The agent sends a draft when you ask it to. Auto-draft only drafts. ${limits.saved
-								? `Agents and MCP clients send up to ${limits.saved.agentDay} messages a day per address, ${limits.saved.agentRecipients} recipients each.`
-								: "Agents and MCP clients send within the limits set in Limits."}`}>
+							<Setting title="Sending" sub={limits.saved ? `${limits.saved.agentDay} a day per address · ${limits.saved.agentRecipients} recipients each` : undefined}>
 								<button type="button" className="pg-btn pg-btn-sm" onClick={() => onTab("limits")}>Limits</button>
 							</Setting>
 							{/* TODO(roadmap): rules (Inquiry, Receipts, DMARC, Triage) and per-rule autonomy settings. */}
@@ -366,17 +369,27 @@ export function ConsoleModal({ tab, onTab, prefs, setPrefs, addresses, identitie
 						/>
 					)}
 					{tab === "storage" && <StorageTab identities={identities} />}
+					</fieldset>
 				</div>
 			</div>
 			<div className="pg-modal-foot">
 				<span className="pg-note" role="status">{error ?? (dirty ? "Unsaved changes" : "")}</span>
 				<div className="pg-flex" />
-				<button type="button" className="pg-btn" onClick={onClose}>Cancel</button>
-				<button type="button" className="pg-btn pg-btn-primary" onClick={save} disabled={saving}>Save changes</button>
+				{demo ? (
+					<button type="button" className="pg-btn" onClick={onClose}>Close</button>
+				) : (
+					<>
+						<button type="button" className="pg-btn" onClick={onClose}>Cancel</button>
+						<button type="button" className="pg-btn pg-btn-primary" onClick={save} disabled={saving}>Save changes</button>
+					</>
+				)}
 			</div>
 		</Modal>
 	);
 }
+
+/** Tabs whose changes go through Save, which a demo refuses. Labels save on their own and a demo allows them. */
+const READ_ONLY_IN_DEMO = new Set<ConsoleTab>(["general", "addresses", "signatures", "shortcuts"]);
 
 const MCP_TOOLS = [
 	["list_mailboxes", "List all mailboxes"],
@@ -409,9 +422,6 @@ function ConnectionsTab() {
 	const [copied, setCopied] = useState(false);
 	return (
 		<div className="pg-connections">
-			<div className="pg-tab-intro">
-				Point Claude Code, Cursor or any MCP client at this server to read, search, draft, send and organize mail across every address. Requests go through Cloudflare Access like the app, and every call shows in Activity with the client's name.
-			</div>
 			<div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
 				<span className="pg-caption">SERVER URL</span>
 				<div className="pg-mcp-url">
@@ -471,7 +481,7 @@ export function LogoutModal({ onClose }: { onClose: () => void }) {
 			<Head icon={<SignOutIcon size={16} />} title="Log out?" sub="Cloudflare Access session" onClose={onClose} danger />
 			<div style={{ padding: "16px 18px", display: "flex", flexDirection: "column", gap: 10, fontSize: 13, color: "var(--pg-text-5)", textWrap: "pretty" }}>
 				<span>You’ll be signed out of Cloudflare Access on this device and returned to the login page.</span>
-				<span>Mail keeps arriving and agent drafts are kept. Nothing is sent while you’re away.</span>
+				<span>Mail keeps arriving. Scheduled mail still sends.</span>
 			</div>
 			<div className="pg-modal-foot">
 				<div className="pg-flex" />

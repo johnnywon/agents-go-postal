@@ -9,8 +9,8 @@ import { AgentIcon } from "./AgentIcon";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Folders } from "shared/folders";
 import EmailIframe, { type EmailPalette, hasRemoteImages, isPlainHtml, MailText } from "~/components/EmailIframe";
-import { isHtmlBody, plainTextToHtml } from "~/components/plain-text";
-import { getAttachmentUrl, getNonInlineAttachments, rewriteInlineImages } from "~/lib/utils";
+import { isHtmlBody } from "~/components/plain-text";
+import { getAttachmentUrl, getNonInlineAttachments, messageBodyHtml } from "~/lib/utils";
 import { useEmail, useMarkThreadRead, useThreadReplies } from "~/queries/emails";
 import type { Conversation, Label } from "~/services/api";
 import type { Email } from "~/types";
@@ -21,7 +21,6 @@ import { AddressText, type Identities, LabelTag, Swatch } from "./identity";
 import { formatSize, fullDate, type MailAction, nameFromHeaders } from "./model";
 import type { Prefs } from "./prefs";
 import { useShortcuts } from "./shortcuts";
-import { useDemo } from "~/lib/demo";
 
 type Sender = ReturnType<typeof useMailSender>;
 
@@ -62,7 +61,6 @@ function sortAsc(list: Email[]) {
 }
 
 export function Reader(props: ReaderProps) {
-	const demo = useDemo();
 	const { row, open, identities } = props;
 	const { data: email } = useEmail(open?.mailboxId, open?.emailId);
 	const { data: thread } = useThreadReplies(open?.mailboxId, email?.thread_id);
@@ -214,9 +212,9 @@ export function Reader(props: ReaderProps) {
 					</div>
 					<div className="pg-group">
 						{props.canRestore && <button type="button" className="pg-icon-btn" title="Move to Inbox" aria-label="Move to Inbox" onClick={() => props.onAction("restore")} disabled={!row}><TrayArrowUpIcon size={16} /></button>}
-						<button type="button" className="pg-icon-btn" title={tip("archive", "Archive", "Out of the inbox, kept in Archive")} aria-label="Archive" onClick={() => props.onAction("archive")} disabled={!row}><ArchiveIcon size={16} /></button>
-						<button type="button" className="pg-icon-btn" title={tip("trash", "Move to trash", "Recoverable from Trash")} aria-label="Move to trash" onClick={() => props.onAction("trash")} disabled={!row || !props.canTrash}><TrashIcon size={16} /></button>
-						{props.canSpam && <button type="button" className="pg-icon-btn" title={tip("spam", "Report spam", "Moves it to Spam")} aria-label="Report spam" onClick={() => props.onAction("spam")} disabled={!row}><WarningOctagonIcon size={16} /></button>}
+						<button type="button" className="pg-icon-btn" title={tip("archive", "Archive")} aria-label="Archive" onClick={() => props.onAction("archive")} disabled={!row}><ArchiveIcon size={16} /></button>
+						<button type="button" className="pg-icon-btn" title={tip("trash", "Move to Trash")} aria-label="Move to Trash" onClick={() => props.onAction("trash")} disabled={!row || !props.canTrash}><TrashIcon size={16} /></button>
+						{props.canSpam && <button type="button" className="pg-icon-btn" title={tip("spam", "Report spam")} aria-label="Report spam" onClick={() => props.onAction("spam")} disabled={!row}><WarningOctagonIcon size={16} /></button>}
 					</div>
 					<div className="pg-group" style={{ position: "relative" }}>
 						<button type="button" className="pg-icon-btn" title={unread ? tip("markRead", "Mark read") : tip("markUnread", "Mark unread")} aria-label={unread ? "Mark read" : "Mark unread"} onClick={() => props.onAction("read")} disabled={!row}>
@@ -225,10 +223,10 @@ export function Reader(props: ReaderProps) {
 						<button type="button" className="pg-icon-btn" title={tip("star", starred ? "Unstar" : "Star")} aria-label={starred ? "Unstar" : "Star"} aria-pressed={starred} onClick={() => props.onAction("star")} disabled={!row}>
 							<StarIcon size={16} weight={starred ? "fill" : "regular"} color={starred ? "var(--pg-yellow)" : undefined} />
 						</button>
-						<button ref={labelBtn} type="button" className="pg-icon-btn" title={tip("label", "Label", "Labels are shared by every address")} aria-label="Label" aria-expanded={pickerOpen} onClick={() => openPicker()} disabled={!row}><TagIcon size={16} /></button>
+						<button ref={labelBtn} type="button" className="pg-icon-btn" title={tip("label", "Label")} aria-label="Label" aria-expanded={pickerOpen} onClick={() => openPicker()} disabled={!row}><TagIcon size={16} /></button>
 					</div>
 					<div style={{ flex: 1 }} />
-					<button type="button" className="pg-icon-btn" title="View source · The raw message with all headers" aria-label="View source" onClick={() => head && setSource(head)} disabled={!head}><CodeIcon size={16} /></button>
+					<button type="button" className="pg-icon-btn" title="View source" aria-label="View source" onClick={() => head && setSource(head)} disabled={!head}><CodeIcon size={16} /></button>
 				</div>
 			</div>
 			<div className="pg-reader-scroll" ref={scrollRef}>
@@ -277,16 +275,14 @@ export function Reader(props: ReaderProps) {
 									<ArrowBendUpLeftIcon size={16} style={{ flex: "none" }} />
 									<span className="pg-flex pg-ellipsis">Reply to {nameFromHeaders(original.raw_headers, original.sender)}</span>
 								</button>
-								{!demo && (
-									<button
-										type="button"
-										className="pg-btn pg-btn-agent"
-										title="Draft reply · The agent writes a first draft. Nothing is sent."
-										onClick={() => props.startReply("reply", original, undefined, true)}
-									>
-										<AgentIcon size={14} weight="fill" />Draft reply
-									</button>
-								)}
+								<button
+									type="button"
+									className="pg-btn pg-btn-agent"
+									title="Draft reply · The agent writes a first draft. Nothing is sent."
+									onClick={() => props.startReply("reply", original, undefined, true)}
+								>
+									<AgentIcon size={14} weight="fill" />Draft reply
+								</button>
 							</div>
 						)
 					)}
@@ -299,7 +295,7 @@ export function Reader(props: ReaderProps) {
 
 const PALETTE_VARS = { text: "--pg-text-2", muted: "--pg-text-6", link: "--pg-link", quote: "--pg-well", line: "--pg-line-2" } as const;
 
-/** The reader's colours, for plain mail rendered on the reader surface. Follows theme changes. */
+/** The reader's colors, for plain mail rendered on the reader surface. Follows theme changes. */
 function useReaderPalette(ref: React.RefObject<HTMLElement | null>): EmailPalette | undefined {
 	const [palette, setPalette] = useState<EmailPalette>();
 	useLayoutEffect(() => {
@@ -337,8 +333,7 @@ function Message({ head, email, mailboxId, images, onShowImages }: {
 	const raw = email.body || "";
 	// Text-only mail becomes HTML the app writes from escaped text, so it can sit on the page where every agent reads it.
 	const text = !isHtmlBody(raw);
-	const html = text ? plainTextToHtml(raw) : raw;
-	const body = rewriteInlineImages(html, mailboxId, email.id, email.attachments);
+	const body = messageBodyHtml(raw, mailboxId, email.id, email.attachments);
 	const remote = hasRemoteImages(body);
 	const frameRef = useRef<HTMLDivElement>(null);
 	const palette = useReaderPalette(frameRef);
@@ -346,7 +341,7 @@ function Message({ head, email, mailboxId, images, onShowImages }: {
 	const attachments = getNonInlineAttachments(email.attachments);
 	return (
 		<>
-			{/* Every message is a page: plain mail in the reader's colours and a serif, designed HTML mail on its own white. The images note and attachments sit inside it. */}
+			{/* Every message is a page: plain mail in the reader's colors and a serif, designed HTML mail on its own white. The images note and attachments sit inside it. */}
 			<div className="pg-mail-frame" data-kind={plain ? "plain" : "html"} ref={frameRef}>
 				{head}
 				<div className="pg-mail-body">

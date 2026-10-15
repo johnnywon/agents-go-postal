@@ -23,7 +23,6 @@ export function OverviewTab({ identities, autoDraft, onTab }: { identities: Iden
 
 	return (
 		<>
-			<div className="pg-tab-intro">The last 24 hours. Limits are set in Limits; the full record is in Activity.</div>
 			<div className="pg-stats">
 				<button type="button" className="pg-stat" onClick={() => onTab("activity")}>
 					<span>Agent actions</span><b>{data.actions.toLocaleString()}</b>
@@ -40,9 +39,8 @@ export function OverviewTab({ identities, autoDraft, onTab }: { identities: Iden
 					<span>Failed actions</span><b>{data.failed.toLocaleString()}</b>
 				</button>
 			</div>
-			<p className="pg-table-note" id="usage-note">Sends per address against the limits.</p>
 			<div className="pg-table-scroll">
-				<table className="pg-table" aria-describedby="usage-note">
+				<table className="pg-table" aria-label="Sends per address">
 					<thead>
 						<tr>
 							<th scope="col">Address</th>

@@ -1,5 +1,6 @@
 // Test-only worker: the cron's scheduled send on D1, with a fake email binding.
 import { runCron } from "../../workers/cron";
+import { ensureDevMail, RESET_MARKER } from "../../workers/lib/dev-seed";
 import { mailStore } from "../../workers/store";
 import type { Env } from "../../workers/types";
 
@@ -32,6 +33,20 @@ export default {
 					return Response.json({ ok: sent.splice(0) });
 				case "cron":
 					return Response.json({ ok: await Promise.all(args.map((now) => runCron(env, Number(now)))) });
+				case "ensure":
+					await ensureDevMail(env);
+					return Response.json({ ok: true });
+				case "marker":
+					if (args[0]) await env.BUCKET.put(RESET_MARKER, String(args[0]));
+					else await env.BUCKET.delete(RESET_MARKER);
+					return Response.json({ ok: true });
+				case "r2":
+					// ["list", prefix] or ["delete", key]
+					if (args[0] === "delete") {
+						await env.BUCKET.delete(String(args[1]));
+						return Response.json({ ok: true });
+					}
+					return Response.json({ ok: (await env.BUCKET.list({ prefix: String(args[1] ?? "") })).objects.map((o) => o.key) });
 				case "register":
 					await mailStore(env).mailboxes.put(String(args[0]), {});
 					return Response.json({ ok: true });

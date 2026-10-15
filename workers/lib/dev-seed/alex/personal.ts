@@ -170,7 +170,7 @@ ${button("keyforge", "Track your package", "https://keyforgekeys.com/orders/KF-2
 				preheader: `${BURRITO.restaurant} is preparing your order. Arriving around 1:51 AM.`,
 				eyebrow: `Order ${BURRITO.id} · ${c.day("2026-10-09")}`,
 				heading: "Your order is confirmed",
-				body: `${photo("food-burrito", "ubereats.com", "An open burrito with red chile pork on foil", "Menu photo", 220, 0)}
+				body: `${photo("food-burrito", "ubereats.com", "A burrito cut in half on a plate, with two cups of salsa", "Menu photo", 220, 0)}
 <div style="height:18px"></div>
 ${para("ubereats", `<strong>${esc(BURRITO.restaurant)}</strong> is preparing your order.`)}
 ${rows("ubereats", [["Estimated arrival", "1:51 AM", "total"]], 20)}
@@ -202,7 +202,7 @@ ${button("ubereats", "Track your order", `https://www.ubereats.com/orders/${BURR
 				preheader: `Delivered at 1:48 AM. You paid ${money(orderTotal(BURRITO))}.`,
 				eyebrow: `Order ${BURRITO.id} · ${c.day("2026-10-09")}`,
 				heading: "Your order was delivered",
-				body: `${photo("food-burrito", "ubereats.com", "An open burrito with red chile pork on foil", "Menu photo", 220, 0)}
+				body: `${photo("food-burrito", "ubereats.com", "A burrito cut in half on a plate, with two cups of salsa", "Menu photo", 220, 0)}
 <div style="height:18px"></div>
 ${para("ubereats", "Delivered at <strong>1:48 AM</strong>. The total matches your order confirmation; there is no second charge.")}
 ${orderRows(BURRITO, "Total charged")}
@@ -266,7 +266,7 @@ function league(c: StoryClock): Slot[] {
 			attachments: [photoPart("football-stadium", "sundaydeployleague.com")],
 			html: `${prose(`WELCOME TO THE SUNDAY DEPLOY LEAGUE 🏈🎉🚀
 
-Eight teams, half-PPR, head-to-head, and absolutely zero mercy 😤🔥`)}${photo("football-stadium", "sundaydeployleague.com", "A college football game seen from the stands", "Illustrative college football photo", 180)}<div style="height:12px"></div>${prose(`The teams:
+Eight teams, half-PPR, head-to-head, and absolutely zero mercy 😤🔥`)}${photo("football-stadium", "sundaydeployleague.com", "A college football game seen from the stands", undefined, 180)}<div style="height:12px"></div>${prose(`The teams:
 
 - ${TEAMS.alex} (Alex)
 - ${TEAMS.priya} (Priya)
@@ -355,7 +355,7 @@ Alex`),
 				eyebrow: `Round 3 · Sunday, ${c.day(r3.day)}`,
 				heading: "Alex beats Jordan by 0.8",
 				body: `${para("league", `${esc(TEAMS.alex)} edged ${esc(TEAMS.jordan)} <strong>131.7–130.9</strong>, decided by the last play of the night. Jordan's 130.9 would have beaten any other team this round.`)}
-${photo("football-stadium", "sundaydeployleague.com", "A college football game seen from the stands", "Illustrative college football photo", 180)}
+${photo("football-stadium", "sundaydeployleague.com", "A college football game seen from the stands", undefined, 180)}
 ${scoreboard(r3.games)}
 ${h3("Standings after three rounds")}
 ${table(3)}

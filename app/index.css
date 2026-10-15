@@ -241,3 +241,6 @@ button:disabled {
   --pg-shadow-modal: 0 24px 64px rgba(20, 22, 26, .2);
   --pg-scrim: rgba(20, 22, 26, .32);
 }
+
+/* A fieldset that only groups controls so a read-only Console tab can disable them at once. */
+.pg-plain-fieldset { border: 0; margin: 0; padding: 0; min-width: 0; }

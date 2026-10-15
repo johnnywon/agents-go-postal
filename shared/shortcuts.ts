@@ -76,7 +76,7 @@ export const SHORTCUTS = [
 	{ id: "back", group: "Navigate", label: "Clear selection or back to the list", keys: ["Escape", "u"], scope: "mail", fixed: true, area: "more", short: "Close" },
 
 	{ id: "archive", group: "Conversation", label: "Archive", keys: ["e"], scope: "mail", area: "toolbar", primary: true, cluster: 2 },
-	{ id: "trash", group: "Conversation", label: "Move to trash", keys: ["#", "Delete"], scope: "mail", area: "toolbar", primary: true, cluster: 2, short: "Trash" },
+	{ id: "trash", group: "Conversation", label: "Move to Trash", keys: ["#", "Delete"], scope: "mail", area: "toolbar", primary: true, cluster: 2, short: "Trash" },
 	{ id: "spam", group: "Conversation", label: "Report spam", keys: ["!"], scope: "mail", area: "toolbar", cluster: 2, short: "Spam" },
 	{ id: "markRead", group: "Conversation", label: "Mark read", keys: ["Shift+i"], scope: "mail", area: "toolbar", cluster: 3 },
 	{ id: "markUnread", group: "Conversation", label: "Mark unread", keys: ["Shift+u"], scope: "mail", area: "toolbar", cluster: 3 },
@@ -85,12 +85,12 @@ export const SHORTCUTS = [
 	{ id: "select", group: "Conversation", label: "Select", keys: ["x"], scope: "mail", shiftRange: true, hint: "With Shift, selects a range", area: "list" },
 	{ id: "undo", group: "Conversation", label: "Undo", keys: ["z"], scope: "mail", area: "more" },
 
-	{ id: "compose", group: "Write", label: "New email", keys: ["c"], scope: "mail", area: "list" },
+	{ id: "compose", group: "Write", label: "New message", keys: ["c"], scope: "mail", area: "list" },
 	{ id: "reply", group: "Write", label: "Reply", keys: ["r"], scope: "mail", area: "toolbar", primary: true, cluster: 1 },
 	{ id: "replyAll", group: "Write", label: "Reply all", keys: ["a"], scope: "mail", area: "toolbar", primary: true, cluster: 1, short: "All" },
 	{ id: "forward", group: "Write", label: "Forward", keys: ["f"], scope: "mail", area: "toolbar", primary: true, cluster: 1 },
 	{ id: "send", group: "Write", label: "Send", keys: ["Mod+Enter"], scope: "compose", fixed: true, area: "composer", primary: true },
-	{ id: "minimise", group: "Write", label: "Minimise or close the composer", keys: ["Escape"], scope: "compose", fixed: true, area: "composer" },
+	{ id: "minimise", group: "Write", label: "Minimize or close the composer", keys: ["Escape"], scope: "compose", fixed: true, area: "composer" },
 	{ id: "bold", group: "Write", label: "Bold", keys: ["Mod+b"], scope: "compose", fixed: true, area: "composer" },
 	{ id: "italic", group: "Write", label: "Italic", keys: ["Mod+i"], scope: "compose", fixed: true, area: "composer" },
 	{ id: "underline", group: "Write", label: "Underline", keys: ["Mod+u"], scope: "compose", fixed: true, area: "composer" },

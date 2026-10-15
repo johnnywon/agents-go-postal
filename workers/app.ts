@@ -129,8 +129,9 @@ export default {
 			throw e;
 		}
 	},
-	async scheduled(_controller: ScheduledController, env: Env, ctx: ExecutionContext) {
-		ctx.waitUntil(runCron(env).catch((e) => console.error("cron failed:", (e as Error).message)));
+	async scheduled(controller: ScheduledController, env: Env, ctx: ExecutionContext) {
+		// The scheduled time, not the clock: a run that starts a minute late still counts as on the hour.
+		ctx.waitUntil(runCron(env, controller.scheduledTime).catch((e) => console.error("cron failed:", (e as Error).message)));
 	},
 	async queue(batch: MessageBatch<AutoDraftJob>, env: Env) {
 		await consumeAutoDrafts(batch, env);

@@ -13,7 +13,7 @@ export type PhotoId = keyof typeof PHOTO_BASE64;
 
 /** Source and license for each photo, as assets/manifest.json records them. */
 export const PHOTO_CREDITS: Record<PhotoId, { title: string; source: string; creator: string; license: string; licenseUrl: string; width: number; height: number }> = {
-	"food-burrito": { title: "Burrito", source: "https://commons.wikimedia.org/wiki/File:Burrito.jpg", creator: "Wotancito", license: "CC BY-SA 4.0", licenseUrl: "https://creativecommons.org/licenses/by-sa/4.0/", width: 960, height: 720 },
+	"food-burrito": { title: "Beef birria burrito with sauces to taste", source: "https://commons.wikimedia.org/wiki/File:Beef_birria_burrito_with_sauces_to_taste.jpg", creator: "Ser Amantio di Nicolao", license: "CC0", licenseUrl: "https://creativecommons.org/publicdomain/zero/1.0/", width: 960, height: 540 },
 	"football-stadium": { title: "Scott Stadium during an American Football game", source: "https://commons.wikimedia.org/wiki/File:Scott_Stadium_during_an_American_Football_game.jpg", creator: "carlinmack", license: "CC0", licenseUrl: "https://creativecommons.org/publicdomain/zero/1.0/", width: 960, height: 720 },
 	coffee: { title: "Coffee cup seen from above", source: "https://commons.wikimedia.org/wiki/File:Coffee_cup_seen_from_above.jpg", creator: "www.Pixel.la Free Stock Photos", license: "CC0", licenseUrl: "https://creativecommons.org/publicdomain/zero/1.0/", width: 960, height: 540 },
 	keyboard: { title: "Keyboard", source: "https://commons.wikimedia.org/wiki/File:Keyboard_(Unsplash).jpg", creator: "Anas Alshanti", license: "CC0", licenseUrl: "https://creativecommons.org/publicdomain/zero/1.0/", width: 960, height: 606 },
@@ -37,11 +37,17 @@ export const photoFile = (id: PhotoId, filename = `${id}.jpg`): Attachment => ({
 /** The photo as an inline part, for `<img src="cid:…">`. */
 export const photoPart = (id: PhotoId, domain: string): Attachment => ({ ...photoFile(id), contentId: `${id}.jpg@${domain}` });
 
-/** An inline photo with its credit under it. `domain` matches the photoPart the message carries. `crop` is a height to cut it to. */
+/**
+ * An inline photo. A photo whose license asks for attribution gets its credit under it;
+ * CC0 photos are credited in assets/manifest.json only. `domain` matches the photoPart
+ * the message carries. `crop` is a height to cut it to.
+ */
 export function photo(id: PhotoId, domain: string, alt: string, label = "Photo", crop?: number, radius = 6): string {
 	const c = PHOTO_CREDITS[id];
 	const size = crop ? `height:${crop}px;object-fit:cover` : "height:auto";
-	return `<img src="cid:${id}.jpg@${domain}" alt="${esc(alt)}" width="${c.width}" style="display:block;width:100%;max-width:100%;${size};border-radius:${radius}px">` +
+	const img = `<img src="cid:${id}.jpg@${domain}" alt="${esc(alt)}" width="${c.width}" style="display:block;width:100%;max-width:100%;${size};border-radius:${radius}px">`;
+	if (c.license === "CC0") return img;
+	return img +
 		`<p style="margin:6px 0 0;font-size:11px;line-height:1.4;color:#6b7280">${esc(label)}: <a href="${esc(c.source)}" style="color:#6b7280">${esc(c.title)}</a> by ${esc(c.creator)}, <a href="${esc(c.licenseUrl)}" style="color:#6b7280">${esc(c.license)}</a>, via Wikimedia Commons</p>`;
 }
 

@@ -25,7 +25,6 @@ import { formatSize, sendTimeLabel } from "./model";
 import { usePrefs, useResolvedTheme } from "./prefs";
 import { useShortcuts } from "./shortcuts";
 import { TooltipLayer } from "./Tooltip";
-import { useDemo } from "~/lib/demo";
 
 type Sender = ReturnType<typeof useMailSender>;
 
@@ -181,7 +180,6 @@ function QuotePreview({ head, body }: { head: string; body: string }) {
 /** One composer for new mail, replies and forwards, wherever it appears. */
 export function Composer(props: ComposerProps) {
 	const { tip } = useShortcuts();
-	const demo = useDemo();
 	const { identities, info, sender, variant } = props;
 	const [state, setState] = useState<ComposeState>(props.initial);
 	const [mode, setMode] = useState<"normal" | "min" | "max">(props.maximised ? "max" : "normal");
@@ -430,7 +428,7 @@ export function Composer(props: ComposerProps) {
 					{inline && <span className="pg-flex" />}
 					<span className="pg-saved" aria-live="polite">{saved ? "Draft saved" : ""}</span>
 					{variant !== "standalone" && (
-						<button type="button" className="pg-cw-btn" title="Open in new window · Keep writing while you read other mail" aria-label="Open in new window" onMouseDown={(e) => { e.preventDefault(); done.current = true; props.onPopOut(stateRef.current); }}>
+						<button type="button" className="pg-cw-btn" title="Open in new window" aria-label="Open in new window" onMouseDown={(e) => { e.preventDefault(); done.current = true; props.onPopOut(stateRef.current); }}>
 							<ArrowSquareOutIcon size={15} />
 						</button>
 					)}
@@ -444,7 +442,7 @@ export function Composer(props: ComposerProps) {
 							</button>
 						</>
 					)}
-					<button type="button" className="pg-cw-btn" title="Save & close · Keeps it in Drafts" aria-label="Save and close" onMouseDown={(e) => { e.preventDefault(); close(); }}>
+					<button type="button" className="pg-cw-btn" title="Save and close" aria-label="Save and close" onMouseDown={(e) => { e.preventDefault(); close(); }}>
 						<XIcon size={15} />
 					</button>
 				</div>
@@ -457,7 +455,7 @@ export function Composer(props: ComposerProps) {
 							aria-haspopup="listbox"
 							aria-expanded={fromOpen}
 							disabled={lockFrom}
-							title={lockFrom ? "Replies go out from the address the mail was delivered to. Change this in Settings." : "Send from"}
+							title={lockFrom ? "Replies go out from the address the mail was delivered to. Change this in the Console." : "Send from"}
 							onClick={() => setFromOpen((v) => !v)}
 						>
 							<Swatch identity={fromId} />
@@ -562,7 +560,7 @@ export function Composer(props: ComposerProps) {
 							<button type="button" className="pg-send" title={tip("send", "Send")} onClick={() => send()} disabled={busy}>
 								Send<PaperPlaneRightIcon size={12} weight="bold" />
 							</button>
-							<button type="button" className="pg-caret" title="Schedule send · Waits in Drafts until the time you pick" aria-label="Schedule send" aria-expanded={schedOpen} onClick={() => { setSchedOpen((v) => !v); setCustom(false); }}>
+							<button type="button" className="pg-caret" title="Schedule send" aria-label="Schedule send" aria-expanded={schedOpen} onClick={() => { setSchedOpen((v) => !v); setCustom(false); }}>
 								<CaretDownIcon size={11} weight="bold" />
 							</button>
 							{schedOpen && (
@@ -637,16 +635,14 @@ export function Composer(props: ComposerProps) {
 						>
 							<SignatureIcon size={16} />
 						</button>
-						{!demo && (
-							<button type="button" className="pg-btn pg-btn-agent" data-busy={agentBusy} title={`${reply ? "Draft reply" : "Draft"} · The agent writes a first draft here. Nothing is sent.`} onMouseDown={(e) => { e.preventDefault(); askAgent(); }}>
-								<AgentIcon size={14} weight="fill" /><span className="pg-agent-label">{agentBusy ? "Drafting…" : reply ? "Draft reply" : "Draft"}</span>
-							</button>
-						)}
+						<button type="button" className="pg-btn pg-btn-agent" data-busy={agentBusy} title={`${reply ? "Draft reply" : "Draft"} · The agent writes a first draft here. Nothing is sent.`} onMouseDown={(e) => { e.preventDefault(); askAgent(); }}>
+							<AgentIcon size={14} weight="fill" /><span className="pg-agent-label">{agentBusy ? "Drafting…" : reply ? "Draft reply" : "Draft"}</span>
+						</button>
 						<div className="pg-flex" />
-						<button type="button" className="pg-btn pg-btn-outline" title="Save as draft" onMouseDown={(e) => { e.preventDefault(); saveNow().then(() => finish("Draft saved")); }}>
+						<button type="button" className="pg-btn pg-btn-outline" title="Save draft" onMouseDown={(e) => { e.preventDefault(); saveNow().then(() => finish("Draft saved")); }}>
 							<FloppyDiskIcon size={14} /><span className="pg-save-label">Save draft</span>
 						</button>
-						<button type="button" className="pg-tool-btn" title="Discard draft · Deletes this draft" aria-label="Discard draft" onMouseDown={(e) => { e.preventDefault(); discard(); }}>
+						<button type="button" className="pg-tool-btn" title="Discard draft" aria-label="Discard draft" onMouseDown={(e) => { e.preventDefault(); discard(); }}>
 							<TrashIcon size={15} />
 						</button>
 					</div>

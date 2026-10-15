@@ -208,6 +208,7 @@ test("the demo cron sends nothing and writes the sample inbox again on the hour"
 	});
 	assert.ok(due.id);
 	await call("_sql", `INSERT INTO labels (id, name, color) VALUES ('visitor', 'Visitor label', '#888888')`);
+	await call("_sql", `INSERT INTO agent_activity (at, actor, action, tool, summary) VALUES ('2026-10-13T08:30:00Z', 'person', 'draft', 'redraft', 'a visitor''s instruction')`);
 
 	const [quiet] = await call("cron", T0 + 5 * 60_000);
 	assert.deepEqual(quiet, { demo: null });
@@ -220,12 +221,24 @@ test("the demo cron sends nothing and writes the sample inbox again on the hour"
 	assert.equal(await count(`SELECT COUNT(*) AS n FROM scheduled_sends`), 0);
 	assert.equal(await count(`SELECT COUNT(*) AS n FROM labels WHERE name = 'Visitor label'`), 0);
 	assert.equal(await count(`SELECT COUNT(*) AS n FROM labels`), reset.demo.labels);
+	assert.equal(await count(`SELECT COUNT(*) AS n FROM agent_activity`), 0, "visitors' activity is gone");
 	const newest = (await call("rows", `SELECT MAX(date) AS d FROM messages WHERE folder_id = 'inbox'`))[0].d;
 	assert.ok(T0 - Date.parse(newest) < 3_600_000, `newest inbox mail is fresh: ${newest}`);
 
 	const [again] = await call("cron", T0 + 3_600_000);
 	assert.equal(again.demo.messages, reset.demo.messages, "a second reset writes the same inbox");
 	assert.equal(await count(`SELECT COUNT(*) AS n FROM messages`), reset.demo.messages);
+});
+
+test("a first request during the reset doesn't seed the inbox a second time", async () => {
+	await call("_sql", "DELETE FROM messages");
+	await call("marker", new Date().toISOString());
+	await call("ensure");
+	assert.equal(await count("SELECT COUNT(*) AS n FROM messages"), 0, "the reset is writing the inbox, so the request leaves it");
+	await call("marker", new Date(Date.now() - 3_600_000).toISOString());
+	await call("ensure");
+	assert.ok(await count("SELECT COUNT(*) AS n FROM messages") > 0, "a marker left by a reset that died doesn't block seeding");
+	await call("marker", "");
 });
 
 test("the daily AI cap: calls stop at the cap and start again the next UTC day", async () => {
@@ -254,4 +267,143 @@ test("a demo API answers 429 once the day's AI calls are used, before any model 
 	assert.equal(first.status, 502, "the first call reaches the handler");
 	assert.equal((await first.json()).query, "invoices from last week");
 	assert.equal((await ask({ DEMO_AI_DAILY: "1" })).status, 429, "the second is refused");
+});
+
+test("an invalid request doesn't use the day's AI allowance", async () => {
+	const DB = await mf.getD1Database("DB");
+	await call("_sql", "DELETE FROM ai_budget");
+	const url = "http://localhost/api/v1/search/interpret";
+	const env = { ...ENV, DB, DEMO_AI_DAILY: "5" };
+	const noOrigin = await api.app.request(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text: "invoices" }) }, env);
+	assert.equal(noOrigin.status, 403, "csrf refuses it");
+	const badBody = await api.app.request(url, { method: "POST", headers: WRITE_HEADERS, body: JSON.stringify({ text: 42 }) }, env);
+	assert.equal(badBody.status, 400);
+	assert.equal(await count("SELECT COUNT(*) AS n FROM ai_budget"), 0);
+	// Regression: ISSUE-005 — Redraft spent the allowance before checking the draft
+	const missing = await api.app.request("http://localhost/api/v1/mailboxes/hello%40example.com/drafts/no-such-draft/redraft", { method: "POST", headers: WRITE_HEADERS, body: JSON.stringify({ instruction: "shorter" }) }, env);
+	assert.equal(missing.status, 404);
+	const blank = await api.app.request("http://localhost/api/v1/mailboxes/hello%40example.com/drafts/no-such-draft/redraft", { method: "POST", headers: WRITE_HEADERS, body: JSON.stringify({ instruction: "   " }) }, env);
+	assert.equal(blank.status, 400);
+	assert.equal(await count("SELECT COUNT(*) AS n FROM ai_budget"), 0, "neither used the allowance");
+});
+
+test("a demo keeps the agent entry points, answers in the panel with a notice, and its Console is Settings only", async () => {
+	const { readFileSync } = await import("node:fs");
+	const read = (f) => readFileSync(`app/components/postal/${f}`, "utf8");
+	const agent = read("Agent.tsx");
+	assert.match(agent, /return useDemo\(\) \? <DemoAgentPanel \{\.\.\.props\} \/> : <LiveAgentPanel \{\.\.\.props\} \/>;/, "the demo panel has no agent socket");
+	const demoPanel = agent.slice(agent.indexOf("function DemoNotice"), agent.indexOf("function LiveAgentPanel"));
+	assert.doesNotMatch(demoPanel, /useAgent|useAgentChat/);
+	assert.match(demoPanel, /<DemoNotice \/>/, "the empty chat shows the notice");
+	assert.match(demoPanel, /<DemoNotice compact \/>/, "a question gets the compact notice as the reply");
+	assert.match(agent, /if \(demo\) return Promise\.reject\(new Error\(DEMO_AGENT_NOTICE\)\);/, "Draft and Draft reply show the notice");
+	assert.doesNotMatch(read("SearchBar.tsx"), /demo/, "search keeps its Ask rows");
+	assert.doesNotMatch(read("Reader.tsx"), /!demo/, "the Reply bar keeps Draft reply");
+	assert.match(read("PostalMail.tsx"), /const panelOpen = mobile \? panelTemp/);
+	const consoleSrc = read("Modals.tsx");
+	assert.match(consoleSrc, /demo \? allGroups\.filter\(\(g\) => g\.title !== "Agents"\)/);
+	assert.match(consoleSrc, /READ_ONLY_IN_DEMO = new Set<ConsoleTab>\(\["general", "addresses", "signatures", "shortcuts"\]\)/);
+});
+
+test("after the first full write, the hourly reset puts the copied inbox back without writing it again", async () => {
+	const T0 = Date.parse("2026-10-13T12:00:00Z");
+	const [first] = await call("cron", T0);
+	const [second] = await call("cron", T0 + 3_600_000);
+	assert.equal(second.demo.restored, true, "the second reset restores the copy");
+	assert.equal(second.demo.messages, first.demo.messages ?? second.demo.messages);
+	const copied = await count("SELECT COUNT(*) AS n FROM demo_snapshot_messages");
+	const labels = await count("SELECT COUNT(*) AS n FROM labels");
+	const links = await count("SELECT COUNT(*) AS n FROM message_labels");
+
+	// A visitor moves and stars a message, deletes a sample label, adds one, writes a draft and edits a sample draft.
+	const [msg] = await call("rows", "SELECT id, email_id, folder_id, starred FROM messages WHERE folder_id = 'inbox' ORDER BY id LIMIT 1");
+	await call("_sql", `UPDATE messages SET folder_id = 'trash', starred = 1 WHERE id = ${msg.id}`);
+	const [label] = await call("rows", "SELECT id FROM labels ORDER BY id LIMIT 1");
+	await call("_sql", `DELETE FROM labels WHERE id = '${label.id}'`);
+	await call("_sql", "INSERT INTO labels (id, name, color) VALUES ('visitor', 'Visitor', '#888888')");
+	await call("createEmail", A, "draft", { id: "visitor-draft", subject: "Visitor draft", sender: A, recipient: "x@example.net", date: new Date(T0).toISOString(), body: "<p>quokka</p>" }, []);
+	const [draft] = await call("rows", "SELECT id, subject FROM messages WHERE folder_id = 'draft' AND email_id != 'visitor-draft' ORDER BY id LIMIT 1");
+	await call("_sql", `UPDATE messages SET subject = 'zebra subject', body = '<p>zebra</p>' WHERE id = ${draft.id}`);
+	await call("_sql", `DELETE FROM messages_fts WHERE rowid = ${draft.id}`);
+	await call("_sql", `INSERT INTO messages_fts (rowid, subject, sender_name, sender_addr, recipients, body_text, attachment_names) VALUES (${draft.id}, 'zebra subject', '', '', '', 'zebra', '')`);
+	await call("_sql", "INSERT INTO agent_activity (at, actor, action, tool, summary) VALUES ('2026-10-13T12:30:00Z', 'person', 'draft', 'redraft', 'typed by a visitor')");
+
+	const [third] = await call("cron", T0 + 2 * 3_600_000);
+	assert.equal(third.demo.restored, true);
+	assert.equal(third.demo.reindexed, 1, "the edited sample draft's index rows are written again");
+	assert.equal(await count("SELECT COUNT(*) AS n FROM messages"), copied);
+	const [back] = await call("rows", `SELECT folder_id, starred FROM messages WHERE id = ${msg.id}`);
+	assert.deepEqual(back, { folder_id: msg.folder_id, starred: msg.starred });
+	assert.equal(await count("SELECT COUNT(*) AS n FROM labels"), labels);
+	assert.equal(await count("SELECT COUNT(*) AS n FROM labels WHERE id = 'visitor'"), 0);
+	assert.equal(await count("SELECT COUNT(*) AS n FROM message_labels"), links);
+	assert.equal(await count("SELECT COUNT(*) AS n FROM messages WHERE email_id = 'visitor-draft'"), 0);
+	assert.equal(await count("SELECT COUNT(*) AS n FROM messages_fts WHERE messages_fts MATCH 'zebra'"), 0);
+	assert.equal(await count("SELECT COUNT(*) AS n FROM messages_fts WHERE messages_fts MATCH 'quokka'"), 0);
+	const word = String(draft.subject).match(/[A-Za-z]{4,}/)?.[0];
+	if (word) assert.ok(await count(`SELECT COUNT(*) AS n FROM messages_fts WHERE messages_fts MATCH '${word}'`) > 0, `the draft's own subject (${word}) is found again`);
+	assert.equal(await count("SELECT COUNT(*) AS n FROM agent_activity"), 0);
+});
+
+// Regression: ISSUE-001 — editing a sample draft deletes it and its file, which forced a full write
+// Found by /qa on 2026-10-15
+// Report: .gstack/qa-reports/run-20261015T132922Z/qa-report-localhost-2026-10-15.md
+test("a reset after a visitor edits a sample draft restores it from the copy, file included", async () => {
+	const T0 = Date.parse("2026-10-14T12:00:00Z");
+	await call("cron", T0);
+	await call("cron", T0 + 3_600_000);
+	const [taken] = await call("rows", "SELECT v FROM demo_snapshot_meta WHERE k = 'taken_at'");
+	const [draft] = await call("rows", "SELECT m.email_id, m.mailbox_id, a.id AS att, a.filename FROM messages m JOIN attachments a ON a.email_id = m.email_id ORDER BY m.folder_id = 'draft' DESC, m.id LIMIT 1");
+	const files = await call("r2", "list", "attachments/");
+	// Saving an edited draft deletes the old one and its files, then writes a new draft.
+	// Emptying Trash takes the same path for any message.
+	await call("_sql", `UPDATE messages SET folder_id = CASE WHEN folder_id = 'draft' THEN 'draft' ELSE 'trash' END WHERE email_id = '${draft.email_id}'`);
+	await call("deleteEmail", draft.mailbox_id, draft.email_id);
+	const key = files.find((k) => k.includes(`/${draft.att}/`));
+	assert.ok(key, "the draft's file is in R2");
+	await call("r2", "delete", key);
+	await call("createEmail", draft.mailbox_id, "draft", { id: "edited-draft", subject: "zebra", sender: draft.mailbox_id, recipient: "x@example.net", date: new Date(T0).toISOString(), body: "<p>zebra</p>" }, []);
+
+	const [reset] = await call("cron", T0 + 2 * 3_600_000);
+	assert.equal(reset.demo.restored, true, "restored from the copy, not written again");
+	const [after] = await call("rows", "SELECT v FROM demo_snapshot_meta WHERE k = 'taken_at'");
+	assert.equal(after.v, taken.v, "the copy wasn't retaken");
+	assert.equal(await count(`SELECT COUNT(*) AS n FROM messages WHERE email_id = '${draft.email_id}'`), 1);
+	assert.equal(await count(`SELECT COUNT(*) AS n FROM attachments WHERE id = '${draft.att}'`), 1);
+	assert.equal(await count("SELECT COUNT(*) AS n FROM messages WHERE email_id = 'edited-draft'"), 0);
+	assert.ok((await call("r2", "list", "attachments/")).includes(key), "the file is back");
+	const [{ id }] = await call("rows", `SELECT id FROM messages WHERE email_id = '${draft.email_id}'`);
+	assert.equal(await count(`SELECT COUNT(*) AS n FROM messages_fts WHERE rowid = ${id}`), 1, "the draft is searchable again");
+});
+
+// Regression: ISSUE-002 — a swapped pair of sample label names made every restore fail on UNIQUE(name)
+// Regression: ISSUE-003 — a restore that threw never fell back to a full write
+// Regression: ISSUE-004 — deleting every sample message made the restore's statement count grow with them
+// Found by /qa review on 2026-10-15
+test("the reset survives swapped label names, deletes of every sample message, and a broken copy", async () => {
+	const T0 = Date.parse("2026-10-15T12:00:00Z");
+	await call("cron", T0);
+	await call("cron", T0 + 3_600_000);
+	const copied = await count("SELECT COUNT(*) AS n FROM demo_snapshot_messages");
+	const [a, b] = await call("rows", "SELECT id, name FROM labels ORDER BY id LIMIT 2");
+	await call("_sql", `UPDATE labels SET name = 'tmp-swap' WHERE id = '${a.id}'`);
+	await call("_sql", `UPDATE labels SET name = '${a.name.replace(/'/g, "''")}' WHERE id = '${b.id}'`);
+	await call("_sql", `UPDATE labels SET name = '${b.name.replace(/'/g, "''")}' WHERE id = '${a.id}'`);
+	await call("_sql", "DELETE FROM messages");
+	const [r1] = await call("cron", T0 + 2 * 3_600_000);
+	assert.equal(r1.demo.restored, true, "restored, not written again");
+	assert.equal(r1.demo.reindexed, copied);
+	const names = Object.fromEntries((await call("rows", `SELECT id, name FROM labels WHERE id IN ('${a.id}', '${b.id}')`)).map((r) => [r.id, r.name]));
+	assert.deepEqual(names, { [a.id]: a.name, [b.id]: b.name });
+	assert.equal(await count("SELECT COUNT(*) AS n FROM messages"), copied);
+	assert.equal(await count("SELECT COUNT(*) AS n FROM messages_fts"), copied, "every sample message is searchable again");
+	assert.equal(await count("SELECT COUNT(*) AS n FROM messages_trigram"), copied);
+
+	// A copy the restore can't apply: the reset writes the inbox again instead of failing every hour.
+	await call("_sql", `UPDATE demo_snapshot_meta SET v = '["no_such_column"]' WHERE k = 'columns'`);
+	const [r2] = await call("cron", T0 + 3 * 3_600_000);
+	assert.notEqual(r2.demo.restored, true);
+	assert.ok(r2.demo.messages > 0);
+	const [meta] = await call("rows", "SELECT v FROM demo_snapshot_meta WHERE k = 'taken_at'");
+	assert.equal(Number(meta.v), T0 + 3 * 3_600_000, "a new copy was taken");
 });

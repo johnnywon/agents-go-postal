@@ -253,8 +253,11 @@ test("benchmark: 5,000 conversations, inbox page and facets under 100 ms each", 
 	const facetMs = time(() => queryFacets(exec, filter({ view: "inbox" })));
 	const searchMs = time(() => q(exec, { view: "all", q: "topic7" }, { limit: 50 }));
 	console.log(`inbox page ${pageMs.toFixed(1)} ms, facets ${facetMs.toFixed(1)} ms, search ${searchMs.toFixed(1)} ms`);
-	assert.ok(pageMs < 100, `inbox page ${pageMs} ms`);
-	assert.ok(facetMs < 100, `facets ${facetMs} ms`);
+	// Time budgets hold only in CI. A busy laptop fails them with nothing wrong (WON-388); CI runs on every PR.
+	if (process.env.CI) {
+		assert.ok(pageMs < 100, `inbox page ${pageMs} ms`);
+		assert.ok(facetMs < 100, `facets ${facetMs} ms`);
+	}
 });
 
 const { parseMailParams } = await loadTs("workers/lib/mail-filter-params.ts");

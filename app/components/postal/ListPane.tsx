@@ -61,13 +61,13 @@ export interface ListPaneProps {
 	onHome: () => void;
 }
 
-const EMPTY: Record<string, { Icon: typeof TrayIcon; title: string; body: string }> = {
-	drafts: { Icon: FileIcon, title: "No drafts", body: "Drafts you or the agent start show up here until they're sent." },
-	sent: { Icon: PaperPlaneTiltIcon, title: "Nothing sent yet", body: "Mail you send from any address appears here, with the address it went out from." },
-	archive: { Icon: ArchiveIcon, title: "Archive is empty", body: "Press E on any message to archive it. You can undo." },
-	spam: { Icon: WarningIcon, title: "No spam", body: "Nothing suspicious has arrived." },
-	trash: { Icon: TrashIcon, title: "Trash is empty", body: "Anything you delete lands here first." },
-	starred: { Icon: StarIcon, title: "No starred mail", body: "Star a conversation to keep it here." },
+const EMPTY: Record<string, { Icon: typeof TrayIcon; title: string }> = {
+	drafts: { Icon: FileIcon, title: "No drafts" },
+	sent: { Icon: PaperPlaneTiltIcon, title: "Nothing sent yet" },
+	archive: { Icon: ArchiveIcon, title: "Archive is empty" },
+	spam: { Icon: WarningIcon, title: "No spam" },
+	trash: { Icon: TrashIcon, title: "Trash is empty" },
+	starred: { Icon: StarIcon, title: "No starred mail" },
 };
 
 /** Whether the main pointer can hover. Then the row toolbar waits for it and the selecting check is only a picture. */
@@ -153,10 +153,10 @@ export function ListPane(props: ListPaneProps) {
 	};
 
 	const empty = props.searching
-		? { Icon: MagnifyingGlassIcon, title: "No results", body: "Try fewer words, or a filter like from:, to: or label:." }
+		? { Icon: MagnifyingGlassIcon, title: "No results" }
 		: EMPTY[filter.view] ?? (unreadOnly
-			? { Icon: TrayIcon, title: "No unread mail", body: "Everything here has been read." }
-			: { Icon: TrayIcon, title: "Nothing here", body: "No messages match this view." });
+			? { Icon: TrayIcon, title: "No unread mail" }
+			: { Icon: TrayIcon, title: "Nothing here" });
 
 	let lastDay: string | null = null;
 	const groupByDay = filter.sort === "date";
@@ -240,7 +240,7 @@ export function ListPane(props: ListPaneProps) {
 				{filter.view === "trash" && props.rows.length > 0 && (
 					<button type="button" className="pg-btn pg-btn-sm pg-btn-outline" onClick={props.onEmptyTrash} title="Delete everything in Trash forever">Empty Trash</button>
 				)}
-				<button type="button" className="pg-new-btn" onClick={props.onNew} title={tip("compose", "New email")} aria-label="New email">
+				<button type="button" className="pg-new-btn" onClick={props.onNew} title={tip("compose", "New message")} aria-label="New message">
 					<PencilSimpleLineIcon size={16} />
 				</button>
 				<div className="pg-group">
@@ -253,7 +253,7 @@ export function ListPane(props: ListPaneProps) {
 					>
 						<EnvelopeSimpleIcon size={16} weight={unreadOnly ? "fill" : "regular"} />
 					</button>
-					<button type="button" className="pg-icon-btn" style={{ position: "relative" }} aria-pressed={nFilters > 0} aria-expanded={fltOpen} aria-label={nFilters ? `Filter, ${nFilters} on` : "Filter"} title="Filter · Unread, starred, attachments, date and more" onClick={() => setFltOpen((v) => !v)}>
+					<button type="button" className="pg-icon-btn" style={{ position: "relative" }} aria-pressed={nFilters > 0} aria-expanded={fltOpen} aria-label={nFilters ? `Filter, ${nFilters} on` : "Filter"} title="Filter" onClick={() => setFltOpen((v) => !v)}>
 						<FunnelSimpleIcon size={16} weight={nFilters ? "fill" : "regular"} />
 						{nFilters > 0 && <span className="pg-flt-badge">{nFilters}</span>}
 					</button>
@@ -282,7 +282,7 @@ export function ListPane(props: ListPaneProps) {
 								] as const).map(([kind, value, label, Icon, n]) => {
 									const on = hasChip(filter, kind, value);
 									return (
-										<button key={value} type="button" role="menuitemcheckbox" aria-checked={on} className="pg-menu-item" onClick={() => go(toggleChip(filter, { kind, value }))}>
+										<button key={value} type="button" role="menuitemcheckbox" aria-checked={on} aria-label={n == null ? label : `${label}, ${n}`} className="pg-menu-item" onClick={() => go(toggleChip(filter, { kind, value }))}>
 											<span className="pg-check pg-check-neutral" data-on={on}>{on && <CheckIcon size={10} weight="bold" />}</span>
 											<Icon size={14} color="var(--pg-text-6)" style={{ flex: "none" }} />
 											<span className="pg-flex pg-ellipsis">{label}</span>
@@ -295,7 +295,7 @@ export function ListPane(props: ListPaneProps) {
 								{props.labels.map((label) => {
 									const on = hasChip(filter, "label", label.id);
 									return (
-										<button key={label.id} type="button" role="menuitemcheckbox" aria-checked={on} className="pg-menu-item" onClick={() => go(toggleChip(filter, { kind: "label", value: label.id }))}>
+										<button key={label.id} type="button" role="menuitemcheckbox" aria-checked={on} aria-label={labelFacet.has(label.id) ? `${label.name}, ${labelFacet.get(label.id)}` : label.name} className="pg-menu-item" onClick={() => go(toggleChip(filter, { kind: "label", value: label.id }))}>
 											<span className="pg-check pg-check-neutral" data-on={on}>{on && <CheckIcon size={10} weight="bold" />}</span>
 											<LabelTag id={label.id} />
 											<span className="pg-flex pg-ellipsis">{label.name}</span>
@@ -355,7 +355,6 @@ export function ListPane(props: ListPaneProps) {
 					<div className="pg-empty">
 						<div className="pg-empty-icon"><empty.Icon size={20} /></div>
 						<h2>{empty.title}</h2>
-						<p>{empty.body}</p>
 						<button type="button" className="pg-btn" onClick={props.searching ? props.onClearSearch : props.onHome}>
 							{props.searching ? "Clear search" : "Back to Inbox"}
 							{!props.searching && <Keys id="goInbox" className="pg-keyhint pg-mono" style={{ fontSize: 10, color: "var(--pg-text-8)" }} />}
@@ -408,7 +407,7 @@ export function ListPane(props: ListPaneProps) {
 								<div className="pg-row-main">
 									{/* Inside one address every row would repeat it, so the To line only shows when it tells rows apart. */}
 									{(scope !== row.mailbox_id || row.also_in.length > 0) && (
-										<div className="pg-row-to" title={`Delivered to ${row.mailbox_id} — replies send from here`}>
+										<div className="pg-row-to" title={`Delivered to ${row.mailbox_id} · Replies send from here`}>
 											<Swatch identity={identity} />
 											<AddressText address={row.mailbox_id} identity={identity} />
 											{row.also_in.length > 0 && <span className="pg-also">+{row.also_in.length}</span>}
@@ -462,7 +461,7 @@ export function ListPane(props: ListPaneProps) {
 										{row.unread ? <EnvelopeOpenIcon size={15} /> : <EnvelopeSimpleIcon size={15} />}
 									</button>
 									{filter.view !== "trash" && (
-										<button type="button" title="Move to trash" aria-label="Move to trash" onClick={() => props.onRowAction(row, "trash")}><TrashIcon size={15} /></button>
+										<button type="button" title="Move to Trash" aria-label="Move to Trash" onClick={() => props.onRowAction(row, "trash")}><TrashIcon size={15} /></button>
 									)}
 								</div>
 								{/* With a mouse, hover always brings up the toolbar's Select first, so this check is only a picture. */}
@@ -483,10 +482,10 @@ export function ListPane(props: ListPaneProps) {
 							<button type="button" className="pg-all" onClick={props.onSelectAll}>All</button>
 							<div style={{ flex: 1 }} />
 							{RESTORABLE.has(filter.view) && <button type="button" className="pg-tool" title="Move to Inbox" aria-label="Move to Inbox" onClick={() => props.onBulk("restore")}><TrayArrowUpIcon size={15} /></button>}
-							<button type="button" className="pg-tool" title="Archive" aria-label="Archive" onClick={() => props.onBulk("archive")}><ArchiveIcon size={15} /></button>
-							<button type="button" className="pg-tool" title="Read" aria-label="Mark read" onClick={() => props.onBulk("read")}><EnvelopeOpenIcon size={15} /></button>
-							<button type="button" className="pg-tool" title="Star" aria-label="Star" onClick={() => props.onBulk("star")}><StarIcon size={15} /></button>
-							{filter.view !== "trash" && <button type="button" className="pg-tool" title="Trash" aria-label="Move to trash" onClick={() => props.onBulk("trash")}><TrashIcon size={15} /></button>}
+							<button type="button" className="pg-tool" title={tip("archive", "Archive")} aria-label="Archive" onClick={() => props.onBulk("archive")}><ArchiveIcon size={15} /></button>
+							<button type="button" className="pg-tool" title={tip("markRead", "Mark read")} aria-label="Mark read" onClick={() => props.onBulk("read")}><EnvelopeOpenIcon size={15} /></button>
+							<button type="button" className="pg-tool" title={tip("star", "Star")} aria-label="Star" onClick={() => props.onBulk("star")}><StarIcon size={15} /></button>
+							{filter.view !== "trash" && <button type="button" className="pg-tool" title={tip("trash", "Move to Trash")} aria-label="Move to Trash" onClick={() => props.onBulk("trash")}><TrashIcon size={15} /></button>}
 							{filter.view !== "spam" && <button type="button" className="pg-tool" title={tip("spam", "Report spam")} aria-label="Report spam" onClick={() => props.onBulk("spam")}><WarningOctagonIcon size={15} /></button>}
 							<span className="pg-sep" />
 							<button type="button" className="pg-tool" title={tip("back", "Clear selection")} aria-label="Clear selection" onClick={props.onClearSelection} style={{ color: "var(--pg-text-6)" }}><XIcon size={14} /></button>

@@ -112,16 +112,16 @@ The PDFs are generated text PDFs with a band of the sender's colour across the t
 
 ## Photos
 
-Four openly licensed photos, stored once in `workers/lib/dev-seed/alex/assets/` with `manifest.json` (source page, download URL, creator, license, size, dimensions, SHA-256, changes). A test checks the bytes against the manifest.
+Four CC0 photos, stored once in `workers/lib/dev-seed/alex/assets/` with `manifest.json` (source page, download URL, creator, license, size, dimensions, SHA-256, changes). A test checks the bytes against the manifest.
 
 | Photo | Creator, license | Shown inline | As a file |
 |---|---|---|---|
 | football-stadium.jpg | carlinmack, CC0 1.0 | L-01, L-06 (180px crop) | |
-| food-burrito.jpg | Wotancito, CC BY-SA 4.0 | A-04, A-05 (220px crop) | |
+| food-burrito.jpg | Ser Amantio di Nicolao, CC0 1.0 | A-04, A-05 (220px crop) | |
 | coffee.jpg | www.Pixel.la Free Stock Photos, CC0 1.0 | H-03 (180px crop) | A-06 |
 | keyboard.jpg | Anas Alshanti, CC0 1.0 | A-03 (220px crop) | A-03 |
 
-Inline photos are real inline parts: `content_id` set, `disposition` inline, and `<img src="cid:…">` in the HTML, which the reader rewrites to the attachment URL. Each carries a credit line linking its source page and license. The burrito is a menu photo; the stadium is a 2019 college game, captioned as illustrative.
+Inline photos are real inline parts: `content_id` set, `disposition` inline, and `<img src="cid:…">` in the HTML, which the reader rewrites to the attachment URL. All four photos are CC0, so the mail shows them without a caption; their credits are in the manifest. The burrito is a beef birria burrito cropped to its cut half; the stadium is a 2019 college game.
 
 ## Links
 

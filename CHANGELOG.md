@@ -2,6 +2,25 @@
 
 Versions follow [semantic versioning](https://semver.org). Before 1.0, a minor version can break things. Each entry names any new D1 migration. `npm run deploy` applies it; if you deploy another way, run `wrangler d1 migrations apply DB --remote` before you deploy that version.
 
+## 0.8.1
+
+Fixes after 0.8.0.
+
+- Inline images apply only to HTML mail.
+- The demo's hourly reset puts back a copy of the sample inbox in one D1 batch instead of writing it again, so it fits the Workers Free plan. It also clears the activity log, uses the cron's scheduled time, and no longer overlaps a visitor's first request. A new story week or a missing sample message writes the inbox in full and takes a new copy.
+- A demo counts an AI action against `DEMO_AI_DAILY` only after the request passes CSRF and validation.
+- A demo keeps the agent panel and its buttons; the panel and Draft say the agent is off in the demo. Its Console shows only Settings, read-only apart from Labels.
+- Search suggestions and the Filter menu name their parts with commas for screen readers and browser agents.
+- Less copy: no Console subtitles or tab intros, empty folders show a title only, tooltips name the action and its key, and search says Search mail. The log-out dialog no longer says nothing is sent while you're away.
+- One word per action: Move to Trash, New message, Cancel. US spelling throughout. Keys shown in the editor and search come from your own shortcuts.
+- The demo's agent panel opens on a notice card that says the agent is off in the demo; anything asked gets the short form as the reply.
+- Brand: the Fold mark is the favicon, the app icons, the link card and the README logo, and sits in the sidebar's top-left corner in place of the four dots.
+- The sample photos are all CC0 and show without a caption; their credits are in the asset manifest.
+- README rewritten in a plain voice, with requirements, status and limits up front.
+- README screenshots retaken from the sample inbox.
+
+No D1 migration.
+
 ## 0.8.0
 
 The app is readable to browser agents, and a demo build fills itself with sample mail.
@@ -38,7 +57,7 @@ Agents that drive a browser, such as Aside, gstack browse, Playwright and Claude
 - `SEED_PROFILE=alex` picks a second sample inbox: Alex Rivera, who runs a catalog API, plays in a band and keeps a code club's books. 100 messages in nine mailboxes on four domains: customers, the tools Partwell runs on, a late-night incident and its recovery, invoices, a payout, food orders, family, a fantasy league, gigs and a grant. Each sender has its own email design; vendors use their published logos and the invented companies original marks. Four openly licensed photos show inline; PDFs, CSVs, text files and JPEGs are real attachments. Links open an in-app page (`/api/v1/sample-link`) instead of leaving the app. [Alex profile](docs/demo-alex.md) covers the mailboxes, story, brands, files and sources.
 - A seeded reply draft now opens under the message it answers.
 
-No D1 migration.
+D1 migration: `0007_ai_budget.sql`. `npm run deploy` applies it.
 
 ## 0.7.4
 

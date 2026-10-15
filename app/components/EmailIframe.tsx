@@ -13,7 +13,7 @@ interface EmailIframeProps {
 	remoteImages?: boolean;
 	/** Body padding inside the frame, in px. Defaults to 0 when auto-sizing, else 24. */
 	padding?: number;
-	/** Render on the page's own surface with these colours instead of a white page. For plain mail. */
+	/** Render on the page's own surface with these colors instead of a white page. For plain mail. */
 	palette?: EmailPalette;
 }
 
@@ -27,8 +27,8 @@ export interface EmailPalette {
 }
 
 /**
- * Mail that is just text and simple formatting: no tables, images, colours
- * or backgrounds of its own. It can take the reader's colours; designed
+ * Mail that is just text and simple formatting: no tables, images, colors
+ * or backgrounds of its own. It can take the reader's colors; designed
  * HTML mail keeps its white page.
  */
 export function isPlainHtml(html: string): boolean {

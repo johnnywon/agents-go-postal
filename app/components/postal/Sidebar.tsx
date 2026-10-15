@@ -8,7 +8,7 @@ import {
 } from "@phosphor-icons/react";
 import { AgentIcon } from "./AgentIcon";
 import {
-	ADDRESS_FOLDERS, AllAddressesIcon, ByAddressIcon, InboxIcon, LabelsIcon, SECONDARY_VIEWS, UnreadIcon,
+	ADDRESS_FOLDERS, ByAddressIcon, FoldMark, InboxIcon, LabelsIcon, SECONDARY_VIEWS, UnreadIcon,
 } from "./NavIcons";
 import { useShortcuts } from "./shortcuts";
 import { type AnchorHTMLAttributes, type FormEvent, useState } from "react";
@@ -95,7 +95,7 @@ export function Sidebar(props: SidebarProps) {
 	return (
 		<nav className="pg-nav" aria-label="Mail" data-overlay={props.overlay || undefined} data-drawer={props.drawer}>
 			<button type="button" className="pg-rail-head" onClick={props.onCollapse} title={tip("sidebar", "Collapse sidebar")}>
-				<AllAddressesIcon size={14} />
+				<FoldMark size={14} />
 				<span className="pg-flex" style={{ lineHeight: 1, textAlign: "left" }}>PLURAMAIL</span>
 				<CaretDoubleLeftIcon size={14} weight="bold" />
 			</button>
@@ -223,7 +223,7 @@ export function Sidebar(props: SidebarProps) {
 									<PlusIcon size={12} />
 									<span>New label</span>
 								</button>
-								<button type="button" className="pg-nav-new" onClick={props.onManageLabels} title="Rename, recolour or delete labels">
+								<button type="button" className="pg-nav-new" onClick={props.onManageLabels} title="Rename, recolor or delete labels">
 									<PencilSimpleIcon size={12} />
 									<span>Manage labels</span>
 								</button>
@@ -271,7 +271,7 @@ export function Sidebar(props: SidebarProps) {
 				<div style={{ flex: 1, minHeight: 12 }} />
 			</div>
 			<div className="pg-nav-foot">
-				<button type="button" className="pg-foot-btn" onClick={props.onConsole} title="Console · agents, limits, MCP and settings">
+				<button type="button" className="pg-foot-btn" onClick={props.onConsole} title="Console">
 					<TerminalWindowIcon size={14} />
 					<span>Console</span>
 				</button>
@@ -303,7 +303,7 @@ export function NavRail({
 	return (
 		<nav className="pg-navrail" aria-label="Mail">
 			<button type="button" className="pg-rail-head" onClick={onExpand} title={tip("sidebar", "Expand sidebar")} aria-label="Expand sidebar">
-				<AllAddressesIcon size={14} />
+				<FoldMark size={14} />
 				<CaretDoubleRightIcon size={10} weight="bold" />
 			</button>
 			<div className="pg-navrail-scroll">
