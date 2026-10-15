@@ -160,7 +160,11 @@ function snapshotKey(profile: SeedProfile, now: number): string {
 export async function resetDemo(env: Env, now = Date.now()): Promise<SeedSummary | (Restored & { profile: SeedProfile; restored: true })> {
 	const profile = seedProfile(env);
 	const key = snapshotKey(profile, now);
-	const restored = await restoreSnapshot(env, key, { now, shiftDates: profile !== "alex", maxAgeMs: 14 * 86_400_000 });
+	// A copy that can't be applied (the batch rolls back) gets replaced by a full write, not retried every hour.
+	const restored = await restoreSnapshot(env, key, { now, shiftDates: profile !== "alex", maxAgeMs: 14 * 86_400_000 }).catch((e) => {
+		console.error(`demo reset: restore failed, writing the inbox again: ${(e as Error).message}`);
+		return null;
+	});
 	if (restored) return { profile, restored: true, ...restored };
 	const sql = recordsSql(env);
 	// A first request in another isolate sees an empty inbox while this runs; the marker tells it not to seed too.

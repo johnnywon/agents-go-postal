@@ -279,6 +279,12 @@ test("an invalid request doesn't use the day's AI allowance", async () => {
 	const badBody = await api.app.request(url, { method: "POST", headers: WRITE_HEADERS, body: JSON.stringify({ text: 42 }) }, env);
 	assert.equal(badBody.status, 400);
 	assert.equal(await count("SELECT COUNT(*) AS n FROM ai_budget"), 0);
+	// Regression: ISSUE-005 — Redraft spent the allowance before checking the draft
+	const missing = await api.app.request("http://localhost/api/v1/mailboxes/hello%40example.com/drafts/no-such-draft/redraft", { method: "POST", headers: WRITE_HEADERS, body: JSON.stringify({ instruction: "shorter" }) }, env);
+	assert.equal(missing.status, 404);
+	const blank = await api.app.request("http://localhost/api/v1/mailboxes/hello%40example.com/drafts/no-such-draft/redraft", { method: "POST", headers: WRITE_HEADERS, body: JSON.stringify({ instruction: "   " }) }, env);
+	assert.equal(blank.status, 400);
+	assert.equal(await count("SELECT COUNT(*) AS n FROM ai_budget"), 0, "neither used the allowance");
 });
 
 test("a demo keeps the agent entry points, answers in the panel with a notice, and its Console is Settings only", async () => {
@@ -367,4 +373,36 @@ test("a reset after a visitor edits a sample draft restores it from the copy, fi
 	assert.ok((await call("r2", "list", "attachments/")).includes(key), "the file is back");
 	const [{ id }] = await call("rows", `SELECT id FROM messages WHERE email_id = '${draft.email_id}'`);
 	assert.equal(await count(`SELECT COUNT(*) AS n FROM messages_fts WHERE rowid = ${id}`), 1, "the draft is searchable again");
+});
+
+// Regression: ISSUE-002 — a swapped pair of sample label names made every restore fail on UNIQUE(name)
+// Regression: ISSUE-003 — a restore that threw never fell back to a full write
+// Regression: ISSUE-004 — deleting every sample message made the restore's statement count grow with them
+// Found by /qa review on 2026-10-15
+test("the reset survives swapped label names, deletes of every sample message, and a broken copy", async () => {
+	const T0 = Date.parse("2026-10-15T12:00:00Z");
+	await call("cron", T0);
+	await call("cron", T0 + 3_600_000);
+	const copied = await count("SELECT COUNT(*) AS n FROM demo_snapshot_messages");
+	const [a, b] = await call("rows", "SELECT id, name FROM labels ORDER BY id LIMIT 2");
+	await call("_sql", `UPDATE labels SET name = 'tmp-swap' WHERE id = '${a.id}'`);
+	await call("_sql", `UPDATE labels SET name = '${a.name.replace(/'/g, "''")}' WHERE id = '${b.id}'`);
+	await call("_sql", `UPDATE labels SET name = '${b.name.replace(/'/g, "''")}' WHERE id = '${a.id}'`);
+	await call("_sql", "DELETE FROM messages");
+	const [r1] = await call("cron", T0 + 2 * 3_600_000);
+	assert.equal(r1.demo.restored, true, "restored, not written again");
+	assert.equal(r1.demo.reindexed, copied);
+	const names = Object.fromEntries((await call("rows", `SELECT id, name FROM labels WHERE id IN ('${a.id}', '${b.id}')`)).map((r) => [r.id, r.name]));
+	assert.deepEqual(names, { [a.id]: a.name, [b.id]: b.name });
+	assert.equal(await count("SELECT COUNT(*) AS n FROM messages"), copied);
+	assert.equal(await count("SELECT COUNT(*) AS n FROM messages_fts"), copied, "every sample message is searchable again");
+	assert.equal(await count("SELECT COUNT(*) AS n FROM messages_trigram"), copied);
+
+	// A copy the restore can't apply: the reset writes the inbox again instead of failing every hour.
+	await call("_sql", `UPDATE demo_snapshot_meta SET v = '["no_such_column"]' WHERE k = 'columns'`);
+	const [r2] = await call("cron", T0 + 3 * 3_600_000);
+	assert.notEqual(r2.demo.restored, true);
+	assert.ok(r2.demo.messages > 0);
+	const [meta] = await call("rows", "SELECT v FROM demo_snapshot_meta WHERE k = 'taken_at'");
+	assert.equal(Number(meta.v), T0 + 3 * 3_600_000, "a new copy was taken");
 });

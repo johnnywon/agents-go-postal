@@ -572,8 +572,13 @@ app.post("/api/v1/mailboxes/:mailboxId/drafts/:id/redraft", async (c: AppContext
 	const mailboxId = c.req.param("mailboxId")!;
 	const draftId = c.req.param("id")!;
 	const parsed = z.object({ instruction: z.string().max(REDRAFT_INSTRUCTION_MAX * 2) }).safeParse(await c.req.json().catch(() => null));
-	if (!parsed.success) return c.json({ error: "Say how to change the draft" }, 400);
-	if (!(await demoAiAllowed(c.env))) return c.json({ error: DEMO_AI_USED_UP }, 429);
+	if (!parsed.success || !parsed.data.instruction.trim()) return c.json({ error: "Say how to change the draft" }, 400);
+	if (DEMO) {
+		// Spend a demo AI action only on a draft that exists.
+		const draft = (await c.var.mailbox.getEmail(draftId)) as { folder_id?: string } | null;
+		if (!draft || draft.folder_id !== Folders.DRAFT) return c.json({ error: "Draft not found" }, 404);
+		if (!(await demoAiAllowed(c.env))) return c.json({ error: DEMO_AI_USED_UP }, 429);
+	}
 	const sql = recordsSql(c.env);
 	const [system, model] = await Promise.all([getSystemPrompt(c.env, mailboxId), agentModel(c.env)]);
 	const result = await logged(sql, { actor: "person", bound: mailboxId }, "redraft", { draftId, instruction: parsed.data.instruction }, () =>
