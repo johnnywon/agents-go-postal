@@ -295,3 +295,43 @@ test("a demo hides the agent entry points and the Console's agents, and its sett
 	assert.match(consoleSrc, /demo \? allGroups\.filter\(\(g\) => g\.title !== "Agents"\)/);
 	assert.match(consoleSrc, /READ_ONLY_IN_DEMO = new Set<ConsoleTab>\(\["general", "addresses", "signatures", "shortcuts"\]\)/);
 });
+
+test("after the first full write, the hourly reset puts the copied inbox back without writing it again", async () => {
+	const T0 = Date.parse("2026-10-13T12:00:00Z");
+	const [first] = await call("cron", T0);
+	const [second] = await call("cron", T0 + 3_600_000);
+	assert.equal(second.demo.restored, true, "the second reset restores the copy");
+	assert.equal(second.demo.messages, first.demo.messages ?? second.demo.messages);
+	const copied = await count("SELECT COUNT(*) AS n FROM demo_snapshot_messages");
+	const labels = await count("SELECT COUNT(*) AS n FROM labels");
+	const links = await count("SELECT COUNT(*) AS n FROM message_labels");
+
+	// A visitor moves and stars a message, deletes a sample label, adds one, writes a draft and edits a sample draft.
+	const [msg] = await call("rows", "SELECT id, email_id, folder_id, starred FROM messages WHERE folder_id = 'inbox' ORDER BY id LIMIT 1");
+	await call("_sql", `UPDATE messages SET folder_id = 'trash', starred = 1 WHERE id = ${msg.id}`);
+	const [label] = await call("rows", "SELECT id FROM labels ORDER BY id LIMIT 1");
+	await call("_sql", `DELETE FROM labels WHERE id = '${label.id}'`);
+	await call("_sql", "INSERT INTO labels (id, name, color) VALUES ('visitor', 'Visitor', '#888888')");
+	await call("createEmail", A, "draft", { id: "visitor-draft", subject: "Visitor draft", sender: A, recipient: "x@example.net", date: new Date(T0).toISOString(), body: "<p>quokka</p>" }, []);
+	const [draft] = await call("rows", "SELECT id, subject FROM messages WHERE folder_id = 'draft' AND email_id != 'visitor-draft' ORDER BY id LIMIT 1");
+	await call("_sql", `UPDATE messages SET subject = 'zebra subject', body = '<p>zebra</p>' WHERE id = ${draft.id}`);
+	await call("_sql", `DELETE FROM messages_fts WHERE rowid = ${draft.id}`);
+	await call("_sql", `INSERT INTO messages_fts (rowid, subject, sender_name, sender_addr, recipients, body_text, attachment_names) VALUES (${draft.id}, 'zebra subject', '', '', '', 'zebra', '')`);
+	await call("_sql", "INSERT INTO agent_activity (at, actor, action, tool, summary) VALUES ('2026-10-13T12:30:00Z', 'person', 'draft', 'redraft', 'typed by a visitor')");
+
+	const [third] = await call("cron", T0 + 2 * 3_600_000);
+	assert.equal(third.demo.restored, true);
+	assert.equal(third.demo.reindexed, 1, "the edited sample draft's index rows are written again");
+	assert.equal(await count("SELECT COUNT(*) AS n FROM messages"), copied);
+	const [back] = await call("rows", `SELECT folder_id, starred FROM messages WHERE id = ${msg.id}`);
+	assert.deepEqual(back, { folder_id: msg.folder_id, starred: msg.starred });
+	assert.equal(await count("SELECT COUNT(*) AS n FROM labels"), labels);
+	assert.equal(await count("SELECT COUNT(*) AS n FROM labels WHERE id = 'visitor'"), 0);
+	assert.equal(await count("SELECT COUNT(*) AS n FROM message_labels"), links);
+	assert.equal(await count("SELECT COUNT(*) AS n FROM messages WHERE email_id = 'visitor-draft'"), 0);
+	assert.equal(await count("SELECT COUNT(*) AS n FROM messages_fts WHERE messages_fts MATCH 'zebra'"), 0);
+	assert.equal(await count("SELECT COUNT(*) AS n FROM messages_fts WHERE messages_fts MATCH 'quokka'"), 0);
+	const word = String(draft.subject).match(/[A-Za-z]{4,}/)?.[0];
+	if (word) assert.ok(await count(`SELECT COUNT(*) AS n FROM messages_fts WHERE messages_fts MATCH '${word}'`) > 0, `the draft's own subject (${word}) is found again`);
+	assert.equal(await count("SELECT COUNT(*) AS n FROM agent_activity"), 0);
+});
