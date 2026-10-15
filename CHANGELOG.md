@@ -2,6 +2,19 @@
 
 Versions follow [semantic versioning](https://semver.org). Before 1.0, a minor version can break things. Each entry names any new D1 migration. `npm run deploy` applies it; if you deploy another way, run `wrangler d1 migrations apply DB --remote` before you deploy that version.
 
+## 0.8.2
+
+Motion. Everything that opens and closes moves on one curve.
+
+- The sidebar and the agent panel open and close with motion. At 1300px and up the column's width eases between rail and column while the column slides under the rail; below 1300px it slides in over a scrim, and on phones the agent rises as a sheet. A toggle mid-move reverses from where it is.
+- Closed columns stay mounted and inert. The agent mounts on its first open and stays connected after you close it. A column that closes with focus inside hands it to its rail.
+- While a column moves, an email holds its height until the motion ends, so the reader lays out once a frame.
+- The search window unrolls down from the bar and rolls back up; a close that turns back reverses.
+- Popovers, menus, row tools, the composer, toasts and tooltips enter on the same curve without scaling text. Toasts no longer slide in off-center.
+- Reduced motion turns all of it off.
+
+No D1 migration.
+
 ## 0.8.1
 
 Fixes after 0.8.0.
