@@ -26,6 +26,11 @@ const SETTINGS = "Settings are read-only in the demo";
 // Every write route in the API, with what a demo does with it. A new write route fails here until it is listed.
 const WRITES = {
 	"POST /api/v1/dev/seed": SETTINGS,
+	"POST /api/v1/dev/seed-agents": SETTINGS,
+	"POST /api/v1/agents": SETTINGS,
+	"PUT /api/v1/agents/order": SETTINGS,
+	"PUT /api/v1/agents/:id": SETTINGS,
+	"DELETE /api/v1/agents/:id": SETTINGS,
 	"PUT /api/v1/prefs": SETTINGS,
 	"PUT /api/v1/agent-model": SETTINGS,
 	"POST /api/v1/agent-model/test": AI,
@@ -300,8 +305,10 @@ test("a demo keeps the agent entry points, answers in the panel with a notice, a
 	assert.doesNotMatch(read("SearchBar.tsx"), /demo/, "search keeps its Ask rows");
 	assert.doesNotMatch(read("Reader.tsx"), /!demo/, "the Reply bar keeps Draft reply");
 	assert.match(read("PostalMail.tsx"), /const panelOpen = mobile \? panelTemp/);
+	const consolePage = read("Console.tsx");
+	assert.match(consolePage, /demo && !isSettingsTab\(props\.tab\) \? "general" : props\.tab/, "an agent page opens Preferences");
+	assert.match(consolePage, /demo \? CONSOLE_RAIL\.filter\(\(g\) => g\.tabs\.every\(isSettingsTab\)\)/, "the rail shows the settings groups only");
 	const consoleSrc = read("Modals.tsx");
-	assert.match(consoleSrc, /demo \? allGroups\.filter\(\(g\) => g\.title !== "Agents"\)/);
 	assert.match(consoleSrc, /READ_ONLY_IN_DEMO = new Set<ConsoleTab>\(\["general", "addresses", "signatures", "shortcuts"\]\)/);
 });
 

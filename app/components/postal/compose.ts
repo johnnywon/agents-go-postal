@@ -249,7 +249,7 @@ export function useMailSender(info: ReadonlyMap<string, AddressInfo>) {
 
 	const refresh = useCallback(
 		(mailboxId: string) => {
-			for (const queryKey of [["mail"], ["mail-facets"], ["emails", mailboxId], ["scheduled"]]) queryClient.invalidateQueries({ queryKey });
+			for (const queryKey of [["mail"], ["mail-facets"], ["emails", mailboxId], ["scheduled"], ["agent-drafts"]]) queryClient.invalidateQueries({ queryKey });
 		},
 		[queryClient],
 	);

@@ -240,7 +240,7 @@ Mara`, SIGNERS.mara),
 		{
 			key: "A-08", box: "personal", folder: "draft", at: "2026-10-09T10:32", from: alex("personal"), to: [P.mara],
 			subject: "Re: Can we still review the migration this morning?", read: true, labels: ["Clients"], thread: "A-07", replyTo: "A-07",
-			draftNotes: { origin: "auto-draft", instructions: [] },
+			draftNotes: { origin: "auto-draft", agent: null, instructions: [] },
 			quote: "If today is too much, could we move it?",
 			html: human(`Hi Mara,
 

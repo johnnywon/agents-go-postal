@@ -27,7 +27,8 @@ export const RUN_STALE_MS = 10 * 60_000;
 /** A run still running after this long has no redelivery coming; the hourly cron marks it failed. */
 export const RUN_ABANDONED_MS = 60 * 60_000;
 
-export type RunState = "queued" | "running" | "drafted" | "skipped" | "superseded" | "failed";
+/** watched: an agent in Watch recorded what it would have done. sent: an agent in Send sent its reply. */
+export type RunState = "queued" | "running" | "drafted" | "watched" | "sent" | "skipped" | "superseded" | "failed";
 
 /** The queue message. Everything else is read from the run's row. */
 export interface AutoDraftJob {
@@ -41,10 +42,13 @@ export interface AutoDraftTarget {
 	threadId: string;
 }
 
+/** agentId names the agent that took the message, when one did. */
 export type DraftOutcome =
 	/** `earlier` holds drafts saved before `draftId` in the same run, when the model drafted more than once. */
-	| { status: "drafted"; draftId: string | null; earlier?: string[] }
-	| { status: "skipped"; reason: string }
+	| { status: "drafted"; draftId: string | null; earlier?: string[]; agentId?: string | null; reason?: string | null }
+	| { status: "watched"; agentId: string; reason: string }
+	| { status: "sent"; draftId: string | null; agentId: string }
+	| { status: "skipped"; reason: string; agentId?: string | null }
 	| { status: "error"; error: string };
 
 export type Drafter = (target: AutoDraftTarget) => Promise<DraftOutcome>;
@@ -87,7 +91,7 @@ export async function recordRun(sql: Sql, target: AutoDraftTarget, now = Date.no
 					CASE WHEN n < ?6 THEN NULL ELSE ?7 END,
 					?5, ?5
 				FROM (SELECT COUNT(*) AS n FROM auto_draft_runs
-					WHERE mailbox_id = ?2 AND sender = ?4 AND created_at >= ?8 AND state IN ('queued', 'running', 'drafted', 'failed'))
+					WHERE mailbox_id = ?2 AND sender = ?4 AND created_at >= ?8 AND state IN ('queued', 'running', 'drafted', 'watched', 'sent', 'failed'))
 				WHERE 1
 				ON CONFLICT (email_id) DO NOTHING
 				RETURNING state, reason`,
@@ -118,10 +122,10 @@ export async function claimRun(sql: Sql, emailId: string, now = Date.now()): Pro
 }
 
 /** Settle a running run. False when it was superseded while it ran. */
-export async function settleRun(sql: Sql, emailId: string, state: RunState, fields: { reason?: string | null; draftId?: string | null } = {}): Promise<boolean> {
+export async function settleRun(sql: Sql, emailId: string, state: RunState, fields: { reason?: string | null; draftId?: string | null; agentId?: string | null } = {}): Promise<boolean> {
 	const rows = await sql.all(
-		`UPDATE auto_draft_runs SET state = ?, reason = ?, draft_id = ?, updated_at = ? WHERE email_id = ? AND state = 'running' RETURNING email_id`,
-		state, fields.reason?.slice(0, 1000) ?? null, fields.draftId ?? null, new Date().toISOString(), emailId,
+		`UPDATE auto_draft_runs SET state = ?, reason = ?, draft_id = ?, agent_id = ?, updated_at = ? WHERE email_id = ? AND state = 'running' RETURNING email_id`,
+		state, fields.reason?.slice(0, 1000) ?? null, fields.draftId ?? null, fields.agentId ?? null, new Date().toISOString(), emailId,
 	);
 	return rows.length > 0;
 }
@@ -158,12 +162,16 @@ export async function attemptRun(
 		await settleRun(sql, run.emailId, options.final ? "failed" : "queued", { reason: outcome.error });
 		return "retry";
 	}
-	if (outcome.status === "skipped") {
-		await settleRun(sql, run.emailId, "skipped", { reason: outcome.reason });
+	if (outcome.status === "skipped" || outcome.status === "watched") {
+		await settleRun(sql, run.emailId, outcome.status, { reason: outcome.reason, agentId: outcome.agentId ?? null });
+		return "done";
+	}
+	if (outcome.status === "sent") {
+		await settleRun(sql, run.emailId, "sent", { draftId: outcome.draftId, agentId: outcome.agentId });
 		return "done";
 	}
 	// A run keeps one draft, its last; a run superseded while it ran keeps none.
-	const kept = await settleRun(sql, run.emailId, "drafted", { draftId: outcome.draftId });
+	const kept = await settleRun(sql, run.emailId, "drafted", { draftId: outcome.draftId, agentId: outcome.agentId ?? null, reason: outcome.reason ?? null });
 	for (const id of kept ? outcome.earlier ?? [] : [...(outcome.earlier ?? []), outcome.draftId]) {
 		if (id) await options.discardDraft(run.mailboxId, id).catch(() => {});
 	}
@@ -178,19 +186,20 @@ export interface RunRow {
 	attempts: number;
 	reason: string | null;
 	draftId: string | null;
+	agentId: string | null;
 	createdAt: string;
 	updatedAt: string;
 }
 
 /** The latest runs, newest first, for Console > Activity. */
-export async function listRuns(sql: Sql, options: { mailboxId?: string | null; limit?: number } = {}): Promise<RunRow[]> {
+export async function listRuns(sql: Sql, options: { mailboxId?: string | null; agentId?: string | null; limit?: number } = {}): Promise<RunRow[]> {
 	return (await sql.all(
-		`SELECT email_id, mailbox_id, sender, state, attempts, reason, draft_id, created_at, updated_at FROM auto_draft_runs
-		WHERE (?1 IS NULL OR mailbox_id = ?1) ORDER BY created_at DESC LIMIT ?2`,
-		options.mailboxId?.toLowerCase() ?? null, Math.min(Math.max(options.limit ?? 20, 1), 100),
+		`SELECT email_id, mailbox_id, sender, state, attempts, reason, draft_id, agent_id, created_at, updated_at FROM auto_draft_runs
+		WHERE (?1 IS NULL OR mailbox_id = ?1) AND (?3 IS NULL OR agent_id = ?3) ORDER BY created_at DESC LIMIT ?2`,
+		options.mailboxId?.toLowerCase() ?? null, Math.min(Math.max(options.limit ?? 20, 1), 100), options.agentId ?? null,
 	)).map((r) => ({
 		emailId: String(r.email_id), mailboxId: String(r.mailbox_id), sender: String(r.sender), state: String(r.state) as RunState,
-		attempts: Number(r.attempts), reason: r.reason == null ? null : String(r.reason), draftId: r.draft_id == null ? null : String(r.draft_id),
+		attempts: Number(r.attempts), reason: r.reason == null ? null : String(r.reason), draftId: r.draft_id == null ? null : String(r.draft_id), agentId: r.agent_id == null ? null : String(r.agent_id),
 		createdAt: String(r.created_at), updatedAt: String(r.updated_at),
 	}));
 }

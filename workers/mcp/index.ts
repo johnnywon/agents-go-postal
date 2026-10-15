@@ -38,6 +38,7 @@ import { DATE_TOKENS, VIEWS } from "../lib/mail-index-sql";
 import { mailStore, recordsSql } from "../store";
 import { logged } from "../lib/activity";
 import type { DraftNotes } from "../../shared/draft-notes";
+import type { McpToolName } from "../../shared/mcp-tools";
 import type { Env } from "../types";
 import pkg from "../../package.json";
 
@@ -72,7 +73,7 @@ function mcpResult(result: Record<string, unknown>) {
 	return mcpText(result);
 }
 
-const MCP_NOTES: DraftNotes = { origin: "mcp", instructions: [] };
+const MCP_NOTES: DraftNotes = { origin: "mcp", agent: null, instructions: [] };
 
 /** The result object inside an MCP response, for the activity log. */
 function mcpView(response: { content?: { type: string; text?: string }[]; isError?: boolean }): unknown {
@@ -102,7 +103,7 @@ export class EmailMCP extends McpAgent<Env> {
 		const sql = recordsSql(env);
 		const server = this.server;
 		/** Register a tool whose every call goes to the activity log, with the client's name. */
-		const tool = (name: string, description: string, schema: z.ZodRawShape, handler: (args: any, extra: any) => Promise<any>) =>
+		const tool = (name: McpToolName, description: string, schema: z.ZodRawShape, handler: (args: any, extra: any) => Promise<any>) =>
 			server.tool(name, description, schema, async (args: any, extra: any) => {
 				const info = server.server.getClientVersion();
 				const client = info ? `${info.name} ${info.version ?? ""}`.trim() : null;

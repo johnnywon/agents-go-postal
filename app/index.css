@@ -189,6 +189,21 @@ button:disabled {
   --pg-shadow-lift: -12px 0 22px -6px rgba(0, 0, 0, .6), 12px 0 22px -6px rgba(0, 0, 0, .6);
   --pg-shadow-modal: 0 24px 64px rgba(0, 0, 0, .55);
   --pg-scrim: rgba(6, 7, 8, .64);
+  /* Console: a darker black of the mail's own neutrals. Purple marks its highlights; orange stays mail. */
+  --pg-con-base: #0c0d0f;
+  --pg-con-rail: #08090a;
+  --pg-con-raised: #131417;
+  --pg-con-input: #0f1012;
+  --pg-con-hover: #16171a;
+  --pg-con-hover-raised: #1b1c20;
+  --pg-con-segment: #1f2024;
+  --pg-con-line: #1c1d21;
+  --pg-con-line-2: #212226;
+  --pg-con-line-3: #2a2c31;
+  --pg-con-line-soft: #16171a;
+  --pg-con-active: oklch(0.72 0.15 298 / .16);
+  --pg-con-accent: oklch(0.72 0.15 298);
+  --pg-con-accent-text: oklch(0.8 0.12 298);
 }
 .postal[data-theme="light"] {
   color-scheme: light;
@@ -240,6 +255,20 @@ button:disabled {
   --pg-shadow-lift: -12px 0 22px -6px rgba(20, 22, 26, .16), 12px 0 22px -6px rgba(20, 22, 26, .16);
   --pg-shadow-modal: 0 24px 64px rgba(20, 22, 26, .2);
   --pg-scrim: rgba(20, 22, 26, .32);
+  --pg-con-base: #fbfbfa;
+  --pg-con-rail: #f1f1ef;
+  --pg-con-raised: #ffffff;
+  --pg-con-input: #ffffff;
+  --pg-con-hover: #ebebe8;
+  --pg-con-hover-raised: #f3f3f1;
+  --pg-con-segment: #e6e6e2;
+  --pg-con-line: #e2e2de;
+  --pg-con-line-2: #d8d8d3;
+  --pg-con-line-3: #cdcdc7;
+  --pg-con-line-soft: #ebebe8;
+  --pg-con-active: oklch(0.52 0.18 298 / .12);
+  --pg-con-accent: oklch(0.52 0.18 298);
+  --pg-con-accent-text: oklch(0.47 0.17 298);
 }
 
 /* A fieldset that only groups controls so a read-only Console tab can disable them at once. */

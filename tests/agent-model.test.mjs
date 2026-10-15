@@ -104,13 +104,12 @@ test("Cloudflare's catalog keeps priced text models it serves itself, and marks 
 });
 
 test("OpenRouter prices per token become per million", () => {
-	const or = s.modelsFromOpenRouter([
-		{ id: "anthropic/claude-sonnet-5.5", name: "Anthropic: Claude Sonnet 5.5", context_length: 1000000, pricing: { prompt: "0.000002", completion: "0.00001" }, supported_parameters: ["tools"] },
-		{ id: "anthropic/claude-sonnet-5.5:batch", pricing: { prompt: "0.000001", completion: "0.000005" } },
-		{ id: "openai/gpt-6-luna", name: "OpenAI: GPT-6 Luna", context_length: 1050000, pricing: { prompt: "0.0000001", completion: "0.0000005" }, supported_parameters: [] },
+	const or = s.modelsFromZdr([
+		{ model_id: "anthropic/claude-sonnet-5.5", model_name: "Anthropic: Claude Sonnet 5.5", context_length: 1000000, pricing: { prompt: "0.000002", completion: "0.00001" }, supported_parameters: ["tools"] },
+		{ model_id: "openai/gpt-6-luna", model_name: "OpenAI: GPT-6 Luna", context_length: 1050000, pricing: { prompt: "0.0000001", completion: "0.0000005" }, supported_parameters: [] },
 	]);
 	assert.deepEqual(or[0], { provider: "openrouter", id: "anthropic/claude-sonnet-5.5", name: "Claude Sonnet 5.5", context: 1000000, price: { input: 2, output: 10 }, tools: true });
-	assert.equal(or[2].tools, false);
+	assert.equal(or[1].tools, false);
 });
 
 test("typed ids go to the provider they look like, and names read well", () => {
@@ -131,19 +130,18 @@ test("free models are never offered or accepted", () => {
 	assert.ok("error" in m.mergeAgentModelConfig({ keys: { openrouter: "sk-or-x" } }, { selected: { provider: "openrouter", id: "maker/model:free" } }));
 });
 
-test("OpenRouter lists only zero retention models, priced at their cheapest such endpoint", () => {
-	const all = s.modelsFromOpenRouter([
-		{ id: "a/kept", pricing: { prompt: "0.000001", completion: "0.000002" } },
-		{ id: "a/private", pricing: { prompt: "0.000001", completion: "0.000002" } },
-		{ id: "a/gratis", pricing: { prompt: "0", completion: "0" } },
-	]);
-	const zdr = s.zdrOnly(all, [
-		{ model_id: "a/private", pricing: { prompt: "0.000003", completion: "0.000009" } },
-		{ model_id: "a/private", pricing: { prompt: "0.000002", completion: "0.000004" } },
+test("OpenRouter's list comes from its zero retention endpoints, priced at the cheapest", () => {
+	const zdr = s.modelsFromZdr([
+		{ model_id: "a/private", context_length: 32000, pricing: { prompt: "0.000003", completion: "0.000009" }, supported_parameters: [] },
+		{ model_id: "a/private", context_length: 128000, pricing: { prompt: "0.000002", completion: "0.000004" }, supported_parameters: ["tools"] },
 		{ model_id: "a/gratis", pricing: { prompt: "0", completion: "0" } },
+		{ model_id: "a/gratis:free", pricing: { prompt: "0.000001", completion: "0.000001" } },
+		{ pricing: { prompt: "0.000001", completion: "0.000001" } },
 	]);
 	assert.deepEqual(zdr.map((x) => x.id), ["a/private"]);
 	assert.deepEqual(zdr[0].price, { input: 2, output: 4 });
+	assert.equal(zdr[0].context, 128000);
+	assert.equal(zdr[0].tools, true);
 });
 
 test("every OpenRouter request asks for zero retention and no data collection", async () => {

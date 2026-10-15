@@ -6,6 +6,7 @@ import {
 	type CatalogModel, guessProvider, type KeyedProvider, makerOf, type ModelRef, PROVIDER_INFO, PROVIDERS,
 	type ProviderId, sameModel, validModelId,
 } from "shared/models";
+import { Badge, Note } from "./ConsoleUI";
 
 export function useModelCatalog(enabled = true) {
 	return useQuery({ queryKey: ["agent-model", "catalog"], queryFn: api.getModelCatalog, enabled, staleTime: 3_600_000 });
@@ -75,15 +76,20 @@ function ProviderMark({ provider }: { provider: ProviderId }) {
 }
 
 /** What happens to prompts on a provider, linked to the provider's own policy. */
-function DataLine({ provider, className }: { provider: ProviderId; className: string }) {
+/** What a provider does with prompts, ending in a link to its own policy. */
+function DataText({ provider }: { provider: ProviderId }) {
 	const info = PROVIDER_INFO[provider];
 	return (
-		<span className={className} data-zdr={info.zdr}>
+		<>
 			{info.zdr && <ShieldCheckIcon size={13} aria-hidden="true" />}
 			{info.data}{" "}
 			<a href={info.policyUrl} target="_blank" rel="noreferrer">Policy<ArrowSquareOutIcon size={11} aria-hidden="true" /></a>
-		</span>
+		</>
 	);
+}
+
+function DataLine({ provider, className }: { provider: ProviderId; className: string }) {
+	return <span className={className} data-zdr={PROVIDER_INFO[provider].zdr}><DataText provider={provider} /></span>;
 }
 
 function Price({ model }: { model: CatalogModel }) {
@@ -117,7 +123,7 @@ function ModelRow({ model, selected, recommended, needsKey, provider, maker = tr
 		<button type="button" role="radio" aria-checked={selected} className="pg-model-row" onClick={onSelect} title={model.id}>
 			<span className="pg-model-check" aria-hidden="true">{selected && <CheckIcon size={12} weight="bold" />}</span>
 			<span className="pg-model-name">
-				<span className="pg-model-title"><b>{model.name}</b>{recommended && <span className="pg-model-rec">Recommended</span>}</span>
+				<span className="pg-model-title"><b>{model.name}</b>{recommended && <Badge tone="ok">Recommended</Badge>}</span>
 				<ModelSub model={model} needsKey={needsKey} provider={provider} maker={maker} />
 			</span>
 			<span className="pg-model-ctx">{formatContext(model.context)}</span>
@@ -138,8 +144,8 @@ function ProviderRow({ provider, draft, count, open, highlight, onToggle }: {
 	const pendingKey = !!edit;
 	const connected = !keyed || (pendingKey || (!!saved?.set && !removing));
 	const status = !keyed ? "Built in"
-		: removing ? "Removed on save"
-		: pendingKey ? "New key, saves with Save changes"
+		: removing ? "Removing"
+		: pendingKey ? "Saving"
 		: saved?.set ? `Connected ····${saved.hint}`
 		: "Not connected";
 	return (
@@ -349,9 +355,9 @@ function ModelPicker({ catalog, draft, onPick, onBack }: {
 						<span>Context</span>
 						<span>$ per 1M, in / out</span>
 					</div>
-					{error && <p className="pg-models-warn">{error}</p>}
-					{source && !words.length && <DataLine provider={source} className="pg-models-note" />}
-					{missingKey && source && <p className="pg-models-warn">No {PROVIDER_INFO[source].label} key yet. Pick a model, then add the key.</p>}
+					{error && <Note tone="warn">{error}</Note>}
+					{source && !words.length && <Note tone={PROVIDER_INFO[source].zdr ? "ok" : "muted"}><DataText provider={source} /></Note>}
+					{missingKey && source && <Note tone="warn">No {PROVIDER_INFO[source].label} key yet. Pick a model, then add the key.</Note>}
 					{rows.slice(0, limit).map((m) => (
 						<ModelRow
 							key={`${m.provider}:${m.id}`}
@@ -367,7 +373,7 @@ function ModelPicker({ catalog, draft, onPick, onBack }: {
 					{rows.length > limit && (
 						<button type="button" className="pg-models-more" onClick={() => setLimit(rows.length)}>Show all {rows.length}</button>
 					)}
-					{rows.length === 0 && <p className="pg-models-empty">No model matches "{typed}".</p>}
+					{rows.length === 0 && <Note>No model matches "{typed}".</Note>}
 				</div>
 			)}
 
@@ -405,7 +411,7 @@ export function AgentModelSection({ draft }: { draft: AgentModelDraft }) {
 	const [picking, setPicking] = useState(false);
 	const [openKey, setOpenKey] = useState<ProviderId | null>(null);
 	const [test, setTest] = useState<{ busy: boolean; ok?: boolean; text?: string }>({ busy: false });
-	if (isLoading || !catalog || !draft.stored) return <p className="pg-table-note">Loading…</p>;
+	if (isLoading || !catalog || !draft.stored) return <p className="pg-ui-note">Loading</p>;
 
 	const recommended = catalog.recommended;
 	const effective = draft.effective ?? recommended;
@@ -420,8 +426,8 @@ export function AgentModelSection({ draft }: { draft: AgentModelDraft }) {
 				draft={draft}
 				onBack={() => setPicking(false)}
 				onPick={(ref) => {
+					// Picking marks the model and keeps the list open; Back returns to the summary.
 					draft.select(ref);
-					setPicking(false);
 					setTest({ busy: false });
 					if (!draft.hasKey(ref.provider)) setOpenKey(ref.provider);
 				}}
@@ -461,7 +467,7 @@ export function AgentModelSection({ draft }: { draft: AgentModelDraft }) {
 				<div className="pg-model-card-main">
 					<span className="pg-model-title">
 						<b className="pg-model-card-name">{model.name}</b>
-						{sameModel(effective, recommended) && <span className="pg-model-rec">Recommended</span>}
+						{sameModel(effective, recommended) && <Badge tone="ok">Recommended</Badge>}
 					</span>
 					<ModelSub model={model} needsKey={false} />
 					<code>{effective.id}</code>

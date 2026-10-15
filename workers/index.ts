@@ -40,9 +40,11 @@ import { listRuns } from "./agent/runs";
 import { readAgentLimits, writeAgentLimits } from "./lib/agent-limits";
 import { agentOverview } from "./lib/agent-overview";
 import { getSystemPrompt } from "./agent/prompt";
-import { ACTIVITY_ACTORS, listActivity, logged, TOOL_ACTIONS } from "./lib/activity";
+import { ACTIVITY_ACTORS, listActivity, logged, mcpUsage, TOOL_ACTIONS } from "./lib/activity";
 import { verifyDraft } from "./lib/ai";
+import { AgentBody, agentStats, createAgent, deleteAgent, listAgentDrafts, listAgents, orderAgents, updateAgent } from "./lib/agents";
 import { redraft } from "./lib/redraft";
+import { seedAgents } from "./lib/dev-seed-agents";
 import { REDRAFT_INSTRUCTION_MAX } from "../shared/draft-notes";
 
 type AppContext = Context<MailboxContext>;
@@ -155,6 +157,9 @@ if (import.meta.env?.DEV || DEMO) {
 		c.header("Content-Security-Policy", "default-src 'none'; style-src 'unsafe-inline'");
 		return c.html(`<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Sample link</title><body style="font:15px/1.5 system-ui,sans-serif;margin:40px 16px;max-width:600px;color:#1f2933;background:#ffffff"><p>A link in the sample mail. It goes nowhere in the demo.</p><p style="word-break:break-all"><code>${to}</code></p></body></html>`);
 	});
+
+	// A crew of agents mid-work: runs in every state, drafts in Review, a Logs trail.
+	app.post("/api/v1/dev/seed-agents", async (c) => c.json(await seedAgents(c.env)));
 }
 
 // -- Agent model ----------------------------------------------------
@@ -358,6 +363,49 @@ app.put("/api/v1/agent-limits", async (c) => {
 app.get("/api/v1/agents/overview", async (c) =>
 	c.json(await agentOverview(recordsSql(c.env), await mailboxIds(c.env), await readAgentLimits(c.env))));
 
+// -- Agents (Console > Agents) ---------------------------------------
+
+app.get("/api/v1/agents", async (c) => {
+	const sql = recordsSql(c.env);
+	const [agents, stats] = await Promise.all([listAgents(sql), agentStats(sql)]);
+	return c.json({ agents, stats });
+});
+
+/** Agent drafts waiting in Drafts. */
+app.get("/api/v1/agents/review", async (c) => c.json(await listAgentDrafts(recordsSql(c.env), await mailboxIds(c.env))));
+
+app.post("/api/v1/agents", async (c) => {
+	const parsed = AgentBody.safeParse(await c.req.json().catch(() => null));
+	if (!parsed.success) return c.json({ error: parsed.error.issues[0]?.message ?? "Invalid agent" }, 400);
+	const result = await createAgent(recordsSql(c.env), parsed.data);
+	return "error" in result ? c.json({ error: result.error }, 400) : c.json(result.agent, 201);
+});
+
+/** The list order: ids first to last. */
+app.put("/api/v1/agents/order", async (c) => {
+	const parsed = z.object({ ids: z.array(z.string()).max(100) }).safeParse(await c.req.json().catch(() => null));
+	if (!parsed.success) return c.json({ error: "Invalid order" }, 400);
+	await orderAgents(recordsSql(c.env), parsed.data.ids);
+	return c.json({ ok: true });
+});
+
+app.put("/api/v1/agents/:id", async (c) => {
+	const parsed = AgentBody.partial().safeParse(await c.req.json().catch(() => null));
+	if (!parsed.success) return c.json({ error: parsed.error.issues[0]?.message ?? "Invalid agent" }, 400);
+	const result = await updateAgent(recordsSql(c.env), c.req.param("id"), parsed.data);
+	if ("error" in result) return c.json({ error: result.error }, 400);
+	return result.agent ? c.json(result.agent) : c.json({ error: "Not found" }, 404);
+});
+
+app.delete("/api/v1/agents/:id", async (c) => {
+	const deleted = await deleteAgent(recordsSql(c.env), c.req.param("id"));
+	return deleted ? c.json({ deleted: true }) : c.json({ error: "Not found" }, 404);
+});
+
+/** One agent's latest runs. */
+app.get("/api/v1/agents/:id/runs", async (c) =>
+	c.json(await listRuns(recordsSql(c.env), { agentId: c.req.param("id"), limit: Number(c.req.query("limit")) || 50 })));
+
 // -- Activity (Console > Activity) -----------------------------------
 
 /** What agents and MCP clients did, newest first. Filter by mailbox, actor and action; page with before=<last id>. */
@@ -375,6 +423,9 @@ app.get("/api/v1/activity", async (c) => {
 		limit: Number(c.req.query("limit")) || undefined,
 	}));
 });
+
+/** MCP clients that have called, and calls per tool, for Console > MCP. */
+app.get("/api/v1/mcp/usage", async (c) => c.json(await mcpUsage(recordsSql(c.env))));
 
 /** The latest auto-draft runs, with their state and any skip reason or error. */
 app.get("/api/v1/auto-draft/runs", async (c) =>

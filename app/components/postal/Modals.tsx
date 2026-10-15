@@ -2,27 +2,21 @@
 // Licensed under the Apache 2.0 license found in the LICENSE file or at:
 //     https://opensource.org/licenses/Apache-2.0
 
-import {
-	ArrowCounterClockwiseIcon, AtIcon, CheckIcon, CopyIcon, DatabaseIcon, DesktopIcon, KeyboardIcon, MoonIcon,
-	KeyIcon, MagnifyingGlassIcon, PlugsConnectedIcon, SignatureIcon, SignOutIcon, SlidersHorizontalIcon, SunIcon, TagIcon, WrenchIcon, XIcon,
-} from "@phosphor-icons/react";
-import { ClockCounterClockwiseIcon, GaugeIcon, ShieldCheckIcon, TerminalWindowIcon } from "@phosphor-icons/react";
-import { AgentIcon } from "./AgentIcon";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useRef, useState } from "react";
+import { ArrowCounterClockwiseIcon, DesktopIcon, KeyboardIcon, MoonIcon, SignOutIcon, SunIcon, XIcon } from "@phosphor-icons/react";
+import { useQueryClient } from "@tanstack/react-query";
+import { useEffect, useState } from "react";
 import { queryKeys } from "~/queries/keys";
 import api from "~/services/api";
 import { AgentModelSection, modelName, useAgentModelDraft, useModelCatalog } from "./ModelTab";
 import { Segmented } from "./Segmented";
 import { type AddressInfo, textToParagraphs } from "./compose";
 import { Editor } from "./Editor";
-import { htmlToPlainText } from "~/lib/utils";
-import { AddressText, type Identities, Swatch } from "./identity";
+import { getSignatureBlock, htmlToPlainText } from "~/lib/utils";
+import { AddressText, handleOf, type Identities, Swatch } from "./identity";
 import { LabelsTab } from "./LabelsTab";
-import { AGENT_TABS, type ConsoleTab } from "./console-tabs";
+import type { ConsoleTab } from "./console-tabs";
 import { useDemo } from "~/lib/demo";
 import { LimitsTab, useAgentLimitsDraft } from "./LimitsTab";
-import { OverviewTab } from "./OverviewTab";
 import { ActivityTab } from "./ActivityTab";
 import { StorageTab } from "./StorageTab";
 import type { Prefs } from "./prefs";
@@ -30,80 +24,26 @@ import { ShortcutMap } from "./ShortcutMap";
 import { samePrefs } from "shared/prefs";
 import { Keys } from "./shortcuts";
 import { ShortcutList } from "./ShortcutsTab";
+import { Badge, Button, CopyField, Field, Fields, Item, List, Note, SaveBar, Section, Summary, SummaryRow, Table } from "./ConsoleUI";
+import { SEND_LIMITS } from "shared/send-limits";
 
-function Modal({ className = "", label, onClose, children }: { className?: string; label: string; onClose: () => void; children: React.ReactNode }) {
-	const ref = useRef<HTMLDivElement>(null);
-	useEffect(() => {
-		const previous = document.activeElement as HTMLElement | null;
-		ref.current?.querySelector<HTMLElement>("[data-autofocus]")?.focus();
-		const onKey = (e: KeyboardEvent) => {
-			if (e.key === "Escape") {
-				// Escape in a search box with text clears the box, and a step inside the dialog can take Escape for itself.
-				if (e.target instanceof HTMLInputElement && e.target.type === "search" && e.target.value) return;
-				if (e.target instanceof Element && e.target.closest("[data-own-escape]")) return;
-				e.preventDefault();
-				onClose();
-			} else if (e.key === "Tab" && ref.current) {
-				const items = [...ref.current.querySelectorAll<HTMLElement>("button, input, textarea, select, a[href], [tabindex='0']")].filter((el) => !el.hasAttribute("disabled"));
-				if (!items.length) return;
-				const first = items[0];
-				const last = items[items.length - 1];
-				if (e.shiftKey && document.activeElement === first) {
-					e.preventDefault();
-					last.focus();
-				} else if (!e.shiftKey && document.activeElement === last) {
-					e.preventDefault();
-					first.focus();
-				}
-			}
-		};
-		document.addEventListener("keydown", onKey, true);
-		return () => {
-			document.removeEventListener("keydown", onKey, true);
-			previous?.focus?.();
-		};
-	}, []); // eslint-disable-line react-hooks/exhaustive-deps
-	return (
-		<div className="pg-modal-scrim" onClick={onClose}>
-			<div ref={ref} className={`pg-modal ${className}`} role="dialog" aria-modal="true" aria-label={label} onClick={(e) => e.stopPropagation()}>
-				{children}
-			</div>
-		</div>
-	);
-}
+export { Head, Modal, Switch } from "./Dialog";
+import { Head, Modal, Switch } from "./Dialog";
 
-function Head({ icon, title, sub, onClose, danger }: { icon: React.ReactNode; title: string; sub?: string; onClose: () => void; danger?: boolean }) {
-	return (
-		<div className="pg-modal-head">
-			<span className={`pg-modal-icon${danger ? " is-danger" : ""}`}>{icon}</span>
-			<div className="pg-modal-title">
-				<h2>{title}</h2>
-				{sub && <span>{sub}</span>}
-			</div>
-			<button type="button" className="pg-modal-x" title="Close (Esc)" aria-label="Close" onClick={onClose}><XIcon size={16} /></button>
-		</div>
-	);
-}
+/** Whether signature HTML has any text in it. */
+const hasText = (html: string) => !!html.replace(/<[^>]+>/g, "").replace(/&nbsp;/g, " ").trim();
 
-function Switch({ on, onChange, label }: { on: boolean; onChange: (on: boolean) => void; label: string }) {
-	return (
-		<button type="button" role="switch" aria-checked={on} aria-label={label} className="pg-switch" onClick={() => onChange(!on)}>
-			<span />
-		</button>
-	);
-}
-
+/** A setting on one line: the console's inline `Field`. */
 function Setting({ title, sub, children }: { title: string; sub?: React.ReactNode; children: React.ReactNode }) {
-	return (
-		<div className="pg-setting">
-			<div className="pg-setting-text"><b>{title}</b>{sub && <span>{sub}</span>}</div>
-			{children}
-		</div>
-	);
+	return <Field inline label={title} hint={sub}>{children}</Field>;
 }
 
-/** The console: what agents did and may do, then the mail client's settings. */
-export function ConsoleModal({ tab: asked, onTab, prefs, setPrefs, addresses, identities, info, autoDraft, onClose, onSaved }: {
+/**
+ * The console pages that edit saved settings: the mail client's settings, the
+ * PluraMail Agent, Models and Logs. Changes save on their own: switches and choices
+ * at once, typing once it pauses.
+ */
+export function ConsoleSettings({ tab, onTab, prefs, setPrefs, addresses, identities, info, autoDraft }: {
 	tab: ConsoleTab;
 	onTab: (tab: ConsoleTab) => void;
 	prefs: Prefs;
@@ -112,24 +52,36 @@ export function ConsoleModal({ tab: asked, onTab, prefs, setPrefs, addresses, id
 	identities: Identities;
 	info: ReadonlyMap<string, AddressInfo>;
 	autoDraft: boolean;
-	onClose: () => void;
-	onSaved: (message: string) => void;
 }) {
-	// A demo has no agents, and its settings are read-only: the server refuses every save.
-	const demo = useDemo();
-	const tab: ConsoleTab = demo && (AGENT_TABS as readonly string[]).includes(asked) ? "general" : asked;
-	const readOnly = demo && READ_ONLY_IN_DEMO.has(tab);
-	const initialSigs = Object.fromEntries(addresses.map((a) => {
+	// A demo's settings are read-only apart from Labels: the server refuses every other save.
+	const readOnly = useDemo() && READ_ONLY_IN_DEMO.has(tab);
+	const loadedSigs = Object.fromEntries(addresses.map((a) => {
 		const sig = info.get(a)?.mailbox?.settings?.signature;
 		const html = sig?.html || (sig?.text ? textToParagraphs(sig.text) : "");
 		return [a, { html, enabled: !!sig?.enabled && !!html }];
 	}));
-	const [sigs, setSigs] = useState<Record<string, { html: string; enabled: boolean }>>(initialSigs);
+	const [sigs, setSigs] = useState<Record<string, { html: string; enabled: boolean }>>(loadedSigs);
+	// What the server holds. Moves forward after each save, ahead of the mailbox refetch.
+	const [initialSigs, setInitialSigs] = useState(loadedSigs);
+	const sigCount = addresses.filter((a) => hasText(sigs[a]?.html ?? "")).length;
+	const sigOnCount = addresses.filter((a) => sigs[a]?.enabled && hasText(sigs[a].html)).length;
+	// With no signatures anywhere, open the first address so there is somewhere to start.
+	const [sigOpen, setSigOpen] = useState<string | null>(() => addresses.some((a) => loadedSigs[a]?.html) ? null : addresses[0] ?? null);
+	const [sigFocus, setSigFocus] = useState(false);
+	/** Sets these addresses' signature. Writing a first signature turns it on; clearing one turns it off. */
+	const writeSigs = (to: string[], html: string) => setSigs((cur) => {
+		const next = { ...cur };
+		for (const a of to) {
+			const was = cur[a] ?? { html: "", enabled: false };
+			next[a] = { html, enabled: !hasText(html) ? false : !hasText(was.html) ? true : was.enabled };
+		}
+		return next;
+	});
 	const sigChanged = (a: string) => (sigs[a]?.html ?? "") !== (initialSigs[a]?.html ?? "") || !!sigs[a]?.enabled !== !!initialSigs[a]?.enabled;
 	const [draft, setDraft] = useState<Prefs>(prefs);
-	const initialNames = Object.fromEntries(addresses.map((a) => [a, info.get(a)?.mailbox?.settings?.fromName ?? info.get(a)?.name ?? ""]));
+	const [initialNames, setInitialNames] = useState(() => Object.fromEntries(addresses.map((a) => [a, info.get(a)?.mailbox?.settings?.fromName ?? info.get(a)?.name ?? ""])));
 	const [names, setNames] = useState<Record<string, string>>(initialNames);
-	const initialPrompts = Object.fromEntries(addresses.map((a) => [a, info.get(a)?.mailbox?.settings?.agentSystemPrompt ?? ""]));
+	const [initialPrompts, setInitialPrompts] = useState(() => Object.fromEntries(addresses.map((a) => [a, info.get(a)?.mailbox?.settings?.agentSystemPrompt ?? ""])));
 	const [prompts, setPrompts] = useState<Record<string, string>>(initialPrompts);
 	const promptChanged = (a: string) => (prompts[a] ?? "").trim() !== (initialPrompts[a] ?? "").trim();
 	const [promptFor, setPromptFor] = useState(addresses[0] ?? "");
@@ -140,14 +92,16 @@ export function ConsoleModal({ tab: asked, onTab, prefs, setPrefs, addresses, id
 	const queryClient = useQueryClient();
 	const agentModel = useAgentModelDraft();
 	const limits = useAgentLimitsDraft();
-	const { data: catalog } = useModelCatalog(tab === "drafting");
+	const { data: catalog } = useModelCatalog(tab === "mailroom");
 
-	const dirty = !samePrefs(draft, prefs)
-		|| addresses.some((a) => (names[a] ?? "") !== (initialNames[a] ?? ""))
+	const prefsDirty = !samePrefs(draft, prefs);
+	// Typed fields wait for a pause; switches and choices save at once.
+	const typedDirty = addresses.some((a) => (names[a] ?? "") !== (initialNames[a] ?? ""))
 		|| addresses.some(promptChanged)
 		|| addresses.some(sigChanged)
-		|| agentModel.dirty
-		|| limits.dirty;
+		|| Object.keys(agentModel.keys).length > 0
+		|| (limits.dirty && limits.valid);
+	const dirty = prefsDirty || typedDirty || agentModel.dirty;
 
 	const save = async () => {
 		// Limits are the one tab that can refuse a save; check them before anything is written.
@@ -163,11 +117,11 @@ export function ConsoleModal({ tab: asked, onTab, prefs, setPrefs, addresses, id
 				const mailbox = info.get(a)?.mailbox;
 				if (!mailbox) return [];
 				const name = (names[a] ?? "").trim();
-				const nameChanged = name !== (initialNames[a] ?? "").trim() && name.length > 0;
+				const nameChanged = name !== (initialNames[a] ?? "").trim();
 				const signatureChanged = sigChanged(a);
 				if (!nameChanged && !promptChanged(a) && !signatureChanged) return [];
 				const sig = sigs[a];
-				const empty = !sig?.html.replace(/<[^>]+>/g, "").trim();
+				const empty = !hasText(sig?.html ?? "");
 				const settings = {
 					...mailbox.settings,
 					...(nameChanged ? { fromName: name } : {}),
@@ -178,11 +132,12 @@ export function ConsoleModal({ tab: asked, onTab, prefs, setPrefs, addresses, id
 			});
 			if (!samePrefs(draft, prefs)) writes.push(setPrefs(draft));
 			if (agentModel.dirty) writes.push(agentModel.save());
-			if (limits.dirty) writes.push(limits.save());
+			if (limits.dirty && limits.valid) writes.push(limits.save());
 			await Promise.all(writes);
+			setInitialNames(names);
+			setInitialPrompts(prompts);
+			setInitialSigs(sigs);
 			for (const a of addresses) queryClient.invalidateQueries({ queryKey: queryKeys.mailboxes.detail(a) });
-			onSaved("Saved");
-			onClose();
 		} catch (e) {
 			setError((e as Error).message || "Could not save settings.");
 		} finally {
@@ -190,48 +145,68 @@ export function ConsoleModal({ tab: asked, onTab, prefs, setPrefs, addresses, id
 		}
 	};
 
-	const allGroups: { title: string; tabs: { id: ConsoleTab; label: string; icon: React.ReactNode }[] }[] = [
-		{
-			title: "Agents",
-			tabs: [
-				{ id: "overview", label: "Overview", icon: <GaugeIcon size={16} /> },
-				{ id: "activity", label: "Activity", icon: <ClockCounterClockwiseIcon size={16} /> },
-				{ id: "limits", label: "Limits", icon: <ShieldCheckIcon size={16} /> },
-				{ id: "drafting", label: "Drafting", icon: <AgentIcon size={16} /> },
-				{ id: "model", label: "Model & key", icon: <KeyIcon size={16} /> },
-				{ id: "connections", label: "Connections", icon: <PlugsConnectedIcon size={16} /> },
-			],
-		},
-		{
-			title: "Settings",
-			tabs: [
-				{ id: "general", label: "General", icon: <SlidersHorizontalIcon size={16} /> },
-				{ id: "addresses", label: "Addresses", icon: <AtIcon size={16} /> },
-				{ id: "signatures", label: "Signatures", icon: <SignatureIcon size={16} /> },
-				{ id: "labels", label: "Labels", icon: <TagIcon size={16} /> },
-				{ id: "shortcuts", label: "Shortcuts", icon: <KeyboardIcon size={16} /> },
-				{ id: "storage", label: "Storage", icon: <DatabaseIcon size={16} /> },
-			],
-		},
-	];
-	const groups = demo ? allGroups.filter((g) => g.title !== "Agents") : allGroups;
+	// A failed save waits for the next edit instead of retrying in a loop.
+	useEffect(() => setError(null), [draft, names, prompts, sigs, agentModel.selected, agentModel.keys, limits.edits]);
+	useEffect(() => {
+		if (!dirty || saving || error) return;
+		const t = setTimeout(() => void save(), typedDirty ? 700 : 0);
+		return () => clearTimeout(t);
+	}, [dirty, saving, error, prefs, draft, names, prompts, sigs, agentModel.selected, agentModel.keys, limits.edits]); // eslint-disable-line react-hooks/exhaustive-deps
 
-	return (
-		<Modal className="is-settings is-console" label="Console" onClose={onClose}>
-			<Head icon={<TerminalWindowIcon size={16} />} title="Console" onClose={onClose} />
-			<div className="pg-settings">
-				<div className="pg-tabs" role="tablist" aria-label="Console sections">
-					{groups.map((g) => (
-						<div key={g.title} className="pg-tab-group" role="presentation">
-							<span className="pg-tab-group-title" aria-hidden>{g.title}</span>
-							{g.tabs.map((t) => (
-								<button key={t.id} type="button" role="tab" aria-selected={tab === t.id} onClick={() => onTab(t.id)} ref={tab === t.id ? (el) => el?.scrollIntoView({ block: "nearest", inline: "nearest" }) : undefined}>{t.icon}<span>{t.label}</span></button>
-							))}
+	const [openRow, setOpenRow] = useState<"prompt" | "limits" | null>(null);
+	const custom = addresses.filter((a) => (prompts[a] ?? "").trim());
+	const mailroom = (
+		<Section title="How it works">
+			<Summary>
+				<SummaryRow
+					label="Prompt" open={openRow === "prompt"} onEdit={() => setOpenRow(openRow === "prompt" ? null : "prompt")}
+					editor={<>
+						{addresses.length > 1 && (
+							<select className="pg-select" value={promptFor} aria-label="Address this prompt is for" onChange={(e) => setPromptFor(e.target.value)}>
+								{addresses.map((a) => <option key={a} value={a}>{a}</option>)}
+							</select>
+						)}
+						<textarea
+							className="pg-textarea pg-ui-ask-input"
+							rows={8}
+							value={prompt}
+							aria-label={`Agent prompt for ${promptFor}`}
+							onChange={(e) => setPrompt(e.target.value)}
+							placeholder="You are an email assistant that helps manage this inbox. You read emails, draft replies, and help organize conversations. Write like a real person. Short, direct, flowing prose. Plain text only. (Leave empty to use the built-in default prompt)"
+						/>
+						<div className="pg-ui-toolbar">
+							{addresses.length > 1 && addresses.some((a) => (prompts[a] ?? "").trim() !== prompt.trim()) && (
+								<Button size="sm" variant="quiet" onClick={() => setPrompts(Object.fromEntries(addresses.map((a) => [a, prompt])))}>Use for every address</Button>
+							)}
+							{prompt.trim() && <Button size="sm" variant="quiet" icon={<ArrowCounterClockwiseIcon size={12} />} onClick={() => setPrompt("")}>Reset to default</Button>}
 						</div>
-					))}
-				</div>
-				<div className="pg-tab-body" role="tabpanel">
-					<fieldset className="pg-plain-fieldset" disabled={readOnly}>
+					</>}
+				>
+					{custom.length === 0 ? "Default" : custom.length === addresses.length ? "Custom" : `Custom for ${custom.length} of ${addresses.length} addresses`}
+					<span className="pg-ui-sum-sub">Draft reply, the fallback draft, and chat while a message is open</span>
+				</SummaryRow>
+				<SummaryRow label="Model" editLabel="Change" onEdit={() => onTab("models")}>
+					{agentModel.stored ? modelName(catalog, agentModel.stored.active) : "Not set"}
+				</SummaryRow>
+				<SummaryRow label="New mail">
+					<span><Badge tone={autoDraft ? "ok" : "neutral"}>{autoDraft ? "On" : "Off"} · config</Badge></span>
+					<span className="pg-ui-sum-sub">Agents run on new mail when <span className="pg-mono">AUTO_DRAFT_ENABLED</span> is set in your Worker config</span>
+				</SummaryRow>
+				<SummaryRow
+					label="Limits" open={openRow === "limits"} onEdit={() => setOpenRow(openRow === "limits" ? null : "limits")}
+					editor={<Fields><LimitsTab draft={limits} /></Fields>}
+				>
+					{limits.text("agentDay")} sends a day · {limits.text("agentRecipients")} recipients · {limits.text("autoDraftPerSender")} drafts per sender
+					<span className="pg-ui-sum-sub">Per address, inside {SEND_LIMITS.day} a day for everyone</span>
+				</SummaryRow>
+			</Summary>
+		</Section>
+	);
+
+	if (tab === "mailroom") return <>{mailroom}{error && <SaveBar error={error} saving={saving} onSave={() => void save()} />}</>;
+	return (
+		<fieldset className="pg-plain-fieldset" disabled={readOnly}>
+			<Fields>
 					{tab === "general" && (
 						<>
 							<Setting title="Theme">
@@ -267,99 +242,123 @@ export function ConsoleModal({ tab: asked, onTab, prefs, setPrefs, addresses, id
 					)}
 					{tab === "addresses" && (
 						<>
-							{addresses.map((a) => {
-								const id = identities.of(a);
+							<Note>The sender name recipients see on mail from each address. Left empty, they see the part before the @.</Note>
+							{identities.groups.map(({ identity, addresses: group }) => {
+								const list = group.filter((a) => addresses.includes(a));
+								if (!list.length) return null;
 								return (
-									<div key={a} className="pg-addr-row">
-										<Swatch identity={id} />
-										<AddressText address={a} identity={id} bold={false} />
-										<input className="pg-input" value={names[a] ?? ""} placeholder="Display name" aria-label={`Display name for ${a}`} onChange={(e) => setNames({ ...names, [a]: e.target.value })} disabled={!info.get(a)?.mailbox} />
+									<div key={identity.domain} className="pg-ui-addr-group">
+										<h3 className="pg-ui-addr-domain"><Swatch identity={identity} />{identity.domain}</h3>
+										{list.map((a) => {
+											const loaded = !!info.get(a)?.mailbox;
+											const name = (names[a] ?? "").trim();
+											const edited = name !== (initialNames[a] ?? "").trim();
+											return (
+												<Field
+													key={a}
+													label={<AddressText address={a} identity={identity} bold={false} />}
+													hint={loaded ? (edited ? <Badge tone="draft">Edited</Badge> : undefined) : "Mailbox didn’t load. Reload to retry."}
+												>
+													<div className="pg-ui-addr-row">
+														<input className="pg-input" value={names[a] ?? ""} placeholder={handleOf(a)} aria-label={`Display name for ${a}`} onChange={(e) => setNames({ ...names, [a]: e.target.value })} disabled={!loaded} />
+														<span className="pg-ui-addr-preview" aria-label={`Recipients see ${name || handleOf(a)} <${a}>`}>
+															<b>{name || handleOf(a)}</b> &lt;{a}&gt;
+														</span>
+													</div>
+												</Field>
+											);
+										})}
 									</div>
 								);
 							})}
+							<Field label="Add an address" hint={<>Add it to <span className="pg-mono">EMAIL_ADDRESSES</span> in your Worker config and deploy. Its domain must be in <span className="pg-mono">DOMAINS</span>.</>}>
+								<CopyField label="EMAIL_ADDRESSES config line" value={`"EMAIL_ADDRESSES": ${JSON.stringify(addresses)}`} />
+							</Field>
 						</>
 					)}
 					{tab === "signatures" && (
 						<>
-							{addresses.map((a) => {
-								const id = identities.of(a);
-								const sig = sigs[a] ?? { html: "", enabled: false };
-								const has = !!sig.html.replace(/<[^>]+>/g, "").trim();
-								return (
-									<div key={a} className="pg-sig-row">
-										<div className="pg-sig-head">
-											<Swatch identity={id} />
-											<span className="pg-flex pg-ellipsis" style={{ fontSize: 12 }}><AddressText address={a} identity={id} bold={false} /></span>
-											<span className="pg-sig-default">Add by default</span>
-											<Switch
-												label={`Add the signature for ${a} by default`}
-												on={sig.enabled && has}
-												onChange={(enabled) => setSigs({ ...sigs, [a]: { ...sig, enabled: enabled && has } })}
-											/>
-										</div>
-										<div className="pg-sig-editor">
-											<Editor
-												value={sig.html}
-												onChange={(html) => setSigs((cur) => ({ ...cur, [a]: { html, enabled: cur[a]?.enabled ?? false } }))}
-												placeholder="No signature"
-												label={`Signature for ${a}`}
-											/>
-										</div>
-									</div>
-								);
-							})}
+							<Note>
+								{sigCount === 0
+									? "No address has a signature yet."
+									: `${sigCount} of ${addresses.length} addresses have a signature, ${sigOnCount} added by default.`}
+								{" "}The signature button in the composer adds or removes it on any message.
+							</Note>
+							<List label="Signatures">
+								{addresses.map((a) => {
+									const id = identities.of(a);
+									const sig = sigs[a] ?? { html: "", enabled: false };
+									const has = hasText(sig.html);
+									const on = sig.enabled && has;
+									const domain = a.split("@")[1] ?? "";
+									const sources = addresses.filter((b) => b !== a && hasText(sigs[b]?.html ?? ""));
+									// Only addresses without a signature, so copying never overwrites one.
+									const siblings = addresses.filter((b) => b !== a && b.split("@")[1] === domain && !hasText(sigs[b]?.html ?? ""));
+									const fromName = (names[a] ?? "").trim() || handleOf(a);
+									return (
+										<Item
+											key={a}
+											title={<span className="pg-ui-name"><Swatch identity={id} /><AddressText address={a} identity={id} bold={false} /></span>}
+											aside={<Badge tone={on ? "ok" : "neutral"} dot={on}>{on ? "Added by default" : has ? "Off" : "None"}</Badge>}
+											quote={sigOpen === a ? undefined : has ? htmlToPlainText(sig.html).replace(/\s+/g, " ").trim() : "No signature"}
+											open={sigOpen === a}
+											onClick={() => { setSigOpen(sigOpen === a ? null : a); setSigFocus(true); }}
+										>
+											<div className="pg-sig-editor">
+												<Editor
+													value={sig.html}
+													onChange={(html) => writeSigs([a], html)}
+													placeholder="Write a signature"
+													label={`Signature for ${a}`}
+													autoFocus={sigFocus}
+												/>
+											</div>
+											{(sources.length > 0 || (has && siblings.length > 0)) && (
+												<div className="pg-ui-toolbar">
+													{sources.length > 0 && (
+														<select
+															className="pg-select"
+															value=""
+															aria-label={`Copy a signature into ${a}`}
+															onChange={(e) => e.target.value && writeSigs([a], sigs[e.target.value]?.html ?? "")}
+														>
+															<option value="">{has ? "Replace with…" : "Copy from…"}</option>
+															{sources.map((b) => <option key={b} value={b}>{b}</option>)}
+														</select>
+													)}
+													{has && siblings.length > 0 && (
+														<Button size="sm" onClick={() => writeSigs(siblings, sig.html)}>
+															{siblings.length === 1 ? `Copy to ${siblings[0]}` : `Copy to ${siblings.length} more @${domain} addresses`}
+														</Button>
+													)}
+												</div>
+											)}
+											{has && (
+												<div className="pg-sig-preview" aria-label="How it looks to the recipient">
+													<span className="pg-sig-preview-from"><b>{fromName}</b> &lt;{a}&gt;</span>
+													<span className="pg-sig-preview-body">Your message</span>
+													<div className="pg-sig-preview-sig" dangerouslySetInnerHTML={{ __html: getSignatureBlock({ signature: { enabled: true, html: sig.html } }) }} />
+												</div>
+											)}
+											<span className="pg-ui-switch-line">
+												<Switch
+													label={`Add the signature for ${a} by default`}
+													on={on}
+													disabled={!has}
+													onChange={(enabled) => setSigs({ ...sigs, [a]: { ...sig, enabled } })}
+												/>
+												{has ? "Add to new messages by default" : "Write a signature to add it by default"}
+											</span>
+										</Item>
+									);
+								})}
+							</List>
 						</>
 					)}
-					{tab === "overview" && <OverviewTab identities={identities} autoDraft={autoDraft} onTab={onTab} />}
-					{tab === "limits" && <LimitsTab draft={limits} />}
-					{tab === "connections" && <ConnectionsTab />}
-					{tab === "drafting" && (
-						<>
-							<div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 8, padding: "14px 0 8px" }}>
-								<b style={{ fontWeight: 500 }}>Agent prompt</b>
-								{addresses.length > 1 && (
-									<select className="pg-select" value={promptFor} aria-label="Address this prompt is for" onChange={(e) => setPromptFor(e.target.value)}>
-										{addresses.map((a) => <option key={a} value={a}>{a}</option>)}
-									</select>
-								)}
-								<span className="pg-badge">{prompt.trim() ? "Custom" : "Default"}</span>
-								<div className="pg-flex" />
-								{addresses.length > 1 && addresses.some((a) => (prompts[a] ?? "").trim() !== prompt.trim()) && (
-									<button type="button" className="pg-btn pg-btn-sm pg-btn-quiet" onClick={() => setPrompts(Object.fromEntries(addresses.map((a) => [a, prompt])))}>
-										Use for every address
-									</button>
-								)}
-								{prompt.trim() && (
-									<button type="button" className="pg-btn pg-btn-sm pg-btn-quiet" onClick={() => setPrompt("")}>
-										<ArrowCounterClockwiseIcon size={12} />Reset to default
-									</button>
-								)}
-							</div>
-							<textarea
-								className="pg-textarea"
-								rows={9}
-								value={prompt}
-								aria-label={`Agent prompt for ${promptFor}`}
-								onChange={(e) => setPrompt(e.target.value)}
-								placeholder="You are an email assistant that helps manage this inbox. You read emails, draft replies, and help organize conversations. Write like a real person. Short, direct, flowing prose. Plain text only. (Leave empty to use the built-in default prompt)"
-							/>
-							<div style={{ fontSize: 12, color: "var(--pg-text-6)", padding: "6px 0 4px" }}>Sent as the system message when the agent works on this address: Draft reply, auto-draft, and chat while its mail is open. Controls tone, style and behavior rules.</div>
-							<Setting title="Model" sub={agentModel.stored ? modelName(catalog, agentModel.stored.active) : ""}>
-								<button type="button" className="pg-btn pg-btn-sm" onClick={() => onTab("model")}>Change</button>
-							</Setting>
-							<Setting title="Auto-draft new mail" sub={<span className="pg-mono">AUTO_DRAFT_ENABLED</span>}>
-								<span className="pg-tag">{autoDraft ? "on" : "off"} · config</span>
-							</Setting>
-							<Setting title="Sending" sub={limits.saved ? `${limits.saved.agentDay} a day per address · ${limits.saved.agentRecipients} recipients each` : undefined}>
-								<button type="button" className="pg-btn pg-btn-sm" onClick={() => onTab("limits")}>Limits</button>
-							</Setting>
-							{/* TODO(roadmap): rules (Inquiry, Receipts, DMARC, Triage) and per-rule autonomy settings. */}
-						</>
-					)}
-					{tab === "model" && <AgentModelSection draft={agentModel} />}
+					{tab === "models" && <AgentModelSection draft={agentModel} />}
 					{tab === "labels" && <LabelsTab />}
 					{tab === "shortcuts" && <ShortcutList overrides={draft.shortcuts} onChange={(shortcuts) => setDraft({ ...draft, shortcuts })} />}
-					{tab === "activity" && (
+					{tab === "logs" && (
 						<ActivityTab
 							addresses={addresses}
 							identities={identities}
@@ -369,95 +368,14 @@ export function ConsoleModal({ tab: asked, onTab, prefs, setPrefs, addresses, id
 						/>
 					)}
 					{tab === "storage" && <StorageTab identities={identities} />}
-					</fieldset>
-				</div>
-			</div>
-			<div className="pg-modal-foot">
-				<span className="pg-note" role="status">{error ?? (dirty ? "Unsaved changes" : "")}</span>
-				<div className="pg-flex" />
-				{demo ? (
-					<button type="button" className="pg-btn" onClick={onClose}>Close</button>
-				) : (
-					<>
-						<button type="button" className="pg-btn" onClick={onClose}>Cancel</button>
-						<button type="button" className="pg-btn pg-btn-primary" onClick={save} disabled={saving}>Save changes</button>
-					</>
-				)}
-			</div>
-		</Modal>
+			</Fields>
+			{error && <SaveBar error={error} saving={saving} onSave={() => void save()} />}
+		</fieldset>
 	);
 }
 
-/** Tabs whose changes go through Save, which a demo refuses. Labels save on their own and a demo allows them. */
+/** Pages whose changes a demo refuses. Labels save through their own route, which a demo allows. */
 const READ_ONLY_IN_DEMO = new Set<ConsoleTab>(["general", "addresses", "signatures", "shortcuts"]);
-
-const MCP_TOOLS = [
-	["list_mailboxes", "List all mailboxes"],
-	["list_emails", "List emails in a folder"],
-	["get_email", "Read a full email with body"],
-	["get_thread", "Load a conversation thread"],
-	["search_emails", "Search emails by query"],
-	["draft_reply", "Draft a reply to an email"],
-	["create_draft", "Create a new draft"],
-	["update_draft", "Edit a saved draft"],
-	["send_draft", "Send a saved draft"],
-	["mark_email_read", "Mark email as read/unread"],
-	["move_email", "Move email to a system folder"],
-	["list_labels", "List labels with counts"],
-	["create_label", "Create a label"],
-	["rename_label", "Rename a label"],
-	["delete_label", "Delete a label"],
-	["label_conversation", "Add or remove labels on a conversation"],
-	["search_all_mail", "Search every address at once"],
-	["label_matching", "Label every conversation a search matches"],
-	["delete_email", "Move email to Trash"],
-	["list_shortcuts", "List keyboard shortcuts"],
-	["set_shortcut", "Rebind a keyboard shortcut"],
-	["reset_shortcuts", "Restore default shortcut keys"],
-] as const;
-
-/** The MCP server's address and tools, for connecting outside agents. */
-function ConnectionsTab() {
-	const url = `${window.location.origin}/mcp`;
-	const [copied, setCopied] = useState(false);
-	return (
-		<div className="pg-connections">
-			<div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-				<span className="pg-caption">SERVER URL</span>
-				<div className="pg-mcp-url">
-					<span>{url}</span>
-					<button
-						type="button"
-						data-copied={copied}
-						onClick={async () => {
-							try {
-								await navigator.clipboard.writeText(url);
-								setCopied(true);
-								setTimeout(() => setCopied(false), 2000);
-							} catch {
-								// Clipboard blocked: the URL stays selectable.
-							}
-						}}
-					>
-						{copied ? <CheckIcon size={12} weight="bold" /> : <CopyIcon size={12} />}{copied ? "Copied" : "Copy"}
-					</button>
-				</div>
-			</div>
-			<div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-				<span className="pg-caption">AVAILABLE TOOLS · {MCP_TOOLS.length}</span>
-				<div className="pg-tools-list">
-					{MCP_TOOLS.map(([name, desc]) => (
-						<div key={name}>
-							<WrenchIcon size={12} color="var(--pg-text-8)" />
-							<code>{name}</code>
-							<span>{desc}</span>
-						</div>
-					))}
-				</div>
-			</div>
-		</div>
-	);
-}
 
 export function ShortcutsModal({ onClose, onEdit }: { onClose: () => void; onEdit: () => void }) {
 	return (

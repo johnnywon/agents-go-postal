@@ -16,12 +16,17 @@ export interface Prefs {
 	shortcuts: ShortcutOverrides;
 	/** Days the activity log keeps agent and MCP actions. */
 	activityDays: ActivityDays;
+	/** New mail no agent takes: left alone, or drafted by the PluraMail Agent. */
+	unmatched: Unmatched;
 }
+
+export const UNMATCHED = ["leave", "draft"] as const;
+export type Unmatched = (typeof UNMATCHED)[number];
 
 export const ACTIVITY_DAYS = [90, 120, 180] as const;
 export type ActivityDays = (typeof ACTIVITY_DAYS)[number];
 
-export const DEFAULT_PREFS: Prefs = { theme: "dark", keys: false, markRead: true, images: "ask", replyFrom: true, shortcuts: {}, activityDays: 90 };
+export const DEFAULT_PREFS: Prefs = { theme: "dark", keys: false, markRead: true, images: "ask", replyFrom: true, shortcuts: {}, activityDays: 90, unmatched: "draft" };
 
 const THEMES = ["dark", "light", "system"] as const;
 const IMAGES = ["ask", "always", "never"] as const;
@@ -39,9 +44,10 @@ export function cleanPrefs(input: unknown, base: Prefs = DEFAULT_PREFS): Prefs {
 		replyFrom: bool(o.replyFrom, base.replyFrom),
 		shortcuts: o.shortcuts === undefined ? base.shortcuts : cleanOverrides(o.shortcuts),
 		activityDays: pick(o.activityDays, ACTIVITY_DAYS, base.activityDays),
+		unmatched: pick(o.unmatched, UNMATCHED, base.unmatched),
 	};
 }
 
 export function samePrefs(a: Prefs, b: Prefs): boolean {
-	return a.theme === b.theme && a.keys === b.keys && a.markRead === b.markRead && a.images === b.images && a.replyFrom === b.replyFrom && a.activityDays === b.activityDays && sameOverrides(a.shortcuts, b.shortcuts);
+	return a.theme === b.theme && a.keys === b.keys && a.markRead === b.markRead && a.images === b.images && a.replyFrom === b.replyFrom && a.activityDays === b.activityDays && a.unmatched === b.unmatched && sameOverrides(a.shortcuts, b.shortcuts);
 }

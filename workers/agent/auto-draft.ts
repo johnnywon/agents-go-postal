@@ -25,6 +25,7 @@ import { stripHtmlToText, textToHtml } from "../lib/email-helpers";
 import { parseSender } from "../lib/message-meta";
 import { HeaderValueSchema } from "../lib/schemas";
 import type { EmailFull } from "../lib/schemas";
+import { type Agent, agentPrompt, findAgent } from "../lib/agents";
 import { toolDraftReply } from "../lib/tools";
 import type { MailboxStore } from "../store/types";
 import type { Sql } from "../store/sql";
@@ -128,7 +129,7 @@ export async function prepareAutoDraft(
 /** Characters of each earlier message quoted in the prompt. get_thread has them in full. */
 const PROMPT_HISTORY_CHARS = 500;
 
-export function autoDraftPrompt(mailboxId: string, threadId: string, context: AutoDraftContext): string {
+export function autoDraftPrompt(mailboxId: string, threadId: string, context: AutoDraftContext, agents: readonly Agent[] = []): string {
 	const { email, thread } = context;
 	const from = email.sender_name ? `${email.sender_name} <${email.sender}>` : email.sender;
 	let prompt = `A new email just arrived. Draft an appropriate response using draft_reply.
@@ -153,6 +154,8 @@ ${email.body_text || "(empty)"}`;
 		prompt += `\n\nThis is the first message in the thread (no prior conversation).`;
 	}
 	prompt += `\n\nBased on the email content and thread context above, draft a reply using draft_reply. If you need more context, use get_thread.`;
+	const section = agentPrompt(agents);
+	if (section) prompt += `\n\n${section}`;
 	return prompt;
 }
 
@@ -161,9 +164,10 @@ export function createAutoDraftTools(
 	target: AutoDraftTarget,
 	context: Pick<AutoDraftContext, "thread">,
 	draftReply: typeof toolDraftReply = toolDraftReply,
-	options: { onDraft?: (draftId: string) => void } = {},
+	options: { agents?: readonly Agent[]; onDraft?: (draftId: string, agent: string | null) => void } = {},
 ) {
 	const { mailboxId, emailId, threadId, to } = target;
+	const agents = options.agents ?? [];
 	return {
 		get_email: defineTool({
 			description: "Get an email in this conversation with its full body. Only the new email and the emails in its thread can be read.",
@@ -184,8 +188,12 @@ export function createAutoDraftTools(
 			parameters: z.object({
 				subject: HeaderValueSchema.describe("Subject line (usually 'Re: ...')"),
 				body: z.string().describe("The plain text body of the reply. No HTML, just write normally."),
+				...(agents.length > 0
+					? { agent: z.string().optional().describe("The name of the agent whose job you followed. Leave out if none fits.") }
+					: {}),
 			}),
-			execute: async ({ subject, body }): Promise<unknown> => {
+			execute: async ({ subject, body, agent }: { subject: string; body: string; agent?: string }): Promise<unknown> => {
+				const chosen = findAgent(agents, agent)?.name ?? null;
 				const result = await draftReply(env, mailboxId, {
 					originalEmailId: emailId,
 					to,
@@ -193,9 +201,9 @@ export function createAutoDraftTools(
 					body,
 					isPlainText: true,
 					runVerifyDraft: true,
-					notes: { origin: "auto-draft", instructions: [] },
+					notes: { origin: "auto-draft", agent: chosen, instructions: [] },
 				});
-				if ("draftId" in result) options.onDraft?.(result.draftId);
+				if ("draftId" in result) options.onDraft?.(result.draftId, chosen);
 				return result;
 			},
 		}),
@@ -237,7 +245,7 @@ export async function saveTextDraft(
 			[],
 		);
 		onDraft(id);
-		await stub.setDraftNotes(id, { origin: "auto-draft", instructions: [] });
+		await stub.setDraftNotes(id, { origin: "auto-draft", agent: null, instructions: [] });
 		return { draftId: id };
 	});
 }

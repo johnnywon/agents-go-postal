@@ -48,8 +48,10 @@ import { defineTool, logTools } from "./tool-def";
 import { getSystemPrompt } from "./prompt";
 import { autoDraftPrompt, createAutoDraftTools, prepareAutoDraft, saveTextDraft } from "./auto-draft";
 import { type AutoDraftTarget, type DraftOutcome, draftedOutcome, outcomeAfterError } from "./runs";
+import { type Agent, agentSendsToday, listAgents, matchAgents } from "../lib/agents";
+import { readPrefs } from "../lib/prefs";
 
-const CHAT_NOTES: DraftNotes = { origin: "chat", instructions: [] };
+const CHAT_NOTES: DraftNotes = { origin: "chat", agent: null, instructions: [] };
 
 /**
  * The chat agent's tools. crossAddress adds tools that search and label across
@@ -447,13 +449,22 @@ export class EmailAgent extends AIChatAgent<any> {
 		try {
 			const model = await agentModel(env);
 			const systemPrompt = await getSystemPrompt(env, target.mailboxId);
+			// Rules first, no model call: the agents that watch this address and whose rules pass.
+			const [agents, { prefs }] = await Promise.all([listAgents(sql), readPrefs(env)]);
+			const matched = matchAgents(agents, {
+				mailboxId: target.mailboxId, from: context.email.sender, subject: context.email.subject, body: context.email.body_text,
+			});
+			if (matched.length === 0 && prefs.unmatched === "leave") return { status: "skipped", reason: "no agent takes this mail" };
+			// The model reads the jobs of the agents that passed and drafts for one, or none. The last draft's agent is the one chosen.
+			let chosen: string | null = null;
 			const tools = logTools(createAutoDraftTools(env, {
 				mailboxId: target.mailboxId,
 				emailId: target.emailId,
 				threadId: target.threadId,
 				to: replyTo,
-			}, context, toolDraftReply, { onDraft: (id) => { draftIds.push(id); } }), sql, { actor: "auto-draft", bound: target.mailboxId });
-			const autoPrompt = autoDraftPrompt(target.mailboxId, target.threadId, context);
+			}, context, toolDraftReply, { agents: matched, onDraft: (id, agent) => { draftIds.push(id); chosen = agent; } }), sql, { actor: "auto-draft", bound: target.mailboxId });
+			const autoPrompt = autoDraftPrompt(target.mailboxId, target.threadId, context, matched)
+				+ (matched.length > 0 && prefs.unmatched === "leave" ? "\n\nIf no agent's job fits the new email, write no draft." : "");
 
 			// Fresh context for auto-draft: no prior chat history, so old
 			// messages and tool calls don't confuse the model.
@@ -490,10 +501,41 @@ export class EmailAgent extends AIChatAgent<any> {
 				),
 			]);
 
-			return draftIds.length ? draftedOutcome(draftIds) : { status: "skipped", reason: "the model wrote no draft" };
+			if (!draftIds.length) return { status: "skipped", reason: matched.length ? "no agent's job fits" : "the model wrote no draft" };
+			const agent = chosen ? matched.find((a) => a.name === chosen) ?? null : null;
+			if (!agent && matched.length > 0 && prefs.unmatched === "leave") {
+				for (const id of draftIds) await toolDiscardDraft(env, target.mailboxId, id).catch(() => {});
+				return { status: "skipped", reason: "no agent's job fits" };
+			}
+			if (!agent) return draftedOutcome(draftIds);
+			// The agent acts on the last draft; any earlier ones from this run go.
+			for (const id of draftIds.slice(0, -1)) await toolDiscardDraft(env, target.mailboxId, id).catch(() => {});
+			return await this.actAs(agent, draftIds[draftIds.length - 1], target);
 		} catch (e) {
 			console.error("Auto-draft failed:", (e as Error).message);
 			return outcomeAfterError(e, draftIds);
 		}
+	}
+
+	/**
+	 * What an agent's mode does with the reply it wrote: Watch keeps a note of
+	 * it and discards the draft, Draft leaves it in Drafts, Send sends it
+	 * within the agent's limits. A send that can't go out stays a draft.
+	 */
+	private async actAs(agent: Agent, draftId: string, target: AutoDraftTarget): Promise<DraftOutcome> {
+		const env = this.env as Env;
+		if (agent.mode === "watch") {
+			const draft = await mailStore(env).mailbox(target.mailboxId).getEmail(draftId);
+			const preview = String(draft?.body ?? "").replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim().slice(0, 300);
+			await toolDiscardDraft(env, target.mailboxId, draftId).catch(() => {});
+			return { status: "watched", agentId: agent.id, reason: preview ? `Would reply: ${preview}` : "Would reply" };
+		}
+		if (agent.mode === "draft") return { status: "drafted", draftId, agentId: agent.id };
+		const sends = await agentSendsToday(recordsSql(env), agent.id, target.sender);
+		if (sends.total >= agent.dailyLimit) return { status: "drafted", draftId, agentId: agent.id, reason: `daily limit of ${agent.dailyLimit} reached; kept as a draft` };
+		if (sends.toSender >= agent.perSenderLimit) return { status: "drafted", draftId, agentId: agent.id, reason: `replied to this sender ${sends.toSender} times today; kept as a draft` };
+		const result = await toolSendDraft(env, target.mailboxId, draftId, "agent");
+		if ("error" in result) return { status: "drafted", draftId, agentId: agent.id, reason: `not sent: ${result.error}` };
+		return { status: "sent", draftId: null, agentId: agent.id };
 	}
 }

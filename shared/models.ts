@@ -206,21 +206,11 @@ export function modelsFromWorkersAi(entries: WorkersAiEntry[]): CatalogModel[] {
 	return out;
 }
 
-/** One entry of OpenRouter's /models response. */
-export interface OpenRouterEntry {
-	id: string;
-	name?: string;
-	context_length?: number | null;
-	pricing?: { prompt?: string; completion?: string };
-	supported_parameters?: string[] | null;
-}
-
 function perMillion(value: string | undefined): number | undefined {
 	const n = Number(value);
 	return value === undefined || !Number.isFinite(n) || n < 0 ? undefined : Math.round(n * 1e6 * 1000) / 1000;
 }
 
-/** OpenRouter's catalog. Prices there are per token; here they are per million. */
 /**
  * Free models are left out everywhere: free endpoints pay for themselves with
  * your prompts, and the agent reads private mail.
@@ -229,44 +219,44 @@ export function isFree(m: Pick<CatalogModel, "id" | "price">): boolean {
 	return FREE_SUFFIX.test(m.id) || (!!m.price && m.price.input === 0 && m.price.output === 0);
 }
 
-/** One endpoint from OpenRouter's /endpoints/zdr list. */
+/** One endpoint from OpenRouter's /endpoints/zdr list. Public, no key needed. */
 export interface ZdrEndpoint {
 	model_id?: string;
+	model_name?: string;
+	context_length?: number | null;
 	pricing?: { prompt?: string; completion?: string };
+	supported_parameters?: string[] | null;
 }
 
 /**
- * OpenRouter's models that have at least one zero retention endpoint, free ones
- * left out, priced at the cheapest of those endpoints: requests only go there.
+ * OpenRouter's models that have at least one zero retention endpoint, built
+ * from that list alone. Each is priced at its cheapest such endpoint, since
+ * requests only go there, and free ones are left out. Prices there are per
+ * token; here they are per million.
  */
-export function zdrOnly(models: CatalogModel[], endpoints: ZdrEndpoint[]): CatalogModel[] {
-	const best = new Map<string, ModelPrice | null>();
+export function modelsFromZdr(endpoints: ZdrEndpoint[]): CatalogModel[] {
+	const byId = new Map<string, CatalogModel>();
 	for (const e of endpoints) {
-		if (!e.model_id) continue;
+		if (typeof e.model_id !== "string" || !e.model_id) continue;
 		const input = perMillion(e.pricing?.prompt);
 		const output = perMillion(e.pricing?.completion);
 		const price = input === undefined || output === undefined ? null : { input, output };
-		const seen = best.get(e.model_id);
-		if (!best.has(e.model_id) || (price && (!seen || price.output < seen.output))) best.set(e.model_id, price);
+		const context = e.context_length && e.context_length > 0 ? e.context_length : null;
+		const tools = Array.isArray(e.supported_parameters) ? e.supported_parameters.includes("tools") : null;
+		const seen = byId.get(e.model_id);
+		if (!seen) {
+			byId.set(e.model_id, {
+				provider: "openrouter",
+				id: e.model_id,
+				name: (e.model_name ?? prettyName(e.model_id)).replace(/^[^:]+:\s*/, ""),
+				context, price, tools,
+			});
+			continue;
+		}
+		if (price && (!seen.price || price.output < seen.price.output)) seen.price = price;
+		if (context && (!seen.context || context > seen.context)) seen.context = context;
+		if (tools) seen.tools = true;
+		else if (seen.tools === null && tools === false) seen.tools = false;
 	}
-	return models.flatMap((m) => {
-		if (!best.has(m.id)) return [];
-		const priced = { ...m, price: best.get(m.id) ?? m.price };
-		return isFree(priced) ? [] : [priced];
-	});
-}
-
-export function modelsFromOpenRouter(entries: OpenRouterEntry[]): CatalogModel[] {
-	return entries.filter((e) => typeof e.id === "string").map((e) => {
-		const input = perMillion(e.pricing?.prompt);
-		const output = perMillion(e.pricing?.completion);
-		return {
-			provider: "openrouter" as const,
-			id: e.id,
-			name: (e.name ?? prettyName(e.id)).replace(/^[^:]+:\s*/, ""),
-			context: e.context_length && e.context_length > 0 ? e.context_length : null,
-			price: input === undefined || output === undefined ? null : { input, output },
-			tools: Array.isArray(e.supported_parameters) ? e.supported_parameters.includes("tools") : null,
-		};
-	});
+	return [...byId.values()].filter((m) => !isFree(m));
 }

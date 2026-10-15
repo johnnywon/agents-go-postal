@@ -16,8 +16,8 @@ import type { LanguageModel } from "ai";
 import { createWorkersAI } from "workers-ai-provider";
 import {
 	type CatalogModel, isFree, isProvider, KEYED_PROVIDERS, type KeyedProvider,
-	type ModelRef, modelsFromOpenRouter, modelsFromWorkersAi, type OpenRouterEntry, PROVIDER_INFO, type ProviderId,
-	prettyName, RECOMMENDED_MODEL, validModelId, type WorkersAiEntry, type ZdrEndpoint, zdrOnly,
+	type ModelRef, modelsFromWorkersAi, PROVIDER_INFO, type ProviderId,
+	prettyName, RECOMMENDED_MODEL, validModelId, type WorkersAiEntry, type ZdrEndpoint, modelsFromZdr,
 } from "../../shared/models";
 import type { Env } from "../types";
 import { DEMO, DEMO_AI_MODEL } from "./demo";
@@ -255,29 +255,23 @@ async function loadWorkersAi(env: Env): Promise<ProviderCatalog> {
 	}
 }
 
-/** OpenRouter's whole catalog, for prices and context of the direct providers' models. */
-async function loadOpenRouter(): Promise<ProviderCatalog> {
+/**
+ * What the OpenRouter tab lists: only models with a zero retention endpoint.
+ * The zero retention list carries names, context and prices, and it's public,
+ * so the list shows without a key. OpenRouter's full /models list is not read:
+ * it can take minutes to answer.
+ */
+async function loadOpenRouterZdr(): Promise<ProviderCatalog> {
 	try {
-		const data = (await fetchJson(`${OPENROUTER_BASE}/models`)) as { data?: OpenRouterEntry[] };
-		return { source: "live", models: modelsFromOpenRouter(data.data ?? []).filter((m) => !isFree(m)) };
+		const data = (await fetchJson(`${OPENROUTER_BASE}/endpoints/zdr`)) as { data?: ZdrEndpoint[] };
+		const models = modelsFromZdr(data.data ?? []);
+		return models.length ? { source: "live", models } : { source: "none", models: [], error: "OpenRouter's zero retention list came back empty." };
 	} catch (e) {
 		return { source: "none", models: [], error: `OpenRouter's catalog couldn't be read: ${(e as Error).message}` };
 	}
 }
 
-/** What the OpenRouter tab lists: only models with a zero retention endpoint. */
-async function loadOpenRouterZdr(all: ProviderCatalog): Promise<ProviderCatalog> {
-	if (all.source === "none") return all;
-	try {
-		const data = (await fetchJson(`${OPENROUTER_BASE}/endpoints/zdr`)) as { data?: ZdrEndpoint[] };
-		return { source: "live", models: zdrOnly(all.models, data.data ?? []) };
-	} catch (e) {
-		return { source: "none", models: [], error: `OpenRouter's zero retention list couldn't be read: ${(e as Error).message}` };
-	}
-}
-
 export async function catalogFor(env: Env, provider: ProviderId, keys: Keys): Promise<ProviderCatalog> {
 	if (provider === "workers-ai") return cached("workers-ai", () => loadWorkersAi(env));
-	const openrouter = await cached("openrouter", loadOpenRouter);
-	return cached("openrouter-zdr", () => loadOpenRouterZdr(openrouter));
+	return cached("openrouter-zdr", loadOpenRouterZdr);
 }
