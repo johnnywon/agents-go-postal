@@ -57,7 +57,7 @@ Agents that drive a browser, such as Aside, gstack browse, Playwright and Claude
 - `SEED_PROFILE=alex` picks a second sample inbox: Alex Rivera, who runs a catalog API, plays in a band and keeps a code club's books. 100 messages in nine mailboxes on four domains: customers, the tools Partwell runs on, a late-night incident and its recovery, invoices, a payout, food orders, family, a fantasy league, gigs and a grant. Each sender has its own email design; vendors use their published logos and the invented companies original marks. Four openly licensed photos show inline; PDFs, CSVs, text files and JPEGs are real attachments. Links open an in-app page (`/api/v1/sample-link`) instead of leaving the app. [Alex profile](docs/demo-alex.md) covers the mailboxes, story, brands, files and sources.
 - A seeded reply draft now opens under the message it answers.
 
-No D1 migration.
+D1 migration: `0007_ai_budget.sql`. `npm run deploy` applies it.
 
 ## 0.7.4
 
