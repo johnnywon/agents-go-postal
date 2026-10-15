@@ -7,7 +7,7 @@ import { cleanOverrides, sameOverrides, type ShortcutOverrides } from "./shortcu
 /** Settings > General. Saved to the deployment (R2 config/prefs.json); each browser keeps a copy for a fast first paint. */
 export interface Prefs {
 	theme: "dark" | "light" | "system";
-	/** Show key hints next to controls. Shortcuts work either way. */
+	/** Show key hints next to controls. Off by default; shortcuts work either way, and tooltips and Settings > Shortcuts always show keys. */
 	keys: boolean;
 	markRead: boolean;
 	images: "ask" | "always" | "never";
@@ -21,7 +21,7 @@ export interface Prefs {
 export const ACTIVITY_DAYS = [90, 120, 180] as const;
 export type ActivityDays = (typeof ACTIVITY_DAYS)[number];
 
-export const DEFAULT_PREFS: Prefs = { theme: "dark", keys: true, markRead: true, images: "ask", replyFrom: true, shortcuts: {}, activityDays: 90 };
+export const DEFAULT_PREFS: Prefs = { theme: "dark", keys: false, markRead: true, images: "ask", replyFrom: true, shortcuts: {}, activityDays: 90 };
 
 const THEMES = ["dark", "light", "system"] as const;
 const IMAGES = ["ask", "always", "never"] as const;

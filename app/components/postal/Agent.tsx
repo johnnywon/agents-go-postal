@@ -94,6 +94,8 @@ export interface AgentPanelProps {
 	reading: string | null;
 	onCollapse: () => void;
 	overlay: boolean;
+	/** Closed: still mounted for its motion, out of reach of focus and assistive tech. */
+	inert?: boolean;
 	prefill: { text: string; id: number } | null;
 	onOpenDraft: (mailboxId: string, draftId: string) => void;
 	onBusy: (busy: boolean) => void;
@@ -130,17 +132,29 @@ function DemoNotice({ compact }: { compact?: boolean }) {
 	);
 }
 
-function DemoAgentPanel({ reading, prefill, onCollapse, overlay }: AgentPanelProps) {
+/**
+ * Puts a prefill in the box and focuses it once the panel can take focus: on its first open
+ * the panel mounts inert for a frame, and focus() on an inert element does nothing.
+ */
+function usePrefill(prefill: AgentPanelProps["prefill"], inert: boolean | undefined, setInput: (text: string) => void, inputRef: React.RefObject<HTMLTextAreaElement | null>) {
+	const focusedFor = useRef<number | null>(null);
+	useEffect(() => {
+		if (prefill) setInput(prefill.text);
+	}, [prefill, setInput]);
+	useEffect(() => {
+		if (!prefill || inert || focusedFor.current === prefill.id) return;
+		focusedFor.current = prefill.id;
+		requestAnimationFrame(() => inputRef.current?.focus());
+	}, [prefill, inert, inputRef]);
+}
+
+function DemoAgentPanel({ reading, prefill, onCollapse, overlay, inert }: AgentPanelProps) {
 	const { tip } = useShortcuts();
 	const [messages, setMessages] = useState<{ id: string; text: string }[]>([]);
 	const [input, setInput] = useState("");
 	const inputRef = useRef<HTMLTextAreaElement>(null);
 	const scrollRef = useRef<HTMLDivElement>(null);
-	useEffect(() => {
-		if (!prefill) return;
-		setInput(prefill.text);
-		requestAnimationFrame(() => inputRef.current?.focus());
-	}, [prefill]);
+	usePrefill(prefill, inert, setInput, inputRef);
 	useEffect(() => {
 		const el = scrollRef.current;
 		if (el) el.scrollTop = el.scrollHeight;
@@ -153,7 +167,7 @@ function DemoAgentPanel({ reading, prefill, onCollapse, overlay }: AgentPanelPro
 		setMessages((m) => [...m, { id: `q${id}`, text: t }]);
 	};
 	return (
-		<aside className="pg-agent" aria-label="PluraMail Agent" data-overlay={overlay || undefined}>
+		<aside className="pg-agent" aria-label="PluraMail Agent" data-overlay={overlay || undefined} inert={inert}>
 			<button type="button" className="pg-rail-head" onClick={onCollapse} title={tip("agent", "Collapse agent panel")}>
 				<CaretDoubleRightIcon size={14} weight="bold" />
 				<span className="pg-head-label">PLURAMAIL AGENT</span>
@@ -210,7 +224,7 @@ function LiveAgentPanel(props: AgentPanelProps) {
 	const { hooks, error } = useAgentHooks();
 	const { tip } = useShortcuts();
 	return (
-		<aside className="pg-agent" aria-label="PluraMail Agent" data-overlay={props.overlay || undefined}>
+		<aside className="pg-agent" aria-label="PluraMail Agent" data-overlay={props.overlay || undefined} inert={props.inert}>
 			<button type="button" className="pg-rail-head" onClick={props.onCollapse} title={tip("agent", "Collapse agent panel")}>
 				<CaretDoubleRightIcon size={14} weight="bold" />
 				<span className="pg-head-label">PLURAMAIL AGENT</span>
@@ -232,7 +246,7 @@ function LiveAgentPanel(props: AgentPanelProps) {
 
 const SUGGESTIONS = ["What came in today that needs a reply?", "Summarize unread mail", "Draft a reply to the open conversation"];
 
-function AgentChat({ hooks, open, reading, prefill, onOpenDraft, onBusy }: AgentPanelProps & { hooks: Hooks }) {
+function AgentChat({ hooks, open, reading, prefill, inert, onOpenDraft, onBusy }: AgentPanelProps & { hooks: Hooks }) {
 	// One agent for every address; each tool call names the address it acts on.
 	const agent = hooks.useAgent({ agent: "EmailAgent", name: SHARED_AGENT });
 	const context = useRef<AgentContext>({ open });
@@ -270,11 +284,7 @@ function AgentChat({ hooks, open, reading, prefill, onOpenDraft, onBusy }: Agent
 		el.style.height = `${el.scrollHeight}px`;
 	}, [input]);
 
-	useEffect(() => {
-		if (!prefill) return;
-		setInput(prefill.text);
-		requestAnimationFrame(() => inputRef.current?.focus());
-	}, [prefill]);
+	usePrefill(prefill, inert, setInput, inputRef);
 
 	const submit = (text = input) => {
 		const t = text.trim();
@@ -424,10 +434,10 @@ export function stepHistory(length: number, at: number | null, delta: -1 | 1): n
 	return at + 1 >= length ? null : at + 1;
 }
 
-export function AgentRail({ onOpen, busy }: { onOpen: () => void; busy: boolean }) {
+export function AgentRail({ onOpen, busy, inert }: { onOpen: () => void; busy: boolean; inert?: boolean }) {
 	const { tip } = useShortcuts();
 	return (
-		<button type="button" className="pg-agentrail" onClick={onOpen} title={tip("agent", "Open agent chat")} aria-label="Open agent chat">
+		<button type="button" className="pg-agentrail" inert={inert} onClick={onOpen} title={tip("agent", "Open agent chat")} aria-label="Open agent chat">
 			<span className="pg-rail-head">
 				<CaretDoubleLeftIcon size={10} weight="bold" />
 				<AgentIcon size={14} weight="fill" color="var(--pg-green)" />

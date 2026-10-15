@@ -44,6 +44,8 @@ export interface SidebarProps {
 	onShortcuts: () => void;
 	overlay?: boolean;
 	drawer?: "open" | "closed";
+	/** Closed: still mounted for its motion, out of reach of focus and assistive tech. */
+	inert?: boolean;
 }
 
 function count(n: number | undefined) {
@@ -93,7 +95,7 @@ export function Sidebar(props: SidebarProps) {
 
 	const { tip } = useShortcuts();
 	return (
-		<nav className="pg-nav" aria-label="Mail" data-overlay={props.overlay || undefined} data-drawer={props.drawer}>
+		<nav className="pg-nav" aria-label="Mail" data-overlay={props.overlay || undefined} data-drawer={props.drawer} inert={props.inert}>
 			<button type="button" className="pg-rail-head" onClick={props.onCollapse} title={tip("sidebar", "Collapse sidebar")}>
 				<FoldMark size={14} />
 				<span className="pg-flex" style={{ lineHeight: 1, textAlign: "left" }}>PLURAMAIL</span>
@@ -290,8 +292,8 @@ export function Sidebar(props: SidebarProps) {
 }
 
 export function NavRail({
-	identities, filter, go, allUnread, unreadByAddress, onExpand, onLabels, onConsole, onLogout, onShortcuts,
-}: Pick<SidebarProps, "identities" | "filter" | "go" | "allUnread" | "unreadByAddress" | "onConsole" | "onLogout" | "onShortcuts"> & {
+	identities, filter, go, allUnread, unreadByAddress, onExpand, onLabels, onConsole, onLogout, onShortcuts, inert,
+}: Pick<SidebarProps, "identities" | "filter" | "go" | "allUnread" | "unreadByAddress" | "onConsole" | "onLogout" | "onShortcuts" | "inert"> & {
 	onExpand: () => void;
 	onLabels: () => void;
 }) {
@@ -301,7 +303,7 @@ export function NavRail({
 		[...unreadByAddress.entries()].reduce((sum, [address, n]) => (address.endsWith(`@${domain}`) ? sum + n : sum), 0);
 	const { tip } = useShortcuts();
 	return (
-		<nav className="pg-navrail" aria-label="Mail">
+		<nav className="pg-navrail" aria-label="Mail" inert={inert}>
 			<button type="button" className="pg-rail-head" onClick={onExpand} title={tip("sidebar", "Expand sidebar")} aria-label="Expand sidebar">
 				<FoldMark size={14} />
 				<CaretDoubleRightIcon size={10} weight="bold" />

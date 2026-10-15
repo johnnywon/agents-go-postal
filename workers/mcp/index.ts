@@ -39,6 +39,7 @@ import { mailStore, recordsSql } from "../store";
 import { logged } from "../lib/activity";
 import type { DraftNotes } from "../../shared/draft-notes";
 import type { Env } from "../types";
+import pkg from "../../package.json";
 
 /** Wrap a plain result object into MCP content format. */
 function mcpText(result: unknown) {
@@ -92,8 +93,8 @@ function mcpView(response: { content?: { type: string; text?: string }[]; isErro
  */
 export class EmailMCP extends McpAgent<Env> {
 	server = new McpServer({
-		name: "agentic-inbox",
-		version: "1.0.0",
+		name: "pluramail",
+		version: pkg.version,
 	});
 
 	async init() {

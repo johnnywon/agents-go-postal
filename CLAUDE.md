@@ -2,6 +2,10 @@
 
 Self-hosted multi-address email on Cloudflare Workers. React Router v7 UI in `app/`, Worker backend in `workers/`, shared code in `shared/`.
 
+## Writing
+
+`AGENTS.md` is the voice for docs, the changelog, commits, PRs and UI copy: the README's plain developer tone, no hype or readiness claims.
+
 ## Run and check
 
 - `npm run dev:local` with a gitignored `wrangler.local.jsonc` (see README, Local development). The dev server fills an empty inbox with sample mail on its first API request (`DEV_SEED=off` in `.dev.vars` skips it). `POST /api/v1/dev/seed` wipes the sample mail and writes it again.

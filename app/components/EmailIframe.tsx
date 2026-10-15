@@ -4,6 +4,7 @@
 
 import DOMPurify from "dompurify";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { layoutMoving, onLayoutSettled } from "~/lib/layout-motion";
 
 interface EmailIframeProps {
 	body: string;
@@ -143,6 +144,7 @@ export function prepareMailBody(body: string, { remoteImages, frame }: { remoteI
 export default function EmailIframe({ body, autoSize, remoteImages = true, padding: paddingProp, palette }: EmailIframeProps) {
 	const iframeRef = useRef<HTMLIFrameElement>(null);
 	const [height, setHeight] = useState(autoSize ? 100 : 0);
+	const pendingHeight = useRef<number | null>(null);
 
 	// Listen for height reports from the sandboxed iframe
 	const handleMessage = useCallback(
@@ -157,7 +159,10 @@ export default function EmailIframe({ body, autoSize, remoteImages = true, paddi
 				typeof event.data.height === "number" &&
 				event.data.height > 0
 			) {
-				setHeight(event.data.height);
+				// While a side column opens or closes the text rewraps every frame. Taking each
+				// height would relayout the reader twice a frame, so the last one waits for the end.
+				if (layoutMoving()) pendingHeight.current = event.data.height;
+				else setHeight(event.data.height);
 			}
 		},
 		[autoSize],
@@ -165,10 +170,19 @@ export default function EmailIframe({ body, autoSize, remoteImages = true, paddi
 
 	useEffect(() => {
 		window.addEventListener("message", handleMessage);
-		return () => window.removeEventListener("message", handleMessage);
+		const off = onLayoutSettled(() => {
+			if (pendingHeight.current !== null) setHeight(pendingHeight.current);
+			pendingHeight.current = null;
+		});
+		return () => {
+			window.removeEventListener("message", handleMessage);
+			off();
+		};
 	}, [handleMessage]);
 
 	useEffect(() => {
+		// A height held during a layout motion belongs to the frame being replaced.
+		pendingHeight.current = null;
 		const iframe = iframeRef.current;
 		if (!iframe) return;
 

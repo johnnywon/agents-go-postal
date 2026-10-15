@@ -18,6 +18,8 @@ import api, { ApiError, type BulkResult, type Conversation, type Label, type Sav
 import type { Email } from "~/types";
 import { AgentPanel, AgentRail, useDraftWithAgent } from "./Agent";
 import { DemoContext } from "~/lib/demo";
+import { markLayoutMoving } from "~/lib/layout-motion";
+import { useEmail } from "~/queries/emails";
 import {
 	type ComposeMode, type ComposeState, composeFor, composeFromDraft, emptyCompose, handOff, HANDOFF_KEY, useAddressInfo,
 	useMailSender,
@@ -39,6 +41,8 @@ import { TooltipLayer } from "./Tooltip";
 
 const EDITABLE = "input, textarea, select, [contenteditable=''], [contenteditable='true']";
 const ICON = 15;
+/** The longest side-column motion in postal.css (--pg-side-ms). */
+const SIDE_MS = 420;
 
 function actionText(action: BulkAction, n: number, labelName?: string): [string, React.ReactNode] {
 	const what = conversations(n);
@@ -176,6 +180,9 @@ function PostalApp({ addresses, domains, autoDraft, demo }: PostalProps) {
 	const rowKeys = useMemo(() => rows.map((r) => r.thread_key), [rows]);
 	const checked = useMemo(() => sel.prune(selection, rowKeys), [selection, rowKeys]);
 	const openRow = open ? rows.find((r) => r.mailbox_id === open.mailboxId && r.email_id === open.emailId) : undefined;
+	// The open email can be missing from the list, as when a search leaves it out. The Reader loads it
+	// anyway, and this shares that query, so the agent still knows what is open.
+	const { data: openEmail } = useEmail(open?.mailboxId, open?.emailId);
 	const [currentKey, setCurrentKey] = useState<string | null>(null);
 	const activeKey = openRow?.thread_key ?? (open ? currentKey : null);
 	const [autoOpenedKey, setAutoOpenedKey] = useState<string | null>(null);
@@ -185,6 +192,19 @@ function PostalApp({ addresses, domains, autoDraft, demo }: PostalProps) {
 	const [panelTemp, setPanelTemp] = useState(false);
 	const navOpen = mobile ? navTemp : narrow ? navTemp : layout.nav ?? true;
 	const panelOpen = mobile ? panelTemp : narrow ? panelTemp : layout.panel ?? true;
+	// Both sides stay mounted, closed ones hidden and inert, so opening and closing are CSS
+	// transitions that reverse from wherever they are. The agent mounts on first open.
+	const sideMode = mobile ? "sheet" : narrow ? "overlay" : "dock";
+	// On its first open the agent mounts closed and opens a frame later, so that open moves too.
+	const [agentMounted, setAgentMounted] = useState(panelOpen);
+	const [agentReady, setAgentReady] = useState(panelOpen);
+	if (panelOpen && !agentMounted) setAgentMounted(true);
+	useEffect(() => {
+		if (!agentMounted || agentReady) return;
+		const id = requestAnimationFrame(() => setAgentReady(true));
+		return () => cancelAnimationFrame(id);
+	}, [agentMounted, agentReady]);
+	const panelShown = panelOpen && agentReady;
 	const [modal, setModal] = useState<"logout" | null>(null);
 	const [toast, setToast] = useState<ToastState | null>(null);
 	const [cw, setCw] = useState<{ key: number; initial: ComposeState; max?: boolean } | null>(null);
@@ -212,16 +232,35 @@ function PostalApp({ addresses, domains, autoDraft, demo }: PostalProps) {
 	const showToast = useCallback((t: Omit<ToastState, "id">) => setToast({ ...t, id: Date.now() }), []);
 	const closeToast = useCallback(() => setToast(null), []);
 
+	// A column that closes with focus inside hands it to its rail. On a phone it lets go.
+	const handOffFocus = (side: "left" | "right") => {
+		const column = document.querySelector(`.pg-side[data-side="${side}"] > ${side === "left" ? ".pg-nav" : ".pg-agent"}`);
+		if (!column?.contains(document.activeElement)) return;
+		// After the commit: until then the rail is inert and can't take focus.
+		requestAnimationFrame(() => {
+			const rail = document.querySelector<HTMLElement>(`.pg-side[data-side="${side}"] ${side === "left" ? ".pg-navrail .pg-rail-head" : ".pg-agentrail"}`);
+			// Phones have no rails. Focusing search there would open its full-screen window and the keyboard, so just let go.
+			if (rail?.offsetParent) rail.focus({ preventScroll: true });
+			else if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
+		});
+	};
 	const toggleNav = () => {
+		markLayoutMoving(SIDE_MS);
+		if (navOpen) handOffFocus("left");
 		if (mobile || narrow) setNavTemp((v) => !v);
 		else setLayout({ nav: !navOpen });
 	};
 	const togglePanel = () => {
+		markLayoutMoving(SIDE_MS);
+		if (panelOpen) handOffFocus("right");
 		if (mobile || narrow) setPanelTemp((v) => !v);
 		else setLayout({ panel: !panelOpen });
 	};
 	// Both side columns: closes both when either is open, else opens both. Below 1300px they overlay, so it only closes.
 	const toggleBoth = () => {
+		markLayoutMoving(SIDE_MS);
+		handOffFocus("left");
+		handOffFocus("right");
 		if (mobile || narrow) {
 			setNavTemp(false);
 			setPanelTemp(false);
@@ -597,21 +636,22 @@ function PostalApp({ addresses, domains, autoDraft, demo }: PostalProps) {
 			<div className="postal" data-theme={theme} data-keys={prefs.keys ? "on" : "off"} data-pane={mobile && open ? "reader" : "list"}>
 				<TooltipLayer />
 				<div className="pg-body">
-					{/* Below 1300px the rail stays in place and the full column overlays it. */}
-					{!mobile && (!navOpen || narrow) && (
-						<NavRail
-							{...sidebarProps}
-							onExpand={toggleNav}
-							onLabels={() => {
-								setLayout({ labelsOpen: true });
-								toggleNav();
-							}}
-						/>
-					)}
-					{(mobile || navOpen) && (
-						<Sidebar {...sidebarProps} overlay={!mobile && narrow} drawer={mobile ? (navTemp ? "open" : "closed") : undefined} />
-					)}
-					{(mobile || narrow) && navTemp && <div className="pg-drawer-scrim" onClick={() => setNavTemp(false)} aria-hidden />}
+					{/* At 1300px and up each side is a dock whose width moves between rail and column. Below it the rail stays in place and the column overlays it. */}
+					<div className="pg-side" data-side="left" data-mode={sideMode} data-open={navOpen}>
+						{!mobile && (
+							<NavRail
+								{...sidebarProps}
+								inert={navOpen && !narrow}
+								onExpand={toggleNav}
+								onLabels={() => {
+									setLayout({ labelsOpen: true });
+									toggleNav();
+								}}
+							/>
+						)}
+						<Sidebar {...sidebarProps} inert={!navOpen} overlay={!mobile && narrow} drawer={mobile ? (navTemp ? "open" : "closed") : undefined} />
+					</div>
+					{(mobile || narrow) && <div className="pg-drawer-scrim" data-side="left" data-open={navOpen} onClick={() => setNavTemp(false)} aria-hidden />}
 					<div className="pg-center">
 						<SearchBar
 							ref={searchRef}
@@ -741,22 +781,22 @@ function PostalApp({ addresses, domains, autoDraft, demo }: PostalProps) {
 							/>
 						</main>
 					</div>
-					{panelOpen ? (
-						<>
-							{mobile && <div className="pg-drawer-scrim" onClick={() => setPanelTemp(false)} aria-hidden />}
+					{mobile && <div className="pg-drawer-scrim" data-side="right" data-open={panelShown} onClick={() => setPanelTemp(false)} aria-hidden />}
+					<div className="pg-side" data-side="right" data-mode={sideMode} data-open={panelShown}>
+						{!mobile && <AgentRail onOpen={togglePanel} busy={agentBusy} inert={panelShown && !narrow} />}
+						{agentMounted && (
 							<AgentPanel
 								open={open}
-								reading={open ? openRow?.subject ?? "" : null}
+								reading={open ? openRow?.subject ?? openEmail?.subject ?? "" : null}
 								onCollapse={togglePanel}
 								overlay={!mobile && narrow}
+								inert={!panelShown}
 								prefill={prefill}
 								onOpenDraft={(mailboxId, draftId) => editDraft(mailboxId, draftId)}
 								onBusy={setAgentBusy}
 							/>
-						</>
-					) : (
-						!mobile && <AgentRail onOpen={togglePanel} busy={agentBusy} />
-					)}
+						)}
+					</div>
 				</div>
 				{cw && (
 					<Composer
