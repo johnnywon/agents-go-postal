@@ -1,6 +1,6 @@
 {
 	"name": "pluramail",
-	"version": "0.8.2",
+	"version": "0.9.0",
 	"private": true,
 	"license": "Apache-2.0",
 	"type": "module",
@@ -44,6 +44,7 @@
 		"@ai-sdk/openai-compatible": "^2.0.81",
 		"@cloudflare/ai-chat": "^0.1.8",
 		"@cloudflare/kumo": "^1.13.0",
+		"@cloudflare/workers-oauth-provider": "1.2.3",
 		"@fontsource-variable/jetbrains-mono": "^5.3.0",
 		"@fontsource-variable/space-grotesk": "^5.3.0",
 		"@phosphor-icons/react": "^2.1.10",
@@ -101,11 +102,14 @@
 		"@tiptap/extension-ordered-list": "3.20.2",
 		"@tiptap/extension-paragraph": "3.20.2",
 		"@tiptap/extension-strike": "3.20.2",
-		"@tiptap/extension-text": "3.20.2"
+		"@tiptap/extension-text": "3.20.2",
+		"partyserver": {
+			"@cloudflare/workers-types": "$@cloudflare/workers-types"
+		}
 	},
 	"devDependencies": {
-		"@cloudflare/vite-plugin": "^1.0.12",
-		"@cloudflare/workers-types": "^4.20251128.0",
+		"@cloudflare/vite-plugin": "1.49.0",
+		"@cloudflare/workers-types": "^5.20260730.1",
 		"@react-router/dev": "^7.5.3",
 		"@tailwindcss/vite": "^4.1.4",
 		"@types/dompurify": "^3.0.5",
@@ -117,6 +121,6 @@
 		"typescript": "^5.8.3",
 		"vite": "^6.3.3",
 		"vite-tsconfig-paths": "^5.1.4",
-		"wrangler": "^4.74.0"
+		"wrangler": "4.116.0"
 	}
 }

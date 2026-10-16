@@ -13,12 +13,17 @@ test("?console= names a tab", () => {
 	assert.equal(from("console=nope"), null);
 });
 
-test("old ?settings= links open the same place in the console", () => {
+test("old ?settings= links and 0.7 console tabs open the same place", () => {
 	assert.equal(from("settings=general"), "general");
-	assert.equal(from("settings=agent"), "drafting");
+	assert.equal(from("settings=agent"), "mailroom");
 	assert.equal(from("settings=index"), "storage");
-	assert.equal(from("settings=activity"), "activity");
-	assert.equal(from("console=limits&settings=general"), "limits");
+	assert.equal(from("settings=activity"), "logs");
+	assert.equal(from("console=overview"), "home");
+	assert.equal(from("console=drafting"), "mailroom");
+	assert.equal(from("console=model"), "models");
+	assert.equal(from("console=connections"), "mcp");
+	assert.equal(from("console=tools"), "mcp");
+	assert.equal(from("console=limits&settings=general"), "mailroom");
 });
 
 test("names of built-in object properties don't open an empty console (WON-245)", () => {

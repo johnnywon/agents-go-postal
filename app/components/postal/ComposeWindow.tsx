@@ -325,7 +325,7 @@ export function Composer(props: ComposerProps) {
 		try {
 			const r = await props.draftWithAgent(stateRef.current);
 			const html = r.text ? textToParagraphs(r.text) : r.html ?? "";
-			if (html) patch({ html, ...(r.draftId ? { draftId: r.draftId, notes: { origin: "chat", instructions: [] } } : {}) });
+			if (html) patch({ html, ...(r.draftId ? { draftId: r.draftId, notes: { origin: "chat", agent: null, instructions: [] } } : {}) });
 		} catch (e) {
 			setError((e as Error).message);
 		} finally {

@@ -27,7 +27,9 @@ import {
 import { ComposePopout, Composer } from "./ComposeWindow";
 import { buildIdentities } from "./identity";
 import { ListPane } from "./ListPane";
-import { ConsoleModal, LogoutModal, ShortcutsModal, Toast, type ToastState } from "./Modals";
+import { LogoutModal, ShortcutsModal, Toast, type ToastState } from "./Modals";
+import { ConsolePage } from "./Console";
+import type { ConsoleSearchHandle } from "./ConsoleSearch";
 import { type ConsoleTab, consoleTabFrom } from "./console-tabs";
 import { conversations, HOME, labelOf, type MailAction, parsePostalFilter, RESTORABLE, scoped, scopeOf, searchErrors, searchTerms, withSearch } from "./model";
 import { withOrder } from "./search-window";
@@ -43,6 +45,8 @@ const EDITABLE = "input, textarea, select, [contenteditable=''], [contenteditabl
 const ICON = 15;
 /** The longest side-column motion in postal.css (--pg-side-ms). */
 const SIDE_MS = 420;
+/** Keys that still work in the console. The rest act on mail. */
+const CONSOLE_KEYS = new Set<MailShortcutId>(["compose", "agent", "help", "undo", "back"]);
 
 function actionText(action: BulkAction, n: number, labelName?: string): [string, React.ReactNode] {
 	const what = conversations(n);
@@ -112,7 +116,7 @@ function PostalApp({ addresses, domains, autoDraft, demo }: PostalProps) {
 			if (nextSearch.trim()) params.set("search", nextSearch);
 			// An open console stays open while the mail behind it moves.
 			setSearchParams((cur) => {
-				for (const key of ["console", "settings"]) {
+				for (const key of ["console", "settings", "agent"]) {
 					const value = cur.get(key);
 					if (value) params.set(key, value);
 				}
@@ -211,16 +215,20 @@ function PostalApp({ addresses, domains, autoDraft, demo }: PostalProps) {
 	const [inline, setInline] = useState<{ key: number; initial: ComposeState } | null>(null);
 	// The console lives in the URL (?console=<tab>), so a link opens it on a tab and Back closes it. Old ?settings= links still open it.
 	const consoleTab = consoleTabFrom(searchParams);
-	const openConsole = (tab: ConsoleTab = "overview") => setSearchParams((cur) => {
+	const consoleAgent = consoleTab === "agents" ? searchParams.get("agent") : null;
+	const openConsole = (tab: ConsoleTab = "home", agent: string | null = null) => setSearchParams((cur) => {
 		const next = new URLSearchParams(cur);
 		next.delete("settings");
 		next.set("console", tab);
+		if (agent) next.set("agent", agent);
+		else next.delete("agent");
 		return next;
-	}, { replace: !!consoleTab });
+	}, { replace: !!consoleTab && !agent && !consoleAgent });
 	const closeConsole = () => setSearchParams((cur) => {
 		const next = new URLSearchParams(cur);
 		next.delete("console");
 		next.delete("settings");
+		next.delete("agent");
 		return next;
 	});
 	const [prefill, setPrefill] = useState<{ text: string; id: number } | null>(null);
@@ -438,17 +446,27 @@ function PostalApp({ addresses, domains, autoDraft, demo }: PostalProps) {
 		setInline({ key: Date.now(), initial: { ...next, ...carried, askAgent } });
 	};
 
+	const draftState = (mailboxId: string, draft: Email) => {
+		const state = composeFromDraft(draft, mailboxId);
+		// A scheduled draft holds the sent body, signature included; the composer adds it back on send.
+		const sig = info.get(mailboxId)?.signatureHtml;
+		if (sig && state.html.includes(sig)) state.html = state.html.replace(sig, "");
+		return state;
+	};
+
 	const editDraft = async (mailboxId: string, draftId: string, cached?: Email) => {
 		try {
-			const draft = cached ?? (await api.getEmail(mailboxId, draftId));
-			const state = composeFromDraft(draft, mailboxId);
-			// A scheduled draft holds the sent body, signature included; the composer adds it back on send.
-			const sig = info.get(mailboxId)?.signatureHtml;
-			if (sig && state.html.includes(sig)) state.html = state.html.replace(sig, "");
-			openCompose(state);
+			openCompose(draftState(mailboxId, cached ?? (await api.getEmail(mailboxId, draftId))));
 		} catch {
 			showToast({ text: "Could not open the draft.", icon: <WarningIcon size={ICON} /> });
 		}
+	};
+
+	// One-click send from Draft review: the draft goes out as the agent wrote it, signature included.
+	const sendDraft = async (mailboxId: string, draftId: string) => {
+		const state = draftState(mailboxId, await api.getEmail(mailboxId, draftId));
+		await sender.send(state);
+		showToast({ text: `Sent to ${state.to.map((r) => r.addr).join(", ")}`, icon: <PaperPlaneTiltIcon size={ICON} /> });
 	};
 
 	const popOut = (state: ComposeState, fallback: () => void) => {
@@ -471,8 +489,14 @@ function PostalApp({ addresses, domains, autoDraft, demo }: PostalProps) {
 	const matcher = useMemo(() => new KeyMatcher(bindings), [bindings]);
 	const matcherRef = useRef(matcher);
 	matcherRef.current = matcher;
+	const consoleSearchRef = useRef<ConsoleSearchHandle>(null);
 	const runShortcut = useRef<(id: MailShortcutId, shift: boolean) => boolean>(() => false);
 	runShortcut.current = (id, shift) => {
+		// In the console only the keys that don't act on mail work, and search searches the console.
+		if (consoleTab) {
+			if (id === "search") return (consoleSearchRef.current?.focus(), true);
+			if (!CONSOLE_KEYS.has(id)) return false;
+		}
 		const reply = (mode: Exclude<ComposeMode, "new">) => {
 			if (!open) return false;
 			setReplyRequest({ mode, id: Date.now() });
@@ -636,151 +660,176 @@ function PostalApp({ addresses, domains, autoDraft, demo }: PostalProps) {
 			<div className="postal" data-theme={theme} data-keys={prefs.keys ? "on" : "off"} data-pane={mobile && open ? "reader" : "list"}>
 				<TooltipLayer />
 				<div className="pg-body">
-					{/* At 1300px and up each side is a dock whose width moves between rail and column. Below it the rail stays in place and the column overlays it. */}
-					<div className="pg-side" data-side="left" data-mode={sideMode} data-open={navOpen}>
-						{!mobile && (
-							<NavRail
-								{...sidebarProps}
-								inert={navOpen && !narrow}
-								onExpand={toggleNav}
-								onLabels={() => {
-									setLayout({ labelsOpen: true });
-									toggleNav();
-								}}
-							/>
-						)}
-						<Sidebar {...sidebarProps} inert={!navOpen} overlay={!mobile && narrow} drawer={mobile ? (navTemp ? "open" : "closed") : undefined} />
-					</div>
-					{(mobile || narrow) && <div className="pg-drawer-scrim" data-side="left" data-open={navOpen} onClick={() => setNavTemp(false)} aria-hidden />}
-					<div className="pg-center">
-						<SearchBar
-							ref={searchRef}
-							value={search}
-							onChange={setSearchText}
-							onOpenFirst={() => rows[0] && openConversation(rows[0])}
-							onOpenResult={(row) => openConversation(row)}
-							onMove={move}
-							resultCount={searching && !list.isPending ? total : null}
-							results={searching ? serverRows : []}
-							resultsFor={debounced}
-							resultsLoading={list.isFetching}
-							terms={terms}
-							error={searchError}
-							filters={suggestions}
-							suggest={suggest.data}
-							suggestFor={suggestText}
-							onCursor={setSuggestAt}
-							saved={saved.data ?? []}
-							onSave={(text) =>
-								saveSearch.mutate({ query: text }, {
-									onSuccess: () => showToast({ text: "Search saved", icon: <BookmarkSimpleIcon size={ICON} /> }),
-									onError: (e) => showToast({ text: (e as Error).message, icon: <WarningIcon size={ICON} /> }),
-								})
-							}
-							onDeleteSaved={(s) =>
-								deleteSaved.mutate(s.id, { onError: (e) => showToast({ text: (e as Error).message, icon: <WarningIcon size={ICON} /> }) })
-							}
-							labels={labels.map((l) => ({ name: l.name, count: l.count }))}
-							onInterpret={(text) => api.interpretSearch(text)}
-							onAsk={(text) => {
-								if (!panelOpen) togglePanel();
-								if (text) setPrefill({ text, id: Date.now() });
-							}}
-							addresses={addresses.map((a) => ({ address: a, count: addressFacet.get(a) }))}
+					{consoleTab ? (
+						<ConsolePage
+							tab={consoleTab}
+							agentId={consoleAgent}
+							onTab={(tab) => openConsole(tab)}
+							onAgent={(id) => openConsole("agents", id)}
+							onClose={closeConsole}
+							onOpenDraft={(mailboxId, draftId) => editDraft(mailboxId, draftId)}
+							onSendDraft={sendDraft}
+							// A link can open the console before each address's settings load; its forms start again as they arrive so they compare against them.
+							settingsKey={`${addresses.length}:${[...info.values()].filter((i) => i.mailbox).length}`}
+							prefs={prefs}
+							setPrefs={setPrefs}
+							addresses={addresses}
 							identities={identities}
-							onMenu={() => setNavTemp(true)}
-							onAgent={togglePanel}
-							onFocusChange={setSearchFocus}
+							info={info}
+							autoDraft={autoDraft}
+							onSaved={(text) => showToast({ text })}
+							searchRef={consoleSearchRef}
+							onAgentPanel={togglePanel}
 						/>
-						<main className="pg-panes">
-							<ListPane
-								identities={identities}
-								filter={filter}
-								go={go}
-								searching={searching}
-								search={debounced}
-								allUnread={counts.unread}
-								unreadByAddress={unreadByAddress}
-								onNew={() => openCompose()}
-								onRefresh={() => {
-									queryClient.invalidateQueries({ queryKey: ["mail"] });
-									queryClient.invalidateQueries({ queryKey: ["mail-facets"] });
-								}}
-								refreshing={list.isFetching && !list.isFetchingNextPage}
-								facets={listFacets.data}
-								onFacets={setFacetsWanted}
-								labels={labels}
-								labelsById={labelsById}
-								rows={rows}
-								total={total}
-								loading={list.isPending}
-								error={list.error}
-								onRetry={() => list.refetch()}
-								hasNextPage={!!list.hasNextPage}
-								fetchingNext={list.isFetchingNextPage}
-								fetchNext={() => list.fetchNextPage()}
-								currentKey={activeKey}
-								onOpen={(row) => openConversation(row)}
-								checked={checked.keys}
-								onCheck={(row, range) => setSelection((s) => (range ? sel.range(s, row.thread_key, rowKeys) : sel.toggle(s, row.thread_key)))}
-								onSelectAll={() => setSelection((s) => sel.selectAll(s, rowKeys))}
-								onClearSelection={() => setSelection(sel.EMPTY_SELECTION)}
-								onRowAction={(row, action) => act(action, [row])}
-								onBulk={(action) => act(action)}
-								onEmptyTrash={emptyTrash}
+					) : (
+						<>
+						{/* At 1300px and up each side is a dock whose width moves between rail and column. Below it the rail stays in place and the column overlays it. */}
+						<div className="pg-side" data-side="left" data-mode={sideMode} data-open={navOpen}>
+							{!mobile && (
+								<NavRail
+									{...sidebarProps}
+									inert={navOpen && !narrow}
+									onExpand={toggleNav}
+									onLabels={() => {
+										setLayout({ labelsOpen: true });
+										toggleNav();
+									}}
+								/>
+							)}
+							<Sidebar {...sidebarProps} inert={!navOpen} overlay={!mobile && narrow} drawer={mobile ? (navTemp ? "open" : "closed") : undefined} />
+						</div>
+						{(mobile || narrow) && <div className="pg-drawer-scrim" data-side="left" data-open={navOpen} onClick={() => setNavTemp(false)} aria-hidden />}
+						<div className="pg-center">
+							<SearchBar
+								ref={searchRef}
+								value={search}
+								onChange={setSearchText}
+								onOpenFirst={() => rows[0] && openConversation(rows[0])}
+								onOpenResult={(row) => openConversation(row)}
+								onMove={move}
+								resultCount={searching && !list.isPending ? total : null}
+								results={searching ? serverRows : []}
+								resultsFor={debounced}
+								resultsLoading={list.isFetching}
 								terms={terms}
-								order={rankable ? (pages[0]?.order === "relevance" ? "relevance" : "date") : undefined}
-								rankSkipped={!!pages[0]?.rankSkipped}
-								onOrder={(next) => setSearchText(withOrder(search, next, next === "relevance" && !!pages[0]?.rankSkipped))}
-								scheduled={scheduled}
-								onCancelScheduled={async (s) => {
-									try {
-										await api.cancelScheduled(s.mailboxId, s.emailId);
-										queryClient.invalidateQueries({ queryKey: ["scheduled"] });
-										showToast({ text: "Schedule canceled. The draft stays in Drafts.", icon: <ClockIcon size={ICON} /> });
-									} catch (e) {
-										showToast({ text: `Could not cancel. ${(e as Error).message}`, icon: <WarningIcon size={ICON} /> });
-									}
+								error={searchError}
+								filters={suggestions}
+								suggest={suggest.data}
+								suggestFor={suggestText}
+								onCursor={setSuggestAt}
+								saved={saved.data ?? []}
+								onSave={(text) =>
+									saveSearch.mutate({ query: text }, {
+										onSuccess: () => showToast({ text: "Search saved", icon: <BookmarkSimpleIcon size={ICON} /> }),
+										onError: (e) => showToast({ text: (e as Error).message, icon: <WarningIcon size={ICON} /> }),
+									})
+								}
+								onDeleteSaved={(s) =>
+									deleteSaved.mutate(s.id, { onError: (e) => showToast({ text: (e as Error).message, icon: <WarningIcon size={ICON} /> }) })
+								}
+								labels={labels.map((l) => ({ name: l.name, count: l.count }))}
+								onInterpret={(text) => api.interpretSearch(text)}
+								onAsk={(text) => {
+									if (!panelOpen) togglePanel();
+									if (text) setPrefill({ text, id: Date.now() });
 								}}
-								onClearSearch={() => setSearchText("")}
-								onHome={() => go({ ...HOME, chips: [] })}
-							/>
-							<Reader
-								row={openRow}
-								open={open}
-								autoOpened={!!openRow && openRow.thread_key === autoOpenedKey}
+								addresses={addresses.map((a) => ({ address: a, count: addressFacet.get(a) }))}
 								identities={identities}
-								info={info}
-								addresses={addresses}
-								prefs={prefs}
-								labels={labels}
-								labelsById={labelsById}
-								canTrash={canTrash}
-								canSpam={canSpam}
-								canRestore={canRestore}
-								onBack={closeConversation}
-								onAction={(a) => act(a, openRow ? [openRow] : null)}
-								onLabel={(label, add) => toggleLabel(label, add)}
-								onCreateLabel={(name) => newLabel(name, openRow ? [openRow] : undefined)}
-								inline={inline}
-								onInlineClosed={(message) => {
-									setInline(null);
-									if (message) showToast({ text: message, icon: message.startsWith("Draft") ? <FileIcon size={ICON} /> : message.startsWith("Scheduled") ? <ClockIcon size={ICON} /> : <PaperPlaneTiltIcon size={ICON} /> });
-								}}
-								startReply={startReply}
-								sender={sender}
-								onPopOut={(state) => {
-									popOut(state, () => openCompose(state));
-									setInline(null);
-								}}
-								onEditSignatures={() => openConsole("signatures")}
-								onEditDraft={(draft) => open && editDraft(open.mailboxId, draft.id, draft)}
-								draftWithAgent={draftWithAgent}
-								replyRequest={replyRequest}
-								labelRequest={labelRequest}
+								onMenu={() => setNavTemp(true)}
+								onAgent={togglePanel}
+								onFocusChange={setSearchFocus}
 							/>
-						</main>
-					</div>
+							<main className="pg-panes">
+								<ListPane
+									identities={identities}
+									filter={filter}
+									go={go}
+									searching={searching}
+									search={debounced}
+									allUnread={counts.unread}
+									unreadByAddress={unreadByAddress}
+									onNew={() => openCompose()}
+									onRefresh={() => {
+										queryClient.invalidateQueries({ queryKey: ["mail"] });
+										queryClient.invalidateQueries({ queryKey: ["mail-facets"] });
+									}}
+									refreshing={list.isFetching && !list.isFetchingNextPage}
+									facets={listFacets.data}
+									onFacets={setFacetsWanted}
+									labels={labels}
+									labelsById={labelsById}
+									rows={rows}
+									total={total}
+									loading={list.isPending}
+									error={list.error}
+									onRetry={() => list.refetch()}
+									hasNextPage={!!list.hasNextPage}
+									fetchingNext={list.isFetchingNextPage}
+									fetchNext={() => list.fetchNextPage()}
+									currentKey={activeKey}
+									onOpen={(row) => openConversation(row)}
+									checked={checked.keys}
+									onCheck={(row, range) => setSelection((s) => (range ? sel.range(s, row.thread_key, rowKeys) : sel.toggle(s, row.thread_key)))}
+									onSelectAll={() => setSelection((s) => sel.selectAll(s, rowKeys))}
+									onClearSelection={() => setSelection(sel.EMPTY_SELECTION)}
+									onRowAction={(row, action) => act(action, [row])}
+									onBulk={(action) => act(action)}
+									onEmptyTrash={emptyTrash}
+									terms={terms}
+									order={rankable ? (pages[0]?.order === "relevance" ? "relevance" : "date") : undefined}
+									rankSkipped={!!pages[0]?.rankSkipped}
+									onOrder={(next) => setSearchText(withOrder(search, next, next === "relevance" && !!pages[0]?.rankSkipped))}
+									scheduled={scheduled}
+									onCancelScheduled={async (s) => {
+										try {
+											await api.cancelScheduled(s.mailboxId, s.emailId);
+											queryClient.invalidateQueries({ queryKey: ["scheduled"] });
+											showToast({ text: "Schedule canceled. The draft stays in Drafts.", icon: <ClockIcon size={ICON} /> });
+										} catch (e) {
+											showToast({ text: `Could not cancel. ${(e as Error).message}`, icon: <WarningIcon size={ICON} /> });
+										}
+									}}
+									onClearSearch={() => setSearchText("")}
+									onHome={() => go({ ...HOME, chips: [] })}
+								/>
+								<Reader
+									row={openRow}
+									open={open}
+									autoOpened={!!openRow && openRow.thread_key === autoOpenedKey}
+									identities={identities}
+									info={info}
+									addresses={addresses}
+									prefs={prefs}
+									labels={labels}
+									labelsById={labelsById}
+									canTrash={canTrash}
+									canSpam={canSpam}
+									canRestore={canRestore}
+									onBack={closeConversation}
+									onAction={(a) => act(a, openRow ? [openRow] : null)}
+									onLabel={(label, add) => toggleLabel(label, add)}
+									onCreateLabel={(name) => newLabel(name, openRow ? [openRow] : undefined)}
+									inline={inline}
+									onInlineClosed={(message) => {
+										setInline(null);
+										if (message) showToast({ text: message, icon: message.startsWith("Draft") ? <FileIcon size={ICON} /> : message.startsWith("Scheduled") ? <ClockIcon size={ICON} /> : <PaperPlaneTiltIcon size={ICON} /> });
+									}}
+									startReply={startReply}
+									sender={sender}
+									onPopOut={(state) => {
+										popOut(state, () => openCompose(state));
+										setInline(null);
+									}}
+									onEditSignatures={() => openConsole("signatures")}
+									onEditDraft={(draft) => open && editDraft(open.mailboxId, draft.id, draft)}
+									draftWithAgent={draftWithAgent}
+									replyRequest={replyRequest}
+									labelRequest={labelRequest}
+								/>
+							</main>
+						</div>
+						</>
+					)}
 					{mobile && <div className="pg-drawer-scrim" data-side="right" data-open={panelShown} onClick={() => setPanelTemp(false)} aria-hidden />}
 					<div className="pg-side" data-side="right" data-mode={sideMode} data-open={panelShown}>
 						{!mobile && <AgentRail onOpen={togglePanel} busy={agentBusy} inert={panelShown && !narrow} />}
@@ -824,22 +873,6 @@ function PostalApp({ addresses, domains, autoDraft, demo }: PostalProps) {
 				)}
 				{draftRunner}
 				<Toast toast={toast} onClose={closeToast} />
-				{consoleTab && (
-					<ConsoleModal
-						// A link can open the console before each address's settings load; it starts again as they arrive so it compares against them.
-						key={`${addresses.length}:${[...info.values()].filter((i) => i.mailbox).length}`}
-						tab={consoleTab}
-						onTab={openConsole}
-						prefs={prefs}
-						setPrefs={setPrefs}
-						addresses={addresses}
-						identities={identities}
-						info={info}
-						autoDraft={autoDraft}
-						onClose={closeConsole}
-						onSaved={(text) => showToast({ text })}
-					/>
-				)}
 				{modal === "logout" && <LogoutModal onClose={() => setModal(null)} />}
 				{helpOpen && (
 					<ShortcutsModal

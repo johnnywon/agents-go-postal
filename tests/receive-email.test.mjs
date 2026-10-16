@@ -20,11 +20,14 @@ function rawMessage(headers, subject = "Routing test") {
 }
 
 // A database with no mailboxes yet.
-async function freshEnvironment(addresses) {
+async function freshEnvironment(addresses, prefs = null) {
 	const d1 = await openD1();
 	return {
 		d1,
-		env: { EMAIL_ADDRESSES: addresses, BUCKET: { head: async () => ({}) }, DB: d1.DB },
+		env: {
+			EMAIL_ADDRESSES: addresses, DB: d1.DB,
+			BUCKET: { head: async () => ({}), get: async (key) => (key === "config/prefs.json" && prefs ? { json: async () => prefs } : null) },
+		},
 		/** [mailbox, folder, subject] of every stored message. */
 		stored: async () => (await d1.sql.all(`SELECT mailbox_id, folder_id, subject FROM messages ORDER BY id`))
 			.map((r) => [r.mailbox_id, r.folder_id, r.subject]),
@@ -89,6 +92,41 @@ test("without EMAIL_ADDRESSES, mail for a mailbox nobody created is ignored", as
 	assert.deepEqual(rejections, ["Unknown recipient"]);
 });
 
+/** An enabled agent on every address with one rule, as Console > Your agents saves it. */
+const addAgent = (d1, rules = []) => d1.sql.run(
+	`INSERT INTO agents (id, name, job, addresses, rules, mode, created_at, updated_at) VALUES ('a1', 'Ann', 'Answer questions', '[]', ?, 'draft', 'x', 'x')`,
+	JSON.stringify(rules),
+);
+
+/** Deliver one message; returns whether the agent was asked to draft. */
+async function agentAsked(raw, env) {
+	let asked = false;
+	const background = [];
+	await receiveEmail(
+		{ to: "jane@example.org", rawSize: raw.length, raw: new ReadableStream({ start(c) { c.enqueue(raw); c.close(); } }), setReject: () => {} },
+		{ ...env, EMAIL_AGENT: { idFromName: (name) => name, get: () => ({ handleNewEmail: async () => { asked = true; return { status: "drafted", draftId: null }; } }) } },
+		{ waitUntil: (promise) => background.push(promise) },
+	);
+	await Promise.all(background);
+	return asked;
+}
+
+const message = (subject) => new TextEncoder().encode(`From: sender@example.net\r\nTo: jane@example.org\r\nSubject: ${subject}\r\n\r\nHello`);
+
+test("new mail goes to the agent only when an agent's rules take it", async () => {
+	const { d1, env } = await freshEnvironment(["jane@example.org"]);
+	await addAgent(d1, [{ field: "subject", op: "contains", value: "invoice" }]);
+	assert.equal(await agentAsked(message("Lunch?"), env), false, "no agent takes it: nothing runs");
+	assert.equal(await agentAsked(message("Invoice 42"), env), true);
+});
+
+test("mail no agent takes is drafted only when the PluraMail Agent is set to draft it", async () => {
+	const leave = await freshEnvironment(["jane@example.org"]);
+	assert.equal(await agentAsked(message("Hello"), leave.env), false, "the default leaves it");
+	const draft = await freshEnvironment(["jane@example.org"], { unmatched: "draft" });
+	assert.equal(await agentAsked(message("Hello"), draft.env), true);
+});
+
 test("an inbound message triggers the receiving agent through RPC", async () => {
 	const raw = new TextEncoder().encode(
 		"From: sender@example.net\r\nTo: jane@example.org\r\nSubject: Draft me\r\n\r\nHello",
@@ -96,6 +134,7 @@ test("an inbound message triggers the receiving agent through RPC", async () => 
 	let agentInput;
 	const background = [];
 	const { d1, env } = await freshEnvironment(["jane@example.org"]);
+	await addAgent(d1);
 	const agent = {
 		fetch: async () => { throw new Error("Direct agent fetch is unsupported"); },
 		handleNewEmail: async (input) => { agentInput = input; return { status: "drafted", draftId: null }; },
@@ -107,7 +146,7 @@ test("an inbound message triggers the receiving agent through RPC", async () => 
 			raw: new ReadableStream({ start(controller) { controller.enqueue(raw); controller.close(); } }),
 			setReject: () => {},
 		},
-		{ ...env, AUTO_DRAFT_ENABLED: "true", EMAIL_AGENT: { idFromName: (name) => name, get: () => agent } },
+		{ ...env, EMAIL_AGENT: { idFromName: (name) => name, get: () => agent } },
 		{ waitUntil: (promise) => background.push(promise) },
 	);
 	await Promise.all(background);
@@ -123,7 +162,7 @@ test("an inbound message triggers the receiving agent through RPC", async () => 
 	assert.deepEqual(await d1.sql.first(`SELECT state, attempts FROM auto_draft_runs WHERE email_id = ?`, savedEmail.id), { state: "drafted", attempts: 1 });
 });
 
-test("inbound mail is saved without triggering the agent when auto-drafting is off", async () => {
+test("inbound mail is saved without triggering the agent when no agent takes it", async () => {
 	const raw = new TextEncoder().encode(
 		"From: sender@example.net\r\nTo: jane@example.org\r\nSubject: No automatic draft\r\n\r\nHello",
 	);
@@ -136,7 +175,7 @@ test("inbound mail is saved without triggering the agent when auto-drafting is o
 			raw: new ReadableStream({ start(controller) { controller.enqueue(raw); controller.close(); } }),
 			setReject: () => {},
 		},
-		{ ...env, AUTO_DRAFT_ENABLED: "false", EMAIL_AGENT: { idFromName: () => { throw new Error("Agent must not be called"); } } },
+		{ ...env, EMAIL_AGENT: { idFromName: () => { throw new Error("Agent must not be called"); } } },
 		{ waitUntil: (promise) => background.push(promise) },
 	);
 	assert.equal((await d1.sql.first(`SELECT subject FROM messages`)).subject, "No automatic draft");

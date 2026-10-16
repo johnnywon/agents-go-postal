@@ -16,8 +16,8 @@ import type { LanguageModel } from "ai";
 import { createWorkersAI } from "workers-ai-provider";
 import {
 	type CatalogModel, isFree, isProvider, KEYED_PROVIDERS, type KeyedProvider,
-	type ModelRef, modelsFromOpenRouter, modelsFromWorkersAi, type OpenRouterEntry, PROVIDER_INFO, type ProviderId,
-	prettyName, RECOMMENDED_MODEL, validModelId, type WorkersAiEntry, type ZdrEndpoint, zdrOnly,
+	type ModelRef, modelsFromWorkersAi, PROVIDER_INFO, type ProviderId,
+	prettyName, RECOMMENDED_MODEL, validModelId, type OpenRouterModel, type WorkersAiEntry, type ZdrEndpoint, modelsFromOpenRouter, modelsFromZdr,
 } from "../../shared/models";
 import type { Env } from "../types";
 import { DEMO, DEMO_AI_MODEL } from "./demo";
@@ -130,34 +130,77 @@ export function mergeAgentModelConfig(current: AgentModelConfig, update: AgentMo
 }
 
 /**
- * Every OpenRouter request asks for zero data retention endpoints only and
- * refuses providers that store or train on prompts. A model with no such
- * endpoint fails instead of falling back to one that keeps the mail.
+ * Every OpenRouter request refuses providers that store prompts to train on
+ * (`data_collection: "deny"`): that's a rule. Zero retention is a guide: a
+ * model with a zero retention endpoint is sent only there (`zdr: true`), and
+ * a model without one goes to its other endpoints.
  */
-export const OPENROUTER_PRIVACY = { zdr: true, data_collection: "deny" } as const;
+export function openRouterPrivacy(zdr: boolean) {
+	return zdr ? { zdr: true, data_collection: "deny" } as const : { data_collection: "deny" } as const;
+}
 
-export const zeroRetentionFetch: typeof fetch = (input, init) => {
-	if (init?.method === "POST" && typeof init.body === "string") {
-		try {
-			const body = JSON.parse(init.body) as { provider?: Record<string, unknown> };
-			body.provider = { ...body.provider, ...OPENROUTER_PRIVACY };
-			init = { ...init, body: JSON.stringify(body) };
-		} catch {
-			// Not JSON: send as is.
+export function privacyFetch(zdr: boolean): typeof fetch {
+	return (input, init) => {
+		if (init?.method === "POST" && typeof init.body === "string") {
+			try {
+				const body = JSON.parse(init.body) as { provider?: Record<string, unknown> };
+				body.provider = { ...body.provider, ...openRouterPrivacy(zdr) };
+				init = { ...init, body: JSON.stringify(body) };
+			} catch {
+				// Not JSON: send as is.
+			}
 		}
-	}
-	return fetch(input, init);
-};
+		return fetch(input, init);
+	};
+}
 
-/** A language model for any provider. */
-export function languageModel(env: Env, ref: ModelRef, key?: string): LanguageModel {
+/**
+ * Whether an OpenRouter model has a zero retention endpoint. When the list
+ * can't be read the answer is yes, so a request fails rather than reach an
+ * endpoint that keeps the mail.
+ */
+export async function openRouterZdr(env: Env, id: string): Promise<boolean> {
+	const catalog = await catalogFor(env, "openrouter", {});
+	if (catalog.source === "none" || catalog.zdrUnknown) return true;
+	return catalog.models.find((m) => m.id === id)?.zdr ?? true;
+}
+
+/**
+ * Workers AI models that reason before answering by default and take
+ * `reasoning_effort: "none"`. Kimi K2.6 spent about 38 s thinking before a
+ * two-line email reply; without it the reply comes in a few seconds.
+ */
+export const REASONING_OPTIONAL = new Set(["@cf/moonshotai/kimi-k2.6"]);
+
+/** The AI binding with reasoning off on every call. The provider can't pass model inputs it doesn't know. */
+function withoutReasoning(ai: Ai): Ai {
+	return new Proxy(ai, {
+		get(target, prop) {
+			if (prop === "run") {
+				return (model: string, inputs: Record<string, unknown>, options?: unknown) =>
+					(target.run as (...a: unknown[]) => unknown)(model, { ...inputs, reasoning_effort: "none" }, options);
+			}
+			const value = (target as unknown as Record<PropertyKey, unknown>)[prop];
+			return typeof value === "function" ? value.bind(target) : value;
+		},
+	});
+}
+
+/**
+ * A language model for any provider. `reasoning: false` skips the thinking
+ * step on models that allow it. `zdr` (OpenRouter) holds requests to zero
+ * retention endpoints; it defaults to on.
+ */
+export function languageModel(env: Env, ref: ModelRef, key?: string, options: { reasoning?: boolean; zdr?: boolean } = {}): LanguageModel {
 	switch (ref.provider) {
 		case "openrouter":
 			return createOpenAICompatible({
-				name: "openrouter", baseURL: OPENROUTER_BASE, apiKey: key, headers: { "X-Title": "PluraMail" }, fetch: zeroRetentionFetch,
+				name: "openrouter", baseURL: OPENROUTER_BASE, apiKey: key, headers: { "X-Title": "PluraMail" }, fetch: privacyFetch(options.zdr ?? true),
 			}).chatModel(ref.id);
-		default:
-			return createWorkersAI({ binding: env.AI })(ref.id as Parameters<ReturnType<typeof createWorkersAI>>[0]);
+		default: {
+			const binding = options.reasoning === false && REASONING_OPTIONAL.has(ref.id) ? withoutReasoning(env.AI) : env.AI;
+			return createWorkersAI({ binding })(ref.id as Parameters<ReturnType<typeof createWorkersAI>>[0]);
+		}
 	}
 }
 
@@ -173,19 +216,23 @@ export async function quickModel(env: Env): Promise<LanguageModel> {
 	if (DEMO) return languageModel(env, { provider: "workers-ai", id: DEMO_AI_MODEL });
 	const config = await readAgentModelConfig(env);
 	const active = activeModel(config);
-	if (active.provider !== "workers-ai") return languageModel(env, active, config.keys[active.provider]);
+	if (active.provider !== "workers-ai") return languageModel(env, active, config.keys[active.provider], { zdr: await openRouterZdr(env, active.id) });
 	return languageModel(env, { provider: "workers-ai", id: WORKERS_AI_FAST_MODEL });
 }
 
-/** The model the agent should use right now. */
-export async function agentModel(env: Env): Promise<LanguageModel> {
-	if (DEMO) return languageModel(env, { provider: "workers-ai", id: DEMO_AI_MODEL });
+/**
+ * The model the agent should use right now. Drafts pass `reasoning: false`:
+ * a short reply doesn't need the long thinking step chat gets.
+ */
+export async function agentModel(env: Env, options: { reasoning?: boolean } = {}): Promise<LanguageModel> {
+	if (DEMO) return languageModel(env, { provider: "workers-ai", id: DEMO_AI_MODEL }, undefined, options);
 	const config = await readAgentModelConfig(env);
 	let active = activeModel(config);
 	if (active.provider === "workers-ai" && active.id !== WORKERS_AI_MODEL) {
 		active = resolveWorkersAiModel(active.id, (await catalogFor(env, "workers-ai", config.keys)).models);
 	}
-	return languageModel(env, active, active.provider === "workers-ai" ? undefined : config.keys[active.provider]);
+	if (active.provider === "workers-ai") return languageModel(env, active, undefined, options);
+	return languageModel(env, active, config.keys[active.provider], { ...options, zdr: await openRouterZdr(env, active.id) });
 }
 
 /**
@@ -204,6 +251,8 @@ export interface ProviderCatalog {
 	source: "live" | "openrouter" | "none";
 	models: CatalogModel[];
 	error?: string;
+	/** OpenRouter's zero retention list couldn't be read: no model's `zdr: false` can be trusted. */
+	zdrUnknown?: boolean;
 }
 
 const CATALOG_TTL_MS = 3_600_000;
@@ -220,7 +269,7 @@ async function cached(key: string, load: () => Promise<ProviderCatalog>, now = D
 	const hit = cache.get(key);
 	if (hit && now - hit.at < hit.ttl) return hit.value;
 	const value = await load();
-	cache.set(key, { at: now, ttl: value.source === "none" ? CATALOG_FAILURE_TTL_MS : CATALOG_TTL_MS, value });
+	cache.set(key, { at: now, ttl: value.source === "none" || value.zdrUnknown ? CATALOG_FAILURE_TTL_MS : CATALOG_TTL_MS, value });
 	return value;
 }
 
@@ -255,29 +304,28 @@ async function loadWorkersAi(env: Env): Promise<ProviderCatalog> {
 	}
 }
 
-/** OpenRouter's whole catalog, for prices and context of the direct providers' models. */
+/**
+ * What the OpenRouter tab lists: every paid model, each marked with whether it
+ * has a zero retention endpoint. Both lists are public, so they show without a
+ * key. When /models fails, the zero retention models still show. When the
+ * zero retention list fails, requests keep asking for zero retention and the
+ * catalog is read again after a minute.
+ */
 async function loadOpenRouter(): Promise<ProviderCatalog> {
-	try {
-		const data = (await fetchJson(`${OPENROUTER_BASE}/models`)) as { data?: OpenRouterEntry[] };
-		return { source: "live", models: modelsFromOpenRouter(data.data ?? []).filter((m) => !isFree(m)) };
-	} catch (e) {
-		return { source: "none", models: [], error: `OpenRouter's catalog couldn't be read: ${(e as Error).message}` };
+	const [all, zdr] = await Promise.allSettled([
+		fetchJson(`${OPENROUTER_BASE}/models`) as Promise<{ data?: OpenRouterModel[] }>,
+		fetchJson(`${OPENROUTER_BASE}/endpoints/zdr`) as Promise<{ data?: ZdrEndpoint[] }>,
+	]);
+	if (all.status === "rejected" && zdr.status === "rejected") {
+		return { source: "none", models: [], error: `OpenRouter's catalog couldn't be read: ${(all.reason as Error).message}` };
 	}
-}
-
-/** What the OpenRouter tab lists: only models with a zero retention endpoint. */
-async function loadOpenRouterZdr(all: ProviderCatalog): Promise<ProviderCatalog> {
-	if (all.source === "none") return all;
-	try {
-		const data = (await fetchJson(`${OPENROUTER_BASE}/endpoints/zdr`)) as { data?: ZdrEndpoint[] };
-		return { source: "live", models: zdrOnly(all.models, data.data ?? []) };
-	} catch (e) {
-		return { source: "none", models: [], error: `OpenRouter's zero retention list couldn't be read: ${(e as Error).message}` };
-	}
+	const zdrModels = zdr.status === "fulfilled" ? modelsFromZdr(zdr.value.data ?? []) : [];
+	const models = modelsFromOpenRouter(all.status === "fulfilled" ? all.value.data ?? [] : [], zdrModels);
+	if (!models.length) return { source: "none", models: [], error: "OpenRouter's catalog came back empty." };
+	return zdr.status === "rejected" ? { source: "live", models, zdrUnknown: true } : { source: "live", models };
 }
 
 export async function catalogFor(env: Env, provider: ProviderId, keys: Keys): Promise<ProviderCatalog> {
 	if (provider === "workers-ai") return cached("workers-ai", () => loadWorkersAi(env));
-	const openrouter = await cached("openrouter", loadOpenRouter);
-	return cached("openrouter-zdr", () => loadOpenRouterZdr(openrouter));
+	return cached("openrouter", loadOpenRouter);
 }

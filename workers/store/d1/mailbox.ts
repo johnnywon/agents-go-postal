@@ -124,7 +124,7 @@ export class D1Mailbox {
 		const notes = new Map<string, DraftNotes>();
 		if (emailIds.length === 0) return notes;
 		const rows = await this.sql.all(
-			`SELECT n.email_id, n.origin, n.instructions FROM draft_notes n JOIN messages m ON m.email_id = n.email_id
+			`SELECT n.email_id, n.origin, n.agent, n.instructions FROM draft_notes n JOIN messages m ON m.email_id = n.email_id
 			WHERE m.mailbox_id = ? AND n.email_id IN (SELECT value FROM json_each(?))`,
 			this.#id, JSON.stringify(emailIds),
 		);
@@ -134,16 +134,16 @@ export class D1Mailbox {
 				const parsed = JSON.parse(String(row.instructions ?? "[]"));
 				if (Array.isArray(parsed)) instructions = parsed.filter((v): v is string => typeof v === "string");
 			} catch { /* keep none */ }
-			notes.set(String(row.email_id), { origin: String(row.origin) as DraftNotes["origin"], instructions });
+			notes.set(String(row.email_id), { origin: String(row.origin) as DraftNotes["origin"], agent: row.agent == null ? null : String(row.agent), instructions });
 		}
 		return notes;
 	}
 
 	async setDraftNotes(emailId: string, notes: DraftNotes): Promise<void> {
 		await this.sql.run(
-			`INSERT OR REPLACE INTO draft_notes (email_id, origin, instructions, created_at)
-			SELECT email_id, ?, ?, ? FROM messages WHERE mailbox_id = ? AND email_id = ?`,
-			notes.origin, JSON.stringify(notes.instructions), new Date().toISOString(), this.#id, emailId,
+			`INSERT OR REPLACE INTO draft_notes (email_id, origin, agent, instructions, created_at)
+			SELECT email_id, ?, ?, ?, ? FROM messages WHERE mailbox_id = ? AND email_id = ?`,
+			notes.origin, notes.agent ?? null, JSON.stringify(notes.instructions), new Date().toISOString(), this.#id, emailId,
 		);
 	}
 
@@ -380,6 +380,12 @@ export class D1Mailbox {
 		if (contentHash && row.content_hash && row.content_hash !== contentHash) return { state: "conflict" };
 		if (row.state === "sent") return { state: "sent", id: String(row.email_id) };
 		return { state: row.state === "sending" ? "sending" : "pending", providerId: row.provider_id == null ? null : String(row.provider_id) };
+	}
+
+	/** A key whose send went out: the Sent copy's id and the content it sent. Null for any other state. */
+	async sentSendKey(key: string): Promise<{ id: string; contentHash: string | null } | null> {
+		const row = await this.sql.first(`SELECT email_id, content_hash FROM send_keys WHERE mailbox_id = ? AND key = ? AND state = 'sent'`, this.#id, key);
+		return row ? { id: String(row.email_id), contentHash: row.content_hash == null ? null : String(row.content_hash) } : null;
 	}
 
 	/** pending -> sending. False when another caller already started this attempt. */

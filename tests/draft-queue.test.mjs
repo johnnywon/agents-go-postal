@@ -222,3 +222,16 @@ test("the example config's queue matches the retry count in code", () => {
 	assert.equal(Number(consumer[1]), runs.AUTO_DRAFT_MAX_RETRIES);
 	assert.deepEqual([1, 2, 3].map(runs.retryDelay), [30, 60, 120]);
 });
+
+test("drafts saved before an error still go to the chosen agent, so Watch never leaves one", () => {
+	const watcher = { id: "w1" };
+	assert.deepEqual(runs.settleDrafts(["a", "b"], watcher, 1, "leave"), { discard: ["a"], act: "b" });
+	assert.deepEqual(runs.settleDrafts(["a"], null, 2, "leave"), { discard: ["a"], outcome: { status: "skipped", reason: "no agent's job fits" } });
+	assert.deepEqual(runs.settleDrafts(["a"], null, 0, "draft"), { discard: [], outcome: { status: "drafted", draftId: "a" } });
+	assert.deepEqual(runs.settleDrafts([], null, 1, "leave").discard, []);
+	// The error path settles the same way before it falls back to "drafted".
+	const src = readFileSync("workers/agent/index.ts", "utf8");
+	const catchBlock = src.slice(src.indexOf('console.error("Auto-draft failed:"'), src.indexOf("private async settle("));
+	assert.match(catchBlock, /this\.settle\(draftIds, chosen, matched, unmatched, target\)/);
+	assert.doesNotMatch(src.slice(src.indexOf("private async actAs("), src.indexOf('if (agent.mode === "draft")')), /toolDiscardDraft\([^)]*\)\.catch/);
+});

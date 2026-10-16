@@ -6,8 +6,9 @@ import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { ACTIVITY_DAYS, type ActivityDays } from "shared/prefs";
 import api, { type ActivityActor, type ActivityEntry, type AutoDraftRun } from "~/services/api";
+import { useOpenMessage } from "./console-message";
 import { AddressText, type Identities } from "./identity";
-import { Segmented } from "./Segmented";
+import { Async, Badge, Button, Field, Item, List, Section, Segmented, Table, Toolbar } from "./ConsoleUI";
 
 const ACTORS: { value: ActivityActor | "all"; label: string }[] = [
 	{ value: "all", label: "All" },
@@ -33,6 +34,8 @@ export const RUN_LABELS: Record<AutoDraftRun["state"], string> = {
 	queued: "Queued",
 	running: "Running",
 	drafted: "Drafted",
+	watched: "Watched",
+	sent: "Sent",
 	skipped: "Skipped",
 	superseded: "Superseded",
 	failed: "Failed",
@@ -41,23 +44,25 @@ export const RUN_LABELS: Record<AutoDraftRun["state"], string> = {
 export const when = (iso: string) =>
 	new Date(iso).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
 
+/** A run's state: live while queued or running, then the tone of what happened. */
+export function RunBadge({ state }: { state: keyof typeof RUN_LABELS }) {
+	const tone = state === "sent" ? "send" : state === "drafted" ? "draft" : state === "failed" ? "danger" : state === "running" || state === "queued" ? "draft" : "neutral";
+	return <Badge tone={tone} dot live={state === "running" || state === "queued"}>{RUN_LABELS[state]}</Badge>;
+}
+
 export function ActivityEntryRow({ entry, identities }: { entry: ActivityEntry; identities: Identities }) {
 	return (
-		<li className="pg-activity-row" data-failed={!entry.ok || undefined}>
-			<time dateTime={entry.at}>{when(entry.at)}</time>
-			<div className="pg-activity-main">
-				<span className="pg-activity-what">
-					<b>{ACTION_LABELS[entry.action]}</b>
-					{!entry.ok && <span className="pg-badge is-danger">Failed</span>}
-					{entry.summary && <span className="pg-activity-summary">{entry.summary}</span>}
-				</span>
-				<span className="pg-activity-meta">
-					<span>{ACTOR_LABELS[entry.actor]}{entry.client ? ` · ${entry.client}` : ""}</span>
-					{entry.mailboxId && <AddressText address={entry.mailboxId} identity={identities.of(entry.mailboxId)} bold={false} short />}
-					<span className="pg-mono">{entry.tool}</span>
-				</span>
-			</div>
-		</li>
+		<Item
+			bad={!entry.ok}
+			badge={<Badge tone={entry.ok ? (entry.action === "send" ? "send" : entry.action === "draft" ? "draft" : "neutral") : "danger"}>{entry.ok ? ACTION_LABELS[entry.action] : "Failed"}</Badge>}
+			title={entry.summary ?? entry.tool}
+			time={when(entry.at)}
+			meta={<>
+				<span>{ACTOR_LABELS[entry.actor]}{entry.client ? ` · ${entry.client}` : ""}</span>
+				{entry.mailboxId && <AddressText address={entry.mailboxId} identity={identities.of(entry.mailboxId)} bold={false} short />}
+				<span className="pg-mono">{entry.tool}</span>
+			</>}
+		/>
 	);
 }
 
@@ -79,68 +84,62 @@ export function ActivityTab({ addresses, identities, days, onDays, autoDraft }: 
 		getNextPageParam: (page) => page.next,
 	});
 	const runs = useQuery({ queryKey: ["auto-draft-runs", mailbox], queryFn: () => api.getAutoDraftRuns(mailbox || undefined) });
+	const openMessage = useOpenMessage();
 	const entries = log.data?.pages.flatMap((p) => p.entries) ?? [];
 
 	return (
 		<>
-			<div className="pg-tab-intro">
-				Every read, draft, send, delete and label change by the agent, auto-draft and MCP clients. Kept for {days} days.
-			</div>
-			<div className="pg-setting">
-				<div className="pg-setting-text"><b>Keep for</b><span>Older entries are deleted once an hour.</span></div>
+			<Field inline label="Keep for" hint="Older entries are deleted once an hour.">
 				<Segmented
 					label="Keep activity for"
 					value={String(days)}
 					onChange={(v) => onDays(Number(v) as ActivityDays)}
 					options={ACTIVITY_DAYS.map((d) => ({ value: String(d), label: `${d} days` }))}
 				/>
-			</div>
-			<div className="pg-activity-filters">
-				{addresses.length > 1 && (
-					<select className="pg-select" value={mailbox} aria-label="Address" onChange={(e) => setMailbox(e.target.value)}>
-						<option value="">All addresses</option>
-						{addresses.map((a) => <option key={a} value={a}>{a}</option>)}
-					</select>
-				)}
-				<Segmented label="Who" value={actor} onChange={setActor} options={ACTORS} />
-			</div>
-			{log.isPending ? <p className="pg-label-note">Loading activity</p>
-				: log.error ? <p className="pg-label-note is-error" role="alert">{log.error.message}</p>
-				: entries.length === 0 ? <p className="pg-label-note">No activity{mailbox || actor !== "all" ? " matches" : " yet"}.</p>
-				: (
-					<ul className="pg-activity-list" aria-label="Activity">
-						{entries.map((e) => <ActivityEntryRow key={e.id} entry={e} identities={identities} />)}
-					</ul>
-				)}
-			{log.hasNextPage && (
-				<button type="button" className="pg-btn pg-btn-sm pg-activity-more" onClick={() => log.fetchNextPage()} disabled={log.isFetchingNextPage}>
-					{log.isFetchingNextPage ? "Loading" : "Load more"}
-				</button>
-			)}
-			{(autoDraft || (runs.data?.length ?? 0) > 0) && (
-				<section className="pg-settings-section" aria-labelledby="runs-heading">
-					<h3 id="runs-heading">Auto-draft runs</h3>
-					{!runs.data?.length ? <p className="pg-label-note">No auto-drafts yet.</p> : (
-						<div className="pg-table-scroll">
-							<table className="pg-table">
-								<thead>
-									<tr><th scope="col">Received</th><th scope="col">From</th><th scope="col">State</th><th scope="col" className="is-num">Tries</th><th scope="col">Why</th></tr>
-								</thead>
-								<tbody>
-									{runs.data.map((r) => (
-										<tr key={r.emailId}>
-											<td>{when(r.createdAt)}</td>
-											<td>{r.sender}</td>
-											<td>{RUN_LABELS[r.state]}</td>
-											<td className="is-num">{r.attempts}</td>
-											<td title={r.reason ?? undefined}>{r.reason ?? ""}</td>
-										</tr>
-									))}
-								</tbody>
-							</table>
-						</div>
+			</Field>
+			<Section
+				title="Actions"
+				actions={<Toolbar>
+					{addresses.length > 1 && (
+						<select className="pg-select" value={mailbox} aria-label="Address" onChange={(e) => setMailbox(e.target.value)}>
+							<option value="">All addresses</option>
+							{addresses.map((a) => <option key={a} value={a}>{a}</option>)}
+						</select>
 					)}
-				</section>
+					<Segmented label="Who" value={actor} onChange={setActor} options={ACTORS} />
+				</Toolbar>}
+			>
+				<Async query={{ ...log, data: entries }} empty={`No activity${mailbox || actor !== "all" ? " matches" : " yet"}.`}>
+					{(list) => (
+						<List label="Activity">
+							{list.map((e) => <ActivityEntryRow key={e.id} entry={e} identities={identities} />)}
+						</List>
+					)}
+				</Async>
+				{log.hasNextPage && (
+					<Button size="sm" onClick={() => log.fetchNextPage()} disabled={log.isFetchingNextPage}>{log.isFetchingNextPage ? "Loading" : "Load more"}</Button>
+				)}
+			</Section>
+			{(autoDraft || (runs.data?.length ?? 0) > 0) && (
+				<Section title="Agent runs">
+					<Async query={runs} empty="No runs yet.">
+						{(rows) => (
+							<Table
+								label="Agent runs"
+								rows={rows}
+								rowKey={(r) => r.emailId}
+								onRow={openMessage ? (r) => openMessage({ mailboxId: r.mailboxId, emailId: r.emailId }) : undefined}
+								columns={[
+									{ key: "at", label: "Received", cell: (r) => <span className="pg-mono">{when(r.createdAt)}</span> },
+									{ key: "from", label: "From", cell: (r) => r.sender },
+									{ key: "state", label: "State", cell: (r) => <RunBadge state={r.state} /> },
+									{ key: "tries", label: "Tries", num: true, wide: true, cell: (r) => r.attempts },
+									{ key: "why", label: "Why", wide: true, clip: (r) => r.reason, cell: (r) => r.reason ?? "" },
+								]}
+							/>
+						)}
+					</Async>
+				</Section>
 			)}
 		</>
 	);

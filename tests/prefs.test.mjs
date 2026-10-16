@@ -21,7 +21,9 @@ function fakeBucket() {
 }
 
 test("cleanPrefs keeps valid fields, takes the rest from base and drops unknown ones", () => {
-	assert.deepEqual(cleanPrefs({ theme: "light", keys: false, markRead: false, images: "never", replyFrom: false }), { theme: "light", keys: false, markRead: false, images: "never", replyFrom: false, shortcuts: {}, activityDays: 90 });
+	assert.deepEqual(cleanPrefs({ theme: "light", keys: false, markRead: false, images: "never", replyFrom: false }), { theme: "light", keys: false, markRead: false, images: "never", replyFrom: false, shortcuts: {}, activityDays: 90, unmatched: "leave" });
+	assert.equal(cleanPrefs({ unmatched: "leave" }).unmatched, "leave");
+	assert.equal(cleanPrefs({ unmatched: "send" }).unmatched, "leave");
 	assert.equal(cleanPrefs({ activityDays: 180 }).activityDays, 180);
 	assert.equal(cleanPrefs({ activityDays: 30 }).activityDays, 90);
 	assert.ok(!samePrefs({ ...DEFAULT_PREFS, activityDays: 120 }, DEFAULT_PREFS));

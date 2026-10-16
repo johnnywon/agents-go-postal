@@ -32,6 +32,8 @@ export const TOOL_ACTIONS: Record<string, ActivityAction> = {
 	create_draft: "draft",
 	update_draft: "draft",
 	send_draft: "send",
+	reply_to_email: "send",
+	send_email: "send",
 	discard_draft: "delete",
 	delete_email: "delete",
 	delete_label: "delete",
@@ -173,6 +175,44 @@ export async function listActivity(
 		ok: Number(r.ok) === 1,
 	}));
 	return { entries, next: rows.length > limit ? entries[entries.length - 1].id : null };
+}
+
+export interface McpClientUsage {
+	client: string | null;
+	last: string;
+	calls: number;
+	today: number;
+	errors: number;
+}
+
+export interface McpUsage {
+	clients: McpClientUsage[];
+	tools: Record<string, { calls: number; last: string }>;
+	lastCall: string | null;
+}
+
+/** Who has called the MCP server and which tools they use, over the log's retention. */
+export async function mcpUsage(sql: Sql, now = Date.now()): Promise<McpUsage> {
+	const dayAgo = new Date(now - 86_400_000).toISOString();
+	const clients = await sql.all(
+		`SELECT client, MAX(at) AS last, COUNT(*) AS calls, SUM(at >= ?1) AS today, SUM(ok = 0) AS errors
+		FROM agent_activity WHERE actor = 'mcp' GROUP BY client ORDER BY last DESC LIMIT 20`,
+		dayAgo,
+	);
+	const tools = await sql.all(
+		`SELECT tool, COUNT(*) AS calls, MAX(at) AS last FROM agent_activity WHERE actor = 'mcp' GROUP BY tool`,
+	);
+	return {
+		clients: clients.map((r) => ({
+			client: r.client == null ? null : String(r.client),
+			last: String(r.last),
+			calls: Number(r.calls),
+			today: Number(r.today ?? 0),
+			errors: Number(r.errors ?? 0),
+		})),
+		tools: Object.fromEntries(tools.map((r) => [String(r.tool), { calls: Number(r.calls), last: String(r.last) }])),
+		lastCall: clients.length ? String(clients[0].last) : null,
+	};
 }
 
 /** Delete rows older than the retention. Returns how many went. */

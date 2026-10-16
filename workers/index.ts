@@ -13,6 +13,7 @@ import { claimDemoAiCall, DEMO, demoAiCap, demoRefusal } from "./lib/demo";
 import {
 	validateSender,
 	SenderValidationError,
+	stripHtmlToText,
 } from "./lib/email-helpers";
 import { checkSendAt, ScheduleBody, SCHEDULE_MAX_PAYLOAD_BYTES } from "./lib/scheduled-send";
 import { handleReplyEmail, handleForwardEmail, handleSendEmail } from "./routes/reply-forward";
@@ -22,7 +23,7 @@ import { interpretSearch, MAX_REQUEST_LENGTH } from "./lib/search-interpret";
 import { HeaderValueSchema, MailboxSettingsSchema } from "./lib/schemas";
 import { readPrefs, writePrefs } from "./lib/prefs";
 import { agentModel } from "./lib/agent-model";
-import { catalogFor, clearCatalogCache, languageModel, mergeAgentModelConfig, quickModel, readAgentModelConfig, viewOf, writeAgentModelConfig } from "./lib/agent-model";
+import { catalogFor, clearCatalogCache, languageModel, mergeAgentModelConfig, openRouterZdr, quickModel, readAgentModelConfig, viewOf, writeAgentModelConfig } from "./lib/agent-model";
 import { KEYED_PROVIDERS, PROVIDERS, PROVIDER_INFO, RECOMMENDED_MODEL, SUGGESTED_MODELS, validModelId } from "../shared/models";
 import { requireMailbox, type MailboxContext } from "./lib/mailbox";
 import { csrf } from "./lib/csrf";
@@ -40,9 +41,11 @@ import { listRuns } from "./agent/runs";
 import { readAgentLimits, writeAgentLimits } from "./lib/agent-limits";
 import { agentOverview } from "./lib/agent-overview";
 import { getSystemPrompt } from "./agent/prompt";
-import { ACTIVITY_ACTORS, listActivity, logged, TOOL_ACTIONS } from "./lib/activity";
+import { ACTIVITY_ACTORS, listActivity, logged, mcpUsage, TOOL_ACTIONS } from "./lib/activity";
 import { verifyDraft } from "./lib/ai";
+import { AgentBody, agentStats, createAgent, deleteAgent, listAgentDrafts, listAgents, matchAgents, orderAgents, updateAgent } from "./lib/agents";
 import { redraft } from "./lib/redraft";
+import { seedAgents } from "./lib/dev-seed-agents";
 import { REDRAFT_INSTRUCTION_MAX } from "../shared/draft-notes";
 
 type AppContext = Context<MailboxContext>;
@@ -130,7 +133,8 @@ app.get("/api/v1/config", (c) => {
 	const domainsRaw = c.env.DOMAINS || "";
 	const domains = domainsRaw.split(",").map((d) => d.trim()).filter(Boolean);
 	const emailAddresses = configuredAddresses(c.env);
-	const autoDraft = !DEMO && String(c.env.AUTO_DRAFT_ENABLED ?? "") === "true";
+	// Agents run on new mail on every deployment but a demo; which mail is up to each agent.
+	const autoDraft = !DEMO;
 	return c.json({ domains, emailAddresses, autoDraft, demo: DEMO });
 });
 
@@ -155,6 +159,9 @@ if (import.meta.env?.DEV || DEMO) {
 		c.header("Content-Security-Policy", "default-src 'none'; style-src 'unsafe-inline'");
 		return c.html(`<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Sample link</title><body style="font:15px/1.5 system-ui,sans-serif;margin:40px 16px;max-width:600px;color:#1f2933;background:#ffffff"><p>A link in the sample mail. It goes nowhere in the demo.</p><p style="word-break:break-all"><code>${to}</code></p></body></html>`);
 	});
+
+	// A crew of agents mid-work: runs in every state, drafts in Review, a Logs trail.
+	app.post("/api/v1/dev/seed-agents", async (c) => c.json(await seedAgents(c.env)));
 }
 
 // -- Agent model ----------------------------------------------------
@@ -182,19 +189,18 @@ const AgentModelBody = z.object({
 
 /**
  * A typed id must be in its provider's allowed catalog: on Cloudflare, priced
- * models that aren't partner models; on OpenRouter, paid models with a zero
- * retention endpoint. So a typed id can't reach a free, third-party or
- * retaining model. When the catalog can't be read the id is let through; on
- * Cloudflare the agent then falls back to the recommended model if it isn't
- * listed, and on OpenRouter the request is refused without a zero retention
- * endpoint.
+ * models that aren't partner models; on OpenRouter, paid models. So a typed
+ * id can't reach a free or third-party model. When the catalog can't be read
+ * the id is let through; on Cloudflare the agent then falls back to the
+ * recommended model if it isn't listed, and on OpenRouter the request asks
+ * for a zero retention endpoint and fails without one.
  */
 async function notAllowed(env: Env, ref: { provider: string; id: string }, keys: Parameters<typeof catalogFor>[2]): Promise<string | null> {
 	const catalog = await catalogFor(env, ref.provider === "workers-ai" ? "workers-ai" : "openrouter", keys);
 	if (catalog.source === "none" || catalog.models.some((m) => m.id === ref.id)) return null;
 	return ref.provider === "workers-ai"
 		? "That Cloudflare model isn't allowed. Only priced models that aren't partner models can be used."
-		: "That OpenRouter model isn't allowed. Only paid models with a zero data retention endpoint can be used.";
+		: "That OpenRouter model isn't allowed. Only paid models can be used.";
 }
 
 app.put("/api/v1/agent-model", async (c) => {
@@ -225,7 +231,7 @@ app.post("/api/v1/agent-model/test", async (c) => {
 	const started = Date.now();
 	try {
 		const result = await generateText({
-			model: languageModel(c.env, { provider: body.provider, id: body.id.trim() }, key),
+			model: languageModel(c.env, { provider: body.provider, id: body.id.trim() }, key, body.provider === "openrouter" ? { zdr: await openRouterZdr(c.env, body.id.trim()) } : {}),
 			prompt: "Reply with the single word OK.",
 			maxOutputTokens: 400,
 		});
@@ -358,6 +364,49 @@ app.put("/api/v1/agent-limits", async (c) => {
 app.get("/api/v1/agents/overview", async (c) =>
 	c.json(await agentOverview(recordsSql(c.env), await mailboxIds(c.env), await readAgentLimits(c.env))));
 
+// -- Agents (Console > Agents) ---------------------------------------
+
+app.get("/api/v1/agents", async (c) => {
+	const sql = recordsSql(c.env);
+	const [agents, stats] = await Promise.all([listAgents(sql), agentStats(sql)]);
+	return c.json({ agents, stats });
+});
+
+/** Agent drafts waiting in Drafts. */
+app.get("/api/v1/agents/review", async (c) => c.json(await listAgentDrafts(recordsSql(c.env), await mailboxIds(c.env))));
+
+app.post("/api/v1/agents", async (c) => {
+	const parsed = AgentBody.safeParse(await c.req.json().catch(() => null));
+	if (!parsed.success) return c.json({ error: parsed.error.issues[0]?.message ?? "Invalid agent" }, 400);
+	const result = await createAgent(recordsSql(c.env), parsed.data);
+	return "error" in result ? c.json({ error: result.error }, 400) : c.json(result.agent, 201);
+});
+
+/** The list order: ids first to last. */
+app.put("/api/v1/agents/order", async (c) => {
+	const parsed = z.object({ ids: z.array(z.string()).max(100) }).safeParse(await c.req.json().catch(() => null));
+	if (!parsed.success) return c.json({ error: "Invalid order" }, 400);
+	await orderAgents(recordsSql(c.env), parsed.data.ids);
+	return c.json({ ok: true });
+});
+
+app.put("/api/v1/agents/:id", async (c) => {
+	const parsed = AgentBody.partial().safeParse(await c.req.json().catch(() => null));
+	if (!parsed.success) return c.json({ error: parsed.error.issues[0]?.message ?? "Invalid agent" }, 400);
+	const result = await updateAgent(recordsSql(c.env), c.req.param("id"), parsed.data);
+	if ("error" in result) return c.json({ error: result.error }, 400);
+	return result.agent ? c.json(result.agent) : c.json({ error: "Not found" }, 404);
+});
+
+app.delete("/api/v1/agents/:id", async (c) => {
+	const deleted = await deleteAgent(recordsSql(c.env), c.req.param("id"));
+	return deleted ? c.json({ deleted: true }) : c.json({ error: "Not found" }, 404);
+});
+
+/** One agent's latest runs. */
+app.get("/api/v1/agents/:id/runs", async (c) =>
+	c.json(await listRuns(recordsSql(c.env), { agentId: c.req.param("id"), limit: Number(c.req.query("limit")) || 50 })));
+
 // -- Activity (Console > Activity) -----------------------------------
 
 /** What agents and MCP clients did, newest first. Filter by mailbox, actor and action; page with before=<last id>. */
@@ -374,6 +423,27 @@ app.get("/api/v1/activity", async (c) => {
 		before: Number.isInteger(before) && before > 0 ? before : null,
 		limit: Number(c.req.query("limit")) || undefined,
 	}));
+});
+
+/** MCP clients that have called, and calls per tool, for Console > MCP. */
+app.get("/api/v1/mcp/usage", async (c) => c.json(await mcpUsage(recordsSql(c.env))));
+
+// Apps the signed-in person connected over OAuth (workers/mcp/authorize.ts), and revoking one.
+app.get("/api/v1/mcp/apps", async (c) => {
+	const oauth = c.env.OAUTH_PROVIDER;
+	if (!oauth) return c.json({ apps: [] });
+	const { items } = await oauth.listUserGrants(encodeURIComponent(c.get("viewer") ?? "local"));
+	const apps = items.map((g) => ({
+		id: g.id, clientId: g.clientId, name: String(g.metadata?.clientName ?? g.clientId), scopes: g.scope,
+		connectedAt: new Date(g.createdAt * 1000).toISOString(),
+	}));
+	return c.json({ apps });
+});
+app.delete("/api/v1/mcp/apps/:id", async (c) => {
+	const oauth = c.env.OAUTH_PROVIDER;
+	if (!oauth) return c.json({ error: "Not found" }, 404);
+	await oauth.revokeGrant(c.req.param("id"), encodeURIComponent(c.get("viewer") ?? "local"));
+	return c.json({ ok: true });
 });
 
 /** The latest auto-draft runs, with their state and any skip reason or error. */
@@ -580,7 +650,7 @@ app.post("/api/v1/mailboxes/:mailboxId/drafts/:id/redraft", async (c: AppContext
 		if (!(await demoAiAllowed(c.env))) return c.json({ error: DEMO_AI_USED_UP }, 429);
 	}
 	const sql = recordsSql(c.env);
-	const [system, model] = await Promise.all([getSystemPrompt(c.env, mailboxId), agentModel(c.env)]);
+	const [system, model] = await Promise.all([getSystemPrompt(c.env, mailboxId), agentModel(c.env, { reasoning: false })]);
 	const result = await logged(sql, { actor: "person", bound: mailboxId }, "redraft", { draftId, instruction: parsed.data.instruction }, () =>
 		redraft(c.var.mailbox, mailboxId, draftId, parsed.data.instruction, {
 			ai: c.env.AI,
@@ -782,10 +852,20 @@ async function receiveEmail(event: { to: string; raw: ReadableStream; rawSize: n
 	};
 	await withAttachmentCleanup(() => stub.createEmail(Folders.INBOX, inbound, attachmentData));
 
+	// Nothing drafts every email. New mail goes to the agent only when an enabled agent's
+	// addresses and rules take it, or the owner chose that the PluraMail Agent drafts what
+	// no agent takes. Rules only: no model call for mail nobody wants.
 	const automated = automatedMailReason(JSON.stringify(parsedEmail.headers), parsedEmail.from?.address);
-	if (String(env.AUTO_DRAFT_ENABLED) === "true" && automated) {
+	const wanted = automated ? false : await agentsWant(env, {
+		mailboxId, from: (parsedEmail.from?.address || "").toLowerCase(), subject: parsedEmail.subject || "",
+		body: parsedEmail.text || (parsedEmail.html ? stripHtmlToText(parsedEmail.html) : ""),
+	}).catch((e) => {
+		console.error("Agent match failed:", (e as Error).message);
+		return false;
+	});
+	if (automated) {
 		console.log(`Auto-draft skipped for ${messageId}: ${automated}`);
-	} else if (String(env.AUTO_DRAFT_ENABLED) === "true") {
+	} else if (wanted) {
 		await startAutoDraft(env, ctx, {
 			mailboxId,
 			emailId: messageId,
@@ -793,6 +873,12 @@ async function receiveEmail(event: { to: string; raw: ReadableStream; rawSize: n
 			threadId,
 		}).catch((e) => console.error("Auto-draft trigger failed:", (e as Error).message));
 	}
+}
+
+/** Whether an enabled agent takes this mail, or the PluraMail Agent drafts for mail no agent takes. */
+async function agentsWant(env: Env, mail: { mailboxId: string; from: string; subject: string; body: string }): Promise<boolean> {
+	const [agents, { prefs }] = await Promise.all([listAgents(recordsSql(env)), readPrefs(env)]);
+	return matchAgents(agents, mail).length > 0 || prefs.unmatched === "draft";
 }
 
 export { app, receiveEmail };

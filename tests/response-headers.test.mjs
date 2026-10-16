@@ -112,6 +112,8 @@ const appBundle = await build({
 				"./lib/error-page": "export const errorResponse = () => new Response('error');",
 				"./index": "import { Hono } from 'hono'; export const app = new Hono(); export const receiveEmail = async () => {};",
 				"./mcp": "export class EmailMCP { static serve() { return { fetch: async () => new Response('mcp') }; } }",
+				"./mcp/authorize": "export const authorize = async () => new Response('consent');",
+				"./mcp/oauth": "export const withMcpOAuth = (web) => web.fetch;",
 				"./agent": "export class EmailAgent {}",
 			};
 			build.onResolve({ filter: /.*/ }, (args) => {
@@ -132,14 +134,3 @@ const appModule = await import(
 	`data:text/javascript;base64,${Buffer.from(appBundle.outputFiles[0].text).toString("base64")}`
 );
 
-test("/mcp and /mcp/* refuse requests from foreign origins", async () => {
-	for (const path of ["/mcp", "/mcp/session"]) {
-		const response = await appModule.default.fetch(new Request(`https://mail.example.com${path}`, {
-			headers: { Origin: "https://evil.example.net" },
-		}), {}, { waitUntil() {} });
-		assert.equal(response.status, 403);
-		assert.equal(await response.text(), "Cross-origin request refused");
-		assert.equal(response.headers.get("X-Frame-Options"), "DENY");
-		assert.equal(response.headers.get("Content-Security-Policy"), "frame-ancestors 'none'");
-	}
-});

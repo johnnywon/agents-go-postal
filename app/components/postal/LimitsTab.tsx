@@ -6,6 +6,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { AGENT_LIMIT_RANGES, type AgentLimits, DEFAULT_AGENT_LIMITS, parseAgentLimit, SEND_LIMITS } from "shared/send-limits";
 import api from "~/services/api";
+import { Badge, Field, Note, NumberInput } from "./ConsoleUI";
 
 type Key = keyof AgentLimits;
 
@@ -15,7 +16,7 @@ const FIELDS: { key: Key; title: string; sub: string; unit: string }[] = [
 	{ key: "autoDraftPerSender", title: "Auto-drafts per sender a day", sub: "Per address. Later mail from that sender is stored but not drafted. 0 stops auto-drafting.", unit: "drafts" },
 ];
 
-/** The saved limits and an edit in progress, saved by the console's Save button. */
+/** The saved limits and an edit in progress, saved by the console's autosave. */
 export function useAgentLimitsDraft() {
 	const queryClient = useQueryClient();
 	const saved = useQuery({ queryKey: ["agent-limits"], queryFn: () => api.getAgentLimits() });
@@ -44,51 +45,26 @@ export function useAgentLimitsDraft() {
 		queryClient.invalidateQueries({ queryKey: ["agents-overview"] });
 		setEdits({});
 	};
-	return { saved: saved.data, loadError: saved.isError, text, problem, dirty, check, save, set: (key: Key, value: string) => setEdits((cur) => ({ ...cur, [key]: value })) };
+	const valid = !FIELDS.some(({ key }) => problem(key));
+	return { saved: saved.data, loadError: saved.isError, edits, text, problem, dirty, valid, check, save, set: (key: Key, value: string) => setEdits((cur) => ({ ...cur, [key]: value })) };
 }
 
 export function LimitsTab({ draft }: { draft: ReturnType<typeof useAgentLimitsDraft> }) {
 	return (
 		<>
-			<div className="pg-tab-intro">
-				What the agent, auto-draft and MCP clients may do on their own. Agents can't change these. Saved to your deployment.
-			</div>
-			{draft.loadError && <div className="pg-limit-error" role="alert">Couldn't load the saved limits. Reload to edit them.</div>}
+			{draft.loadError && <Note tone="error">Couldn't load the saved limits. Reload to edit them.</Note>}
 			{FIELDS.map(({ key, title, sub, unit }) => {
 				const error = draft.problem(key);
 				const { min, max } = AGENT_LIMIT_RANGES[key];
 				return (
-					<div key={key} className="pg-setting">
-						<div className="pg-setting-text">
-							<b>{title}</b>
-							<span>{sub} Default {DEFAULT_AGENT_LIMITS[key]}.</span>
-							{error && <span className="pg-limit-error" role="alert">{error}</span>}
-						</div>
-						<label className="pg-limit-field">
-							<input
-								className="pg-input"
-								type="number"
-								inputMode="numeric"
-								min={min}
-								max={max}
-								step={1}
-								value={draft.saved ? draft.text(key) : ""}
-								disabled={!draft.saved}
-								aria-label={title}
-								aria-invalid={!!error || undefined}
-								onChange={(e) => draft.set(key, e.target.value)}
-							/>
-							<span>{unit}</span>
-						</label>
-					</div>
+					<Field key={key} inline label={title} hint={`${sub} Default ${DEFAULT_AGENT_LIMITS[key]}.`} error={error}>
+						<NumberInput label={title} min={min} max={max} value={draft.saved ? draft.text(key) : ""} disabled={!draft.saved} onChange={(v) => draft.set(key, v)} unit={unit} invalid={!!error} />
+					</Field>
 				);
 			})}
-			<section className="pg-settings-section" aria-labelledby="ceilings-heading">
-				<h3 id="ceilings-heading">Fixed for everyone</h3>
-				<p className="pg-label-note pg-ceilings">
-					Each address sends at most {SEND_LIMITS.hour} messages an hour and {SEND_LIMITS.day} a day, people and agents together, with up to {SEND_LIMITS.recipients} recipients per message. Agent limits sit inside these.
-				</p>
-			</section>
+			<Field inline label="Fixed for everyone" hint={`Each address sends at most ${SEND_LIMITS.hour} messages an hour and ${SEND_LIMITS.day} a day, people and agents together, with up to ${SEND_LIMITS.recipients} recipients per message. Agent limits sit inside these. Agents can't change any limit.`}>
+				<Badge>fixed</Badge>
+			</Field>
 		</>
 	);
 }

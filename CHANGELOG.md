@@ -2,6 +2,55 @@
 
 Versions follow [semantic versioning](https://semver.org). Before 1.0, a minor version can break things. Each entry names any new D1 migration. `npm run deploy` applies it; if you deploy another way, run `wrangler d1 migrations apply DB --remote` before you deploy that version.
 
+## 0.9.0
+
+The Console is a page of its own, with hired agents, and MCP clients sign in with OAuth.
+
+### Upgrading
+
+- `/mcp` takes OAuth bearer tokens only. Anything that reached it with an Access service token must reconnect through OAuth.
+- Bind a KV namespace as `OAUTH_KV` (`npx wrangler kv namespace create OAUTH_KV`, id into `kv_namespaces`).
+- Add an Access application with a **Bypass** policy for `/mcp` and `/.well-known` on the same hostname. `/authorize` stays behind Access. Console > MCP warns with these paths until clients can get through.
+- `AUTO_DRAFT_ENABLED` is removed. A deployment that relied on it drafting every email now drafts only through agents, or through the PluraMail Agent if you turn on drafting for mail no agent takes.
+
+### Console
+
+- The Console replaces the mail with its own rail and search: Overview; Agents (Your agents, Draft review, Activity log); Connections (AI models, MCP); Mail (Addresses, Signatures, Labels); App (Preferences, Keyboard shortcuts, Mail storage). The agent panel stays on the right. `?console=<page>` opens a page, and older tab names still resolve.
+- Edits save on their own. There is no Save button.
+- Pages open on their content: no subtitles under the page titles.
+- `ConsoleUI.tsx` and `.pg-ui-*` are the Console's design system. `tests/console-design-system.test.mjs` fails on any other class.
+
+### Agents
+
+- Each agent has one job on the addresses you choose and runs in Watch or Draft. Send arrives in 0.10. New agents start in Watch. Agents take mail in list order: when two agents' jobs fit, the higher one takes it. Drag to reorder.
+- New agent is three steps: Job (with starting points: decline pitches, ask for missing details, acknowledge, answer FAQs), Addresses, Name.
+- Each agent has a daily limit (25 by default) and two replies a day to one sender, and replies only to the sender of the message it took.
+- Nothing drafts every email. New mail goes to the agent only when an enabled agent's addresses and rules take it, or you choose that the PluraMail Agent drafts mail no agent takes. "When no agent matches" defaults to leaving it. Rules are checked before any model call.
+- Draft review shows drafts waiting for you as mail rows.
+- Agent drafts and Redraft run Kimi K2.6 with `reasoning_effort: "none"`: a draft takes 8 to 9 s instead of 45 to 50. Chat keeps full reasoning.
+
+### MCP
+
+- Clients find the server from the 401, register themselves, and you approve them on `/authorize`.
+- Every grant can read and organize mail. **Send mail** is a separate box on the consent page, off by default; without it the client doesn't see `send_draft`, `reply_to_email` or `send_email`. `MCP_SEND_ENABLED=false` turns sending off for every client. An MCP session answers only the token that opened it, and a token narrowed at the token endpoint loses Send.
+- `reply_to_email` sends in the conversation only if the email is still the newest one received there and the client names the reply address from `get_email` (`replyTarget`). `send_email` starts a new conversation. Both take an idempotency key, attachments up to 5 MB, and the agent send limits. A retry with a key that already sent answers `already_sent`, even after newer mail arrived.
+- Console > MCP is the server URL, Connect (one command per client: Claude Code, Claude Desktop, Codex, Cursor, Grok, Other) and Connected apps with Revoke.
+- `docs/mcp.md` covers connecting each client, sign-in, scopes, sending safely, idempotency keys, error codes and every tool's arguments.
+
+### AI models
+
+- The page opens on the agent model: its name, then Provider, Maker, Model ID, Retention, Context and Price, then Change model and Test.
+- Providers is one table with the same columns for Cloudflare and OpenRouter: Training, Retention, Models and Key, with links to each provider's model list and policy.
+- Zero retention is a guide, not a filter. OpenRouter lists every paid model. Models with a zero retention endpoint carry a shield, are priced at that endpoint, and their requests send `zdr: true`, so they never fall back. When OpenRouter's zero retention list can't be read, every request asks for zero retention and the list is read again after a minute. Other models send `data_collection: "deny"` only. Providers that train on prompts are still refused, and free models are still never offered or accepted.
+- Cloudflare lists only the models its catalog API returns, which are the models it hosts. Claude runs through OpenRouter.
+
+### Fixed
+
+- The draft checker could replace a draft with its own verdict ("No system artifacts found. Return email exactly as is.") or put "No changes needed." in front of it. Its output is now kept only when it is the draft with lines removed.
+- A Watch agent's draft, or a draft no agent took, could stay in Drafts when the run failed after saving it. Both paths now settle the same way.
+
+D1 migration: `0008_agents.sql` (agents, and `draft_notes.agent`).
+
 ## 0.8.2
 
 Motion. Everything that opens and closes moves on one curve.

@@ -236,7 +236,7 @@ export function Reader(props: ReaderProps) {
 					<div className="pg-reader-content">
 						{!email && <div className="pg-skel" style={{ border: 0, padding: 0 }}><span className="pg-pulse" style={{ width: "80%" }} /></div>}
 						{email && (
-							<Message
+							<MessageBody
 								key={email.id}
 								head={letterhead}
 								email={email}
@@ -323,8 +323,8 @@ function useReaderPalette(ref: React.RefObject<HTMLElement | null>): EmailPalett
 	return palette;
 }
 
-function Message({ head, email, mailboxId, images, onShowImages }: {
-	head: React.ReactNode;
+export function MessageBody({ head, email, mailboxId, images, onShowImages }: {
+	head?: React.ReactNode;
 	email: Email;
 	mailboxId: string;
 	images: boolean;

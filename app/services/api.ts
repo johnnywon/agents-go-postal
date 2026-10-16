@@ -111,6 +111,21 @@ export interface ActivityEntry {
 	ok: boolean;
 }
 
+export interface McpUsage {
+	clients: { client: string | null; last: string; calls: number; today: number; errors: number }[];
+	tools: Record<string, { calls: number; last: string }>;
+	lastCall: string | null;
+}
+
+/** An app connected to the MCP server over OAuth. `scopes` has "mail.send" when it may send. */
+export interface McpApp {
+	id: string;
+	clientId: string;
+	name: string;
+	scopes: string[];
+	connectedAt: string;
+}
+
 export interface ActivityPage {
 	entries: ActivityEntry[];
 	next: number | null;
@@ -129,12 +144,60 @@ export interface AutoDraftRun {
 	emailId: string;
 	mailboxId: string;
 	sender: string;
-	state: "queued" | "running" | "drafted" | "skipped" | "superseded" | "failed";
+	state: "queued" | "running" | "drafted" | "watched" | "sent" | "skipped" | "superseded" | "failed";
 	attempts: number;
 	reason: string | null;
 	draftId: string | null;
+	agentId: string | null;
 	createdAt: string;
 	updatedAt: string;
+}
+
+export type AgentMode = "watch" | "draft" | "send";
+
+export interface AgentRule {
+	field: "from" | "subject" | "body";
+	op: "contains" | "not_contains" | "is" | "domain";
+	value: string;
+}
+
+export interface Agent {
+	id: string;
+	name: string;
+	job: string;
+	/** Addresses it watches. Empty means every address. */
+	addresses: string[];
+	rules: AgentRule[];
+	instructions: string;
+	exampleReply: string;
+	mode: AgentMode;
+	enabled: boolean;
+	position: number;
+	dailyLimit: number;
+	perSenderLimit: number;
+	createdAt: string;
+	updatedAt: string;
+}
+
+export type AgentInput = Pick<Agent, "name" | "job"> & Partial<Omit<Agent, "id" | "name" | "job" | "position" | "createdAt" | "updatedAt">>;
+
+export interface AgentStats {
+	agentId: string;
+	runs: Partial<Record<AutoDraftRun["state"], number>>;
+	today: number;
+}
+
+export interface AgentDraft {
+	emailId: string;
+	mailboxId: string;
+	threadId: string | null;
+	subject: string;
+	recipient: string;
+	date: string;
+	snippet: string;
+	/** The reply as written, without the quoted original. */
+	text: string;
+	agent: string | null;
 }
 
 
@@ -419,8 +482,19 @@ const api = {
 		get<ActivityPage>("/api/v1/activity", {
 			params: Object.fromEntries(Object.entries(filter).filter(([, v]) => v !== undefined && v !== "").map(([k, v]) => [k, String(v)])),
 		}),
+	getMcpUsage: () => get<McpUsage>("/api/v1/mcp/usage"),
+	getMcpApps: () => get<{ apps: McpApp[] }>("/api/v1/mcp/apps"),
+	revokeMcpApp: (id: string) => del<{ ok: true }>(`/api/v1/mcp/apps/${encodeURIComponent(id)}`),
 	getAutoDraftRuns: (mailbox?: string) => get<AutoDraftRun[]>("/api/v1/auto-draft/runs", mailbox ? { params: { mailbox } } : undefined),
 
+	// Agents (Console > Agents)
+	getAgents: () => get<{ agents: Agent[]; stats: AgentStats[] }>("/api/v1/agents"),
+	createAgent: (input: AgentInput) => post<Agent>("/api/v1/agents", input),
+	updateAgent: (id: string, input: Partial<AgentInput>) => put<Agent>(`/api/v1/agents/${encodeURIComponent(id)}`, input),
+	deleteAgent: (id: string) => del<{ deleted: boolean }>(`/api/v1/agents/${encodeURIComponent(id)}`),
+	orderAgents: (ids: string[]) => put<{ ok: boolean }>("/api/v1/agents/order", { ids }),
+	getAgentRuns: (id: string, limit = 50) => get<AutoDraftRun[]>(`/api/v1/agents/${encodeURIComponent(id)}/runs?limit=${limit}`),
+	getAgentDrafts: () => get<AgentDraft[]>("/api/v1/agents/review"),
 
 	// Redraft an agent draft with an instruction. The draft is replaced; the reply carries its new id.
 	redraft: (mailboxId: string, draftId: string, instruction: string) =>

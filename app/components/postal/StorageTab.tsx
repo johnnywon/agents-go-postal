@@ -2,9 +2,9 @@
 // Licensed under the Apache 2.0 license found in the LICENSE file or at:
 //     https://opensource.org/licenses/Apache-2.0
 
-import { DatabaseIcon } from "@phosphor-icons/react";
 import { useQuery } from "@tanstack/react-query";
 import api from "~/services/api";
+import { Section, Stat, Stats, Table } from "./ConsoleUI";
 import { AddressText, type Identities } from "./identity";
 
 const STATE_COLUMNS = [
@@ -31,39 +31,21 @@ export function StorageTab({ identities }: { identities: Identities }) {
 
 	return (
 		<>
-			<div className="pg-index-card">
-				<DatabaseIcon size={18} color="var(--pg-text-5)" />
-				<div className="pg-card-text">
-					<b style={{ fontWeight: 600 }}>{heading}</b>
-					<span>{data ? `${data.messages.toLocaleString()} messages` : ""}</span>
-				</div>
-			</div>
+			<Stats>
+				<Stat label={heading} value={data ? data.messages.toLocaleString() : "—"} note="messages" />
+			</Stats>
 			{rows.length > 0 && (
-				<>
-				<div className="pg-table-scroll">
-					<table className="pg-table" aria-label="Messages per address">
-						<thead>
-							<tr>
-								<th scope="col">Address</th>
-								{columns.map((c) => <th scope="col" key={c.label} className="is-num">{c.label}</th>)}
-							</tr>
-						</thead>
-						<tbody>
-							{rows.map((row) => (
-								<tr key={row.mailboxId}>
-									<th scope="row">
-										<span title={row.mailboxId}><AddressText address={row.mailboxId} identity={identities.of(row.mailboxId)} short /></span>
-									</th>
-									{columns.map((c) => {
-										const n = c.count(row);
-										return <td key={c.label} className={n === 0 ? "is-num is-zero" : "is-num"}>{n.toLocaleString()}</td>;
-									})}
-								</tr>
-							))}
-						</tbody>
-					</table>
-				</div>
-				</>
+				<Section title="Messages per address">
+					<Table
+						label="Messages per address"
+						rows={rows}
+						rowKey={(r) => r.mailboxId}
+						columns={[
+							{ key: "address", label: "Address", head: true, cell: (r) => <AddressText address={r.mailboxId} identity={identities.of(r.mailboxId)} short /> },
+							...columns.map((c) => ({ key: c.label, label: c.label, num: true, quiet: (r: (typeof rows)[number]) => c.count(r) === 0, cell: (r: (typeof rows)[number]) => c.count(r).toLocaleString() })),
+						]}
+					/>
+				</Section>
 			)}
 		</>
 	);

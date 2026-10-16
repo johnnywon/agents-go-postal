@@ -212,6 +212,13 @@ export async function verifyDraft(ai: Ai, body: string): Promise<string> {
 			return body;
 		}
 
+		// The checker may only remove lines. Any word it added or changed is the checker
+		// talking ("No changes needed.") or rewriting, so the draft stays as written.
+		if (!onlyRemoves(replyText, cleanedTrimmed)) {
+			console.warn("Draft verifier added or changed words, keeping the original.");
+			return body;
+		}
+
 		// Safety check: if the AI removed more than 50% of the content,
 		// it's probably being too aggressive — fall back to original.
 		// This threshold balances between catching real artifacts and
@@ -241,4 +248,16 @@ export async function verifyDraft(ai: Ai, body: string): Promise<string> {
 
 function normalizeWhitespace(s: string): string {
 	return s.replace(/\s+/g, " ").trim();
+}
+
+/** Whether `cleaned` is `original` with some words left out: every word of it appears there, in order. */
+function onlyRemoves(original: string, cleaned: string): boolean {
+	const words = original.split(/\s+/).filter(Boolean);
+	let at = 0;
+	for (const word of cleaned.split(/\s+/).filter(Boolean)) {
+		while (at < words.length && words[at] !== word) at++;
+		if (at === words.length) return false;
+		at++;
+	}
+	return true;
 }

@@ -7,67 +7,54 @@ import { SEND_LIMITS } from "shared/send-limits";
 import api from "~/services/api";
 import { ActivityEntryRow, RUN_LABELS } from "./ActivityTab";
 import type { ConsoleTab } from "./console-tabs";
+import { List, Note, Section, Stat, Stats, Table } from "./ConsoleUI";
 import { AddressText, type Identities } from "./identity";
 
 const RUN_ORDER = ["drafted", "skipped", "failed", "queued", "running", "superseded"] as const;
 
 /** The last day at a glance: sends against each limit, auto-draft runs, and failed agent actions. */
-export function OverviewTab({ identities, autoDraft, onTab }: { identities: Identities; autoDraft: boolean; onTab: (tab: ConsoleTab) => void }) {
+export function OverviewTab({ identities, autoDraft, onTab, agents }: { identities: Identities; autoDraft: boolean; onTab: (tab: ConsoleTab) => void; agents?: React.ReactNode }) {
 	const overview = useQuery({ queryKey: ["agents-overview"], queryFn: () => api.getAgentOverview(), refetchInterval: 60_000 });
 	const data = overview.data;
-	if (overview.isPending) return <p className="pg-label-note pg-tab-intro">Loading</p>;
-	if (overview.error || !data) return <p className="pg-label-note pg-tab-intro is-error" role="alert">{overview.error?.message ?? "Could not load the overview."}</p>;
+	if (overview.isPending) return <Note>Loading</Note>;
+	if (overview.error || !data) return <Note tone="error">{overview.error?.message ?? "Could not load the overview."}</Note>;
 	const agentSends = data.addresses.reduce((n, a) => n + a.agentDay, 0);
 	const runs = RUN_ORDER.filter((s) => data.runs[s]).map((s) => `${data.runs[s]} ${RUN_LABELS[s].toLowerCase()}`);
-	const full = (used: number, limit: number) => (limit > 0 && used >= limit ? "is-num is-full" : used === 0 ? "is-num is-zero" : "is-num");
+	const usage = (used: number, limit: number) => ({ quiet: used === 0, bad: limit > 0 && used >= limit, text: `${used} / ${limit}` });
+	type Row = (typeof data.addresses)[number];
+	const col = (key: string, label: string, pick: (a: Row) => [number, number]) => ({
+		key, label, num: true,
+		quiet: (a: Row) => usage(...pick(a)).quiet, bad: (a: Row) => usage(...pick(a)).bad, cell: (a: Row) => usage(...pick(a)).text,
+	});
 
 	return (
 		<>
-			<div className="pg-stats">
-				<button type="button" className="pg-stat" onClick={() => onTab("activity")}>
-					<span>Agent actions</span><b>{data.actions.toLocaleString()}</b>
-				</button>
-				<button type="button" className="pg-stat" onClick={() => onTab("limits")}>
-					<span>Agent sends</span><b>{agentSends.toLocaleString()}</b>
-					<em>limit {data.limits.agentDay} per address</em>
-				</button>
-				<button type="button" className="pg-stat" onClick={() => onTab("activity")}>
-					<span>Auto-drafts</span><b>{Object.values(data.runs).reduce((n, v) => n + (v ?? 0), 0)}</b>
-					<em>{autoDraft ? runs.join(" · ") || "none yet" : "off"}</em>
-				</button>
-				<button type="button" className="pg-stat" data-bad={data.failed > 0 || undefined} onClick={() => onTab("activity")}>
-					<span>Failed actions</span><b>{data.failed.toLocaleString()}</b>
-				</button>
-			</div>
-			<div className="pg-table-scroll">
-				<table className="pg-table" aria-label="Sends per address">
-					<thead>
-						<tr>
-							<th scope="col">Address</th>
-							<th scope="col" className="is-num">This hour</th>
-							<th scope="col" className="is-num">Today</th>
-							<th scope="col" className="is-num">By agents</th>
-						</tr>
-					</thead>
-					<tbody>
-						{data.addresses.map((a) => (
-							<tr key={a.mailboxId}>
-								<th scope="row"><span title={a.mailboxId}><AddressText address={a.mailboxId} identity={identities.of(a.mailboxId)} short /></span></th>
-								<td className={full(a.hour, SEND_LIMITS.hour)}>{a.hour} / {SEND_LIMITS.hour}</td>
-								<td className={full(a.day, SEND_LIMITS.day)}>{a.day} / {SEND_LIMITS.day}</td>
-								<td className={full(a.agentDay, data.limits.agentDay)}>{a.agentDay} / {data.limits.agentDay}</td>
-							</tr>
-						))}
-					</tbody>
-				</table>
-			</div>
+			<Stats>
+				<Stat label="Agent actions" value={data.actions.toLocaleString()} onClick={() => onTab("logs")} />
+				<Stat label="Agent sends" value={agentSends.toLocaleString()} note={`limit ${data.limits.agentDay} per address`} onClick={() => onTab("mailroom")} />
+				<Stat label="Auto-drafts" value={Object.values(data.runs).reduce((n, v) => n + (v ?? 0), 0)} note={autoDraft ? runs.join(" · ") || "none yet" : "off"} onClick={() => onTab("logs")} />
+				<Stat label="Failed actions" value={data.failed.toLocaleString()} bad={data.failed > 0} onClick={() => onTab("logs")} />
+			</Stats>
+			{agents}
+			<Section title="Sends per address">
+				<Table
+					label="Sends per address"
+					rows={data.addresses}
+					rowKey={(a) => a.mailboxId}
+					columns={[
+						{ key: "address", label: "Address", head: true, cell: (a) => <AddressText address={a.mailboxId} identity={identities.of(a.mailboxId)} short /> },
+						col("hour", "This hour", (a) => [a.hour, SEND_LIMITS.hour]),
+						col("day", "Today", (a) => [a.day, SEND_LIMITS.day]),
+						col("agents", "By agents", (a) => [a.agentDay, data.limits.agentDay]),
+					]}
+				/>
+			</Section>
 			{data.failures.length > 0 && (
-				<section className="pg-settings-section" aria-labelledby="failures-heading">
-					<h3 id="failures-heading">Recent failures</h3>
-					<ul className="pg-activity-list">
+				<Section title="Recent failures">
+					<List label="Recent failures">
 						{data.failures.map((e) => <ActivityEntryRow key={e.id} entry={e} identities={identities} />)}
-					</ul>
-				</section>
+					</List>
+				</Section>
 			)}
 		</>
 	);

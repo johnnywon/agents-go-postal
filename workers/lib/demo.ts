@@ -60,9 +60,9 @@ export function demoRefusal(method: string, path: string): string | null {
 	return "Settings are read-only in the demo";
 }
 
-/** Paths outside the API that a demo refuses: the MCP server and the agent socket. */
+/** Paths outside the API that a demo refuses: the MCP server, its OAuth endpoints and the agent socket. */
 export function demoBlocksPath(path: string): boolean {
-	return path === "/mcp" || path.startsWith("/mcp/") || path.startsWith("/agents/");
+	return path === "/mcp" || path.startsWith("/mcp/") || path.startsWith("/agents/") || path === "/authorize" || path.startsWith("/.well-known/oauth-");
 }
 
 /** A model call the demo allows, counted against its daily cap. */

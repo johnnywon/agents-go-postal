@@ -26,6 +26,12 @@ const SETTINGS = "Settings are read-only in the demo";
 // Every write route in the API, with what a demo does with it. A new write route fails here until it is listed.
 const WRITES = {
 	"POST /api/v1/dev/seed": SETTINGS,
+	"POST /api/v1/dev/seed-agents": SETTINGS,
+	"POST /api/v1/agents": SETTINGS,
+	"PUT /api/v1/agents/order": SETTINGS,
+	"PUT /api/v1/agents/:id": SETTINGS,
+	"DELETE /api/v1/agents/:id": SETTINGS,
+	"DELETE /api/v1/mcp/apps/:id": SETTINGS,
 	"PUT /api/v1/prefs": SETTINGS,
 	"PUT /api/v1/agent-model": SETTINGS,
 	"POST /api/v1/agent-model/test": AI,
@@ -87,7 +93,7 @@ test("two AI actions count against the daily cap; the model test and everything 
 });
 
 test("the MCP server and the agent socket are off", () => {
-	for (const p of ["/mcp", "/mcp/session", "/agents/email-agent/x"]) assert.equal(demoBlocksPath(p), true, p);
+	for (const p of ["/mcp", "/mcp/session", "/agents/email-agent/x", "/authorize", "/.well-known/oauth-authorization-server"]) assert.equal(demoBlocksPath(p), true, p);
 	for (const p of ["/", "/api/v1/mail", "/mcpx", "/agentsx"]) assert.equal(demoBlocksPath(p), false, p);
 });
 
@@ -136,6 +142,8 @@ async function appWith(define) {
 		"./lib/error-page": "export const errorResponse = (_r, status) => new Response('error', { status });",
 		"./index": "import { Hono } from 'hono'; export const app = new Hono(); export const receiveEmail = async () => {};",
 		"./mcp": "export class EmailMCP { static serve() { return { fetch: async () => new Response('mcp') }; } }",
+		"./mcp/authorize": "export const authorize = async () => new Response('consent');",
+		"./mcp/oauth": "export const withMcpOAuth = (web) => (req, env, ctx) => new URL(req.url).pathname.startsWith('/mcp') ? new Response('oauth', { status: 401 }) : web.fetch(req, env, ctx);",
 		"./agent": "export class EmailAgent {}",
 	};
 	const bundle = await build({
@@ -161,13 +169,16 @@ test("a demo needs no sign-in and has no MCP server or agent socket", async () =
 	const home = await fetchDemo("/");
 	assert.equal(home.status, 200);
 	assert.equal(await home.text(), "spa");
-	for (const p of ["/mcp", "/mcp/session", "/agents/email-agent/shared"]) assert.equal((await fetchDemo(p)).status, 403, p);
+	for (const p of ["/mcp", "/mcp/session", "/agents/email-agent/shared", "/authorize", "/.well-known/oauth-protected-resource/mcp"]) {
+		assert.equal((await fetchDemo(p)).status, 403, p);
+	}
 });
 
-test("a normal production build still fails closed without Access", async () => {
+test("a normal production build still fails closed without Access; /mcp answers with OAuth instead", async () => {
 	const fetchProd = await appWith({ __PLURAMAIL_DEMO__: "false" });
 	assert.equal((await fetchProd("/")).status, 500);
-	assert.equal((await fetchProd("/mcp")).status, 500);
+	assert.equal((await fetchProd("/authorize")).status, 500, "the consent page is behind Access");
+	assert.equal((await fetchProd("/mcp")).status, 401, "MCP clients bring an OAuth token, not an Access sign-in");
 });
 
 // The cron on D1, as a demo.
@@ -300,8 +311,10 @@ test("a demo keeps the agent entry points, answers in the panel with a notice, a
 	assert.doesNotMatch(read("SearchBar.tsx"), /demo/, "search keeps its Ask rows");
 	assert.doesNotMatch(read("Reader.tsx"), /!demo/, "the Reply bar keeps Draft reply");
 	assert.match(read("PostalMail.tsx"), /const panelOpen = mobile \? panelTemp/);
+	const consolePage = read("Console.tsx");
+	assert.match(consolePage, /demo && !isSettingsTab\(props\.tab\) \? "general" : props\.tab/, "an agent page opens Preferences");
+	assert.match(consolePage, /demo \? CONSOLE_RAIL\.filter\(\(g\) => g\.tabs\.every\(isSettingsTab\)\)/, "the rail shows the settings groups only");
 	const consoleSrc = read("Modals.tsx");
-	assert.match(consoleSrc, /demo \? allGroups\.filter\(\(g\) => g\.title !== "Agents"\)/);
 	assert.match(consoleSrc, /READ_ONLY_IN_DEMO = new Set<ConsoleTab>\(\["general", "addresses", "signatures", "shortcuts"\]\)/);
 });
 
