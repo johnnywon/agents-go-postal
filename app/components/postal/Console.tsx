@@ -17,6 +17,7 @@ import { ConsoleMessageContext, type MessageRef, useOpenMessage } from "./consol
 import { CONSOLE_LABELS, CONSOLE_RAIL, type ConsoleTab, isSettingsTab } from "./console-tabs";
 import { ConsoleMessage } from "./ConsoleMessage";
 import { ConsoleColophon } from "./ConsoleColophon";
+import { FoldMark, Wordmark } from "./NavIcons";
 import { type ConsoleHit, ConsoleSearch, type ConsoleSearchHandle } from "./ConsoleSearch";
 import {
 	Async, Badge, Button, Choices, DialogHead, InlineText, Picker, Summary, SummaryRow, Track, Section, Field, Fields, Modal, Name, Note, NumberInput, Page, Row, SaveBar, Segmented, Split, Table,
@@ -169,7 +170,7 @@ export function ConsolePage(props: {
 		<ConsoleMessageContext.Provider value={setMessage}>
 		<div className="pg-console" data-nav-open={navOpen || undefined}>
 			<nav className="pg-console-nav" aria-label="Console">
-				<div className="pg-rail-head pg-console-brand">PluraMail <b>Console</b></div>
+				<div className="pg-rail-head pg-console-brand"><FoldMark size={14} /><Wordmark /><b>Console</b></div>
 				<button type="button" className="pg-console-mail" onClick={onClose}><ArrowLeftIcon size={14} /><span>Back to mail</span><kbd>esc</kbd></button>
 				<div className="pg-console-links">
 					{rail.map((g) => (

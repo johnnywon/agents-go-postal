@@ -263,6 +263,11 @@ html:has(.postal), html:has(.postal) body { background: var(--pg-base, #141518);
   color: var(--pg-text-5); font: 600 10px var(--pg-mono); letter-spacing: .08em;
 }
 .pg-rail-head:hover { background: var(--pg-hover-raised); color: var(--pg-text-2); }
+/* The wordmark, wherever the product names itself: rail heads and the colophon. */
+.pg-wordmark { display: inline-flex; align-items: baseline; font-weight: 600; font-family: var(--pg-font); letter-spacing: -.035em; font-kerning: none; text-transform: none; color: var(--pg-text-1); }
+.pg-wordmark i { font: 600 .763em var(--pg-mono); font-style: normal; letter-spacing: .02em; }
+.pg-rail-head .pg-wordmark { font-size: 15px; line-height: 1; }
+.pg-nav-brand { display: flex; align-items: center; }
 .pg-nav .pg-rail-head { padding: 0 10px 0 12px; }
 .pg-nav-scroll {
   flex: 1; min-height: 0; overflow-y: auto; scrollbar-gutter: stable;
@@ -1333,7 +1338,8 @@ button.pg-model-row:hover { background: var(--pg-hover); }
 .pg-console .pg-segmented > button:active { background: var(--pg-active); }
 .pg-console .pg-segmented > button[aria-checked="true"] { background: var(--pg-active); color: var(--pg-text-1); box-shadow: inset 0 0 0 1px oklch(from var(--pg-con-accent) l c h / .6); }
 .pg-console-nav { display: flex; flex-direction: column; min-height: 0; background: var(--pg-rail); border-right: 1px solid var(--pg-line); }
-.pg-console-brand { padding: 0 12px; gap: 5px; text-transform: uppercase; color: var(--pg-text-3); }
+.pg-console-brand { padding: 0 12px; gap: 6px; text-transform: uppercase; color: var(--pg-text-3); }
+.pg-console-brand b { margin-left: 2px; }
 .pg-console-brand:hover { background: var(--pg-raised); color: var(--pg-text-3); }
 .pg-console-brand b { font-weight: 600; color: var(--pg-con-accent-text); }
 .pg-console-center { min-width: 0; min-height: 0; display: flex; flex-direction: column; }
@@ -1359,8 +1365,7 @@ button.pg-model-row:hover { background: var(--pg-hover); }
 .pg-console-colophon-imprint { display: flex; justify-content: space-between; align-items: flex-end; margin: 0 20px; padding: 13px 0 16px; border-top: 1px solid var(--pg-con-groove); box-shadow: inset 0 1px 0 var(--pg-con-groove-edge); }
 .pg-console-colophon-mark { display: flex; align-items: center; gap: 6px; }
 .pg-console-colophon-mark svg { flex: none; margin-top: 1px; }
-.pg-console-colophon-mark > span { display: flex; align-items: baseline; font: 600 18px/24px var(--pg-font); letter-spacing: -.035em; font-kerning: none; }
-.pg-console-colophon-mark i { font: 600 .763em var(--pg-mono); font-style: normal; letter-spacing: .02em; }
+.pg-console-colophon-mark .pg-wordmark { font-size: 18px; line-height: 24px; }
 .pg-console-colophon-flap { stroke: var(--pg-mail); }
 .pg-console-colophon-version { display: flex; align-items: center; gap: 6px; padding-bottom: 5px; font: 600 9px/12px var(--pg-mono); letter-spacing: .08em; color: var(--pg-text-6); }
 .pg-console-colophon-version a { display: grid; place-items: center; width: 24px; height: 24px; margin: -6px -7px -6px -3px; color: var(--pg-text-6); }

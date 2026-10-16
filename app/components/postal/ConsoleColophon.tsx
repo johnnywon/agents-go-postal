@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { bytesFigure, countFigure, durationFigure, type Figure, figureLabel, secondsSince } from "shared/figures";
 import { queryKeys } from "~/queries/keys";
 import api from "~/services/api";
+import { Wordmark } from "./NavIcons";
 
 /** The source the GitHub glyph links to. The repo is public, so every deployment points here. */
 const REPO_URL = "https://github.com/johnnywon/pluramail";
@@ -70,7 +71,7 @@ export function ConsoleColophon() {
 				<Cell kind="upt" label="Uptime" figure={durationFigure(secondsSince(config.data?.deployedAt, now))} unit="DAYS" />
 			</div>
 			<div className="pg-console-colophon-imprint">
-				<span className="pg-console-colophon-mark" role="img" aria-label="PluraMail"><Mark /><span>plura<i>MAIL</i></span></span>
+				<span className="pg-console-colophon-mark"><Mark /><Wordmark /></span>
 				<span className="pg-console-colophon-version">
 					{version && <span>v{version}</span>}
 					<a href={REPO_URL} target="_blank" rel="noopener noreferrer" aria-label="PluraMail on GitHub" title="Source on GitHub">

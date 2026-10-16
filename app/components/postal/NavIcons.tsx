@@ -40,6 +40,11 @@ function Svg({ size = 16, color, className, style, width = 24, children }: NavIc
 
 /** All addresses: a wall of PO boxes, the one with mail filled. */
 /** The PluraMail mark, the Fold: three flaps, the last in Signal. Only in the top-left corner (sidebar header and rail). */
+/** The wordmark: "plura" in the UI font, "MAIL" in mono caps at .763em. Size comes from the parent's font-size. */
+export function Wordmark({ className }: { className?: string }) {
+	return <span className={className ? `pg-wordmark ${className}` : "pg-wordmark"} role="img" aria-label="PluraMail">plura<i>MAIL</i></span>;
+}
+
 export function FoldMark({ size = 16, className, style }: { size?: number; className?: string; style?: CSSProperties }) {
 	return (
 		<svg width={size} height={size} viewBox="0 0 48 48" fill="none" strokeWidth="5" strokeLinecap="round" strokeLinejoin="round" className={className} style={{ flex: "none", ...style }} aria-hidden="true">
