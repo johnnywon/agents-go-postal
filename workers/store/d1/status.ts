@@ -15,14 +15,15 @@ export interface MailboxCounts {
 	inboxConversations: number;
 }
 
-export async function d1StorageStatus(sql: Sql, mailboxIds: string[]): Promise<{ messages: number; mailboxes: MailboxCounts[] }> {
+/** `bytes`: every message's size, body plus attachments, wherever it is kept (D1 or R2). */
+export async function d1StorageStatus(sql: Sql, mailboxIds: string[]): Promise<{ messages: number; bytes: number; mailboxes: MailboxCounts[] }> {
 	const [byState, conversations, total] = await sql.batch([
 		{
 			sql: `SELECT mailbox_id, state, COUNT(*) AS n, SUM(CASE WHEN unread = 1 AND state = 'inbox' THEN 1 ELSE 0 END) AS unread,
 				SUM(starred) AS starred FROM messages GROUP BY mailbox_id, state`,
 		},
 		{ sql: `SELECT mailbox_id, COUNT(DISTINCT thread_key) AS n FROM messages WHERE state = 'inbox' GROUP BY mailbox_id` },
-		{ sql: `SELECT COUNT(*) AS n FROM messages` },
+		{ sql: `SELECT COUNT(*) AS n, COALESCE(SUM(size), 0) AS bytes FROM messages` },
 	]);
 	const counts = new Map<string, MailboxCounts>(mailboxIds.map((mailboxId) => [
 		mailboxId, { mailboxId, states: {}, unread: 0, starred: 0, total: 0, inboxConversations: 0 },
@@ -39,5 +40,5 @@ export async function d1StorageStatus(sql: Sql, mailboxIds: string[]): Promise<{
 		const e = counts.get(String(row.mailbox_id));
 		if (e) e.inboxConversations = Number(row.n);
 	}
-	return { messages: Number(total[0]?.n ?? 0), mailboxes: [...counts.values()] };
+	return { messages: Number(total[0]?.n ?? 0), bytes: Number(total[0]?.bytes ?? 0), mailboxes: [...counts.values()] };
 }

@@ -10,7 +10,7 @@ const DIR = new URL("../app/components/postal/", import.meta.url);
 const read = (name) => readFileSync(new URL(name, DIR), "utf8");
 
 const CONSOLE_FILES = [
-	"Console.tsx", "ConsoleUI.tsx", "ConsoleSearch.tsx", "ConsoleMessage.tsx", "OverviewTab.tsx",
+	"Console.tsx", "ConsoleColophon.tsx", "ConsoleUI.tsx", "ConsoleSearch.tsx", "ConsoleMessage.tsx", "OverviewTab.tsx",
 	"LimitsTab.tsx", "ActivityTab.tsx", "StorageTab.tsx", "LabelsTab.tsx", "ShortcutsTab.tsx", "ModelTab.tsx", "McpTab.tsx",
 ];
 

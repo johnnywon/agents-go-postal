@@ -16,6 +16,7 @@ import type { AddressInfo } from "./compose";
 import { ConsoleMessageContext, type MessageRef, useOpenMessage } from "./console-message";
 import { CONSOLE_LABELS, CONSOLE_RAIL, type ConsoleTab, isSettingsTab } from "./console-tabs";
 import { ConsoleMessage } from "./ConsoleMessage";
+import { ConsoleColophon } from "./ConsoleColophon";
 import { type ConsoleHit, ConsoleSearch, type ConsoleSearchHandle } from "./ConsoleSearch";
 import {
 	Async, Badge, Button, Choices, DialogHead, InlineText, Picker, Summary, SummaryRow, Track, Section, Field, Fields, Modal, Name, Note, NumberInput, Page, Row, SaveBar, Segmented, Split, Table,
@@ -182,6 +183,7 @@ export function ConsolePage(props: {
 						</div>
 					))}
 				</div>
+				<ConsoleColophon />
 			</nav>
 			{navOpen && <div className="pg-drawer-scrim pg-console-scrim" onClick={() => setNavOpen(false)} aria-hidden />}
 			<div className="pg-console-center">

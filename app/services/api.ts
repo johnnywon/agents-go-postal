@@ -339,6 +339,8 @@ export interface FolderImportResult {
 /** Message counts per address (workers/store/d1/status.ts). Unread counts the Inbox only. */
 export interface StorageStatusResponse {
 	messages: number;
+	/** Every message's size, body plus attachments. */
+	bytes: number;
 	mailboxes: {
 		mailboxId: string;
 		states: Record<string, number>;
@@ -375,7 +377,7 @@ export interface ModelCatalog {
 const api = {
 	// Config
 	getConfig: () =>
-		get<{ domains: string[]; emailAddresses: string[]; autoDraft?: boolean; demo?: boolean }>("/api/v1/config"),
+		get<{ domains: string[]; emailAddresses: string[]; autoDraft?: boolean; demo?: boolean; version?: string; deployedAt?: string | null }>("/api/v1/config"),
 
 	// Agent model
 	getPrefs: () => get<{ prefs: Prefs; saved: boolean }>("/api/v1/prefs"),

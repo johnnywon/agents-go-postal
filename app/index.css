@@ -198,6 +198,8 @@ button:disabled {
   --pg-con-hover-raised: #1b1c20;
   --pg-con-segment: #1f2024;
   --pg-con-line: #1c1d21;
+  /* The colophon's groove: a dark cut over a faint light edge, pressed into the rail. */
+  --pg-con-groove: #000; --pg-con-groove-edge: rgba(255, 255, 255, .06);
   --pg-con-line-2: #212226;
   --pg-con-line-3: #2a2c31;
   --pg-con-line-soft: #16171a;
@@ -263,6 +265,7 @@ button:disabled {
   --pg-con-hover-raised: #f3f3f1;
   --pg-con-segment: #e6e6e2;
   --pg-con-line: #e2e2de;
+  --pg-con-groove: #c9c7c0; --pg-con-groove-edge: rgba(255, 255, 255, .8);
   --pg-con-line-2: #d8d8d3;
   --pg-con-line-3: #cdcdc7;
   --pg-con-line-soft: #ebebe8;

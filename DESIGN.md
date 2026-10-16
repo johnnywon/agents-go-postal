@@ -125,6 +125,29 @@ One-offs earn their place, and `tests/console-design-system.test.mjs` fails on a
 
 AI models has two steps, and colour has one meaning each: a provider's hue appears only on its 8px square (`.pg-prov-mark`), green marks the chosen, recommended, connected or zero retention, yellow marks a missing key. Prices and context are plain numbers, never tinted. The first step opens straight under the page title, with no subtitle and no section heading, on the agent model card: its name, then its facts as a labelled list (`.pg-model-facts`: Provider with its square, Maker when it differs, Model ID in mono, Retention (a green shield and "Zero retention", or "Not promised"), Context, Price in / out per 1M tokens, Tools only when it has none), then Change model and Test below the facts. The card carries no badge. Under it, Providers is a `Table` (`.pg-prov-table`) with the same columns for both: the provider with Models and Policy links to its own pages, Training, Retention ("Not promised" on Cloudflare; on OpenRouter a green shield and how many of its models have zero retention), the model count, and Key ("Built in", or the key's last four with Manage, or Add key). Retention and Training state only what the provider's policy page states. Zero retention is a guide, never a filter: every paid model is listed, and those with it carry the shield. Add key or Manage opens the key field in a box under the table. Below 640px the table drops Training and Models, the links stack, and the cells tighten so it fits without scrolling. One `Note` closes the step: free models are turned off. Change model opens the second step in place: Back, a full-width search that also takes any paid model id, filters (All, the two providers, then Anthropic, OpenAI, Google and xAI on OpenRouter) with a sort menu, then the list. With nothing typed and All chosen, the picker shows the four suggested models as cards (`.pg-pick`, two columns, one below 640px), each with its role above the name (Recommended in green, Cheapest, Balanced, Best quality); the chosen card has a green border and a check. The sort menu is hidden there. Below the cards, a Browse list has a row per provider and per maker. Each list opens with a mono column header (title, Context, $ per 1M in / out) that labels the numbers once, then the provider's data line once. The list's data line, warnings and empty state are `Note`s, and Recommended is an `ok` `Badge`. Rows (`.pg-model-row`): a square check, the name with Recommended, a muted line of provider, maker, a green shield with "Zero retention" when the model has it, "No tools" and "Needs key" separated by dots, then context and price right-aligned in tabular figures, output price in the stronger colour. A typed id that matches nothing gets a dashed "Use" row with a provider menu; a free id says why it's refused. Picking a row returns to the first step; if its provider has no key, that provider's row opens, tinted yellow, and the card says the key is needed. Escape in the picker clears the search, then the filter, then goes back. Below 640px the card stacks, the column header keeps only its title, price sits beside the name with context under it, and the filters scroll sideways. Below 600px the dialog fills the screen and the tabs scroll sideways.
 
+### Figures
+
+A count, a size or a length of time shown in a small space is a figure: a number of at most six characters over a unit in caps (`shared/figures.ts`, tested in `tests/figures.test.mjs`). The unit steps up before the number grows, so a figure always fits its cell.
+
+| Kind | Steps | Examples |
+|---|---|---|
+| Count (`countFigure`) | commas to 99,999, then k, then M | 1 EMAIL, 12,408 EMAILS, 248k, 2.4M |
+| Bytes (`bytesFigure`) | KB, MB, GB, TB, decimal | 412 MB, 1.39 GB, 48.6 GB, 1.28 TB |
+| Time (`durationFigure`) | minutes under an hour, hours under 2 days, days under 2 weeks, then weeks | 45 MINS, 47 HRS, 3.1 DAYS, 13 DAYS, 5.7 WKS, 104 WKS |
+
+- The unit agrees with the value: 1 EMAIL, 2 EMAILS; 1 HR, 3 HRS.
+- One decimal under 10, none from 10. Time rounds down, so it never claims more than has passed.
+- Unknown is a grey "—" with the unit kept in place, so nothing moves when the value arrives. A screen reader hears "Storage: unavailable" (`figureLabel`).
+
+### Colophon
+
+The console rail ends with the colophon (`ConsoleColophon.tsx`): four figures, then the mark and the version. It is 124px on a 4px grid, pressed into the rail with two 2px grooves (`--pg-con-groove`, `--pg-con-groove-edge`) and nothing raised or boxed.
+
+- Figures in a fixed order: messages, storage (every message's size, D1 and R2), addresses, uptime (since the running version was deployed, from the `version_metadata` binding). No fifth figure: a fifth stat belongs on a page.
+- Four auto columns, space-between, at least 12px apart, 20px in from the rail's edges. Figures are 16px in the 236px rail; the widest values (99,999 · 48.6 · 1,206 · 104) still keep the 12px gap.
+- Units are the mono caps at 9px with an 8px unit glyph, 4px apart.
+- The imprint: the mark (its last fold in the mail's orange, the colophon's only colour) and the wordmark, "plura" in the UI font and "MAIL" in mono at .763em; then the version and the GitHub glyph, the colophon's only link, with a 24px hit area.
+
 ### Error pages
 
 Every error the app shows uses one layout (`ErrorPage.tsx`): the postal surface and theme, the status code in mono, a 22px heading, one line, and Back to mail (plus Reload when a retry can help). The 404 page, the root error boundary and the Worker's Access errors all use it; the Worker's version is static HTML in `workers/lib/error-page.ts` that follows the system theme. A developer stack trace shows only in dev builds. API clients still get plain text.

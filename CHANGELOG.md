@@ -4,6 +4,15 @@ Versions follow [semantic versioning](https://semver.org). Before 1.0, a minor v
 
 ## 0.9.1
 
+### Added
+
+- The console rail ends with a colophon: messages, storage, addresses and uptime, then the mark, the version and a link to the source. `/api/v1/config` returns `version` and `deployedAt`, and `/api/v1/storage/status` returns `bytes`.
+- Figures (`shared/figures.ts`): one way to show counts, sizes and lengths of time in six characters or fewer. Uptime steps from minutes to hours to days to weeks.
+
+### Upgrading
+
+- Add `"version_metadata": { "binding": "CF_VERSION_METADATA" }` to a deployment's Wrangler config for the colophon's uptime. Without it, uptime shows "—".
+
 ### Fixed
 
 - `npm run smoke` checks MCP sign-in: `/mcp` answers 401 with an OAuth challenge, the OAuth metadata under `/.well-known` loads, and `/authorize` stays behind Access. When Access still blocks `/mcp`, it says to add the bypass.

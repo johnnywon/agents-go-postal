@@ -3,6 +3,7 @@
 //     https://opensource.org/licenses/Apache-2.0
 
 import { type Context, Hono } from "hono";
+import pkg from "../package.json";
 import { cors } from "hono/cors";
 import PostalMime from "postal-mime";
 import { z } from "zod";
@@ -135,7 +136,9 @@ app.get("/api/v1/config", (c) => {
 	const emailAddresses = configuredAddresses(c.env);
 	// Agents run on new mail on every deployment but a demo; which mail is up to each agent.
 	const autoDraft = !DEMO;
-	return c.json({ domains, emailAddresses, autoDraft, demo: DEMO });
+	// The colophon: the running version and when it was deployed (null without the version_metadata binding).
+	const deployedAt = c.env.CF_VERSION_METADATA?.timestamp ?? null;
+	return c.json({ domains, emailAddresses, autoDraft, demo: DEMO, version: pkg.version, deployedAt });
 });
 
 // Local QA only (import.meta.env.DEV is false in production builds, so none of this exists there).

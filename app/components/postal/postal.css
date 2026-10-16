@@ -98,6 +98,7 @@ html:has(.postal), html:has(.postal) body { background: var(--pg-base, #141518);
   .pg-ui-picker-row,
   .pg-ui-picker-search,
   .pg-ui-sum-row + .pg-ui-sum-row,
+  .pg-console-colophon, .pg-console-colophon-imprint,
   .pg-ui-rungs > li + li,
   .pg-ui-gate,
   .pg-ui-rung-n,
@@ -1345,6 +1346,25 @@ button.pg-model-row:hover { background: var(--pg-hover); }
 .pg-console-mail:hover { border-color: var(--pg-con-accent); color: var(--pg-text-1); }
 .pg-console-mail:hover svg { color: var(--pg-con-accent-text); }
 .pg-console-links { flex: 1; overflow-y: auto; padding: 10px 8px; display: flex; flex-direction: column; gap: 1px; }
+/* Colophon: closes the rail. Four figures, then the mark and the version, on a 4px grid. Nothing raised or boxed. */
+/* Each groove is 2px, a cut and its lit edge, so the colophon stays 124px on the 4px grid. */
+.pg-console-colophon { flex: none; color: var(--pg-text-1); border-top: 1px solid var(--pg-con-groove); }
+.pg-console-colophon::before { content: ""; display: block; height: 1px; background: var(--pg-con-groove-edge); }
+.pg-console-colophon-figures { display: grid; grid-template-columns: repeat(4, auto); justify-content: space-between; column-gap: 12px; padding: 16px 20px; }
+.pg-console-colophon-cell { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.pg-console-colophon-cell b { height: 20px; font: 600 16px/20px var(--pg-font); letter-spacing: -.05em; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.pg-console-colophon-cell b[data-unknown] { color: var(--pg-text-7); }
+.pg-console-colophon-cell span { display: flex; align-items: center; gap: 4px; height: 12px; font: 600 9px/12px var(--pg-mono); letter-spacing: .08em; white-space: nowrap; }
+.pg-console-colophon-cell svg { flex: none; display: block; overflow: visible; }
+.pg-console-colophon-imprint { display: flex; justify-content: space-between; align-items: flex-end; margin: 0 20px; padding: 13px 0 16px; border-top: 1px solid var(--pg-con-groove); box-shadow: inset 0 1px 0 var(--pg-con-groove-edge); }
+.pg-console-colophon-mark { display: flex; align-items: center; gap: 6px; }
+.pg-console-colophon-mark svg { flex: none; margin-top: 1px; }
+.pg-console-colophon-mark > span { display: flex; align-items: baseline; font: 600 18px/24px var(--pg-font); letter-spacing: -.035em; font-kerning: none; }
+.pg-console-colophon-mark i { font: 600 .763em var(--pg-mono); font-style: normal; letter-spacing: .02em; }
+.pg-console-colophon-flap { stroke: var(--pg-mail); }
+.pg-console-colophon-version { display: flex; align-items: center; gap: 6px; padding-bottom: 5px; font: 600 9px/12px var(--pg-mono); letter-spacing: .08em; color: var(--pg-text-6); }
+.pg-console-colophon-version a { display: grid; place-items: center; width: 24px; height: 24px; margin: -6px -7px -6px -3px; color: var(--pg-text-6); }
+.pg-console-colophon-version a:hover { color: var(--pg-text-1); }
 .pg-console-link { display: flex; align-items: center; gap: 10px; height: 30px; padding: 0 10px; color: var(--pg-text-5); text-align: left; }
 .pg-console-link:hover { background: var(--pg-hover); color: var(--pg-text-2); }
 .pg-console-link[aria-current="page"] { background: var(--pg-active); color: var(--pg-text-1); font-weight: 600; }
