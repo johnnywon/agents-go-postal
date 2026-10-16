@@ -1436,6 +1436,9 @@ button.pg-model-row:hover { background: var(--pg-hover); }
 .pg-ui-note[data-tone="ok"] { color: var(--pg-green-text); }
 .pg-ui-note[data-tone="error"] { color: var(--pg-danger-text); }
 .pg-ui-note[data-tone="warn"] { color: var(--pg-yellow-text); }
+.pg-ui-note a { color: inherit; text-decoration: underline; text-underline-offset: 2px; white-space: nowrap; }
+.pg-ui-note a svg { display: inline-block; vertical-align: -1px; margin-left: 2px; }
+.pg-ui-note a:hover { color: var(--pg-text-1); }
 .pg-ui-note + .pg-ui-panel { margin-top: 12px; }
 
 .pg-ui-panel { border: 1px solid var(--pg-line); background: var(--pg-raised); }

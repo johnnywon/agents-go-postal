@@ -42,7 +42,7 @@ For client authors and for debugging. A client that supports MCP authorization d
 | Refresh token | 30 days |
 | Redirect URIs | `https`, or `http` on `localhost` / `127.0.0.1` / `::1` |
 
-A token works only on the hostname that issued it. A request to `/mcp` with an `Origin` header from another site is refused with `403`. On a deployment, Cloudflare Access must let `/mcp` and `/.well-known/oauth-*` through and keep `/authorize` behind it ([setup](setup.md#mcp-clients)).
+A token works only on the hostname that issued it. A request to `/mcp` with an `Origin` header from another site is refused with `403`. On a deployment, Cloudflare Access must let `/mcp` and `/.well-known` through and keep `/authorize` behind it ([setup](setup.md)). Console > MCP says so, with the paths to bypass, while Access still blocks clients.
 
 ## Scopes and tools
 

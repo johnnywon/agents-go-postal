@@ -33,12 +33,11 @@ Requirements: a domain on Cloudflare, R2, and Workers Paid for outbound email. T
    ```
    `TEAM_DOMAIN` must include `https://`; use the team URL or the full `/cdn-cgi/access/certs` URL.
 
-   Then let MCP clients past Access: they sign in with the app's own OAuth instead. In Zero Trust › Access › Applications, add a self-hosted application on the same hostname with these paths and one **Bypass** policy for Everyone:
+   Then let MCP clients past Access: they sign in with the app's own OAuth instead. In Zero Trust › Access › Applications, add a self-hosted application on the same hostname with these two paths and one **Bypass** policy for Everyone:
    - `/mcp`
-   - `/.well-known/oauth-authorization-server`
-   - `/.well-known/oauth-protected-resource`
+   - `/.well-known`
 
-   `/mcp` covers the OAuth endpoints under it (`/mcp/oauth/token`, `/mcp/oauth/register`). Leave `/authorize` behind Access: it is the consent page, and who passes Access there is who the client acts for.
+   Console > MCP checks this and shows the two paths with your hostname while Access still blocks clients. `/mcp` covers the OAuth endpoints under it (`/mcp/oauth/token`, `/mcp/oauth/register`). Leave `/authorize` behind Access: it is the consent page, and who passes Access there is who the client acts for.
 6. **Route mail to the Worker.** Enable Email Routing for the domain, then add one rule per address in `EMAIL_ADDRESSES`:
    ```sh
    npx wrangler@latest email routing enable example.com
