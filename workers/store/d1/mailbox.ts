@@ -382,6 +382,12 @@ export class D1Mailbox {
 		return { state: row.state === "sending" ? "sending" : "pending", providerId: row.provider_id == null ? null : String(row.provider_id) };
 	}
 
+	/** A key whose send went out: the Sent copy's id and the content it sent. Null for any other state. */
+	async sentSendKey(key: string): Promise<{ id: string; contentHash: string | null } | null> {
+		const row = await this.sql.first(`SELECT email_id, content_hash FROM send_keys WHERE mailbox_id = ? AND key = ? AND state = 'sent'`, this.#id, key);
+		return row ? { id: String(row.email_id), contentHash: row.content_hash == null ? null : String(row.content_hash) } : null;
+	}
+
 	/** pending -> sending. False when another caller already started this attempt. */
 	async startSendKey(key: string): Promise<boolean> {
 		const rows = await this.sql.all(

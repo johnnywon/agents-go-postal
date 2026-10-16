@@ -17,6 +17,7 @@
  * run keeps its last draft and discards the earlier ones. Each sender gets autoDraftPerSender
  * drafts per address a day (Console > Limits); later mail is stored but not drafted.
  */
+import type { Unmatched } from "../../shared/prefs";
 import { DEFAULT_AGENT_LIMITS } from "../../shared/send-limits";
 import type { Sql } from "../store/sql";
 
@@ -60,8 +61,27 @@ export function draftedOutcome(draftIds: string[]): DraftOutcome {
 }
 
 /**
- * The outcome when drafting throws. A draft that was already saved settles the
- * run as drafted: a retry would draft the same reply again.
+ * What a run does with the drafts it saved: the drafts to discard, then either
+ * the outcome or the draft the chosen agent acts on. Used on success and after
+ * an error, so a Watch agent's draft or a draft nobody takes never stays.
+ */
+export function settleDrafts(
+	draftIds: string[],
+	agent: { id: string } | null,
+	matched: number,
+	unmatched: Unmatched,
+): { discard: string[]; outcome: DraftOutcome } | { discard: string[]; act: string } {
+	if (!draftIds.length) return { discard: [], outcome: { status: "skipped", reason: matched ? "no agent's job fits" : "the model wrote no draft" } };
+	if (!agent && matched > 0 && unmatched === "leave") return { discard: draftIds, outcome: { status: "skipped", reason: "no agent's job fits" } };
+	if (!agent) return { discard: [], outcome: draftedOutcome(draftIds) };
+	// The agent acts on the last draft; any earlier ones from this run go.
+	return { discard: draftIds.slice(0, -1), act: draftIds[draftIds.length - 1] };
+}
+
+/**
+ * The outcome when drafting throws and the drafts couldn't be settled. A draft
+ * that was already saved settles the run as drafted: a retry would draft the
+ * same reply again.
  */
 export function outcomeAfterError(error: unknown, draftIds: string[]): DraftOutcome {
 	const message = (error as Error)?.message || "Auto-draft failed";

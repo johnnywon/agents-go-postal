@@ -8,7 +8,8 @@ import { mailStore } from "../store";
 import type { Env } from "../types";
 import { getFullThread, textToHtml } from "./email-helpers";
 import type { EmailFull } from "./schemas";
-import { sendMail, type SendResult } from "./send";
+import { sendMail, type SendEmailRequest, type SendMode, type SendResult } from "./send";
+import { SEND_KEY_CONFLICT_ERROR, sendContentHash } from "./send-keys";
 
 /**
  * Sending in one call from MCP: reply_to_email and send_email. Each send takes
@@ -120,16 +121,6 @@ export async function toolReplyToEmail(env: Env, mailboxId: string, clientId: st
 		return fail("not_received", "Reply to an email you received, not one you sent or drafted");
 	}
 
-	// The newest email received in the conversation must be this one.
-	if (original.thread_id) {
-		const { messages } = await getFullThread(stub, original.thread_id);
-		const received = messages.filter(wasReceived);
-		const latest = received[received.length - 1];
-		if (latest && latest.id !== original.id) {
-			return fail("conversation_advanced", "A newer email arrived in this conversation. Read it, then reply to it instead.", { latestEmailId: latest.id });
-		}
-	}
-
 	const target = replyTarget(original);
 	const expected = input.expectedRecipients.map((a) => a.trim().toLowerCase()).filter(Boolean);
 	if (!target.length) return fail("invalid_input", "This email has no address to reply to");
@@ -141,14 +132,35 @@ export async function toolReplyToEmail(env: Env, mailboxId: string, clientId: st
 	if (!files.ok) return fail("invalid_input", files.error);
 	const base = original.subject?.trim() || "";
 	const subject = /^re:/i.test(base) ? base : `Re: ${base || "(no subject)"}`;
-	const result = await sendMail(env, mailboxId, stub, {
+	const body: SendEmailRequest = {
 		to: target,
 		from: await senderFor(env, mailboxId),
 		subject,
 		html: textToHtml(input.text),
 		text: input.text,
 		...(files.attachments.length ? { attachments: files.attachments } : {}),
-	}, { kind: "reply", originalId: original.id }, { idempotencyKey: await storedKey(clientId, input.idempotencyKey), actor: "mcp" });
+	};
+	const mode: SendMode = { kind: "reply", originalId: original.id };
+	const key = await storedKey(clientId, input.idempotencyKey);
+
+	// A retry of a reply that went out answers with the first send, even if mail arrived since.
+	const sent = await stub.sentSendKey(key);
+	if (sent) {
+		if (sent.contentHash && sent.contentHash !== (await sendContentHash([mode, body]))) return sendOutcome({ ok: false, status: 409, error: SEND_KEY_CONFLICT_ERROR }, mailboxId, target, subject);
+		return sendOutcome({ ok: true, id: sent.id, duplicate: true }, mailboxId, target, subject);
+	}
+
+	// The newest email received in the conversation must be this one.
+	if (original.thread_id) {
+		const { messages } = await getFullThread(stub, original.thread_id);
+		const received = messages.filter(wasReceived);
+		const latest = received[received.length - 1];
+		if (latest && latest.id !== original.id) {
+			return fail("conversation_advanced", "A newer email arrived in this conversation. Read it, then reply to it instead.", { latestEmailId: latest.id });
+		}
+	}
+
+	const result = await sendMail(env, mailboxId, stub, body, mode, { idempotencyKey: key, actor: "mcp" });
 	return sendOutcome(result, mailboxId, target, subject);
 }
 

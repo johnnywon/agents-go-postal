@@ -195,7 +195,7 @@ export function matchAgents(agents: readonly Agent[], mail: InboundMail): Agent[
 		&& a.rules.every((r) => testRule(r, mail)));
 }
 
-/** The agents whose rules passed, for the drafting prompt: the model picks the one whose job fits, or none. */
+/** The agents whose rules passed, in list order, for the drafting prompt: the model takes the first whose job fits, or none. */
 export function agentPrompt(agents: readonly Agent[]): string {
 	if (agents.length === 0) return "";
 	const list = agents.map((a) => {
@@ -205,7 +205,7 @@ export function agentPrompt(agents: readonly Agent[]): string {
 		return lines.join("\n");
 	}).join("\n\n");
 	return `## Agents
-The operator hired these agents for mail like this. Pick the one whose job fits the new email and follow its instructions, or none if no job fits. Pass its name as draft_reply's agent, or leave agent out.
+The operator hired these agents for mail like this, highest first. Take the first one whose job fits the new email and follow its instructions, or none if no job fits. Pass its name as draft_reply's agent and every agent whose job fits as fits, or leave both out.
 
 ${list}`;
 }
@@ -214,6 +214,15 @@ ${list}`;
 export function findAgent(agents: readonly Agent[], name: string | null | undefined): Agent | null {
 	const wanted = (name ?? "").trim().toLowerCase();
 	return wanted ? agents.find((a) => a.name.toLowerCase() === wanted) ?? null : null;
+}
+
+/**
+ * The agent that takes the message: the highest in the list among the one the
+ * model named and the ones it said fit. The list order decides, not the model.
+ */
+export function firstFitting(agents: readonly Agent[], named: string | null | undefined, fits: readonly string[] = []): Agent | null {
+	const wanted = new Set([named, ...fits].map((n) => (n ?? "").trim().toLowerCase()).filter(Boolean));
+	return agents.find((a) => wanted.has(a.name.toLowerCase())) ?? null;
 }
 
 /** Sends by this agent in the last 24 hours, overall and to one sender. */

@@ -201,3 +201,20 @@ test("a catalog that failed is retried after a minute, not on every run", async 
 	assert.equal(calls, 1);
 	m.clearCatalogCache();
 });
+
+test("when only the zero retention list fails, requests still ask for zero retention", async () => {
+	m.clearCatalogCache();
+	const realFetch = globalThis.fetch;
+	globalThis.fetch = async (url) => String(url).endsWith("/endpoints/zdr")
+		? new Response("down", { status: 503 })
+		: Response.json({ data: [{ id: "maker/model", name: "Model", context_length: 1000, pricing: { prompt: "0.000001", completion: "0.000002" } }] });
+	try {
+		const catalog = await m.catalogFor({}, "openrouter", {});
+		assert.equal(catalog.source, "live");
+		assert.equal(catalog.zdrUnknown, true);
+		assert.equal(await m.openRouterZdr({}, "maker/model"), true);
+	} finally {
+		globalThis.fetch = realFetch;
+		m.clearCatalogCache();
+	}
+});

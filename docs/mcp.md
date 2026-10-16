@@ -53,6 +53,8 @@ A token works only on the hostname that issued it. A request to `/mcp` with an `
 
 A client without `mail.send` doesn't see the send tools in `tools/list`. `MCP_SEND_ENABLED=false` in the Worker config takes them away from every client.
 
+A session belongs to the token that opened it. A token with other scopes, or from another grant, gets `404 Session not found` on that session and starts a new one. A token requested with `scope=mail` from a grant that has `mail.send` can't send.
+
 Each tool carries MCP hints: reading tools are `readOnlyHint`, tools that send or delete are `destructiveHint`.
 
 ## For the agent using these tools

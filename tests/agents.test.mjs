@@ -127,7 +127,8 @@ test("review lists agent drafts still waiting in Drafts", async () => {
 	assert.deepEqual(list.map((d) => [d.emailId, d.agent]), [["dr1", "Outreach"]]);
 });
 
-test("the drafting prompt lists the matched agents' jobs, and the model's pick is found by name", () => {
+test("the drafting prompt lists the matched agents' jobs highest first, and the model's pick is found by name", () => {
+	assert.match(agents.agentPrompt([{ name: "A", job: "x", instructions: "", exampleReply: "" }]), /highest first. Take the first one whose job fits/);
 	const list = [
 		{ name: "Penny", job: "Decline pitches.", instructions: "One line.", exampleReply: "" },
 		{ name: "Otis", job: "Ask for the order number.", instructions: "", exampleReply: "Could you send it?" },
@@ -139,4 +140,12 @@ test("the drafting prompt lists the matched agents' jobs, and the model's pick i
 	assert.equal(agents.findAgent(list, " penny ")?.name, "Penny");
 	assert.equal(agents.findAgent(list, "Mabel"), null);
 	assert.equal(agents.findAgent(list, undefined), null);
+});
+
+test("list order decides between agents whose jobs fit, not the model", () => {
+	const list = [{ name: "Penny" }, { name: "Otis" }, { name: "Mabel" }];
+	assert.equal(agents.firstFitting(list, "Mabel", ["otis", "Mabel"])?.name, "Otis");
+	assert.equal(agents.firstFitting(list, "Mabel")?.name, "Mabel");
+	assert.equal(agents.firstFitting(list, null, []), null);
+	assert.equal(agents.firstFitting(list, "Nobody", ["Ghost"]), null);
 });

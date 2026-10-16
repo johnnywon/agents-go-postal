@@ -161,7 +161,7 @@ export function privacyFetch(zdr: boolean): typeof fetch {
  */
 export async function openRouterZdr(env: Env, id: string): Promise<boolean> {
 	const catalog = await catalogFor(env, "openrouter", {});
-	if (catalog.source === "none") return true;
+	if (catalog.source === "none" || catalog.zdrUnknown) return true;
 	return catalog.models.find((m) => m.id === id)?.zdr ?? true;
 }
 
@@ -251,6 +251,8 @@ export interface ProviderCatalog {
 	source: "live" | "openrouter" | "none";
 	models: CatalogModel[];
 	error?: string;
+	/** OpenRouter's zero retention list couldn't be read: no model's `zdr: false` can be trusted. */
+	zdrUnknown?: boolean;
 }
 
 const CATALOG_TTL_MS = 3_600_000;
@@ -267,7 +269,7 @@ async function cached(key: string, load: () => Promise<ProviderCatalog>, now = D
 	const hit = cache.get(key);
 	if (hit && now - hit.at < hit.ttl) return hit.value;
 	const value = await load();
-	cache.set(key, { at: now, ttl: value.source === "none" ? CATALOG_FAILURE_TTL_MS : CATALOG_TTL_MS, value });
+	cache.set(key, { at: now, ttl: value.source === "none" || value.zdrUnknown ? CATALOG_FAILURE_TTL_MS : CATALOG_TTL_MS, value });
 	return value;
 }
 
@@ -305,7 +307,9 @@ async function loadWorkersAi(env: Env): Promise<ProviderCatalog> {
 /**
  * What the OpenRouter tab lists: every paid model, each marked with whether it
  * has a zero retention endpoint. Both lists are public, so they show without a
- * key. When /models fails, the zero retention models still show.
+ * key. When /models fails, the zero retention models still show. When the
+ * zero retention list fails, requests keep asking for zero retention and the
+ * catalog is read again after a minute.
  */
 async function loadOpenRouter(): Promise<ProviderCatalog> {
 	const [all, zdr] = await Promise.allSettled([
@@ -317,7 +321,8 @@ async function loadOpenRouter(): Promise<ProviderCatalog> {
 	}
 	const zdrModels = zdr.status === "fulfilled" ? modelsFromZdr(zdr.value.data ?? []) : [];
 	const models = modelsFromOpenRouter(all.status === "fulfilled" ? all.value.data ?? [] : [], zdrModels);
-	return models.length ? { source: "live", models } : { source: "none", models: [], error: "OpenRouter's catalog came back empty." };
+	if (!models.length) return { source: "none", models: [], error: "OpenRouter's catalog came back empty." };
+	return zdr.status === "rejected" ? { source: "live", models, zdrUnknown: true } : { source: "live", models };
 }
 
 export async function catalogFor(env: Env, provider: ProviderId, keys: Keys): Promise<ProviderCatalog> {

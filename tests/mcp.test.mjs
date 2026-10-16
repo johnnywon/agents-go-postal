@@ -330,6 +330,22 @@ test("reply_to_email refuses an email that a newer one in its conversation has p
 	assert.equal(old.data.latestEmailId, "t2");
 });
 
+test("a retried reply answers with the first send even after newer mail arrived", async () => {
+	const at = (h) => new Date(Date.UTC(2026, 9, 3, h)).toISOString();
+	const email = (id, h) => ({ id, date: at(h), message_id: `${id}@mail`, subject: "Lunch", sender: "dan@example.org", recipient: MAILBOX, body: "<p>Friday?</p>", read: false, starred: false, thread_id: "u1", raw_headers: "[]" });
+	const seed = (emails) => mf.dispatchFetch(`${ORIGIN}/_seed`, { method: "POST", body: JSON.stringify({ mailbox: MAILBOX, emails }) });
+	await seed([email("u1", 1)]);
+	const reply = { mailboxId: MAILBOX, emailId: "u1", expectedRecipients: ["dan@example.org"], text: "Friday works.", idempotencyKey: "reply-u1-0001" };
+	const sent = await ok("reply_to_email", reply);
+	assert.equal(sent.status, "sent");
+	await seed([email("u2", 2)]);
+	const retry = await ok("reply_to_email", reply);
+	assert.equal(retry.status, "already_sent");
+	assert.equal(retry.sentId, sent.sentId);
+	const fresh = await call("reply_to_email", { ...reply, idempotencyKey: "reply-u1-0002" });
+	assert.equal(fresh.data.code, "conversation_advanced");
+});
+
 test("send_email sends a new email with an attachment, and checks the file", async () => {
 	const pdf = Buffer.from("%PDF-1.4 test").toString("base64");
 	const base = { mailboxId: MAILBOX, to: ["carol@example.org"], subject: "Report", text: "Attached.", idempotencyKey: "send-report-0001" };

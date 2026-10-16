@@ -57,3 +57,17 @@ test("the reply goes to Reply-To, else the sender", () => {
 	);
 	assert.equal(autoDraftRecipient({ sender: "", raw_headers: null }), "");
 });
+
+test("the highest agent in the list whose job fits takes the message", async () => {
+	const draftReply = fakeDraftReply();
+	const picked = [];
+	const agents = [{ name: "Penny", job: "Decline pitches." }, { name: "Otis", job: "Ask for details." }];
+	const { draft_reply } = createAutoDraftTools({}, TARGET, CONTEXT, draftReply, { agents, onDraft: (_id, agent) => picked.push(agent) });
+	// The model drafted for Otis but says Penny fits too: nothing is saved, and it's told to write for Penny.
+	const refused = await draft_reply.execute({ subject: "Re: Hi", body: "Which order?", agent: "Otis", fits: ["otis", "Penny"] });
+	assert.match(refused.error, /Penny is higher in the list/);
+	assert.equal(draftReply.calls.length, 0);
+	await draft_reply.execute({ subject: "Re: Hi", body: "No thanks.", agent: "penny", fits: ["Penny", "Otis"] });
+	await draft_reply.execute({ subject: "Re: Hi", body: "Which order?", agent: "Otis", fits: ["Otis"] });
+	assert.deepEqual(picked, ["Penny", "Otis"]);
+});

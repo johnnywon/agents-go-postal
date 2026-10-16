@@ -25,7 +25,7 @@ import { stripHtmlToText, textToHtml } from "../lib/email-helpers";
 import { parseSender } from "../lib/message-meta";
 import { HeaderValueSchema } from "../lib/schemas";
 import type { EmailFull } from "../lib/schemas";
-import { type Agent, agentPrompt, findAgent } from "../lib/agents";
+import { type Agent, agentPrompt, findAgent, firstFitting } from "../lib/agents";
 import { toolDraftReply } from "../lib/tools";
 import type { MailboxStore } from "../store/types";
 import type { Sql } from "../store/sql";
@@ -189,11 +189,19 @@ export function createAutoDraftTools(
 				subject: HeaderValueSchema.describe("Subject line (usually 'Re: ...')"),
 				body: z.string().describe("The plain text body of the reply. No HTML, just write normally."),
 				...(agents.length > 0
-					? { agent: z.string().optional().describe("The name of the agent whose job you followed. Leave out if none fits.") }
+					? {
+						agent: z.string().optional().describe("The name of the agent whose job you followed. Leave out if none fits."),
+						fits: z.array(z.string()).optional().describe("The name of every agent whose job fits the new email."),
+					}
 					: {}),
 			}),
-			execute: async ({ subject, body, agent }: { subject: string; body: string; agent?: string }): Promise<unknown> => {
+			execute: async ({ subject, body, agent, fits }: { subject: string; body: string; agent?: string; fits?: string[] }): Promise<unknown> => {
 				const chosen = findAgent(agents, agent)?.name ?? null;
+				// The highest agent in the list whose job fits takes the message.
+				const first = firstFitting(agents, agent, fits);
+				if (first && first.name !== chosen) {
+					return { error: `${first.name} is higher in the list and its job fits. Write the reply for ${first.name}, following its instructions, and pass agent "${first.name}".` };
+				}
 				const result = await draftReply(env, mailboxId, {
 					originalEmailId: emailId,
 					to,

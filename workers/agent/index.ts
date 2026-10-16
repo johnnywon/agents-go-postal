@@ -47,9 +47,10 @@ import type { Env } from "../types";
 import { defineTool, logTools } from "./tool-def";
 import { getSystemPrompt } from "./prompt";
 import { autoDraftPrompt, createAutoDraftTools, prepareAutoDraft, saveTextDraft } from "./auto-draft";
-import { type AutoDraftTarget, type DraftOutcome, draftedOutcome, outcomeAfterError } from "./runs";
+import { type AutoDraftTarget, type DraftOutcome, outcomeAfterError, settleDrafts } from "./runs";
 import { type Agent, agentSendsToday, listAgents, matchAgents } from "../lib/agents";
 import { readPrefs } from "../lib/prefs";
+import type { Unmatched } from "../../shared/prefs";
 
 const CHAT_NOTES: DraftNotes = { origin: "chat", agent: null, instructions: [] };
 
@@ -446,17 +447,20 @@ export class EmailAgent extends AIChatAgent<any> {
 
 		// Every draft saved, oldest first; an error after the first still counts as drafted.
 		const draftIds: string[] = [];
+		let matched: Agent[] = [];
+		let unmatched: Unmatched = "leave";
+		let chosen: string | null = null;
 		try {
 			const model = await agentModel(env, { reasoning: false });
 			const systemPrompt = await getSystemPrompt(env, target.mailboxId);
 			// Rules first, no model call: the agents that watch this address and whose rules pass.
 			const [agents, { prefs }] = await Promise.all([listAgents(sql), readPrefs(env)]);
-			const matched = matchAgents(agents, {
+			unmatched = prefs.unmatched;
+			matched = matchAgents(agents, {
 				mailboxId: target.mailboxId, from: context.email.sender, subject: context.email.subject, body: context.email.body_text,
 			});
 			if (matched.length === 0 && prefs.unmatched === "leave") return { status: "skipped", reason: "no agent takes this mail" };
 			// The model reads the jobs of the agents that passed and drafts for one, or none. The last draft's agent is the one chosen.
-			let chosen: string | null = null;
 			const tools = logTools(createAutoDraftTools(env, {
 				mailboxId: target.mailboxId,
 				emailId: target.emailId,
@@ -501,20 +505,25 @@ export class EmailAgent extends AIChatAgent<any> {
 				),
 			]);
 
-			if (!draftIds.length) return { status: "skipped", reason: matched.length ? "no agent's job fits" : "the model wrote no draft" };
-			const agent = chosen ? matched.find((a) => a.name === chosen) ?? null : null;
-			if (!agent && matched.length > 0 && prefs.unmatched === "leave") {
-				for (const id of draftIds) await toolDiscardDraft(env, target.mailboxId, id).catch(() => {});
-				return { status: "skipped", reason: "no agent's job fits" };
-			}
-			if (!agent) return draftedOutcome(draftIds);
-			// The agent acts on the last draft; any earlier ones from this run go.
-			for (const id of draftIds.slice(0, -1)) await toolDiscardDraft(env, target.mailboxId, id).catch(() => {});
-			return await this.actAs(agent, draftIds[draftIds.length - 1], target);
+			return await this.settle(draftIds, chosen, matched, unmatched, target);
 		} catch (e) {
 			console.error("Auto-draft failed:", (e as Error).message);
-			return outcomeAfterError(e, draftIds);
+			if (!draftIds.length) return outcomeAfterError(e, draftIds);
+			// Drafts saved before the error still go to the chosen agent: Watch discards its draft.
+			try {
+				return await this.settle(draftIds, chosen, matched, unmatched, target);
+			} catch (settleError) {
+				console.error("Auto-draft settle failed:", (settleError as Error).message);
+				return outcomeAfterError(e, draftIds);
+			}
 		}
+	}
+
+	private async settle(draftIds: string[], chosen: string | null, matched: Agent[], unmatched: Unmatched, target: AutoDraftTarget): Promise<DraftOutcome> {
+		const agent = chosen ? matched.find((a) => a.name === chosen) ?? null : null;
+		const settled = settleDrafts(draftIds, agent, matched.length, unmatched);
+		for (const id of settled.discard) await toolDiscardDraft(this.env as Env, target.mailboxId, id).catch(() => {});
+		return "outcome" in settled ? settled.outcome : await this.actAs(agent!, settled.act, target);
 	}
 
 	/**
@@ -527,7 +536,9 @@ export class EmailAgent extends AIChatAgent<any> {
 		if (agent.mode === "watch") {
 			const draft = await mailStore(env).mailbox(target.mailboxId).getEmail(draftId);
 			const preview = String(draft?.body ?? "").replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim().slice(0, 300);
-			await toolDiscardDraft(env, target.mailboxId, draftId).catch(() => {});
+			// A draft that couldn't be discarded is still in Drafts: the run is not "watched".
+			const discarded = await toolDiscardDraft(env, target.mailboxId, draftId);
+			if ("error" in discarded && discarded.error !== "Draft not found") throw new Error(`Watch draft not discarded: ${String(discarded.error)}`);
 			return { status: "watched", agentId: agent.id, reason: preview ? `Would reply: ${preview}` : "Would reply" };
 		}
 		if (agent.mode === "draft") return { status: "drafted", draftId, agentId: agent.id };

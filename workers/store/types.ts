@@ -49,6 +49,7 @@ export type MailboxStore = Pick<
 	| "takeSendBudget"
 	| "refundSendBudget"
 	| "claimSendKey"
+	| "sentSendKey"
 	| "startSendKey"
 	| "recordSendProvider"
 	| "finishSendKey"

@@ -7,6 +7,7 @@ import { foreignOrigin } from "../lib/csrf";
 import { withSecurityHeaders } from "../lib/security-headers";
 import type { Env } from "../types";
 import { EmailMCP } from "./index";
+import { bindSessions, narrowProps } from "./session";
 import { MCP_ROUTE, MCP_SCOPES, MCP_TOKEN_ENDPOINT, MCP_REGISTER_ENDPOINT, AUTHORIZE_ENDPOINT, SCOPE_MAIL } from "./scopes";
 
 /**
@@ -26,7 +27,7 @@ export function isMcpLookalike(pathname: string): boolean {
 	return pathname.startsWith(MCP_ROUTE) && pathname !== MCP_ROUTE && pathname !== MCP_TOKEN_ENDPOINT && pathname !== MCP_REGISTER_ENDPOINT;
 }
 
-const mcp = EmailMCP.serve(MCP_ROUTE, { binding: "EMAIL_MCP" });
+const mcp = bindSessions<Env>(EmailMCP.serve(MCP_ROUTE, { binding: "EMAIL_MCP" }));
 
 // The Worker answers on workers.dev and on custom domains. Each origin is its own
 // issuer and resource, so a token only works on the hostname that issued it.
@@ -51,6 +52,7 @@ function providerFor(origin: string, web: Handler): OAuthProvider<Env> {
 			bearer_methods_supported: ["header"],
 		},
 		clientIdMetadataDocumentEnabled: true,
+		tokenExchangeCallback: narrowProps,
 		accessTokenTTL: 60 * 60,
 		refreshTokenTTL: 30 * 24 * 60 * 60,
 		onError({ status, code, internal }) {
