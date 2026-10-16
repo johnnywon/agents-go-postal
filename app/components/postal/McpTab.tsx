@@ -2,75 +2,36 @@
 // Licensed under the Apache 2.0 license found in the LICENSE file or at:
 //     https://opensource.org/licenses/Apache-2.0
 
-import { ArrowSquareOutIcon, MagnifyingGlassIcon, PlugsConnectedIcon, ShieldCheckIcon, WrenchIcon } from "@phosphor-icons/react";
-import { useQuery } from "@tanstack/react-query";
+import { MagnifyingGlassIcon, PlugsConnectedIcon, ShieldCheckIcon, WrenchIcon } from "@phosphor-icons/react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { MCP_GROUPS, MCP_TOOLS, type McpToolGroup } from "shared/mcp-tools";
-import api, { type McpUsage } from "~/services/api";
+import api, { type McpApp, type McpUsage } from "~/services/api";
 import type { ConsoleTab } from "./console-tabs";
 import { Async, Badge, Button, Code, CopyField, Name, Note, Section, Table, Tabs } from "./ConsoleUI";
 
-/** Production sits behind Cloudflare Access, so clients send a service token. The dev server has no Access. */
-const BEHIND_ACCESS = !import.meta.env.DEV;
-
-const ID = "CF_ACCESS_CLIENT_ID";
-const SECRET = "CF_ACCESS_CLIENT_SECRET";
-
-type Client = "claude-code" | "claude-desktop" | "cursor" | "curl";
+type Client = "claude-code" | "claude-desktop" | "cursor" | "other";
 
 const CLIENTS: { value: Client; label: string }[] = [
 	{ value: "claude-code", label: "Claude Code" },
 	{ value: "claude-desktop", label: "Claude Desktop" },
 	{ value: "cursor", label: "Cursor" },
-	{ value: "curl", label: "curl" },
+	{ value: "other", label: "Other" },
 ];
 
 const json = (v: unknown) => JSON.stringify(v, null, 2);
 
-/** What to run or paste for each client, with the token headers when Access is in front. */
+/** What to run or paste for each client. Each signs in with OAuth on its first call: no keys to copy. */
 function setup(client: Client, url: string): { lang: "sh" | "json"; title: string; code: string } {
 	switch (client) {
 		case "claude-code":
-			return {
-				lang: "sh", title: "terminal",
-				code: BEHIND_ACCESS
-					? `claude mcp add --transport http pluramail ${url} \\\n  --header "CF-Access-Client-Id: $${ID}" \\\n  --header "CF-Access-Client-Secret: $${SECRET}"`
-					: `claude mcp add --transport http pluramail ${url}`,
-			};
+			return { lang: "sh", title: "terminal", code: `claude mcp add --transport http pluramail ${url}` };
 		case "claude-desktop":
-			return {
-				lang: "json", title: "claude_desktop_config.json",
-				code: json({
-					mcpServers: {
-						pluramail: BEHIND_ACCESS
-							? {
-								command: "npx",
-								args: ["-y", "mcp-remote", url, "--header", `CF-Access-Client-Id:\${${ID}}`, "--header", `CF-Access-Client-Secret:\${${SECRET}}`],
-								env: { [ID]: "<client id>", [SECRET]: "<client secret>" },
-							}
-							: { command: "npx", args: ["-y", "mcp-remote", url] },
-					},
-				}),
-			};
+			return { lang: "sh", title: "Settings › Connectors › Add custom connector", code: url };
 		case "cursor":
-			return {
-				lang: "json", title: "~/.cursor/mcp.json",
-				code: json({
-					mcpServers: {
-						pluramail: BEHIND_ACCESS
-							? { url, headers: { "CF-Access-Client-Id": `\${env:${ID}}`, "CF-Access-Client-Secret": `\${env:${SECRET}}` } }
-							: { url },
-					},
-				}),
-			};
-		case "curl": {
-			const body = JSON.stringify({ jsonrpc: "2.0", id: 1, method: "initialize", params: { protocolVersion: "2025-06-18", capabilities: {}, clientInfo: { name: "curl", version: "1" } } });
-			const auth = BEHIND_ACCESS ? `  -H "CF-Access-Client-Id: $${ID}" \\\n  -H "CF-Access-Client-Secret: $${SECRET}" \\\n` : "";
-			return {
-				lang: "sh", title: "terminal",
-				code: `curl -sS ${url} \\\n  -H "Content-Type: application/json" \\\n  -H "Accept: application/json, text/event-stream" \\\n${auth}  -d '${body}'`,
-			};
-		}
+			return { lang: "json", title: "~/.cursor/mcp.json", code: json({ mcpServers: { pluramail: { url } } }) };
+		case "other":
+			return { lang: "sh", title: "OAuth discovery", code: `${url}\n${new URL(url).origin}/.well-known/oauth-protected-resource/mcp` };
 	}
 }
 
@@ -100,8 +61,8 @@ function Hop() {
 	);
 }
 
-/** The path a call takes: client, Access, the server, the tools. Numbers ride on the nodes. */
-function Wire({ usage }: { usage: McpUsage | undefined }) {
+/** The path a call takes: client, OAuth, the server, the tools. Numbers ride on the nodes. */
+function Wire({ usage, apps }: { usage: McpUsage | undefined; apps: McpApp[] | undefined }) {
 	const clients = usage?.clients.length ?? 0;
 	const today = usage?.clients.reduce((n, c) => n + c.today, 0) ?? 0;
 	return (
@@ -112,10 +73,10 @@ function Wire({ usage }: { usage: McpUsage | undefined }) {
 				<span>{usage?.clients[0]?.client ?? "JSON-RPC over HTTP"}</span>
 			</li>
 			<Hop />
-			<li data-off={!BEHIND_ACCESS || undefined}>
+			<li data-on={(apps?.length ?? 0) > 0 || undefined}>
 				<ShieldCheckIcon size={14} />
-				<b>Access</b>
-				<span>{BEHIND_ACCESS ? "service token" : "off in dev"}</span>
+				<b>OAuth</b>
+				<span>{apps?.length ? `${apps.length} app${apps.length === 1 ? "" : "s"} connected` : "no apps yet"}</span>
 			</li>
 			<Hop />
 			<li data-on>
@@ -137,6 +98,12 @@ function Wire({ usage }: { usage: McpUsage | undefined }) {
 export function McpTab({ onTab }: { onTab: (tab: ConsoleTab) => void }) {
 	const url = `${window.location.origin}/mcp`;
 	const usage = useQuery({ queryKey: ["mcp-usage"], queryFn: () => api.getMcpUsage(), refetchInterval: 15_000 });
+	const apps = useQuery({ queryKey: ["mcp-apps"], queryFn: () => api.getMcpApps() });
+	const queryClient = useQueryClient();
+	const revoke = useMutation({
+		mutationFn: (id: string) => api.revokeMcpApp(id),
+		onSettled: () => queryClient.invalidateQueries({ queryKey: ["mcp-apps"] }),
+	});
 	const [client, setClient] = useState<Client>("claude-code");
 	const [filter, setFilter] = useState("");
 	const step = setup(client, url);
@@ -154,29 +121,40 @@ export function McpTab({ onTab }: { onTab: (tab: ConsoleTab) => void }) {
 					<span>{last ? `last call ${ago(last)}` : "no calls yet"}</span>
 				</div>
 				<CopyField value={url} label="MCP server URL" />
-				<Wire usage={usage.data} />
+				<Wire usage={usage.data} apps={apps.data?.apps} />
 			</div>
 
 			<Section title="Connect a client">
 				<Tabs value={client} options={CLIENTS} onChange={setClient} />
 				<ol className="pg-mcp-steps">
-					{BEHIND_ACCESS && (
-						<li>
-							<b>Make a service token</b>
-							<p>
-								Zero Trust › Access › Service credentials. Add a Service Auth policy for it on this app. Export{" "}
-								<code className="pg-mono">{ID}</code> and <code className="pg-mono">{SECRET}</code>.{" "}
-								<a href="https://developers.cloudflare.com/cloudflare-one/identity/service-tokens/" target="_blank" rel="noreferrer">
-									Service tokens <ArrowSquareOutIcon size={11} />
-								</a>
-							</p>
-						</li>
-					)}
 					<li>
-						<b>{client === "curl" ? "Handshake" : "Add the server"}</b>
+						<b>Add the server</b>
 						<Code lang={step.lang} title={step.title}>{step.code}</Code>
 					</li>
+					<li>
+						<b>Approve it on the consent page</b>
+					</li>
 				</ol>
+			</Section>
+
+			<Section title="Connected apps">
+				<Async query={apps} empty="No apps connected." isEmpty={(d) => d.apps.length === 0}>
+					{(d) => (
+						<Table
+							label="Connected apps"
+							rows={d.apps}
+							rowKey={(r) => r.id}
+							columns={[
+								{ key: "name", label: "App", head: true, cell: (r) => <Name icon={<PlugsConnectedIcon size={14} />}>{r.name}</Name> },
+								{ key: "access", label: "Access", cell: (r) => (r.scopes.includes("mail.send") ? <Badge tone="danger">Read and send</Badge> : <Badge tone="ok">Read</Badge>) },
+								{ key: "since", label: "Connected", cell: (r) => <span className="pg-mono">{ago(r.connectedAt)}</span> },
+								{ key: "revoke", label: "", cell: (r) => (
+									<Button size="sm" disabled={revoke.isPending} onClick={() => revoke.mutate(r.id)}>Revoke</Button>
+								) },
+							]}
+						/>
+					)}
+				</Async>
 			</Section>
 
 			<Section

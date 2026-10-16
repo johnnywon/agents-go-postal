@@ -117,6 +117,15 @@ export interface McpUsage {
 	lastCall: string | null;
 }
 
+/** An app connected to the MCP server over OAuth. `scopes` has "mail.send" when it may send. */
+export interface McpApp {
+	id: string;
+	clientId: string;
+	name: string;
+	scopes: string[];
+	connectedAt: string;
+}
+
 export interface ActivityPage {
 	entries: ActivityEntry[];
 	next: number | null;
@@ -474,6 +483,8 @@ const api = {
 			params: Object.fromEntries(Object.entries(filter).filter(([, v]) => v !== undefined && v !== "").map(([k, v]) => [k, String(v)])),
 		}),
 	getMcpUsage: () => get<McpUsage>("/api/v1/mcp/usage"),
+	getMcpApps: () => get<{ apps: McpApp[] }>("/api/v1/mcp/apps"),
+	revokeMcpApp: (id: string) => del<{ ok: true }>(`/api/v1/mcp/apps/${encodeURIComponent(id)}`),
 	getAutoDraftRuns: (mailbox?: string) => get<AutoDraftRun[]>("/api/v1/auto-draft/runs", mailbox ? { params: { mailbox } } : undefined),
 
 	// Agents (Console > Agents)

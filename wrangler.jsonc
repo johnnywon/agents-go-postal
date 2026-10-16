@@ -52,6 +52,13 @@
 	"ai": {
 		"binding": "AI"
 	},
+	// OAuth for the MCP server: registered clients, grants and tokens (workers/mcp/oauth.ts).
+	// Deploy and the Deploy to Cloudflare button create the namespace.
+	"kv_namespaces": [
+		{
+			"binding": "OAUTH_KV"
+		}
+	],
 	// Optional, for AUTO_DRAFT_ENABLED: run auto-drafts on a queue that retries a failed draft
 	// three times with backoff, then moves it to a dead-letter queue. Without it, each draft is
 	// tried once. Create both queues (npx wrangler queues create pluramail-drafts, and

@@ -15,7 +15,8 @@ import { errorResponse } from "./lib/error-page";
 import { foreignOrigin } from "./lib/csrf";
 import { withSecurityHeaders } from "./lib/security-headers";
 import { app as apiApp, receiveEmail } from "./index";
-import { EmailMCP } from "./mcp";
+import { authorize } from "./mcp/authorize";
+import { withMcpOAuth } from "./mcp/oauth";
 import type { Env } from "./types";
 
 export { EmailAgent } from "./agent";
@@ -36,7 +37,7 @@ const requestHandler = createRequestHandler(
 );
 
 // Main app that wraps the API and adds React Router fallback
-const app = new Hono<{ Bindings: Env }>();
+const app = new Hono<{ Bindings: Env; Variables: { viewer: string } }>();
 app.use("*", async (c, next) => {
 	await next();
 	c.res = withSecurityHeaders(c.res);
@@ -49,6 +50,7 @@ app.use("*", async (c, next) => {
 		return c.json({ error: "The agent and MCP server are off in the demo" }, 403);
 	}
 	if (import.meta.env.DEV || DEMO) {
+		c.set("viewer", "local");
 		return next();
 	}
 
@@ -68,11 +70,13 @@ app.use("*", async (c, next) => {
 
 	try {
 		const { issuer, certsUrl } = getAccessUrls(TEAM_DOMAIN);
-		await jwtVerify(token, accessJwks(certsUrl), {
+		const { payload } = await jwtVerify(token, accessJwks(certsUrl), {
 			issuer,
 			audience: POLICY_AUD,
 			algorithms: ["RS256"],
 		});
+		// A person's token has their email; a service token has only its common name.
+		c.set("viewer", String(payload.email ?? payload.common_name ?? payload.sub ?? "access"));
 	} catch {
 		return errorResponse(c.req.raw, 403, "Sign in again", "Invalid or expired Access token");
 	}
@@ -82,16 +86,12 @@ app.use("*", async (c, next) => {
 	return next();
 });
 
-// MCP server endpoint — used by AI coding tools (ProtoAgent, Claude Code, Cursor, etc.)
-// Must be before API routes and React Router catch-all
-const mcpHandler = EmailMCP.serve("/mcp", { binding: "EMAIL_MCP" });
-app.all("/mcp", async (c) => {
-	if (foreignOrigin(c.req.raw)) return c.text("Cross-origin request refused", 403);
-	return mcpHandler.fetch(c.req.raw, c.env, c.executionCtx as ExecutionContext);
-});
-app.all("/mcp/*", async (c) => {
-	if (foreignOrigin(c.req.raw)) return c.text("Cross-origin request refused", 403);
-	return mcpHandler.fetch(c.req.raw, c.env, c.executionCtx as ExecutionContext);
+// The MCP server and its OAuth endpoints are answered by withMcpOAuth below, before this app.
+// The consent page is here, behind Access like the rest of the app.
+app.on(["GET", "POST"], "/authorize", async (c) => {
+	if (!c.env.OAUTH_PROVIDER) return c.notFound();
+	if (c.req.method === "POST" && foreignOrigin(c.req.raw)) return c.text("Cross-origin request refused", 403);
+	return authorize(c.req.raw, c.env.OAUTH_PROVIDER, c.get("viewer"));
 });
 
 // Mount the API routes
@@ -114,7 +114,8 @@ app.all("*", (c) => {
 
 // Export the Hono app as the default export with an email handler
 export default {
-	fetch: app.fetch,
+	// A demo has no MCP server, so no OAuth either.
+	fetch: DEMO ? app.fetch : withMcpOAuth({ fetch: app.fetch }),
 	async email(
 		event: { to: string; raw: ReadableStream; rawSize: number; setReject(reason: string): void },
 		env: Env,

@@ -14,7 +14,7 @@ Each agent does one job on the addresses you choose. It starts in Watch, moves t
 | Agents | Every agent: name, job, addresses, mode. The PluraMail Agent is the built-in one. |
 | Review | Drafts waiting for you |
 | Logs | Every action by an agent or a tool |
-| Tool keys | Keys that let apps like Claude Desktop use your mail over MCP |
+| MCP | The server, connect steps, connected apps (OAuth grants, read or read and send) and revoke |
 | Models | The default model and the provider keys that pay for it |
 | Mail settings | The 0.7 settings tabs |
 
@@ -47,9 +47,8 @@ Decline pitches, ask for missing details, acknowledge new senders, answer FAQs.
 
 ## Releases
 
-- 0.9: console, agents in Watch and Draft, Draft review, MCP page.
+- 0.9: console, agents in Watch and Draft, Draft review, MCP page, MCP sign-in with OAuth 2.1 and a separate send grant.
 - 0.10: the workbench (setup beside what the agent does), Test on past mail, promotion evidence, then Send.
-- 0.11: tool keys.
 
 ## Build order
 
@@ -57,4 +56,3 @@ Decline pitches, ask for missing details, acknowledge new senders, answer FAQs.
 2. Agents in Watch and Draft, and Review
 3. Test on past mail
 4. Send
-5. Tool keys

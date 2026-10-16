@@ -31,6 +31,7 @@ const WRITES = {
 	"PUT /api/v1/agents/order": SETTINGS,
 	"PUT /api/v1/agents/:id": SETTINGS,
 	"DELETE /api/v1/agents/:id": SETTINGS,
+	"DELETE /api/v1/mcp/apps/:id": SETTINGS,
 	"PUT /api/v1/prefs": SETTINGS,
 	"PUT /api/v1/agent-model": SETTINGS,
 	"POST /api/v1/agent-model/test": AI,
@@ -92,7 +93,7 @@ test("two AI actions count against the daily cap; the model test and everything 
 });
 
 test("the MCP server and the agent socket are off", () => {
-	for (const p of ["/mcp", "/mcp/session", "/agents/email-agent/x"]) assert.equal(demoBlocksPath(p), true, p);
+	for (const p of ["/mcp", "/mcp/session", "/agents/email-agent/x", "/authorize", "/.well-known/oauth-authorization-server"]) assert.equal(demoBlocksPath(p), true, p);
 	for (const p of ["/", "/api/v1/mail", "/mcpx", "/agentsx"]) assert.equal(demoBlocksPath(p), false, p);
 });
 
@@ -141,6 +142,8 @@ async function appWith(define) {
 		"./lib/error-page": "export const errorResponse = (_r, status) => new Response('error', { status });",
 		"./index": "import { Hono } from 'hono'; export const app = new Hono(); export const receiveEmail = async () => {};",
 		"./mcp": "export class EmailMCP { static serve() { return { fetch: async () => new Response('mcp') }; } }",
+		"./mcp/authorize": "export const authorize = async () => new Response('consent');",
+		"./mcp/oauth": "export const withMcpOAuth = (web) => (req, env, ctx) => new URL(req.url).pathname.startsWith('/mcp') ? new Response('oauth', { status: 401 }) : web.fetch(req, env, ctx);",
 		"./agent": "export class EmailAgent {}",
 	};
 	const bundle = await build({
@@ -166,13 +169,16 @@ test("a demo needs no sign-in and has no MCP server or agent socket", async () =
 	const home = await fetchDemo("/");
 	assert.equal(home.status, 200);
 	assert.equal(await home.text(), "spa");
-	for (const p of ["/mcp", "/mcp/session", "/agents/email-agent/shared"]) assert.equal((await fetchDemo(p)).status, 403, p);
+	for (const p of ["/mcp", "/mcp/session", "/agents/email-agent/shared", "/authorize", "/.well-known/oauth-protected-resource/mcp"]) {
+		assert.equal((await fetchDemo(p)).status, 403, p);
+	}
 });
 
-test("a normal production build still fails closed without Access", async () => {
+test("a normal production build still fails closed without Access; /mcp answers with OAuth instead", async () => {
 	const fetchProd = await appWith({ __PLURAMAIL_DEMO__: "false" });
 	assert.equal((await fetchProd("/")).status, 500);
-	assert.equal((await fetchProd("/mcp")).status, 500);
+	assert.equal((await fetchProd("/authorize")).status, 500, "the consent page is behind Access");
+	assert.equal((await fetchProd("/mcp")).status, 401, "MCP clients bring an OAuth token, not an Access sign-in");
 });
 
 // The cron on D1, as a demo.

@@ -427,6 +427,24 @@ app.get("/api/v1/activity", async (c) => {
 /** MCP clients that have called, and calls per tool, for Console > MCP. */
 app.get("/api/v1/mcp/usage", async (c) => c.json(await mcpUsage(recordsSql(c.env))));
 
+// Apps the signed-in person connected over OAuth (workers/mcp/authorize.ts), and revoking one.
+app.get("/api/v1/mcp/apps", async (c) => {
+	const oauth = c.env.OAUTH_PROVIDER;
+	if (!oauth) return c.json({ apps: [] });
+	const { items } = await oauth.listUserGrants(encodeURIComponent(c.get("viewer") ?? "local"));
+	const apps = items.map((g) => ({
+		id: g.id, clientId: g.clientId, name: String(g.metadata?.clientName ?? g.clientId), scopes: g.scope,
+		connectedAt: new Date(g.createdAt * 1000).toISOString(),
+	}));
+	return c.json({ apps });
+});
+app.delete("/api/v1/mcp/apps/:id", async (c) => {
+	const oauth = c.env.OAUTH_PROVIDER;
+	if (!oauth) return c.json({ error: "Not found" }, 404);
+	await oauth.revokeGrant(c.req.param("id"), encodeURIComponent(c.get("viewer") ?? "local"));
+	return c.json({ ok: true });
+});
+
 /** The latest auto-draft runs, with their state and any skip reason or error. */
 app.get("/api/v1/auto-draft/runs", async (c) =>
 	c.json(await listRuns(recordsSql(c.env), { mailboxId: c.req.query("mailbox") || null, limit: Number(c.req.query("limit")) || undefined })));

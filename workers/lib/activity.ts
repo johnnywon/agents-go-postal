@@ -32,6 +32,8 @@ export const TOOL_ACTIONS: Record<string, ActivityAction> = {
 	create_draft: "draft",
 	update_draft: "draft",
 	send_draft: "send",
+	reply_to_email: "send",
+	send_email: "send",
 	discard_draft: "delete",
 	delete_email: "delete",
 	delete_label: "delete",

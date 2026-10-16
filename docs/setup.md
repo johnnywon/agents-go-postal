@@ -6,7 +6,7 @@ Everything needed to run PluraMail on your own Cloudflare account. Back to the [
 
 [![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/johnnywon/pluramail)
 
-The button copies this repo to your GitHub account, creates the R2 bucket, the D1 database and the Durable Objects, then builds, applies the D1 migrations and deploys. Its form asks for `DOMAINS` and `EMAIL_ADDRESSES`. Enter the addresses comma-separated; every address must belong to a domain in `DOMAINS`. Leave the `POLICY_AUD` and `TEAM_DOMAIN` placeholders: every request returns the "Access must be configured" error until step 5 below replaces them. Then do steps 5 to 8 below: Access, Email Routing, Email Sending, and the check.
+The button copies this repo to your GitHub account, creates the R2 bucket, the D1 database, the KV namespace and the Durable Objects, then builds, applies the D1 migrations and deploys. Its form asks for `DOMAINS` and `EMAIL_ADDRESSES`. Enter the addresses comma-separated; every address must belong to a domain in `DOMAINS`. Leave the `POLICY_AUD` and `TEAM_DOMAIN` placeholders: every request returns the "Access must be configured" error until step 5 below replaces them. Then do steps 5 to 8 below: Access, Email Routing, Email Sending, and the check.
 
 To change the addresses later, edit `EMAIL_ADDRESSES` in `wrangler.jsonc` in the new repo and push. The push builds and deploys again.
 
@@ -18,12 +18,13 @@ Requirements: a domain on Cloudflare, R2, and Workers Paid for outbound email. T
 
 1. **Install and sign in.** `npm install`, then `npx wrangler login`.
 2. **Configure `wrangler.jsonc`.** Set `name`, `account_id`, `vars.APP_NAME`, `vars.DOMAINS`, and `vars.EMAIL_ADDRESSES`. Every address must belong to a domain in `DOMAINS`.
-3. **Create the R2 bucket and the D1 database** named in `r2_buckets` and `d1_databases`:
+3. **Create the R2 bucket, the D1 database and the KV namespace** named in `r2_buckets`, `d1_databases` and `kv_namespaces`:
    ```sh
    npx wrangler r2 bucket create pluramail
    npx wrangler d1 create pluramail
+   npx wrangler kv namespace create OAUTH_KV
    ```
-   Copy the `database_id` that `d1 create` prints into the `DB` entry under `d1_databases`.
+   Copy the `database_id` that `d1 create` prints into the `DB` entry under `d1_databases`, and the `id` that `kv namespace create` prints into the `OAUTH_KV` entry under `kv_namespaces`. The KV namespace holds the MCP server's OAuth clients and tokens.
 4. **Deploy.** `npm run build && npm run deploy`. `npm run deploy` applies any new D1 migrations, then deploys. It refuses to run before a build. Until step 5 is done, every request returns an error asking for Access. To serve the app on your own hostname, uncomment `routes` in `wrangler.jsonc` and set the `pattern`, or add a custom domain under the Worker's Settings > Domains & Routes.
 5. **Turn on Cloudflare Access** for the Worker under Settings > Domains & Routes ([one-click Access](https://developers.cloudflare.com/changelog/post/2025-10-03-one-click-access-for-workers/)). Copy the values the modal shows into Worker secrets:
    ```sh
@@ -31,6 +32,13 @@ Requirements: a domain on Cloudflare, R2, and Workers Paid for outbound email. T
    npx wrangler secret put TEAM_DOMAIN
    ```
    `TEAM_DOMAIN` must include `https://`; use the team URL or the full `/cdn-cgi/access/certs` URL.
+
+   Then let MCP clients past Access: they sign in with the app's own OAuth instead. In Zero Trust › Access › Applications, add a self-hosted application on the same hostname with these paths and one **Bypass** policy for Everyone:
+   - `/mcp`
+   - `/.well-known/oauth-authorization-server`
+   - `/.well-known/oauth-protected-resource`
+
+   `/mcp` covers the OAuth endpoints under it (`/mcp/oauth/token`, `/mcp/oauth/register`). Leave `/authorize` behind Access: it is the consent page, and who passes Access there is who the client acts for.
 6. **Route mail to the Worker.** Enable Email Routing for the domain, then add one rule per address in `EMAIL_ADDRESSES`:
    ```sh
    npx wrangler@latest email routing enable example.com
@@ -60,9 +68,18 @@ Requirements: a domain on Cloudflare, R2, and Workers Paid for outbound email. T
 | `EMAIL_ADDRESSES` | `vars` | Addresses that get a mailbox, as a list or a comma-separated string. Mail to other addresses bounces. |
 | `AUTO_DRAFT_ENABLED` | `vars` | `true` drafts a reply to each new message, except list, bulk and automated mail |
 | `ATTACHMENT_SEARCH` | `vars` | `true` makes attachment text searchable. Uses one Workers AI `toMarkdown` call per PDF, Word or Excel file. |
+| `MCP_SEND_ENABLED` | `vars` | `false` takes the send tools away from every MCP client, whatever it was granted |
 | `POLICY_AUD`, `TEAM_DOMAIN` | secrets | Cloudflare Access verification |
 
 To rebrand a deployment, set `APP_NAME` and replace the files listed in [`public/brand/README.md`](../public/brand/README.md).
+
+## MCP clients
+
+The MCP server is at `https://<your host>/mcp`. Clients sign in with OAuth 2.1: add the URL to Claude Code, Claude Desktop, Cursor or any client that supports MCP authorization, and it registers itself and opens the consent page in your browser. The consent page is behind Access, so you sign in there as yourself.
+
+Every app gets **Read and organize mail**: search, read, label, move, draft and delete on every address. **Send mail** is a separate box on the consent page, off by default. It adds `send_draft`, `reply_to_email` and `send_email`; without it the client doesn't see them. Sends from MCP count against the agent limits in Console > Limits, and each takes an idempotency key so a retry never sends twice. `reply_to_email` only goes out if the email is still the newest one received in its conversation and the client names the reply address it read from `get_email`.
+
+Console > MCP lists the apps you connected, with what each may do, and revokes them. Access tokens last an hour; refresh tokens last 30 days.
 
 ## Auto-draft queue
 
@@ -95,7 +112,7 @@ npm run deploy
 `PLURAMAIL_DEMO=1` is read at build time. A build without it carries none of the sample inbox or the demo code. A demo build:
 
 - Sends nothing. Send, reply, forward and scheduled send return 403 `Sending is off in the demo`. The cron sends no scheduled mail. Incoming mail is rejected.
-- Allows two AI actions, on a daily cap: turning plain words into a search, and Redraft on an agent's draft. Both use one Workers AI model that runs on the Workers Free plan (`DEMO_AI_MODEL` in `workers/lib/demo.ts`) whatever the model settings say. Together they stop after `DEMO_AI_DAILY` calls per UTC day across all visitors (default 200; `0` turns them off), then return 429 `The demo's AI calls for today are used up`. The count is in D1 (`ai_budget`), and the hourly reset keeps it. The agent, its panel, Draft and Draft reply, auto-draft and the model test stay off. `/agents/*` and `/mcp` return 403.
+- Allows two AI actions, on a daily cap: turning plain words into a search, and Redraft on an agent's draft. Both use one Workers AI model that runs on the Workers Free plan (`DEMO_AI_MODEL` in `workers/lib/demo.ts`) whatever the model settings say. Together they stop after `DEMO_AI_DAILY` calls per UTC day across all visitors (default 200; `0` turns them off), then return 429 `The demo's AI calls for today are used up`. The count is in D1 (`ai_budget`), and the hourly reset keeps it. The agent, its panel, Draft and Draft reply, auto-draft and the model test stay off. `/agents/*`, `/mcp`, `/authorize` and the OAuth metadata return 403.
 - Keeps settings read-only. Console > Save, addresses, model, limits and prefs return 403 `Settings are read-only in the demo`. Any other write not on the demo's list is refused the same way (`workers/lib/demo.ts`).
 - Needs no sign-in. It skips Cloudflare Access, so `POLICY_AUD` and `TEAM_DOMAIN` are not needed and Log out is hidden. `npm run smoke` expects an Access redirect and fails against a demo.
 - Writes the sample inbox again every hour on the hour. The reset deletes all mail, files, labels, saved searches and undo history, then writes the sample inbox with fresh dates. Between resets, a new isolate moves the dates forward when the newest message is over 30 minutes old.

@@ -44,6 +44,7 @@
 		"@ai-sdk/openai-compatible": "^2.0.81",
 		"@cloudflare/ai-chat": "^0.1.8",
 		"@cloudflare/kumo": "^1.13.0",
+		"@cloudflare/workers-oauth-provider": "1.2.3",
 		"@fontsource-variable/jetbrains-mono": "^5.3.0",
 		"@fontsource-variable/space-grotesk": "^5.3.0",
 		"@phosphor-icons/react": "^2.1.10",
