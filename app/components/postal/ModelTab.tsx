@@ -470,7 +470,6 @@ export function AgentModelSection({ draft }: { draft: AgentModelDraft }) {
 
 	return (
 		<div className="pg-models">
-			<div className="pg-models-head"><b>Agent model</b></div>
 			<div className="pg-model-card">
 				<b className="pg-model-card-name">{model.name}</b>
 				<dl className="pg-model-facts">

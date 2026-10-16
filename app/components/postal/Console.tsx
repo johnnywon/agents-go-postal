@@ -195,8 +195,8 @@ export function ConsolePage(props: {
 							<McpTab onTab={onTab} />
 						</Page>
 					)}
-					{tab === "logs" && <Page title={CONSOLE_LABELS.logs} sub="Every read, draft, send and change by an agent or an MCP client.">{settings}</Page>}
-					{tab === "models" && <Page title={CONSOLE_LABELS.models} sub="The model your agents use, and the keys that pay for it.">{settings}</Page>}
+					{tab === "logs" && <Page title={CONSOLE_LABELS.logs}>{settings}</Page>}
+					{tab === "models" && <Page title={CONSOLE_LABELS.models}>{settings}</Page>}
 					{isSettingsTab(tab) && <Page title={CONSOLE_LABELS[tab]}>{settings}</Page>}
 				</div>
 				)}
@@ -227,7 +227,7 @@ function HomePage({ identities, autoDraft, onTab, onAgent }: PageProps) {
 	const stats = new Map((data?.stats ?? []).map((s) => [s.agentId, s]));
 	const rows: AgentRow[] = [MAILROOM_ROW, ...(data?.agents ?? [])];
 	return (
-		<Page title={CONSOLE_LABELS.home} sub="What your agents did in the last 24 hours. The full record is in the Activity log.">
+		<Page title={CONSOLE_LABELS.home}>
 			<OverviewTab identities={identities} autoDraft={autoDraft} onTab={onTab} agents={
 				<Section title="Agents today">
 					<Table<AgentRow>

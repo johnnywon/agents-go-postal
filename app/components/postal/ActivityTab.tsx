@@ -121,7 +121,7 @@ export function ActivityTab({ addresses, identities, days, onDays, autoDraft }: 
 				)}
 			</Section>
 			{(autoDraft || (runs.data?.length ?? 0) > 0) && (
-				<Section title="Agent runs" sub="One per message an agent or the fallback draft picked up.">
+				<Section title="Agent runs">
 					<Async query={runs} empty="No runs yet.">
 						{(rows) => (
 							<Table
