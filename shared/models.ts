@@ -34,7 +34,7 @@ export interface ProviderInfo {
 	data: string;
 	/** The provider's own page that `data` is taken from. */
 	policyUrl: string;
-	/** True when every request is sent with zero data retention. */
+	/** True when every request is sent with zero data retention. On OpenRouter it depends on the model (`CatalogModel.zdr`). */
 	zdr: boolean;
 	/** True when the provider's policy lets it train on prompts. */
 	trains: boolean;
@@ -47,8 +47,8 @@ export const PROVIDER_INFO: Record<ProviderId, ProviderInfo> = {
 		policyUrl: "https://developers.cloudflare.com/workers-ai/platform/data-usage/",
 	},
 	openrouter: {
-		id: "openrouter", label: "OpenRouter", hue: 265, keyHint: "sk-or-…", keyUrl: "https://openrouter.ai/settings/keys", modelsUrl: "https://openrouter.ai/models", idExample: "maker/model", zdr: true, trains: false,
-		data: "Zero data retention endpoints only. Doesn't log prompts.",
+		id: "openrouter", label: "OpenRouter", hue: 265, keyHint: "sk-or-…", keyUrl: "https://openrouter.ai/settings/keys", modelsUrl: "https://openrouter.ai/models", idExample: "maker/model", zdr: false, trains: false,
+		data: "Doesn't log prompts. Zero retention on models that offer it.",
 		policyUrl: "https://openrouter.ai/docs/guides/features/zdr",
 	},
 };
@@ -73,6 +73,8 @@ export interface CatalogModel {
 	price: ModelPrice | null;
 	/** Whether the catalog says the model can call tools; null when it doesn't say. */
 	tools: boolean | null;
+	/** True when requests go only to endpoints that keep no prompts. A guide shown on the model, not a filter. */
+	zdr?: boolean;
 }
 
 export interface ModelRef {
@@ -232,6 +234,42 @@ export interface ZdrEndpoint {
 	supported_parameters?: string[] | null;
 }
 
+/** One model from OpenRouter's /models list. Public, no key needed. */
+export interface OpenRouterModel {
+	id?: string;
+	name?: string;
+	context_length?: number | null;
+	pricing?: { prompt?: string; completion?: string };
+	supported_parameters?: string[] | null;
+}
+
+/**
+ * Every paid OpenRouter model. A model with a zero retention endpoint keeps
+ * that entry (`zdr: true`, priced at the cheapest such endpoint, since its
+ * requests only go there); the rest carry OpenRouter's listed price and
+ * `zdr: false`. Free, unpriced, alias and batch ones are left out.
+ */
+export function modelsFromOpenRouter(models: OpenRouterModel[], zdr: CatalogModel[]): CatalogModel[] {
+	const byId = new Map(zdr.map((m) => [m.id, m]));
+	for (const e of models) {
+		// Aliases (`~maker/…-latest`) and `:batch` variants can't be saved or chatted with.
+		if (typeof e.id !== "string" || !e.id || byId.has(e.id) || /:batch$/i.test(e.id) || !validModelId("openrouter", e.id)) continue;
+		const input = perMillion(e.pricing?.prompt);
+		const output = perMillion(e.pricing?.completion);
+		if (input === undefined || output === undefined || output <= 0) continue;
+		byId.set(e.id, {
+			provider: "openrouter",
+			id: e.id,
+			name: (e.name ?? prettyName(e.id)).replace(/^[^:]+:\s*/, ""),
+			context: e.context_length && e.context_length > 0 ? e.context_length : null,
+			price: { input, output },
+			tools: Array.isArray(e.supported_parameters) ? e.supported_parameters.includes("tools") : null,
+			zdr: false,
+		});
+	}
+	return [...byId.values()].filter((m) => !isFree(m));
+}
+
 /**
  * OpenRouter's models that have at least one zero retention endpoint, built
  * from that list alone. Each is priced at its cheapest such endpoint, since
@@ -253,7 +291,7 @@ export function modelsFromZdr(endpoints: ZdrEndpoint[]): CatalogModel[] {
 				provider: "openrouter",
 				id: e.model_id,
 				name: (e.model_name ?? prettyName(e.model_id)).replace(/^[^:]+:\s*/, ""),
-				context, price, tools,
+				context, price, tools, zdr: true,
 			});
 			continue;
 		}

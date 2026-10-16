@@ -108,7 +108,7 @@ test("OpenRouter prices per token become per million", () => {
 		{ model_id: "anthropic/claude-sonnet-5.5", model_name: "Anthropic: Claude Sonnet 5.5", context_length: 1000000, pricing: { prompt: "0.000002", completion: "0.00001" }, supported_parameters: ["tools"] },
 		{ model_id: "openai/gpt-6-luna", model_name: "OpenAI: GPT-6 Luna", context_length: 1050000, pricing: { prompt: "0.0000001", completion: "0.0000005" }, supported_parameters: [] },
 	]);
-	assert.deepEqual(or[0], { provider: "openrouter", id: "anthropic/claude-sonnet-5.5", name: "Claude Sonnet 5.5", context: 1000000, price: { input: 2, output: 10 }, tools: true });
+	assert.deepEqual(or[0], { provider: "openrouter", id: "anthropic/claude-sonnet-5.5", name: "Claude Sonnet 5.5", context: 1000000, price: { input: 2, output: 10 }, tools: true, zdr: true });
 	assert.equal(or[1].tools, false);
 });
 
@@ -144,22 +144,35 @@ test("OpenRouter's list comes from its zero retention endpoints, priced at the c
 	assert.equal(zdr[0].tools, true);
 });
 
-test("every OpenRouter request asks for zero retention and no data collection", async () => {
+test("OpenRouter lists every paid model and marks the zero retention ones", () => {
+	const zdr = s.modelsFromZdr([{ model_id: "a/private", pricing: { prompt: "0.000002", completion: "0.000004" }, supported_parameters: ["tools"] }]);
+	const all = s.modelsFromOpenRouter([
+		{ id: "a/private", name: "A: Private", pricing: { prompt: "0.000009", completion: "0.000009" } },
+		{ id: "a/keeps", name: "A: Keeps", context_length: 64000, pricing: { prompt: "0.000001", completion: "0.000003" }, supported_parameters: ["tools"] },
+		{ id: "a/gratis", pricing: { prompt: "0", completion: "0" } },
+		{ id: "a/gratis:free", pricing: { prompt: "0.000001", completion: "0.000001" } },
+		{ id: "a/unpriced" },
+		{ id: "~a/keeps-latest", pricing: { prompt: "0.000001", completion: "0.000003" } },
+		{ id: "a/keeps:batch", pricing: { prompt: "0.000001", completion: "0.000003" } },
+	], zdr);
+	assert.deepEqual(all.map((x) => [x.id, x.zdr]), [["a/private", true], ["a/keeps", false]]);
+	assert.deepEqual(all[0].price, { input: 2, output: 4 });
+	assert.deepEqual(all[1], { provider: "openrouter", id: "a/keeps", name: "Keeps", context: 64000, price: { input: 1, output: 3 }, tools: true, zdr: false });
+});
+
+test("every OpenRouter request refuses data collection; zero retention only when the model has it", async () => {
 	const real = globalThis.fetch;
-	let sent;
-	globalThis.fetch = async (_url, init) => { sent = JSON.parse(init.body); return new Response("{}"); };
+	const sent = [];
+	globalThis.fetch = async (_url, init) => { sent.push(JSON.parse(init.body)); return new Response("{}"); };
 	try {
-		await m.zeroRetentionFetch("https://openrouter.ai/api/v1/chat/completions", { method: "POST", body: JSON.stringify({ model: "a/b", provider: { order: ["x"] } }) });
+		for (const zdr of [true, false]) {
+			await m.privacyFetch(zdr)("https://openrouter.ai/api/v1/chat/completions", { method: "POST", body: JSON.stringify({ model: "a/b", provider: { order: ["x"] } }) });
+		}
 	} finally {
 		globalThis.fetch = real;
 	}
-	assert.deepEqual(sent.provider, { order: ["x"], zdr: true, data_collection: "deny" });
-});
-
-test("every suggestion runs on Cloudflare or a zero retention provider", () => {
-	for (const pick of s.SUGGESTED_MODELS) {
-		if (pick.provider !== "workers-ai") assert.ok(s.PROVIDER_INFO[pick.provider].zdr, pick.id);
-	}
+	assert.deepEqual(sent[0].provider, { order: ["x"], zdr: true, data_collection: "deny" });
+	assert.deepEqual(sent[1].provider, { order: ["x"], data_collection: "deny" });
 });
 
 test("stored keys for providers that can't be connected are deleted on read", async () => {

@@ -45,7 +45,7 @@ Pre-1.0. A minor release can require a D1 migration or a configuration change. [
 - One list for every address across your domains, with views per address and per domain, labels and saved searches.
 - Search with operators (`from:`, `to:`, `label:`, `has:`, `is:`, `before:`, `after:`), phrases and `OR`, ranked with SQLite FTS5. The same syntax works in URLs, the in-app agent and the MCP tools.
 - Replies are sent from the address that received the message.
-- An in-app agent on Workers AI, or on OpenRouter models with zero data retention, that can search, label, draft and send within per-address daily limits.
+- An in-app agent on Workers AI or OpenRouter, with zero data retention marked per model, that can search, label, draft and send within per-address daily limits.
 - An MCP server at `/mcp` with 24 tools. Clients sign in with OAuth 2.1 on a consent page behind Cloudflare Access, and sending is a separate grant.
 - Attachments, bulk actions with undo, scheduled send, signatures, rebindable keyboard shortcuts and a phone layout.
 
@@ -116,7 +116,7 @@ A single Worker handles inbound mail (`email()`), the HTTP API and UI, the MCP e
 
 ## Security and data
 
-- Mail stays in your Cloudflare account. It leaves only if you select an OpenRouter model, and the model list is limited to zero data retention endpoints.
+- Mail stays in your Cloudflare account. It leaves only if you select an OpenRouter model. OpenRouter requests refuse providers that train on prompts, and models with a zero retention endpoint are sent only there. Free models are never used.
 - Requests are refused until Cloudflare Access is configured.
 - Incoming HTML is sanitized and rendered in a sandboxed iframe.
 - Each send uses a send key, so a retried request does not send twice.

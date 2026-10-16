@@ -105,6 +105,7 @@ function ModelSub({ model, needsKey, provider = true, maker: showMakerLine = tru
 		<span className="pg-model-sub">
 			{provider && <ProviderMark provider={model.provider} />}
 			{showMakerLine && (showMaker || !provider) && <span>{maker.label}</span>}
+			{model.zdr && <span className="pg-zdr"><ShieldCheckIcon size={12} aria-hidden="true" />Zero retention</span>}
 			{model.tools === false && <span>No tools</span>}
 			{needsKey && <span className="pg-model-needs">Needs key</span>}
 		</span>
@@ -128,8 +129,8 @@ function ModelRow({ model, selected, recommended, needsKey, provider, maker = tr
 }
 
 /** The providers side by side: what each does with prompts, its models, its key. */
-function ProviderTable({ draft, counts, openKey, highlight, onToggle }: {
-	draft: AgentModelDraft; counts: Record<ProviderId, number>; openKey: ProviderId | null; highlight: ProviderId | null; onToggle: (p: ProviderId) => void;
+function ProviderTable({ draft, counts, zdrCounts, openKey, highlight, onToggle }: {
+	draft: AgentModelDraft; counts: Record<ProviderId, number>; zdrCounts: Record<ProviderId, number>; openKey: ProviderId | null; highlight: ProviderId | null; onToggle: (p: ProviderId) => void;
 }) {
 	const keyState = (p: ProviderId) => {
 		if (p === "workers-ai") return null;
@@ -157,7 +158,9 @@ function ProviderTable({ draft, counts, openKey, highlight, onToggle }: {
 			key: "retention", label: "Retention",
 			cell: (p) => PROVIDER_INFO[p].zdr
 				? <span className="pg-zdr"><ShieldCheckIcon size={13} aria-hidden="true" />Zero retention</span>
-				: "Not promised",
+				: zdrCounts[p] > 0
+					? <span className="pg-zdr"><ShieldCheckIcon size={13} aria-hidden="true" />{zdrCounts[p]} of {counts[p]} models</span>
+					: "Not promised",
 		},
 		{ key: "models", label: "Models", num: true, wide: true, cell: (p) => counts[p] },
 		{
@@ -205,7 +208,7 @@ function ProviderTable({ draft, counts, openKey, highlight, onToggle }: {
 	);
 }
 
-/** Makers whose models are reached through OpenRouter's zero retention endpoints, as shortcuts. */
+/** Makers whose models are reached through OpenRouter, as shortcuts. */
 const MAKER_FILTERS = ["Anthropic", "OpenAI", "Google", "xAI"] as const;
 type MakerFilter = (typeof MAKER_FILTERS)[number];
 type Filter = "all" | ProviderId | MakerFilter;
@@ -354,7 +357,6 @@ function ModelPicker({ catalog, draft, onPick, onBack }: {
 							>
 								<span className="pg-pick-role">
 									{role}
-									{PROVIDER_INFO[m.provider].zdr && <span className="pg-zdr"><ShieldCheckIcon size={12} /> Zero retention</span>}
 									{selected && <CheckIcon size={13} weight="bold" />}
 								</span>
 								<b>{m.name}</b>
@@ -405,7 +407,6 @@ function ModelPicker({ catalog, draft, onPick, onBack }: {
 						<button key={p} type="button" className="pg-browse-row" onClick={() => setFilter(p)}>
 							<ProviderMark provider={p} />
 							<span className="pg-model-sub">
-								{PROVIDER_INFO[p].zdr && <span className="pg-zdr"><ShieldCheckIcon size={12} /> Zero retention</span>}
 								{!draft.hasKey(p) && <span className="pg-model-needs">Needs key</span>}
 							</span>
 							<span className="pg-browse-count">{catalog.providers[p]?.models.length ?? 0} models</span>
@@ -476,6 +477,9 @@ export function AgentModelSection({ draft }: { draft: AgentModelDraft }) {
 					<div><dt>Provider</dt><dd><ProviderMark provider={effective.provider} /></dd></div>
 					{maker.label !== PROVIDER_INFO[effective.provider].label && <div><dt>Maker</dt><dd>{maker.label}</dd></div>}
 					<div><dt>Model ID</dt><dd><code>{effective.id}</code></dd></div>
+					<div><dt>Retention</dt><dd>{model.zdr || PROVIDER_INFO[effective.provider].zdr
+						? <span className="pg-zdr"><ShieldCheckIcon size={13} aria-hidden="true" />Zero retention</span>
+						: "Not promised"}</dd></div>
 					<div><dt>Context</dt><dd>{formatContext(model.context)}</dd></div>
 					<div><dt>Price</dt><dd>{model.price
 						? <>{formatPrice(model.price.input)} in <span className="pg-model-slash">/</span> <b>{formatPrice(model.price.output)}</b> out <span className="pg-model-unit">per 1M tokens</span></>
@@ -499,6 +503,7 @@ export function AgentModelSection({ draft }: { draft: AgentModelDraft }) {
 			<ProviderTable
 				draft={draft}
 				counts={Object.fromEntries(PROVIDERS.map((p) => [p, catalog.providers[p]?.models.length ?? 0])) as Record<ProviderId, number>}
+				zdrCounts={Object.fromEntries(PROVIDERS.map((p) => [p, catalog.providers[p]?.models.filter((m) => m.zdr).length ?? 0])) as Record<ProviderId, number>}
 				openKey={openKey}
 				highlight={needsKey ? effective.provider : null}
 				onToggle={(p) => setOpenKey(openKey === p ? null : p)}

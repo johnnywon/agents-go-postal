@@ -23,7 +23,7 @@ import { interpretSearch, MAX_REQUEST_LENGTH } from "./lib/search-interpret";
 import { HeaderValueSchema, MailboxSettingsSchema } from "./lib/schemas";
 import { readPrefs, writePrefs } from "./lib/prefs";
 import { agentModel } from "./lib/agent-model";
-import { catalogFor, clearCatalogCache, languageModel, mergeAgentModelConfig, quickModel, readAgentModelConfig, viewOf, writeAgentModelConfig } from "./lib/agent-model";
+import { catalogFor, clearCatalogCache, languageModel, mergeAgentModelConfig, openRouterZdr, quickModel, readAgentModelConfig, viewOf, writeAgentModelConfig } from "./lib/agent-model";
 import { KEYED_PROVIDERS, PROVIDERS, PROVIDER_INFO, RECOMMENDED_MODEL, SUGGESTED_MODELS, validModelId } from "../shared/models";
 import { requireMailbox, type MailboxContext } from "./lib/mailbox";
 import { csrf } from "./lib/csrf";
@@ -189,19 +189,18 @@ const AgentModelBody = z.object({
 
 /**
  * A typed id must be in its provider's allowed catalog: on Cloudflare, priced
- * models that aren't partner models; on OpenRouter, paid models with a zero
- * retention endpoint. So a typed id can't reach a free, third-party or
- * retaining model. When the catalog can't be read the id is let through; on
- * Cloudflare the agent then falls back to the recommended model if it isn't
- * listed, and on OpenRouter the request is refused without a zero retention
- * endpoint.
+ * models that aren't partner models; on OpenRouter, paid models. So a typed
+ * id can't reach a free or third-party model. When the catalog can't be read
+ * the id is let through; on Cloudflare the agent then falls back to the
+ * recommended model if it isn't listed, and on OpenRouter the request asks
+ * for a zero retention endpoint and fails without one.
  */
 async function notAllowed(env: Env, ref: { provider: string; id: string }, keys: Parameters<typeof catalogFor>[2]): Promise<string | null> {
 	const catalog = await catalogFor(env, ref.provider === "workers-ai" ? "workers-ai" : "openrouter", keys);
 	if (catalog.source === "none" || catalog.models.some((m) => m.id === ref.id)) return null;
 	return ref.provider === "workers-ai"
 		? "That Cloudflare model isn't allowed. Only priced models that aren't partner models can be used."
-		: "That OpenRouter model isn't allowed. Only paid models with a zero data retention endpoint can be used.";
+		: "That OpenRouter model isn't allowed. Only paid models can be used.";
 }
 
 app.put("/api/v1/agent-model", async (c) => {
@@ -232,7 +231,7 @@ app.post("/api/v1/agent-model/test", async (c) => {
 	const started = Date.now();
 	try {
 		const result = await generateText({
-			model: languageModel(c.env, { provider: body.provider, id: body.id.trim() }, key),
+			model: languageModel(c.env, { provider: body.provider, id: body.id.trim() }, key, body.provider === "openrouter" ? { zdr: await openRouterZdr(c.env, body.id.trim()) } : {}),
 			prompt: "Reply with the single word OK.",
 			maxOutputTokens: 400,
 		});

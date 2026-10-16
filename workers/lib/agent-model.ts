@@ -17,7 +17,7 @@ import { createWorkersAI } from "workers-ai-provider";
 import {
 	type CatalogModel, isFree, isProvider, KEYED_PROVIDERS, type KeyedProvider,
 	type ModelRef, modelsFromWorkersAi, PROVIDER_INFO, type ProviderId,
-	prettyName, RECOMMENDED_MODEL, validModelId, type WorkersAiEntry, type ZdrEndpoint, modelsFromZdr,
+	prettyName, RECOMMENDED_MODEL, validModelId, type OpenRouterModel, type WorkersAiEntry, type ZdrEndpoint, modelsFromOpenRouter, modelsFromZdr,
 } from "../../shared/models";
 import type { Env } from "../types";
 import { DEMO, DEMO_AI_MODEL } from "./demo";
@@ -130,24 +130,40 @@ export function mergeAgentModelConfig(current: AgentModelConfig, update: AgentMo
 }
 
 /**
- * Every OpenRouter request asks for zero data retention endpoints only and
- * refuses providers that store or train on prompts. A model with no such
- * endpoint fails instead of falling back to one that keeps the mail.
+ * Every OpenRouter request refuses providers that store prompts to train on
+ * (`data_collection: "deny"`): that's a rule. Zero retention is a guide: a
+ * model with a zero retention endpoint is sent only there (`zdr: true`), and
+ * a model without one goes to its other endpoints.
  */
-export const OPENROUTER_PRIVACY = { zdr: true, data_collection: "deny" } as const;
+export function openRouterPrivacy(zdr: boolean) {
+	return zdr ? { zdr: true, data_collection: "deny" } as const : { data_collection: "deny" } as const;
+}
 
-export const zeroRetentionFetch: typeof fetch = (input, init) => {
-	if (init?.method === "POST" && typeof init.body === "string") {
-		try {
-			const body = JSON.parse(init.body) as { provider?: Record<string, unknown> };
-			body.provider = { ...body.provider, ...OPENROUTER_PRIVACY };
-			init = { ...init, body: JSON.stringify(body) };
-		} catch {
-			// Not JSON: send as is.
+export function privacyFetch(zdr: boolean): typeof fetch {
+	return (input, init) => {
+		if (init?.method === "POST" && typeof init.body === "string") {
+			try {
+				const body = JSON.parse(init.body) as { provider?: Record<string, unknown> };
+				body.provider = { ...body.provider, ...openRouterPrivacy(zdr) };
+				init = { ...init, body: JSON.stringify(body) };
+			} catch {
+				// Not JSON: send as is.
+			}
 		}
-	}
-	return fetch(input, init);
-};
+		return fetch(input, init);
+	};
+}
+
+/**
+ * Whether an OpenRouter model has a zero retention endpoint. When the list
+ * can't be read the answer is yes, so a request fails rather than reach an
+ * endpoint that keeps the mail.
+ */
+export async function openRouterZdr(env: Env, id: string): Promise<boolean> {
+	const catalog = await catalogFor(env, "openrouter", {});
+	if (catalog.source === "none") return true;
+	return catalog.models.find((m) => m.id === id)?.zdr ?? true;
+}
 
 /**
  * Workers AI models that reason before answering by default and take
@@ -170,12 +186,16 @@ function withoutReasoning(ai: Ai): Ai {
 	});
 }
 
-/** A language model for any provider. `reasoning: false` skips the thinking step on models that allow it. */
-export function languageModel(env: Env, ref: ModelRef, key?: string, options: { reasoning?: boolean } = {}): LanguageModel {
+/**
+ * A language model for any provider. `reasoning: false` skips the thinking
+ * step on models that allow it. `zdr` (OpenRouter) holds requests to zero
+ * retention endpoints; it defaults to on.
+ */
+export function languageModel(env: Env, ref: ModelRef, key?: string, options: { reasoning?: boolean; zdr?: boolean } = {}): LanguageModel {
 	switch (ref.provider) {
 		case "openrouter":
 			return createOpenAICompatible({
-				name: "openrouter", baseURL: OPENROUTER_BASE, apiKey: key, headers: { "X-Title": "PluraMail" }, fetch: zeroRetentionFetch,
+				name: "openrouter", baseURL: OPENROUTER_BASE, apiKey: key, headers: { "X-Title": "PluraMail" }, fetch: privacyFetch(options.zdr ?? true),
 			}).chatModel(ref.id);
 		default: {
 			const binding = options.reasoning === false && REASONING_OPTIONAL.has(ref.id) ? withoutReasoning(env.AI) : env.AI;
@@ -196,7 +216,7 @@ export async function quickModel(env: Env): Promise<LanguageModel> {
 	if (DEMO) return languageModel(env, { provider: "workers-ai", id: DEMO_AI_MODEL });
 	const config = await readAgentModelConfig(env);
 	const active = activeModel(config);
-	if (active.provider !== "workers-ai") return languageModel(env, active, config.keys[active.provider]);
+	if (active.provider !== "workers-ai") return languageModel(env, active, config.keys[active.provider], { zdr: await openRouterZdr(env, active.id) });
 	return languageModel(env, { provider: "workers-ai", id: WORKERS_AI_FAST_MODEL });
 }
 
@@ -211,7 +231,8 @@ export async function agentModel(env: Env, options: { reasoning?: boolean } = {}
 	if (active.provider === "workers-ai" && active.id !== WORKERS_AI_MODEL) {
 		active = resolveWorkersAiModel(active.id, (await catalogFor(env, "workers-ai", config.keys)).models);
 	}
-	return languageModel(env, active, active.provider === "workers-ai" ? undefined : config.keys[active.provider], options);
+	if (active.provider === "workers-ai") return languageModel(env, active, undefined, options);
+	return languageModel(env, active, config.keys[active.provider], { ...options, zdr: await openRouterZdr(env, active.id) });
 }
 
 /**
@@ -282,22 +303,24 @@ async function loadWorkersAi(env: Env): Promise<ProviderCatalog> {
 }
 
 /**
- * What the OpenRouter tab lists: only models with a zero retention endpoint.
- * The zero retention list carries names, context and prices, and it's public,
- * so the list shows without a key. OpenRouter's full /models list is not read:
- * it can take minutes to answer.
+ * What the OpenRouter tab lists: every paid model, each marked with whether it
+ * has a zero retention endpoint. Both lists are public, so they show without a
+ * key. When /models fails, the zero retention models still show.
  */
-async function loadOpenRouterZdr(): Promise<ProviderCatalog> {
-	try {
-		const data = (await fetchJson(`${OPENROUTER_BASE}/endpoints/zdr`)) as { data?: ZdrEndpoint[] };
-		const models = modelsFromZdr(data.data ?? []);
-		return models.length ? { source: "live", models } : { source: "none", models: [], error: "OpenRouter's zero retention list came back empty." };
-	} catch (e) {
-		return { source: "none", models: [], error: `OpenRouter's catalog couldn't be read: ${(e as Error).message}` };
+async function loadOpenRouter(): Promise<ProviderCatalog> {
+	const [all, zdr] = await Promise.allSettled([
+		fetchJson(`${OPENROUTER_BASE}/models`) as Promise<{ data?: OpenRouterModel[] }>,
+		fetchJson(`${OPENROUTER_BASE}/endpoints/zdr`) as Promise<{ data?: ZdrEndpoint[] }>,
+	]);
+	if (all.status === "rejected" && zdr.status === "rejected") {
+		return { source: "none", models: [], error: `OpenRouter's catalog couldn't be read: ${(all.reason as Error).message}` };
 	}
+	const zdrModels = zdr.status === "fulfilled" ? modelsFromZdr(zdr.value.data ?? []) : [];
+	const models = modelsFromOpenRouter(all.status === "fulfilled" ? all.value.data ?? [] : [], zdrModels);
+	return models.length ? { source: "live", models } : { source: "none", models: [], error: "OpenRouter's catalog came back empty." };
 }
 
 export async function catalogFor(env: Env, provider: ProviderId, keys: Keys): Promise<ProviderCatalog> {
 	if (provider === "workers-ai") return cached("workers-ai", () => loadWorkersAi(env));
-	return cached("openrouter-zdr", loadOpenRouterZdr);
+	return cached("openrouter", loadOpenRouter);
 }
