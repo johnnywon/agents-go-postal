@@ -141,7 +141,7 @@ A count, a size or a length of time shown in a small space is a figure: a number
 
 ### Colophon
 
-The console rail ends with the colophon (`ConsoleColophon.tsx`): four figures, then the mark and the version. It is 124px on a 4px grid, pressed into the rail with two 2px grooves (`--pg-con-groove`, `--pg-con-groove-edge`) and nothing raised or boxed.
+The console rail ends with the colophon (`ConsoleColophon.tsx`): four figures, then the mark and the version. It is 124px on a 4px grid, pressed into the rail with one 2px groove at its top (`--pg-con-groove`, `--pg-con-groove-edge`) and nothing raised or boxed. No line between the figures and the imprint: 14px of space separates them.
 
 - Figures in a fixed order: messages, storage (every message's size, D1 and R2), addresses, uptime (since the running version was deployed, from the `version_metadata` binding). No fifth figure: a fifth stat belongs on a page.
 - Four auto columns, space-between, at least 12px apart, 20px in from the rail's edges. Figures are 16px in the 236px rail; the widest values (99,999 · 48.6 · 1,206 · 104) still keep the 12px gap.
