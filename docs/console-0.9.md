@@ -1,6 +1,6 @@
 # Console 0.9
 
-Not built yet. WON-231 and WON-209.
+Built in 0.9.0, apart from Test on past mail and Send, which arrive in 0.10. WON-231 and WON-209.
 
 ## In one line
 
@@ -8,15 +8,17 @@ Each agent does one job on the addresses you choose. It starts in Watch, moves t
 
 ## Pages
 
+The console replaces the mail with its own rail, opened at `?console=<page>`.
+
 | Page | What's on it |
 |---|---|
-| Home | Today's counts and agents worth a look |
-| Agents | Every agent: name, job, addresses, mode. The PluraMail Agent is the built-in one. |
-| Review | Drafts waiting for you |
-| Logs | Every action by an agent or a tool |
-| MCP | The server, connect steps, connected apps (OAuth grants, read or read and send) and revoke |
-| Models | The default model and the provider keys that pay for it |
-| Mail settings | The 0.7 settings tabs |
+| Overview | The last 24 hours: agent actions, sends, auto-drafts, failures, each agent's count today, sends per address |
+| Your agents | Every agent: name, job, addresses, mode, in the order they take mail. The PluraMail Agent is the built-in one. |
+| Draft review | Drafts waiting for you, as mail rows |
+| Activity log | Every action by an agent, an MCP client or you, kept 90, 120 or 180 days |
+| AI models | The agent model and its facts, and Cloudflare and OpenRouter side by side: training, retention, models, key |
+| MCP | The server URL, connect steps per client, connected apps (OAuth grants, read or read and send) with Revoke |
+| Addresses, Signatures, Labels, Preferences, Keyboard shortcuts, Mail storage | The 0.8 settings tabs |
 
 ## An agent
 
@@ -32,7 +34,7 @@ New agents start in Watch.
 
 - An agent replies only to the sender of the message it took.
 - Every reply passes the safety check first.
-- Each agent has a daily limit and a limit of two replies a day to one sender.
+- Each agent has a daily limit (25 by default) and a limit of two replies a day to one sender.
 - When two agents want the same message, the one higher in the list takes it.
 
 ## From 0.7
@@ -52,7 +54,7 @@ Decline pitches, ask for missing details, acknowledge new senders, answer FAQs.
 
 ## Build order
 
-1. Console page and navigation
-2. Agents in Watch and Draft, and Review
-3. Test on past mail
-4. Send
+1. Console page and navigation (0.9.0)
+2. Agents in Watch and Draft, and Review (0.9.0)
+3. Test on past mail (0.10)
+4. Send (0.10)
