@@ -74,7 +74,7 @@ To rebrand a deployment, set `APP_NAME` and replace the files listed in [`public
 
 ## MCP clients
 
-The MCP server is at `https://<your host>/mcp`. Clients sign in with OAuth 2.1: add the URL to Claude Code, Claude Desktop, Cursor or any client that supports MCP authorization, and it registers itself and opens the consent page in your browser. The consent page is behind Access, so you sign in there as yourself.
+The MCP server is at `https://<your host>/mcp`. Clients sign in with OAuth 2.1: add the URL to Claude Code, Claude Desktop, Codex, Cursor, Grok or any client that supports MCP authorization, and it registers itself and opens the consent page in your browser. The consent page is behind Access, so you sign in there as yourself.
 
 Every app gets **Read and organize mail**: search, read, label, move, draft and delete on every address. **Send mail** is a separate box on the consent page, off by default. It adds `send_draft`, `reply_to_email` and `send_email`; without it the client doesn't see them. Sends from MCP count against the agent limits in Console > Limits, and each takes an idempotency key so a retry never sends twice. `reply_to_email` only goes out if the email is still the newest one received in its conversation and the client names the reply address it read from `get_email`.
 

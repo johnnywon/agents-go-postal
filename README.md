@@ -31,7 +31,7 @@ Demo: [pluramail-demo.pluramail.workers.dev](https://pluramail-demo.pluramail.wo
 ## When it fits
 
 - You have one or more domains on Cloudflare and want every address in one inbox that you host.
-- You want agents such as Claude Code, Cursor or your own to read, search, label, draft and send mail over MCP, with limits and an activity log.
+- You want agents such as Claude Code, Codex, Cursor, Grok or your own to read, search, label, draft and send mail over MCP, with limits and an activity log.
 - You want mail stored in your own Cloudflare account.
 
 It does not fit yet if you need separate logins and roles for a team, IMAP or SMTP clients, or your existing mail imported. All three are on the [roadmap](#roadmap).
