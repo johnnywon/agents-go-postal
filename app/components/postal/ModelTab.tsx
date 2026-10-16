@@ -6,7 +6,7 @@ import {
 	type CatalogModel, guessProvider, type KeyedProvider, makerOf, type ModelRef, PROVIDER_INFO, PROVIDERS,
 	type ProviderId, sameModel, validModelId,
 } from "shared/models";
-import { Badge, Note } from "./ConsoleUI";
+import { Badge, type Column, Name, Note, Table } from "./ConsoleUI";
 
 export function useModelCatalog(enabled = true) {
 	return useQuery({ queryKey: ["agent-model", "catalog"], queryFn: api.getModelCatalog, enabled, staleTime: 3_600_000 });
@@ -75,7 +75,6 @@ function ProviderMark({ provider }: { provider: ProviderId }) {
 	return <span className="pg-prov-mark" style={hueStyle(info.hue)}><i aria-hidden="true" />{info.label}</span>;
 }
 
-/** What happens to prompts on a provider, linked to the provider's own policy. */
 /** What a provider does with prompts, ending in a link to its own policy. */
 function DataText({ provider }: { provider: ProviderId }) {
 	const info = PROVIDER_INFO[provider];
@@ -86,10 +85,6 @@ function DataText({ provider }: { provider: ProviderId }) {
 			<a href={info.policyUrl} target="_blank" rel="noreferrer">Policy<ArrowSquareOutIcon size={11} aria-hidden="true" /></a>
 		</>
 	);
-}
-
-function DataLine({ provider, className }: { provider: ProviderId; className: string }) {
-	return <span className={className} data-zdr={PROVIDER_INFO[provider].zdr}><DataText provider={provider} /></span>;
 }
 
 function Price({ model }: { model: CatalogModel }) {
@@ -132,40 +127,63 @@ function ModelRow({ model, selected, recommended, needsKey, provider, maker = tr
 	);
 }
 
-/** One provider: whether it's connected, and its key when opened. */
-function ProviderRow({ provider, draft, count, open, highlight, onToggle }: {
-	provider: ProviderId; draft: AgentModelDraft; count: number; open: boolean; highlight: boolean; onToggle: () => void;
+/** The providers side by side: what each does with prompts, its models, its key. */
+function ProviderTable({ draft, counts, openKey, highlight, onToggle }: {
+	draft: AgentModelDraft; counts: Record<ProviderId, number>; openKey: ProviderId | null; highlight: ProviderId | null; onToggle: (p: ProviderId) => void;
 }) {
-	const info = PROVIDER_INFO[provider];
-	const keyed = provider !== "workers-ai";
-	const saved = keyed ? draft.stored?.keys[provider as KeyedProvider] : undefined;
-	const edit = keyed ? draft.keys[provider as KeyedProvider] : undefined;
-	const removing = edit === "";
-	const pendingKey = !!edit;
-	const connected = !keyed || (pendingKey || (!!saved?.set && !removing));
-	const status = !keyed ? "Built in"
-		: removing ? "Removing"
-		: pendingKey ? "Saving"
-		: saved?.set ? `Connected ····${saved.hint}`
-		: "Not connected";
+	const keyState = (p: ProviderId) => {
+		if (p === "workers-ai") return null;
+		const saved = draft.stored?.keys[p as KeyedProvider];
+		const edit = draft.keys[p as KeyedProvider];
+		return { saved, edit, removing: edit === "", pending: !!edit };
+	};
+	const columns: Column<ProviderId>[] = [
+		{
+			key: "provider", label: "Provider", head: true,
+			cell: (p) => {
+				const info = PROVIDER_INFO[p];
+				return (
+					<Name sub={
+						<span className="pg-prov-links">
+							{info.modelsUrl && <a href={info.modelsUrl} target="_blank" rel="noreferrer">Models<ArrowSquareOutIcon size={11} aria-hidden="true" /></a>}
+							<a href={info.policyUrl} target="_blank" rel="noreferrer">Policy<ArrowSquareOutIcon size={11} aria-hidden="true" /></a>
+						</span>
+					}><ProviderMark provider={p} /></Name>
+				);
+			},
+		},
+		{ key: "training", label: "Training", wide: true, cell: (p) => PROVIDER_INFO[p].trains ? "Yes" : "No" },
+		{
+			key: "retention", label: "Retention",
+			cell: (p) => PROVIDER_INFO[p].zdr
+				? <span className="pg-zdr"><ShieldCheckIcon size={13} aria-hidden="true" />Zero retention</span>
+				: "Not promised",
+		},
+		{ key: "models", label: "Models", num: true, wide: true, cell: (p) => counts[p] },
+		{
+			key: "key", label: "Key", num: true,
+			cell: (p) => {
+				const k = keyState(p);
+				if (!k) return <span className="pg-prov-status">Built in</span>;
+				const status = k.removing ? "Removing" : k.pending ? "Saving" : k.saved?.set ? `····${k.saved.hint}` : null;
+				const open = openKey === p;
+				return (
+					<span className="pg-prov-key">
+						{status && <span className="pg-prov-status" data-on={!k.removing}>{status}</span>}
+						<button type="button" className="pg-btn pg-btn-sm" onClick={() => onToggle(p)} aria-expanded={open}>
+							{open ? "Done" : k.saved?.set || k.pending ? "Manage" : "Add key"}
+						</button>
+					</span>
+				);
+			},
+		},
+	];
+	const open = openKey && openKey !== "workers-ai" ? keyState(openKey) : null;
+	const info = openKey ? PROVIDER_INFO[openKey] : null;
 	return (
-		<div className="pg-prov-row" data-open={open} data-highlight={highlight}>
-			<div className="pg-prov-row-head">
-				<i className="pg-prov-dot" data-on={connected} style={hueStyle(info.hue)} aria-hidden="true" />
-				<b>{info.label}</b>
-				<span className="pg-prov-status" data-on={connected}>{status}</span>
-				<span className="pg-prov-count">{count} models</span>
-				<DataLine provider={provider} className="pg-prov-data" />
-				{!keyed && info.modelsUrl && (
-					<a className="pg-btn pg-btn-sm pg-btn-quiet" href={info.modelsUrl} target="_blank" rel="noreferrer">Models <ArrowSquareOutIcon size={12} aria-hidden="true" /></a>
-				)}
-				{keyed && (
-					<button type="button" className="pg-btn pg-btn-sm" onClick={onToggle} aria-expanded={open}>
-						{open ? "Done" : saved?.set || pendingKey ? "Manage" : "Add key"}
-					</button>
-				)}
-			</div>
-			{keyed && open && (
+		<>
+			<div className="pg-prov-table"><Table label="Providers" columns={columns} rows={[...PROVIDERS]} rowKey={(p) => p} rowProps={(p) => ({ "data-highlight": p === highlight || undefined })} /></div>
+			{openKey && open && info && (
 				<div className="pg-prov-row-key">
 					<input
 						className="pg-input pg-mono"
@@ -173,17 +191,17 @@ function ProviderRow({ provider, draft, count, open, highlight, onToggle }: {
 						autoComplete="off"
 						spellCheck={false}
 						autoFocus
-						value={edit ?? ""}
-						placeholder={saved?.set && !removing ? `Replace ····${saved.hint}` : info.keyHint ?? ""}
+						value={open.edit ?? ""}
+						placeholder={open.saved?.set && !open.removing ? `Replace ····${open.saved.hint}` : info.keyHint ?? ""}
 						aria-label={`${info.label} API key`}
-						onChange={(e) => draft.setKey(provider as KeyedProvider, e.target.value || undefined)}
+						onChange={(e) => draft.setKey(openKey as KeyedProvider, e.target.value || undefined)}
 					/>
-					{saved?.set && !removing && <button type="button" className="pg-btn pg-btn-sm pg-btn-quiet" onClick={() => draft.setKey(provider as KeyedProvider, "")}>Remove</button>}
-					{removing && <button type="button" className="pg-btn pg-btn-sm pg-btn-quiet" onClick={() => draft.setKey(provider as KeyedProvider, undefined)}>Undo</button>}
+					{open.saved?.set && !open.removing && <button type="button" className="pg-btn pg-btn-sm pg-btn-quiet" onClick={() => draft.setKey(openKey as KeyedProvider, "")}>Remove</button>}
+					{open.removing && <button type="button" className="pg-btn pg-btn-sm pg-btn-quiet" onClick={() => draft.setKey(openKey as KeyedProvider, undefined)}>Undo</button>}
 					{info.keyUrl && <a className="pg-btn pg-btn-sm pg-btn-quiet" href={info.keyUrl} target="_blank" rel="noreferrer">Get a key <ArrowSquareOutIcon size={12} /></a>}
 				</div>
 			)}
-		</div>
+		</>
 	);
 }
 
@@ -408,7 +426,7 @@ function ModelPicker({ catalog, draft, onPick, onBack }: {
 	);
 }
 
-/** Step 1: the model in use and the providers. "Change model" opens the picker. */
+/** Step 1: the model in use, its facts before its buttons, then the providers side by side. "Change model" opens the picker. */
 export function AgentModelSection({ draft }: { draft: AgentModelDraft }) {
 	const { data: catalog, isLoading } = useModelCatalog();
 	const [picking, setPicking] = useState(false);
@@ -421,6 +439,7 @@ export function AgentModelSection({ draft }: { draft: AgentModelDraft }) {
 	const model: CatalogModel = catalog.providers[effective.provider]?.models.find((m) => m.id === effective.id)
 		?? { ...effective, name: effective.id, context: null, price: null, tools: null };
 	const needsKey = !draft.hasKey(effective.provider);
+	const maker = makerOf(model);
 
 	if (picking) {
 		return (
@@ -451,39 +470,19 @@ export function AgentModelSection({ draft }: { draft: AgentModelDraft }) {
 
 	return (
 		<div className="pg-models">
-			<div className="pg-models-notice" role="note">
-				<ShieldCheckIcon size={18} weight="duotone" aria-hidden="true" />
-				<div>
-					<b>No training on your mail. Zero retention on OpenRouter.</b>
-					<p>
-						The agent reads your mail, so a model that keeps or trains on it is a security risk. Cloudflare doesn't train
-						on your prompts but makes no zero retention promise; your mailbox is already stored there
-						(<a href={PROVIDER_INFO["workers-ai"].policyUrl} target="_blank" rel="noreferrer">policy</a>). OpenRouter is held
-						to zero data retention endpoints and doesn't log prompts
-						(<a href={PROVIDER_INFO.openrouter.policyUrl} target="_blank" rel="noreferrer">policy</a>). Free, unpriced and
-						third-party partner models, and direct provider keys, can't be connected.
-					</p>
-				</div>
-			</div>
 			<div className="pg-models-head"><b>Agent model</b></div>
 			<div className="pg-model-card">
-				<div className="pg-model-card-main">
-					<span className="pg-model-title">
-						<b className="pg-model-card-name">{model.name}</b>
-						{sameModel(effective, recommended) && <Badge tone="ok">Recommended</Badge>}
-					</span>
-					<ModelSub model={model} needsKey={false} />
-					<code>{effective.id}</code>
-					<DataLine provider={effective.provider} className="pg-model-data" />
-				</div>
-				<dl className="pg-model-card-stats">
+				<b className="pg-model-card-name">{model.name}</b>
+				<dl className="pg-model-facts">
+					<div><dt>Provider</dt><dd><ProviderMark provider={effective.provider} /></dd></div>
+					{maker.label !== PROVIDER_INFO[effective.provider].label && <div><dt>Maker</dt><dd>{maker.label}</dd></div>}
+					<div><dt>Model ID</dt><dd><code>{effective.id}</code></dd></div>
 					<div><dt>Context</dt><dd>{formatContext(model.context)}</dd></div>
-					<div><dt>$ per 1M, in / out</dt><dd><Price model={model} /></dd></div>
+					<div><dt>Price</dt><dd>{model.price
+						? <>{formatPrice(model.price.input)} in <span className="pg-model-slash">/</span> <b>{formatPrice(model.price.output)}</b> out <span className="pg-model-unit">per 1M tokens</span></>
+						: "–"}</dd></div>
+					{model.tools === false && <div><dt>Tools</dt><dd>None</dd></div>}
 				</dl>
-				<div className="pg-model-card-actions">
-					<button type="button" className="pg-btn pg-btn-sm" onClick={runTest} disabled={test.busy || needsKey}>{test.busy ? "Testing…" : "Test"}</button>
-					<button type="button" className="pg-btn pg-btn-sm pg-btn-primary" onClick={() => setPicking(true)}>Change model</button>
-				</div>
 				{(needsKey || test.text) && (
 					<p className="pg-model-current-msg" data-ok={needsKey ? "false" : String(!!test.ok)} role="status">
 						{needsKey
@@ -491,22 +490,21 @@ export function AgentModelSection({ draft }: { draft: AgentModelDraft }) {
 							: test.text}
 					</p>
 				)}
+				<div className="pg-model-card-actions">
+					<button type="button" className="pg-btn pg-btn-sm pg-btn-primary" onClick={() => setPicking(true)}>Change model</button>
+					<button type="button" className="pg-btn pg-btn-sm" onClick={runTest} disabled={test.busy || needsKey}>{test.busy ? "Testing…" : "Test"}</button>
+				</div>
 			</div>
 
 			<div className="pg-models-head"><b>Providers</b></div>
-			<div className="pg-prov-list">
-				{PROVIDERS.map((p) => (
-					<ProviderRow
-						key={p}
-						provider={p}
-						draft={draft}
-						count={catalog.providers[p]?.models.length ?? 0}
-						open={openKey === p}
-						highlight={needsKey && effective.provider === p}
-						onToggle={() => setOpenKey(openKey === p ? null : p)}
-					/>
-				))}
-			</div>
+			<ProviderTable
+				draft={draft}
+				counts={Object.fromEntries(PROVIDERS.map((p) => [p, catalog.providers[p]?.models.length ?? 0])) as Record<ProviderId, number>}
+				openKey={openKey}
+				highlight={needsKey ? effective.provider : null}
+				onToggle={(p) => setOpenKey(openKey === p ? null : p)}
+			/>
+			<Note>Free models are turned off. Free endpoints can keep and train on prompts.</Note>
 		</div>
 	);
 }

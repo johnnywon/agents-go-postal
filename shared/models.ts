@@ -36,16 +36,18 @@ export interface ProviderInfo {
 	policyUrl: string;
 	/** True when every request is sent with zero data retention. */
 	zdr: boolean;
+	/** True when the provider's policy lets it train on prompts. */
+	trains: boolean;
 }
 
 export const PROVIDER_INFO: Record<ProviderId, ProviderInfo> = {
 	"workers-ai": {
-		id: "workers-ai", label: "Cloudflare", hue: 55, keyHint: null, keyUrl: null, modelsUrl: "https://developers.cloudflare.com/ai/models/", idExample: "@cf/author/model", zdr: false,
+		id: "workers-ai", label: "Cloudflare", hue: 55, keyHint: null, keyUrl: null, modelsUrl: "https://developers.cloudflare.com/ai/models/", idExample: "@cf/author/model", zdr: false, trains: false,
 		data: "Doesn't train on your prompts or outputs. No zero retention promise.",
 		policyUrl: "https://developers.cloudflare.com/workers-ai/platform/data-usage/",
 	},
 	openrouter: {
-		id: "openrouter", label: "OpenRouter", hue: 265, keyHint: "sk-or-…", keyUrl: "https://openrouter.ai/settings/keys", modelsUrl: null, idExample: "maker/model", zdr: true,
+		id: "openrouter", label: "OpenRouter", hue: 265, keyHint: "sk-or-…", keyUrl: "https://openrouter.ai/settings/keys", modelsUrl: "https://openrouter.ai/models", idExample: "maker/model", zdr: true, trains: false,
 		data: "Zero data retention endpoints only. Doesn't log prompts.",
 		policyUrl: "https://openrouter.ai/docs/guides/features/zdr",
 	},
