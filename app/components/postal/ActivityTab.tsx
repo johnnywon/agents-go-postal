@@ -2,7 +2,7 @@
 // Licensed under the Apache 2.0 license found in the LICENSE file or at:
 //     https://opensource.org/licenses/Apache-2.0
 
-import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { ACTIVITY_DAYS, type ActivityDays } from "shared/prefs";
 import api, { type ActivityActor, type ActivityEntry, type AutoDraftRun } from "~/services/api";
@@ -82,6 +82,8 @@ export function ActivityTab({ addresses, identities, days, onDays, autoDraft }: 
 		queryFn: ({ pageParam }) => api.getActivity({ ...filter, before: pageParam ?? undefined }),
 		initialPageParam: null as number | null,
 		getNextPageParam: (page) => page.next,
+		// A new filter keeps the old rows, dimmed, until its own arrive.
+		placeholderData: keepPreviousData,
 	});
 	const runs = useQuery({ queryKey: ["auto-draft-runs", mailbox], queryFn: () => api.getAutoDraftRuns(mailbox || undefined) });
 	const openMessage = useOpenMessage();
@@ -90,12 +92,9 @@ export function ActivityTab({ addresses, identities, days, onDays, autoDraft }: 
 	return (
 		<>
 			<Field inline label="Keep for" hint="Older entries are deleted once an hour.">
-				<Segmented
-					label="Keep activity for"
-					value={String(days)}
-					onChange={(v) => onDays(Number(v) as ActivityDays)}
-					options={ACTIVITY_DAYS.map((d) => ({ value: String(d), label: `${d} days` }))}
-				/>
+				<select className="pg-select pg-ui-keep" value={String(days)} aria-label="Keep activity for" onChange={(e) => onDays(Number(e.target.value) as ActivityDays)}>
+					{ACTIVITY_DAYS.map((d) => <option key={d} value={d}>{d} days</option>)}
+				</select>
 			</Field>
 			<Section
 				title="Actions"
@@ -111,7 +110,7 @@ export function ActivityTab({ addresses, identities, days, onDays, autoDraft }: 
 			>
 				<Async query={{ ...log, data: entries }} empty={`No activity${mailbox || actor !== "all" ? " matches" : " yet"}.`}>
 					{(list) => (
-						<List label="Activity">
+						<List label="Activity" busy={log.isPlaceholderData}>
 							{list.map((e) => <ActivityEntryRow key={e.id} entry={e} identities={identities} />)}
 						</List>
 					)}

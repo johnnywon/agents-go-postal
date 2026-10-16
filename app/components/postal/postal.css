@@ -1327,6 +1327,10 @@ button.pg-model-row:hover { background: var(--pg-hover); }
   flex: 1; min-width: 0; min-height: 0; display: grid; grid-template-columns: 236px minmax(0, 1fr); background: var(--pg-base); color: var(--pg-text-3);
 }
 .pg-console :focus-visible, .pg-console .pg-models-search:has(input:focus-visible) { outline-color: var(--pg-con-accent); }
+.pg-console .pg-segmented > button { transition: background .12s, color .12s, box-shadow .12s; }
+.pg-console .pg-segmented > button:hover:not([aria-checked="true"]) { background: var(--pg-hover-raised); }
+.pg-console .pg-segmented > button:active { background: var(--pg-active); }
+.pg-console .pg-segmented > button[aria-checked="true"] { background: var(--pg-active); color: var(--pg-text-1); box-shadow: inset 0 0 0 1px oklch(from var(--pg-con-accent) l c h / .6); }
 .pg-console-nav { display: flex; flex-direction: column; min-height: 0; background: var(--pg-rail); border-right: 1px solid var(--pg-line); }
 .pg-console-brand { padding: 0 12px; gap: 5px; text-transform: uppercase; color: var(--pg-text-3); }
 .pg-console-brand:hover { background: var(--pg-raised); color: var(--pg-text-3); }
@@ -1407,6 +1411,11 @@ button.pg-model-row:hover { background: var(--pg-hover); }
 .pg-ui-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 
 .pg-ui-section { display: flex; flex-direction: column; gap: 10px; }
+.pg-ui-field + .pg-ui-section { margin-top: 32px; }
+.pg-ui-section-head:has(.pg-ui-toolbar) { padding-bottom: 4px; }
+.pg-ui-keep.pg-select { min-width: 132px; }
+.pg-ui-list { transition: opacity .15s; }
+.pg-ui-list[aria-busy="true"] { opacity: .5; }
 .pg-ui-section-head { display: flex; align-items: center; gap: 12px; min-height: 26px; }
 .pg-ui-section-head h2 { flex: 1; margin: 0; font: 600 var(--pg-t-11) var(--pg-mono); letter-spacing: .06em; text-transform: uppercase; color: var(--pg-text-6); }
 .pg-ui-lede { margin: -4px 0 0; max-width: 72ch; font-size: var(--pg-t-12); color: var(--pg-text-6); text-wrap: pretty; }
@@ -1553,9 +1562,10 @@ button.pg-ui-stat:hover { border-color: var(--pg-line-3); }
 .pg-ui-wiz-panel[inert] { opacity: 0; }
 .pg-ui-wiz-q:focus { outline: none; }
 .pg-ui-wiz-q { font-size: 19px; font-weight: 600; letter-spacing: -.01em; line-height: 1.3; color: var(--pg-text-1); margin-bottom: 4px; }
+.pg-ui-wiz-name.pg-input { flex: none; height: 48px; padding: 0 16px; font: 15px var(--pg-font); }
 .pg-ui-ask-input.pg-textarea { min-height: 112px; padding: 14px 16px; font: 15px/1.55 var(--pg-font); resize: none; field-sizing: content; max-height: 220px; }
 .pg-ui-track-name.pg-input { flex: none; height: 46px; padding: 0 14px; font-size: 16px; }
-.pg-ui-ask-input.pg-textarea:focus, .pg-ui-track-name.pg-input:focus { border-color: oklch(from var(--pg-con-accent) l c h / .7); box-shadow: 0 0 0 3px oklch(from var(--pg-con-accent) l c h / .15); }
+.pg-ui-ask-input.pg-textarea:focus, .pg-ui-track-name.pg-input:focus, .pg-ui-wiz-name.pg-input:focus { border-color: oklch(from var(--pg-con-accent) l c h / .7); box-shadow: 0 0 0 3px oklch(from var(--pg-con-accent) l c h / .15); }
 .pg-modal-head:has(.pg-ui-track) h2 { white-space: nowrap; }
 .pg-ui-track { display: flex; align-items: center; gap: 2px; margin: 0 6px 0 0; padding: 0; list-style: none; }
 .pg-ui-track li { display: flex; align-items: center; gap: 2px; }
@@ -1575,6 +1585,7 @@ button.pg-ui-stat:hover { border-color: var(--pg-line-3); }
 .pg-ui-sum-row { display: grid; grid-template-columns: 88px minmax(0, 1fr) auto; align-items: baseline; gap: 4px 16px; min-height: 52px; padding: 15px 10px 15px 18px; }
 .pg-ui-sum-row + .pg-ui-sum-row { border-top: 1px solid var(--pg-line-soft); }
 .pg-ui-sum-row[data-open] { background: var(--pg-raised); }
+.pg-ui-sum-row dd > .pg-ui-badge { width: fit-content; }
 .pg-ui-sum dt { font: var(--pg-t-11) var(--pg-mono); text-transform: uppercase; letter-spacing: .04em; color: var(--pg-text-7); }
 .pg-ui-sum dd { margin: 0; min-width: 0; display: flex; flex-direction: column; gap: 3px; font-size: var(--pg-t-13); line-height: 1.5; color: var(--pg-text-2); overflow-wrap: anywhere; }
 .pg-ui-sum-sub { font-size: var(--pg-t-12); color: var(--pg-text-6); }

@@ -92,7 +92,7 @@ Every console page is built from `ConsoleUI.tsx` and its `.pg-ui-*` styles. A ne
 | `Async` | Loading, error and empty for a query, then the content. |
 | `Table` | Data on a panel: mono headers, right-aligned numbers, dim zeros, rose for a limit reached, rows that open. |
 | `Name` | First cell of a row: name, icon, tags, second line. |
-| `List` + `Item` | Stacked rows: drafts, log entries, signatures. Badge, title, time or aside, meta line, quote. An `Item` with children opens in place. |
+| `List` + `Item` | Stacked rows: drafts, log entries, signatures. Badge, title, time or aside, meta line, quote. An `Item` with children opens in place. `busy` dims the rows while a new filter loads, so a click never blanks the list. |
 | `Split` + `Row` | A list column beside a detail column, like mail's list and reader. A row has an icon, title, tags, a mark on the right (a mode), a second line and a mono meta line. |
 | `Stats` + `Stat` | Numbers in tiles; a tile can open where its number comes from. |
 | `Fields` + `Field` | Settings rows. `inline` for a switch, segmented control or number; otherwise a label column and a control column. |
@@ -113,7 +113,7 @@ Every console page is built from `ConsoleUI.tsx` and its `.pg-ui-*` styles. A ne
 | `Code` | A block of shell or JSON to copy: file name on top, light tints (commands bright, flags and keys purple, strings green, `$VARIABLES` yellow). |
 | `Button` | Default, primary (one per view), quiet, danger (only after a confirm). |
 | `Badge` | Watch (grey ring), Draft (purple), Send (orange), ok, warn, danger, neutral. `live` pulses while an agent is working. |
-| `Tabs`, `Toolbar`, `Segmented`, `Switch`, `Modal` | Page tabs, a row of small controls, and the shared controls and dialog. |
+| `Tabs`, `Toolbar`, `Segmented`, `Switch`, `Modal` | Page tabs, a row of small controls, and the shared controls and dialog. In the console the picked `Segmented` option is marked like a picked `Choices` option: purple tint and ring. A setting with more than a few values, such as how long the log is kept, is a select, not a `Segmented`. |
 
 #### MCP
 

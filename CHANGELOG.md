@@ -7,6 +7,8 @@ Versions follow [semantic versioning](https://semver.org). Before 1.0, a minor v
 ### Fixed
 
 - `npm run smoke` checks MCP sign-in: `/mcp` answers 401 with an OAuth challenge, the OAuth metadata under `/.well-known` loads, and `/authorize` stays behind Access. When Access still blocks `/mcp`, it says to add the bypass.
+- Activity log: "Keep for" is a dropdown, the Actions toolbar no longer sits on the line above it, and a filter keeps the rows (dimmed) until its own load instead of flashing "Loading". The picked filter in console toggles is marked in purple, like a picked choice.
+- New agent: the name is a one-line field instead of a tall box, and the Watch badge no longer stretches across its row.
 - Setup and the README name both bypass paths, `/mcp` and `/.well-known`, and setup shows how to add the bypass application with the Cloudflare API.
 
 No D1 migration.

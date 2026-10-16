@@ -195,8 +195,9 @@ export function Name({ icon, children, tag, sub }: { icon?: ReactNode; children:
 }
 
 /** A stack of rows on a panel: drafts, log entries, tools. Each row is an `Item`. */
-export function List({ label, children }: { label?: string; children: ReactNode }) {
-	return <ul className="pg-ui-panel pg-ui-list" aria-label={label}>{children}</ul>;
+/** `busy`: the rows are from before a new filter and its rows are on the way. */
+export function List({ label, busy, children }: { label?: string; busy?: boolean; children: ReactNode }) {
+	return <ul className="pg-ui-panel pg-ui-list" aria-label={label} aria-busy={busy || undefined}>{children}</ul>;
 }
 
 /**
