@@ -117,9 +117,9 @@ Every console page is built from `ConsoleUI.tsx` and its `.pg-ui-*` styles. A ne
 
 #### MCP
 
-MCP (`McpTab.tsx`) opens with the server card: a live badge, the protocol, the last call, the URL, and the wire, four nodes a call passes through (client, Access, `/mcp`, tools) joined by animated dashed hops, with the numbers on the nodes. Access is dashed when it's off (dev). Then Connect a client: tabs for Claude Code, Claude Desktop, Cursor and curl, numbered steps (the Access service token step only when deployed), and a `Code` block per client. Clients is a `Table` from the activity log. Tools come from `shared/mcp-tools.ts` in four groups by impact (Read, Organize and draft, Send and delete, App), each a panel of tiles with the tool's calls and last use; Send and delete has a rose border and rose names. A filter narrows the tiles.
+MCP (`McpTab.tsx`) is three things, top to bottom: the server URL (`CopyField`), Connect (`Tabs` for Claude Code, Claude Desktop, Codex, Cursor, Grok and Other, one `Code` block each, and a Reference link to `docs/mcp.md`), and Connected apps (a `Table`: the app, what it can do as an `ok` Read or `danger` Read and send `Badge`, when it was last used, Revoke). It has no classes of its own. Keep it that small: the tool list, the sign-in flow and the error codes live in `docs/mcp.md`.
 
-One-offs earn their place, and `tests/console-design-system.test.mjs` fails on any other class: the console shell (`pg-console-*`), the search bar and window it shares with mail, the thread viewer (`pg-cmsg-*`), Draft review's mail rows (`pg-list-*`, `pg-row-*`, `pg-review-*`), the label editor and colour picker, the shortcut recorder (`pg-keys-*`), the MCP page (`pg-mcp-*`), and the model picker below. No inline styles.
+One-offs earn their place, and `tests/console-design-system.test.mjs` fails on any other class: the console shell (`pg-console-*`), the search bar and window it shares with mail, the thread viewer (`pg-cmsg-*`), Draft review's mail rows (`pg-list-*`, `pg-row-*`, `pg-review-*`), the label editor and colour picker, the shortcut recorder (`pg-keys-*`), and the model picker below. No inline styles.
 
 #### AI models
 

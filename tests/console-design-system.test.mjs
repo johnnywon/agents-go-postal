@@ -49,7 +49,6 @@ const ONE_OFFS = {
 	"pg-prov": "the model picker's provider rows",
 	"pg-browse": "the model picker's browse rows",
 	"pg-zdr": "the zero-retention mark in the model picker",
-	"pg-mcp": "the MCP page: the server card and its wire, setup steps, and the tool map",
 };
 
 const classesIn = (src) => new Set(src.match(/\bpg-[a-z0-9-]+/g) ?? []);

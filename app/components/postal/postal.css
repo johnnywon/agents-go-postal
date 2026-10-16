@@ -92,8 +92,6 @@ html:has(.postal), html:has(.postal) body { background: var(--pg-base, #141518);
   .pg-ui-addr-domain,
   .pg-tools-list div,
   .pg-ui-code-head,
-  .pg-mcp-group-head,
-  .pg-mcp-steps > li,
   .pg-ui-chip-box,
   .pg-ui-picker-head,
   .pg-ui-choice-mark,
@@ -1749,61 +1747,5 @@ button.pg-ui-stat:hover { border-color: var(--pg-line-3); }
 .pg-ui-code [data-tok="str"] { color: var(--pg-green-text); }
 .pg-ui-code [data-tok="var"] { color: var(--pg-yellow-text); }
 .pg-ui-code [data-tok="punct"] { color: var(--pg-text-8); }
-
-/* MCP: the server card and its wire, setup steps, and the tool map. */
-.pg-mcp-server { display: flex; flex-direction: column; gap: 12px; padding: 14px; border: 1px solid var(--pg-line); background: var(--pg-raised); }
-.pg-mcp-status { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; font: var(--pg-t-11) var(--pg-mono); color: var(--pg-text-7); }
-.pg-mcp-server .pg-ui-copy-value { font-size: var(--pg-t-13); color: var(--pg-text-1); }
-.pg-mcp-wire { display: flex; align-items: center; gap: 0; margin: 0; padding: 4px 0 0; list-style: none; }
-.pg-mcp-wire > li { flex: 1 1 0; min-width: 0; display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 2px 8px; padding: 9px 11px; border: 1px solid var(--pg-line-2); background: var(--pg-input); color: var(--pg-text-6); transition: border-color .15s, background .15s; }
-.pg-mcp-wire > li:hover { border-color: var(--pg-line-3); background: var(--pg-hover-raised); }
-.pg-mcp-wire > li > b { font: 600 var(--pg-t-12) var(--pg-mono); color: var(--pg-text-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.pg-mcp-wire > li > span:last-child { grid-column: 2; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: var(--pg-t-11) var(--pg-mono); color: var(--pg-text-7); }
-.pg-mcp-wire > li[data-on] { border-color: oklch(from var(--pg-con-accent) l c h / .45); color: var(--pg-con-accent-text); }
-.pg-mcp-wire > li[data-off] { border-style: dashed; }
-.pg-mcp-wire > li[data-off] > b { color: var(--pg-text-6); }
-.pg-mcp-live { width: 8px; height: 8px; margin: 0 3px; background: var(--pg-green); box-shadow: 0 0 8px oklch(from var(--pg-green) l c h / .6); animation: pg-pulse 1.4s ease-in-out infinite; }
-.pg-mcp-hop { flex: 0 0 36px; height: 8px; overflow: visible; }
-.pg-mcp-hop line { stroke: var(--pg-con-accent); stroke-width: 1.5; stroke-dasharray: 3 3; animation: pg-mcp-flow .9s linear infinite; }
-.pg-mcp-hop path { fill: none; stroke: var(--pg-con-accent); stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
-@keyframes pg-mcp-flow { to { stroke-dashoffset: -6; } }
-
-.pg-mcp-steps { margin: 0; padding: 0; list-style: none; counter-reset: pg-step; display: flex; flex-direction: column; }
-.pg-mcp-steps > li { counter-increment: pg-step; position: relative; display: flex; flex-direction: column; gap: 6px; min-width: 0; padding: 12px 0 12px 36px; border-bottom: 1px solid var(--pg-line-soft); }
-.pg-mcp-steps > li:last-child { border-bottom: 0; }
-.pg-mcp-steps > li::before { content: counter(pg-step); position: absolute; left: 0; top: 11px; width: 22px; height: 22px; display: grid; place-items: center; border: 1px solid oklch(from var(--pg-con-accent) l c h / .5); color: var(--pg-con-accent-text); font: 600 var(--pg-t-11) var(--pg-mono); }
-.pg-mcp-steps b { font-weight: 600; color: var(--pg-text-2); }
-.pg-mcp-steps p { margin: 0; max-width: 72ch; font-size: var(--pg-t-12); color: var(--pg-text-6); text-wrap: pretty; }
-.pg-mcp-steps p code { color: var(--pg-text-3); }
-.pg-mcp-steps a { display: inline-flex; align-items: center; gap: 2px; color: inherit; text-decoration: underline; }
-.pg-mcp-steps a:hover { color: var(--pg-text-1); }
-
-.pg-mcp-filter { display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 9px; border: 1px solid var(--pg-line-2); background: var(--pg-input); color: var(--pg-text-7); }
-.pg-mcp-filter:focus-within { border-color: var(--pg-con-accent); }
-.pg-mcp-filter input { width: 140px; border: 0; background: none; outline: none; font: var(--pg-t-12) var(--pg-mono); color: var(--pg-text-2); }
-.pg-mcp-group { border: 1px solid var(--pg-line); background: var(--pg-raised); }
-.pg-mcp-group[data-group="send"] { border-color: oklch(from var(--pg-danger) l c h / .35); }
-.pg-mcp-group-head { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 10px; padding: 10px 14px; border-bottom: 1px solid var(--pg-line-soft); }
-.pg-mcp-group-head b { font-weight: 600; color: var(--pg-text-1); }
-.pg-mcp-group-head em { font: normal var(--pg-t-11) var(--pg-mono); color: var(--pg-text-7); }
-.pg-mcp-tools { margin: 0; padding: 8px; list-style: none; display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 6px; }
-.pg-mcp-tools > li { display: flex; flex-direction: column; gap: 3px; min-width: 0; padding: 10px 11px; border: 1px solid var(--pg-line-soft); background: var(--pg-input); transition: border-color .15s, background .15s, transform .15s; }
-.pg-mcp-tools > li:hover { border-color: oklch(from var(--pg-con-accent) l c h / .55); background: var(--pg-hover-raised); transform: translateY(-1px); }
-.pg-mcp-tools code { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 600 var(--pg-t-13) var(--pg-mono); color: var(--pg-text-1); }
-.pg-mcp-group[data-group="send"] .pg-mcp-tools code { color: var(--pg-danger-text); }
-.pg-mcp-tools span { font-size: var(--pg-t-12); color: var(--pg-text-5); }
-.pg-mcp-tools em { margin-top: 3px; font: normal var(--pg-t-11) var(--pg-mono); color: var(--pg-con-accent-text); }
-.pg-mcp-tools li[data-unused] em { color: var(--pg-text-8); }
-
-@media (max-width: 760px) {
-  .pg-mcp-wire { flex-direction: column; align-items: stretch; }
-  .pg-mcp-hop { flex: none; align-self: center; width: 28px; height: 8px; margin: 10px 0; transform: rotate(90deg); }
-  .pg-mcp-filter input { width: 100px; }
-  .pg-mcp-tools { grid-template-columns: minmax(0, 1fr); }
-}
-@media (prefers-reduced-motion: reduce) {
-  .pg-mcp-hop line, .pg-mcp-live { animation: none; }
-  .pg-mcp-tools > li:hover { transform: none; }
-}
 
 .pg-ui-quiet { color: var(--pg-text-6); }
