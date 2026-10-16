@@ -146,7 +146,7 @@ The console rail ends with the colophon (`ConsoleColophon.tsx`): four figures, t
 - Figures in a fixed order: messages, storage (every message's size, D1 and R2), addresses, uptime (since the running version was deployed, from the `version_metadata` binding). No fifth figure: a fifth stat belongs on a page.
 - Four auto columns, space-between, at least 12px apart, 20px in from the rail's edges. Figures are 16px in the 236px rail; the widest values (99,999 · 48.6 · 1,206 · 104) still keep the 12px gap.
 - Units are the mono caps at 9px with an 8px unit glyph, 4px apart.
-- The imprint: the mark (its last fold in the mail's orange, the colophon's only colour) and the wordmark (`Wordmark` in `NavIcons.tsx`, `.pg-wordmark`: "plura" in the UI font and "MAIL" in mono at .763em, and nowhere else: rail heads keep the fold mark and name the view, All Inboxes or Console); then the version and the GitHub glyph, the colophon's only link, with a 24px hit area.
+- The imprint: the logo lockup (`public/brand/lockup-dark.png` on the dark console, `lockup-light.png` on the light one) at 18px, then the version and the GitHub glyph, the colophon's only link, with a 24px hit area. The lockup is the real logo; don't rebuild it from type.
 
 ### Error pages
 

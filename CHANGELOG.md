@@ -7,7 +7,7 @@ Versions follow [semantic versioning](https://semver.org). Before 1.0, a minor v
 ### Added
 
 - The console rail ends with a colophon: messages, storage, addresses and uptime, then the mark, the version and a link to the source. `/api/v1/config` returns `version` and `deployedAt`, and `/api/v1/storage/status` returns `bytes`.
-- The rail heads name the view beside the fold mark: All Inboxes in mail, Console in the console. The wordmark appears only in the colophon.
+- The rail heads name the view beside the fold mark: All Inboxes in mail, Console in the console. The logo appears only in the colophon, as the lockup from `public/brand`.
 - Figures (`shared/figures.ts`): one way to show counts, sizes and lengths of time in six characters or fewer. Uptime steps from minutes to hours to days to weeks.
 
 ### Upgrading

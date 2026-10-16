@@ -3,7 +3,6 @@ import { useEffect, useState } from "react";
 import { bytesFigure, countFigure, durationFigure, type Figure, figureLabel, secondsSince } from "shared/figures";
 import { queryKeys } from "~/queries/keys";
 import api from "~/services/api";
-import { Wordmark } from "./NavIcons";
 
 /** The source the GitHub glyph links to. The repo is public, so every deployment points here. */
 const REPO_URL = "https://github.com/johnnywon/pluramail";
@@ -29,17 +28,6 @@ function Cell({ kind, label, figure, unit }: { kind: Kind; label: string; figure
 			<b data-unknown={figure ? undefined : true} aria-hidden="true">{figure ? figure.fig : "—"}</b>
 			<span aria-hidden="true"><UnitGlyph kind={kind} />{figure ? figure.unit : unit}</span>
 		</div>
-	);
-}
-
-/** The mark: three folds, the last one in the mail's orange. */
-function Mark() {
-	return (
-		<svg width="18" height="18" viewBox="0 0 48 48" fill="none" strokeWidth="5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-			<polyline points="7,8.5 24,19.5 41,8.5" stroke="currentColor" />
-			<polyline points="7,18.5 24,29.5 41,18.5" stroke="currentColor" />
-			<polyline points="7,28.5 24,39.5 41,28.5" className="pg-console-colophon-flap" />
-		</svg>
 	);
 }
 
@@ -71,7 +59,11 @@ export function ConsoleColophon() {
 				<Cell kind="upt" label="Uptime" figure={durationFigure(secondsSince(config.data?.deployedAt, now))} unit="DAYS" />
 			</div>
 			<div className="pg-console-colophon-imprint">
-				<span className="pg-console-colophon-mark"><Mark /><Wordmark /></span>
+				<span className="pg-console-colophon-mark">
+					{/* The logo lockup from public/brand: Paper on the dark console, Ink on the light one. */}
+					<img className="pg-console-colophon-logo" data-ground="dark" src="/brand/lockup-dark.png" alt="PluraMail" width={100} height={18} />
+					<img className="pg-console-colophon-logo" data-ground="light" src="/brand/lockup-light.png" alt="" width={100} height={18} />
+				</span>
 				<span className="pg-console-colophon-version">
 					{version && <span>v{version}</span>}
 					<a href={REPO_URL} target="_blank" rel="noopener noreferrer" aria-label="PluraMail on GitHub" title="Source on GitHub">

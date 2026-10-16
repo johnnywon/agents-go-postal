@@ -263,9 +263,6 @@ html:has(.postal), html:has(.postal) body { background: var(--pg-base, #141518);
   color: var(--pg-text-5); font: 600 10px var(--pg-mono); letter-spacing: .08em;
 }
 .pg-rail-head:hover { background: var(--pg-hover-raised); color: var(--pg-text-2); }
-/* The wordmark: only in the console colophon. Rail heads name the view instead. */
-.pg-wordmark { display: inline-flex; align-items: baseline; font-weight: 600; font-family: var(--pg-font); letter-spacing: -.035em; font-kerning: none; text-transform: none; color: var(--pg-text-1); }
-.pg-wordmark i { font: 600 .763em var(--pg-mono); font-style: normal; letter-spacing: .02em; }
 .pg-nav .pg-rail-head { padding: 0 10px 0 12px; }
 .pg-nav-scroll {
   flex: 1; min-height: 0; overflow-y: auto; scrollbar-gutter: stable;
@@ -1360,10 +1357,10 @@ button.pg-model-row:hover { background: var(--pg-hover); }
 .pg-console-colophon-cell span { display: flex; align-items: center; gap: 4px; height: 12px; font: 600 9px/12px var(--pg-mono); letter-spacing: .08em; white-space: nowrap; }
 .pg-console-colophon-cell svg { flex: none; display: block; overflow: visible; }
 .pg-console-colophon-imprint { display: flex; justify-content: space-between; align-items: flex-end; margin: 0 20px; padding: 13px 0 16px; border-top: 1px solid var(--pg-con-groove); box-shadow: inset 0 1px 0 var(--pg-con-groove-edge); }
-.pg-console-colophon-mark { display: flex; align-items: center; gap: 6px; }
-.pg-console-colophon-mark svg { flex: none; margin-top: 1px; }
-.pg-console-colophon-mark .pg-wordmark { font-size: 18px; line-height: 24px; }
-.pg-console-colophon-flap { stroke: var(--pg-mail); }
+.pg-console-colophon-mark { display: flex; align-items: center; height: 24px; }
+.pg-console-colophon-logo { display: block; height: 18px; width: auto; }
+.pg-console-colophon-logo[data-ground="light"], .postal[data-theme="light"] .pg-console-colophon-logo[data-ground="dark"] { display: none; }
+.postal[data-theme="light"] .pg-console-colophon-logo[data-ground="light"] { display: block; }
 .pg-console-colophon-version { display: flex; align-items: center; gap: 6px; padding-bottom: 5px; font: 600 9px/12px var(--pg-mono); letter-spacing: .08em; color: var(--pg-text-6); }
 .pg-console-colophon-version a { display: grid; place-items: center; width: 24px; height: 24px; margin: -6px -7px -6px -3px; color: var(--pg-text-6); }
 .pg-console-colophon-version a:hover { color: var(--pg-text-1); }
