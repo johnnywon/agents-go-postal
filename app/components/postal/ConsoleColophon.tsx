@@ -15,7 +15,7 @@ function UnitGlyph({ kind }: { kind: Kind }) {
 	return (
 		<svg width="8" height="8" viewBox="2 2 20 20" fill="none" stroke="currentColor" strokeWidth="3" strokeLinejoin="miter" strokeLinecap="butt" aria-hidden="true">
 			{kind === "msg" && <><polygon points="6,5 21,5 21,16.5 18.5,19 3,19 3,8" /><polyline points="6,5 12,8.9 18,5" /></>}
-			{kind === "sto" && <><polygon points="5.5,7 15,7 15,17 5.5,17 3,14.5 3,9.5" /><polyline points="15,9.5 21,9.5 21,14.5 15,14.5" /></>}
+			{kind === "sto" && <><polygon points="3,6 7.6,3 16.4,3 21,6 16.4,9 7.6,9" /><polyline points="3,11.5 7.6,14.5 16.4,14.5 21,11.5" /><polyline points="3,17 7.6,20 16.4,20 21,17" /></>}
 			{kind === "adr" && <><polygon points="10,8.5 15.5,8.5 15.5,15.5 10,15.5 8.5,14 8.5,10" /><polyline points="15.5,8.5 15.5,14.5 17,16 18.8,16 20.3,14.5 20.3,8.56 15.44,3.7 8.56,3.7 3.7,8.56 3.7,15.44 8.56,20.3 16,20.3" /></>}
 			{kind === "upt" && <><polygon points="20.3,8.56 20.3,15.44 15.44,20.3 8.56,20.3 3.7,15.44 3.7,8.56 8.56,3.7 15.44,3.7" /><line x1="12" y1="12" x2="16.6" y2="9.03" /></>}
 		</svg>
