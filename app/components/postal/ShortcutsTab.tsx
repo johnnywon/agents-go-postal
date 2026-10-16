@@ -61,14 +61,12 @@ export function ShortcutList({ overrides, onChange }: { overrides: ShortcutOverr
 
 	return (
 		<div className="pg-keys">
-			{onChange && (
+			{onChange && edited && (
 				<div className="pg-keys-intro">
 					<span className="pg-flex" />
-					{edited && (
-						<button type="button" className="pg-btn pg-btn-sm pg-btn-quiet" onClick={() => { setRecording(null); setNote(null); onChange({}); }}>
-							Reset all
-						</button>
-					)}
+					<button type="button" className="pg-btn pg-btn-sm pg-btn-quiet" onClick={() => { setRecording(null); setNote(null); onChange({}); }}>
+						Reset all
+					</button>
 				</div>
 			)}
 			{SHORTCUT_GROUPS.map((group) => (

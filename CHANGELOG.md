@@ -8,6 +8,10 @@ Versions follow [semantic versioning](https://semver.org). Before 1.0, a minor v
 
 - `npm run smoke` checks MCP sign-in: `/mcp` answers 401 with an OAuth challenge, the OAuth metadata under `/.well-known` loads, and `/authorize` stays behind Access. When Access still blocks `/mcp`, it says to add the bypass.
 - Activity log: "Keep for" is a dropdown, the Actions toolbar no longer sits on the line above it, and a filter keeps the rows (dimmed) until its own load instead of flashing "Loading". The picked filter in console toggles is marked in purple, like a picked choice.
+- An agent shows Working only while a run moved in the last 10 minutes. A run that died no longer keeps the badge until the hourly cleanup, and the sample data gives one agent a live run instead of all of them.
+- The Overview's Auto-drafts card names two states, failed first after drafted, instead of a cut-off list.
+- Keyboard shortcuts loses the empty row above the list; it shows only to hold Reset all. Mail storage puts 32px between the total and the table.
+- Addresses, Signatures and Labels lose their explaining lines.
 - New agent: the name is a one-line field instead of a tall box, and the Watch badge no longer stretches across its row.
 - Setup and the README name both bypass paths, `/mcp` and `/.well-known`, and setup shows how to add the bypass application with the Cloudflare API.
 

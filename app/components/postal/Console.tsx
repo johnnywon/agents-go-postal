@@ -67,7 +67,7 @@ export function ModeBadge({ mode }: { mode: AgentMode }) {
 
 /** Working: the agent has a message running or queued right now. */
 function WorkingBadge({ stats }: { stats: AgentStats | undefined }) {
-	const n = (stats?.runs.running ?? 0) + (stats?.runs.queued ?? 0);
+	const n = stats?.live ?? 0;
 	return n ? <Badge tone="draft" live>Working{n > 1 ? ` · ${n}` : ""}</Badge> : null;
 }
 

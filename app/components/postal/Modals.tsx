@@ -63,8 +63,6 @@ export function ConsoleSettings({ tab, onTab, prefs, setPrefs, addresses, identi
 	const [sigs, setSigs] = useState<Record<string, { html: string; enabled: boolean }>>(loadedSigs);
 	// What the server holds. Moves forward after each save, ahead of the mailbox refetch.
 	const [initialSigs, setInitialSigs] = useState(loadedSigs);
-	const sigCount = addresses.filter((a) => hasText(sigs[a]?.html ?? "")).length;
-	const sigOnCount = addresses.filter((a) => sigs[a]?.enabled && hasText(sigs[a].html)).length;
 	// With no signatures anywhere, open the first address so there is somewhere to start.
 	const [sigOpen, setSigOpen] = useState<string | null>(() => addresses.some((a) => loadedSigs[a]?.html) ? null : addresses[0] ?? null);
 	const [sigFocus, setSigFocus] = useState(false);
@@ -238,7 +236,6 @@ export function ConsoleSettings({ tab, onTab, prefs, setPrefs, addresses, identi
 					)}
 					{tab === "addresses" && (
 						<>
-							<Note>The sender name recipients see on mail from each address. Left empty, they see the part before the @.</Note>
 							{identities.groups.map(({ identity, addresses: group }) => {
 								const list = group.filter((a) => addresses.includes(a));
 								if (!list.length) return null;
@@ -274,12 +271,6 @@ export function ConsoleSettings({ tab, onTab, prefs, setPrefs, addresses, identi
 					)}
 					{tab === "signatures" && (
 						<>
-							<Note>
-								{sigCount === 0
-									? "No address has a signature yet."
-									: `${sigCount} of ${addresses.length} addresses have a signature, ${sigOnCount} added by default.`}
-								{" "}The signature button in the composer adds or removes it on any message.
-							</Note>
 							<List label="Signatures">
 								{addresses.map((a) => {
 									const id = identities.of(a);

@@ -185,6 +185,8 @@ export interface AgentStats {
 	agentId: string;
 	runs: Partial<Record<AutoDraftRun["state"], number>>;
 	today: number;
+	/** Queued or running runs that moved in the last 10 minutes. */
+	live: number;
 }
 
 export interface AgentDraft {

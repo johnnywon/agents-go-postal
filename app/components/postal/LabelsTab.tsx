@@ -156,7 +156,6 @@ export function LabelsTab() {
 	};
 	return (
 		<div className="pg-labels">
-			<Note>Shared by every address. Labeling leaves a conversation where it is. Changes save as you make them.</Note>
 			<form className="pg-label-new" onSubmit={submit}>
 				<div className="pg-label-main">
 					<button type="button" className="pg-color pg-label-color" aria-expanded={picking} aria-label="Color for the new label" title="Color" onClick={() => setPicking(!picking)}>

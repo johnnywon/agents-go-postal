@@ -1412,6 +1412,9 @@ button.pg-model-row:hover { background: var(--pg-hover); }
 
 .pg-ui-section { display: flex; flex-direction: column; gap: 10px; }
 .pg-ui-field + .pg-ui-section { margin-top: 32px; }
+/* 32px from stats to the next section, inside a Page's 20px gap or not. */
+.pg-ui-stats + .pg-ui-section { margin-top: 32px; }
+.pg-ui-page > .pg-ui-stats + .pg-ui-section { margin-top: 12px; }
 .pg-ui-section-head:has(.pg-ui-toolbar) { padding-bottom: 4px; }
 .pg-ui-keep.pg-select { min-width: 132px; }
 .pg-ui-list { transition: opacity .15s; }

@@ -90,6 +90,24 @@ test("a run records which agent took it, and ends watched or sent", async () => 
 	assert.equal(stats.find((s) => s.agentId === "ag2").today, 1);
 });
 
+test("an agent is working only while a run moved in the last ten minutes", async () => {
+	const { sql } = await openD1();
+	const now = Date.parse("2026-10-16T12:00:00.000Z");
+	const at = (min) => new Date(now - min * 60_000).toISOString();
+	const run = (id, state, min) => sql.run(
+		`INSERT INTO auto_draft_runs (email_id, mailbox_id, thread_id, sender, state, attempts, agent_id, created_at, updated_at) VALUES (?, ?, ?, 'bob@example.net', ?, 1, ?, ?, ?)`,
+		id, A, id, state, id.startsWith("live") ? "ag-live" : "ag-stale", at(min + 1), at(min),
+	);
+	await run("live-1", "running", 1);
+	await run("live-2", "queued", 9);
+	await run("stale-1", "running", 60 * 20);
+	await run("stale-2", "queued", 11);
+	const stats = await agents.agentStats(sql, now);
+	assert.equal(stats.find((s) => s.agentId === "ag-live").live, 2);
+	assert.equal(stats.find((s) => s.agentId === "ag-stale").live, 0);
+	assert.equal(stats.find((s) => s.agentId === "ag-stale").runs.running, 1);
+});
+
 test("agent routes", async () => {
 	const d1 = await openD1();
 	await d1.addMailboxes(A, B);
