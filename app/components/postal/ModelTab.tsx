@@ -156,6 +156,9 @@ function ProviderRow({ provider, draft, count, open, highlight, onToggle }: {
 				<span className="pg-prov-status" data-on={connected}>{status}</span>
 				<span className="pg-prov-count">{count} models</span>
 				<DataLine provider={provider} className="pg-prov-data" />
+				{!keyed && info.modelsUrl && (
+					<a className="pg-btn pg-btn-sm pg-btn-quiet" href={info.modelsUrl} target="_blank" rel="noreferrer">Models <ArrowSquareOutIcon size={12} aria-hidden="true" /></a>
+				)}
 				{keyed && (
 					<button type="button" className="pg-btn pg-btn-sm" onClick={onToggle} aria-expanded={open}>
 						{open ? "Done" : saved?.set || pendingKey ? "Manage" : "Add key"}

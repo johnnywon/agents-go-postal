@@ -26,6 +26,8 @@ export interface ProviderInfo {
 	keyHint: string | null;
 	/** Where to get a key. */
 	keyUrl: string | null;
+	/** The provider's own model catalog. */
+	modelsUrl: string | null;
 	/** What a model id looks like, for typed-in ids. */
 	idExample: string;
 	/** What happens to prompts sent there, in one line, as the policy below states it. */
@@ -38,12 +40,12 @@ export interface ProviderInfo {
 
 export const PROVIDER_INFO: Record<ProviderId, ProviderInfo> = {
 	"workers-ai": {
-		id: "workers-ai", label: "Cloudflare", hue: 55, keyHint: null, keyUrl: null, idExample: "@cf/author/model", zdr: false,
+		id: "workers-ai", label: "Cloudflare", hue: 55, keyHint: null, keyUrl: null, modelsUrl: "https://developers.cloudflare.com/ai/models/", idExample: "@cf/author/model", zdr: false,
 		data: "Doesn't train on your prompts or outputs. No zero retention promise.",
 		policyUrl: "https://developers.cloudflare.com/workers-ai/platform/data-usage/",
 	},
 	openrouter: {
-		id: "openrouter", label: "OpenRouter", hue: 265, keyHint: "sk-or-…", keyUrl: "https://openrouter.ai/settings/keys", idExample: "maker/model", zdr: true,
+		id: "openrouter", label: "OpenRouter", hue: 265, keyHint: "sk-or-…", keyUrl: "https://openrouter.ai/settings/keys", modelsUrl: null, idExample: "maker/model", zdr: true,
 		data: "Zero data retention endpoints only. Doesn't log prompts.",
 		policyUrl: "https://openrouter.ai/docs/guides/features/zdr",
 	},
