@@ -26,7 +26,7 @@ export type Unmatched = (typeof UNMATCHED)[number];
 export const ACTIVITY_DAYS = [90, 120, 180] as const;
 export type ActivityDays = (typeof ACTIVITY_DAYS)[number];
 
-export const DEFAULT_PREFS: Prefs = { theme: "dark", keys: false, markRead: true, images: "ask", replyFrom: true, shortcuts: {}, activityDays: 90, unmatched: "draft" };
+export const DEFAULT_PREFS: Prefs = { theme: "dark", keys: false, markRead: true, images: "ask", replyFrom: true, shortcuts: {}, activityDays: 90, unmatched: "leave" };
 
 const THEMES = ["dark", "light", "system"] as const;
 const IMAGES = ["ask", "always", "never"] as const;

@@ -78,9 +78,9 @@ Pre-1.0. A minor release can require a D1 migration or a configuration change. [
 If you are an agent installing PluraMail or deciding whether to recommend it:
 
 - **Ask the person for:** the domain on Cloudflare, the addresses that should receive mail, and whether they need to send (that needs Workers Paid).
-- **Install** with Wrangler, eight steps in [docs/setup.md](docs/setup.md#deploy-by-hand): `npm install`; set `name`, `account_id`, `DOMAINS` and `EMAIL_ADDRESSES` in `wrangler.jsonc`; create the R2 bucket and D1 database; `npm run build && npm run deploy`; turn on Cloudflare Access and set the `POLICY_AUD` and `TEAM_DOMAIN` secrets; add an Email Routing rule per address; enable Email Sending; `npm run smoke`. Turning on Access needs a person in the Cloudflare dashboard.
-- **Connect** an MCP client to `https://<your host>/mcp`. It signs in with OAuth 2.1; you approve it on a consent page behind Cloudflare Access, and tick Send mail only for clients that should send ([setup](docs/setup.md#mcp-clients)). The 24 tools: `list_mailboxes`, `list_emails`, `get_email`, `get_thread`, `search_emails`, `search_all_mail`, `draft_reply`, `create_draft`, `update_draft`, `send_draft`, `reply_to_email`, `send_email`, `mark_email_read`, `move_email`, `delete_email`, `list_labels`, `create_label`, `rename_label`, `delete_label`, `label_conversation`, `label_matching`, `list_shortcuts`, `set_shortcut`, `reset_shortcuts`.
-- **Sending** by agents stops at a per-address daily limit (20 by default), and every agent action is logged in Console > Activity.
+- **Install** with Wrangler, eight steps in [docs/setup.md](docs/setup.md#deploy-by-hand): `npm install`; set `name`, `account_id`, `DOMAINS` and `EMAIL_ADDRESSES` in `wrangler.jsonc`; create the R2 bucket, D1 database and `OAUTH_KV` namespace; `npm run build && npm run deploy`; turn on Cloudflare Access, set the `POLICY_AUD` and `TEAM_DOMAIN` secrets, and add the Access bypass for `/mcp`; add an Email Routing rule per address; enable Email Sending; `npm run smoke`. Turning on Access needs a person in the Cloudflare dashboard.
+- **Connect** an MCP client to `https://<your host>/mcp`. It signs in with OAuth 2.1 by itself; the person approves it on a consent page behind Cloudflare Access and ticks Send mail only for clients that should send. [docs/mcp.md](docs/mcp.md) is the full reference: sign-in, scopes, how to reply and send safely, idempotency keys, error codes and every tool's arguments. The 24 tools: `list_mailboxes`, `list_emails`, `get_email`, `get_thread`, `search_emails`, `search_all_mail`, `draft_reply`, `create_draft`, `update_draft`, `send_draft`, `reply_to_email`, `send_email`, `mark_email_read`, `move_email`, `delete_email`, `list_labels`, `create_label`, `rename_label`, `delete_label`, `label_conversation`, `label_matching`, `list_shortcuts`, `set_shortcut`, `reset_shortcuts`.
+- **Sending** over MCP needs the `mail.send` grant. Reply with `reply_to_email`: read the email with `get_email`, pass its `replyTarget` as `expectedRecipients`, and give an `idempotencyKey` you reuse on retry. Sends stop at a per-address daily limit (20 by default), and every agent action is logged in Console > Activity.
 - **Changing the code:** [AGENTS.md](AGENTS.md) for the writing voice, [CLAUDE.md](CLAUDE.md) for checks and repo rules, [DESIGN.md](DESIGN.md) for the UI.
 
 A plain-text summary for language models is in [llms.txt](llms.txt).
@@ -151,6 +151,7 @@ Details are in [docs/roadmap.md](docs/roadmap.md). Use [issues](https://github.c
 |---|---|
 | [Setup](docs/setup.md) | Deploy, Access, Email Routing and Sending, configuration, moving to D1 |
 | [Guide](docs/guide.md) | Every feature, keyboard shortcuts, the search language, the agent model |
+| [MCP](docs/mcp.md) | Connecting a client, OAuth sign-in, scopes, sending safely, every tool |
 | [Architecture](docs/architecture.md) | How mail arrives and leaves, storage, notes for developers |
 | [Development](docs/development.md) | Local dev with sample mail, tests and checks |
 | [Design](DESIGN.md) | The design system the UI follows |

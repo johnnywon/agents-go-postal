@@ -18,7 +18,6 @@
 		// TEAM_DOMAIN must include https://; it may be the base Access URL or full /cdn-cgi/access/certs URL.
 		// The worker now fails closed outside local development if Access is not configured.
 		"DOMAINS": "example.com",
-		"AUTO_DRAFT_ENABLED": "false",
 		"EMAIL_ADDRESSES": ["hello@example.com"]
 	},
 	// Sends scheduled mail and, with ATTACHMENT_SEARCH on, makes attachments searchable.
@@ -59,7 +58,7 @@
 			"binding": "OAUTH_KV"
 		}
 	],
-	// Optional, for AUTO_DRAFT_ENABLED: run auto-drafts on a queue that retries a failed draft
+	// Optional: run agent drafts on a queue that retries a failed draft
 	// three times with backoff, then moves it to a dead-letter queue. Without it, each draft is
 	// tried once. Create both queues (npx wrangler queues create pluramail-drafts, and
 	// pluramail-drafts-dlq), then uncomment. Keep max_retries at 3 (workers/agent/runs.ts).

@@ -42,7 +42,7 @@ Worker
   1. Parse it. Mail to an address that isn't configured is dropped.
   2. Attachments ---------------------------------> R2
   3. The message, threaded into its conversation --> Mail store
-  4. With AUTO_DRAFT_ENABLED, ask for a reply -----> Agent
+  4. If an agent takes it, ask for a reply -------> Agent
      (skips mailing lists and no-reply senders)
   |
   v

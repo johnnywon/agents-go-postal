@@ -188,10 +188,6 @@ export function ConsoleSettings({ tab, onTab, prefs, setPrefs, addresses, identi
 				<SummaryRow label="Model" editLabel="Change" onEdit={() => onTab("models")}>
 					{agentModel.stored ? modelName(catalog, agentModel.stored.active) : "Not set"}
 				</SummaryRow>
-				<SummaryRow label="New mail">
-					<span><Badge tone={autoDraft ? "ok" : "neutral"}>{autoDraft ? "On" : "Off"} · config</Badge></span>
-					<span className="pg-ui-sum-sub">Agents run on new mail when <span className="pg-mono">AUTO_DRAFT_ENABLED</span> is set in your Worker config</span>
-				</SummaryRow>
 				<SummaryRow
 					label="Limits" open={openRow === "limits"} onEdit={() => setOpenRow(openRow === "limits" ? null : "limits")}
 					editor={<Fields><LimitsTab draft={limits} /></Fields>}

@@ -2,7 +2,7 @@
 // Licensed under the Apache 2.0 license found in the LICENSE file or at:
 //     https://opensource.org/licenses/Apache-2.0
 
-import { MagnifyingGlassIcon, PlugsConnectedIcon, ShieldCheckIcon, WrenchIcon } from "@phosphor-icons/react";
+import { ArrowSquareOutIcon, MagnifyingGlassIcon, PlugsConnectedIcon, ShieldCheckIcon, WrenchIcon } from "@phosphor-icons/react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { MCP_GROUPS, MCP_TOOLS, type McpToolGroup } from "shared/mcp-tools";
@@ -124,7 +124,14 @@ export function McpTab({ onTab }: { onTab: (tab: ConsoleTab) => void }) {
 				<Wire usage={usage.data} apps={apps.data?.apps} />
 			</div>
 
-			<Section title="Connect a client">
+			<Section
+				title="Connect a client"
+				actions={
+					<a className="pg-btn pg-btn-sm pg-btn-quiet" href="https://github.com/johnnywon/pluramail/blob/main/docs/mcp.md" target="_blank" rel="noreferrer">
+						Reference <ArrowSquareOutIcon size={12} />
+					</a>
+				}
+			>
 				<Tabs value={client} options={CLIENTS} onChange={setClient} />
 				<ol className="pg-mcp-steps">
 					<li>

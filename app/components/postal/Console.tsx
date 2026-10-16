@@ -31,8 +31,8 @@ import type { Prefs } from "./prefs";
 const MODES: { value: AgentMode; label: string; disabled?: boolean; title?: string }[] = [
 	{ value: "watch", label: "Watch" },
 	{ value: "draft", label: "Draft" },
-	// Send arrives in 0.9, after Test on past mail (workers/lib/agents.ts, SEND_ENABLED).
-	{ value: "send", label: "Send", disabled: true, title: "Arrives in 0.9" },
+	// Send arrives in 0.10, after Test on past mail (workers/lib/agents.ts, SEND_ENABLED).
+	{ value: "send", label: "Send", disabled: true, title: "Arrives in 0.10" },
 ];
 
 /** One icon per page, at rail size and search size. */
@@ -286,7 +286,7 @@ function AgentsSplit(props: PageProps & { settings: React.ReactNode }) {
 						title={MAILROOM_ROW.name}
 						tag={<Badge>built in</Badge>}
 						aside={<Badge>Chat</Badge>}
-						sub="Chat in the side panel, and drafts for mail no agent takes."
+						sub={prefs.unmatched === "draft" ? "Chat in the side panel, and drafts for mail no agent takes." : "Chat in the side panel."}
 						meta={<span>All addresses</span>}
 						current={shown === MAILROOM_ROW.id}
 						onClick={() => onTab("mailroom")}
@@ -316,7 +316,9 @@ function AgentsSplit(props: PageProps & { settings: React.ReactNode }) {
 			>
 				{shown === MAILROOM_ROW.id ? (
 					<Page title={CONSOLE_LABELS.mailroom} icon={<AgentIcon size={20} />} trail={{ label: CONSOLE_LABELS.agents, onClick: () => onTab("agents") }}
-						sub="Built in. You talk to it in the side panel, and it drafts for mail none of your agents take.">
+						sub={prefs.unmatched === "draft"
+							? "Built in. You talk to it in the side panel, and it drafts for mail none of your agents take."
+							: "Built in. You talk to it in the side panel. Mail none of your agents take is left alone."}>
 						<Section title="When no agent matches">
 							<div className="pg-ui-trust">
 								<Segmented<Unmatched>

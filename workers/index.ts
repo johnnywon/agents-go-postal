@@ -13,6 +13,7 @@ import { claimDemoAiCall, DEMO, demoAiCap, demoRefusal } from "./lib/demo";
 import {
 	validateSender,
 	SenderValidationError,
+	stripHtmlToText,
 } from "./lib/email-helpers";
 import { checkSendAt, ScheduleBody, SCHEDULE_MAX_PAYLOAD_BYTES } from "./lib/scheduled-send";
 import { handleReplyEmail, handleForwardEmail, handleSendEmail } from "./routes/reply-forward";
@@ -42,7 +43,7 @@ import { agentOverview } from "./lib/agent-overview";
 import { getSystemPrompt } from "./agent/prompt";
 import { ACTIVITY_ACTORS, listActivity, logged, mcpUsage, TOOL_ACTIONS } from "./lib/activity";
 import { verifyDraft } from "./lib/ai";
-import { AgentBody, agentStats, createAgent, deleteAgent, listAgentDrafts, listAgents, orderAgents, updateAgent } from "./lib/agents";
+import { AgentBody, agentStats, createAgent, deleteAgent, listAgentDrafts, listAgents, matchAgents, orderAgents, updateAgent } from "./lib/agents";
 import { redraft } from "./lib/redraft";
 import { seedAgents } from "./lib/dev-seed-agents";
 import { REDRAFT_INSTRUCTION_MAX } from "../shared/draft-notes";
@@ -132,7 +133,8 @@ app.get("/api/v1/config", (c) => {
 	const domainsRaw = c.env.DOMAINS || "";
 	const domains = domainsRaw.split(",").map((d) => d.trim()).filter(Boolean);
 	const emailAddresses = configuredAddresses(c.env);
-	const autoDraft = !DEMO && String(c.env.AUTO_DRAFT_ENABLED ?? "") === "true";
+	// Agents run on new mail on every deployment but a demo; which mail is up to each agent.
+	const autoDraft = !DEMO;
 	return c.json({ domains, emailAddresses, autoDraft, demo: DEMO });
 });
 
@@ -649,7 +651,7 @@ app.post("/api/v1/mailboxes/:mailboxId/drafts/:id/redraft", async (c: AppContext
 		if (!(await demoAiAllowed(c.env))) return c.json({ error: DEMO_AI_USED_UP }, 429);
 	}
 	const sql = recordsSql(c.env);
-	const [system, model] = await Promise.all([getSystemPrompt(c.env, mailboxId), agentModel(c.env)]);
+	const [system, model] = await Promise.all([getSystemPrompt(c.env, mailboxId), agentModel(c.env, { reasoning: false })]);
 	const result = await logged(sql, { actor: "person", bound: mailboxId }, "redraft", { draftId, instruction: parsed.data.instruction }, () =>
 		redraft(c.var.mailbox, mailboxId, draftId, parsed.data.instruction, {
 			ai: c.env.AI,
@@ -851,10 +853,20 @@ async function receiveEmail(event: { to: string; raw: ReadableStream; rawSize: n
 	};
 	await withAttachmentCleanup(() => stub.createEmail(Folders.INBOX, inbound, attachmentData));
 
+	// Nothing drafts every email. New mail goes to the agent only when an enabled agent's
+	// addresses and rules take it, or the owner chose that the PluraMail Agent drafts what
+	// no agent takes. Rules only: no model call for mail nobody wants.
 	const automated = automatedMailReason(JSON.stringify(parsedEmail.headers), parsedEmail.from?.address);
-	if (String(env.AUTO_DRAFT_ENABLED) === "true" && automated) {
+	const wanted = automated ? false : await agentsWant(env, {
+		mailboxId, from: (parsedEmail.from?.address || "").toLowerCase(), subject: parsedEmail.subject || "",
+		body: parsedEmail.text || (parsedEmail.html ? stripHtmlToText(parsedEmail.html) : ""),
+	}).catch((e) => {
+		console.error("Agent match failed:", (e as Error).message);
+		return false;
+	});
+	if (automated) {
 		console.log(`Auto-draft skipped for ${messageId}: ${automated}`);
-	} else if (String(env.AUTO_DRAFT_ENABLED) === "true") {
+	} else if (wanted) {
 		await startAutoDraft(env, ctx, {
 			mailboxId,
 			emailId: messageId,
@@ -862,6 +874,12 @@ async function receiveEmail(event: { to: string; raw: ReadableStream; rawSize: n
 			threadId,
 		}).catch((e) => console.error("Auto-draft trigger failed:", (e as Error).message));
 	}
+}
+
+/** Whether an enabled agent takes this mail, or the PluraMail Agent drafts for mail no agent takes. */
+async function agentsWant(env: Env, mail: { mailboxId: string; from: string; subject: string; body: string }): Promise<boolean> {
+	const [agents, { prefs }] = await Promise.all([listAgents(recordsSql(env)), readPrefs(env)]);
+	return matchAgents(agents, mail).length > 0 || prefs.unmatched === "draft";
 }
 
 export { app, receiveEmail };

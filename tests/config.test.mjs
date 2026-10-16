@@ -8,11 +8,10 @@ async function config(env) {
 	return (await app.request("http://localhost/api/v1/config", {}, { DOMAINS: "example.com", EMAIL_ADDRESSES: [], ...env })).json();
 }
 
-test("config lists domains and addresses and says whether auto-draft is on", async () => {
+test("config lists domains and addresses; agents can run on new mail outside a demo", async () => {
 	assert.deepEqual(await config({ DOMAINS: "example.com, example.org", EMAIL_ADDRESSES: ["a@example.com"] }), {
-		domains: ["example.com", "example.org"], emailAddresses: ["a@example.com"], autoDraft: false, demo: false,
+		domains: ["example.com", "example.org"], emailAddresses: ["a@example.com"], autoDraft: true, demo: false,
 	});
-	assert.equal((await config({ AUTO_DRAFT_ENABLED: "true" })).autoDraft, true);
 });
 
 test("the dev seed route does not exist outside local development", async () => {

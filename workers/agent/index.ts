@@ -447,7 +447,7 @@ export class EmailAgent extends AIChatAgent<any> {
 		// Every draft saved, oldest first; an error after the first still counts as drafted.
 		const draftIds: string[] = [];
 		try {
-			const model = await agentModel(env);
+			const model = await agentModel(env, { reasoning: false });
 			const systemPrompt = await getSystemPrompt(env, target.mailboxId);
 			// Rules first, no model call: the agents that watch this address and whose rules pass.
 			const [agents, { prefs }] = await Promise.all([listAgents(sql), readPrefs(env)]);

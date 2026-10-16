@@ -66,7 +66,6 @@ Requirements: a domain on Cloudflare, R2, and Workers Paid for outbound email. T
 | `APP_NAME` | `vars` | Name in the header, status bar and page titles |
 | `DOMAINS` | `vars` | Comma-separated domains that receive mail |
 | `EMAIL_ADDRESSES` | `vars` | Addresses that get a mailbox, as a list or a comma-separated string. Mail to other addresses bounces. |
-| `AUTO_DRAFT_ENABLED` | `vars` | `true` drafts a reply to each new message, except list, bulk and automated mail |
 | `ATTACHMENT_SEARCH` | `vars` | `true` makes attachment text searchable. Uses one Workers AI `toMarkdown` call per PDF, Word or Excel file. |
 | `MCP_SEND_ENABLED` | `vars` | `false` takes the send tools away from every MCP client, whatever it was granted |
 | `POLICY_AUD`, `TEAM_DOMAIN` | secrets | Cloudflare Access verification |
@@ -83,7 +82,7 @@ Console > MCP lists the apps you connected, with what each may do, and revokes t
 
 ## Auto-draft queue
 
-With `AUTO_DRAFT_ENABLED` on, a queue retries a draft that failed, for example on a model timeout. It is optional: without it each draft is tried once.
+A queue retries an agent's draft that failed, for example on a model timeout. It is optional: without it each draft is tried once.
 
 ```bash
 npx wrangler queues create pluramail-drafts

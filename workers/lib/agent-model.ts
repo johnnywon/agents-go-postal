@@ -149,15 +149,38 @@ export const zeroRetentionFetch: typeof fetch = (input, init) => {
 	return fetch(input, init);
 };
 
-/** A language model for any provider. */
-export function languageModel(env: Env, ref: ModelRef, key?: string): LanguageModel {
+/**
+ * Workers AI models that reason before answering by default and take
+ * `reasoning_effort: "none"`. Kimi K2.6 spent about 38 s thinking before a
+ * two-line email reply; without it the reply comes in a few seconds.
+ */
+export const REASONING_OPTIONAL = new Set(["@cf/moonshotai/kimi-k2.6"]);
+
+/** The AI binding with reasoning off on every call. The provider can't pass model inputs it doesn't know. */
+function withoutReasoning(ai: Ai): Ai {
+	return new Proxy(ai, {
+		get(target, prop) {
+			if (prop === "run") {
+				return (model: string, inputs: Record<string, unknown>, options?: unknown) =>
+					(target.run as (...a: unknown[]) => unknown)(model, { ...inputs, reasoning_effort: "none" }, options);
+			}
+			const value = (target as unknown as Record<PropertyKey, unknown>)[prop];
+			return typeof value === "function" ? value.bind(target) : value;
+		},
+	});
+}
+
+/** A language model for any provider. `reasoning: false` skips the thinking step on models that allow it. */
+export function languageModel(env: Env, ref: ModelRef, key?: string, options: { reasoning?: boolean } = {}): LanguageModel {
 	switch (ref.provider) {
 		case "openrouter":
 			return createOpenAICompatible({
 				name: "openrouter", baseURL: OPENROUTER_BASE, apiKey: key, headers: { "X-Title": "PluraMail" }, fetch: zeroRetentionFetch,
 			}).chatModel(ref.id);
-		default:
-			return createWorkersAI({ binding: env.AI })(ref.id as Parameters<ReturnType<typeof createWorkersAI>>[0]);
+		default: {
+			const binding = options.reasoning === false && REASONING_OPTIONAL.has(ref.id) ? withoutReasoning(env.AI) : env.AI;
+			return createWorkersAI({ binding })(ref.id as Parameters<ReturnType<typeof createWorkersAI>>[0]);
+		}
 	}
 }
 
@@ -177,15 +200,18 @@ export async function quickModel(env: Env): Promise<LanguageModel> {
 	return languageModel(env, { provider: "workers-ai", id: WORKERS_AI_FAST_MODEL });
 }
 
-/** The model the agent should use right now. */
-export async function agentModel(env: Env): Promise<LanguageModel> {
-	if (DEMO) return languageModel(env, { provider: "workers-ai", id: DEMO_AI_MODEL });
+/**
+ * The model the agent should use right now. Drafts pass `reasoning: false`:
+ * a short reply doesn't need the long thinking step chat gets.
+ */
+export async function agentModel(env: Env, options: { reasoning?: boolean } = {}): Promise<LanguageModel> {
+	if (DEMO) return languageModel(env, { provider: "workers-ai", id: DEMO_AI_MODEL }, undefined, options);
 	const config = await readAgentModelConfig(env);
 	let active = activeModel(config);
 	if (active.provider === "workers-ai" && active.id !== WORKERS_AI_MODEL) {
 		active = resolveWorkersAiModel(active.id, (await catalogFor(env, "workers-ai", config.keys)).models);
 	}
-	return languageModel(env, active, active.provider === "workers-ai" ? undefined : config.keys[active.provider]);
+	return languageModel(env, active, active.provider === "workers-ai" ? undefined : config.keys[active.provider], options);
 }
 
 /**

@@ -22,7 +22,7 @@ export type AgentMode = (typeof AGENT_MODES)[number];
 
 /** Off until 0.9. While off, the API refuses Send and an agent stored in Send works as Draft. */
 export const SEND_ENABLED = false;
-export const SEND_LATER = "Send arrives in 0.9. Use Draft for now.";
+export const SEND_LATER = "Send arrives in 0.10. Use Draft for now.";
 
 export const RULE_FIELDS = ["from", "subject", "body"] as const;
 export const RULE_OPS = ["contains", "not_contains", "is", "domain"] as const;
