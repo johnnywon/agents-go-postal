@@ -147,6 +147,7 @@ The console rail ends with the colophon (`ConsoleColophon.tsx`): four figures, t
 - Figures in a fixed order: messages, storage (every message's size, D1 and R2), addresses, uptime (since the running version was deployed, from the `version_metadata` binding). No fifth figure: a fifth stat belongs on a page.
 - Four auto columns, space-between, at least 12px apart, 20px in from the rail's edges. Figures are 16px at weight 400, the rail links' weight, in the 236px rail; the widest values (99,999 · 48.6 · 1,206 · 104) still keep the 12px gap.
 - Units are the mono caps at 9px, weight 500 like the rail's group labels, with an 8px unit glyph, 4px apart.
+- Colours step with the rail: figures `--pg-text-3`, one shade over the links; units and glyphs `--pg-text-5`, the links' grey; the version and GitHub glyph `--pg-text-7`, the group labels' grey; an unknown dash `--pg-text-8`. The logo keeps its own full contrast.
 - The imprint: the logo lockup (`public/brand/lockup-dark.png` on the dark console, `lockup-light.png` on the light one) at 18px, then the version and the GitHub glyph, the colophon's only link, with a 24px hit area. The lockup is the real logo; don't rebuild it from type.
 
 ### Error pages

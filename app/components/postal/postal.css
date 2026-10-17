@@ -1351,12 +1351,14 @@ button.pg-model-row:hover { background: var(--pg-hover); }
 .pg-console-links { flex: 1; overflow-y: auto; padding: 10px 8px; display: flex; flex-direction: column; gap: 1px; }
 /* Colophon: closes the rail. Four figures, then the mark and the version, on a 4px grid. Nothing raised or boxed. */
 /* The groove is 2px, a cut and its lit edge; the colophon is 116px on the 4px grid. */
-.pg-console-colophon { flex: none; color: var(--pg-text-1); border-top: 1px solid var(--pg-con-groove); }
+/* Colours step with the rail: figures one shade over the links, units and glyphs the links' grey, the version the group labels'. */
+.pg-console-colophon { flex: none; color: var(--pg-text-5); border-top: 1px solid var(--pg-con-groove); }
 .pg-console-colophon::before { content: ""; display: block; height: 1px; background: var(--pg-con-groove-edge); }
 .pg-console-colophon-figures { display: grid; grid-template-columns: repeat(4, auto); justify-content: space-between; column-gap: 12px; padding: 16px 20px; }
 .pg-console-colophon-cell { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
 .pg-console-colophon-cell b { height: 20px; font: 400 16px/20px var(--pg-font); letter-spacing: -.05em; font-variant-numeric: tabular-nums; white-space: nowrap; }
-.pg-console-colophon-cell b[data-unknown] { color: var(--pg-text-7); }
+.pg-console-colophon-cell b { color: var(--pg-text-3); }
+.pg-console-colophon-cell b[data-unknown] { color: var(--pg-text-8); }
 .pg-console-colophon-cell span { display: flex; align-items: center; gap: 4px; height: 12px; font: 500 9px/12px var(--pg-mono); letter-spacing: .08em; white-space: nowrap; }
 .pg-console-colophon-cell svg { flex: none; display: block; overflow: visible; }
 /* No groove between the figures and the imprint; 6px of space separates them, 116px in all on the 4px grid. */
@@ -1367,9 +1369,9 @@ button.pg-model-row:hover { background: var(--pg-hover); }
 .pg-console-colophon-logo { display: block; flex: none; height: calc(64px / 3); width: auto; max-width: none; margin: -1.71px; }
 .pg-console-colophon-logo[data-ground="light"], .postal[data-theme="light"] .pg-console-colophon-logo[data-ground="dark"] { display: none; }
 .postal[data-theme="light"] .pg-console-colophon-logo[data-ground="light"] { display: block; }
-.pg-console-colophon-version { display: flex; align-items: center; gap: 6px; padding-bottom: 5px; font: 500 9px/12px var(--pg-mono); letter-spacing: .08em; color: var(--pg-text-6); }
-.pg-console-colophon-version a { display: grid; place-items: center; width: 24px; height: 24px; margin: -6px -7px -6px -3px; color: var(--pg-text-6); }
-.pg-console-colophon-version a:hover { color: var(--pg-text-1); }
+.pg-console-colophon-version { display: flex; align-items: center; gap: 6px; padding-bottom: 5px; font: 500 9px/12px var(--pg-mono); letter-spacing: .08em; color: var(--pg-text-7); }
+.pg-console-colophon-version a { display: grid; place-items: center; width: 24px; height: 24px; margin: -6px -7px -6px -3px; color: var(--pg-text-7); }
+.pg-console-colophon-version a:hover { color: var(--pg-text-2); }
 .pg-console-link { display: flex; align-items: center; gap: 10px; height: 30px; padding: 0 10px; color: var(--pg-text-5); text-align: left; }
 .pg-console-link:hover { background: var(--pg-hover); color: var(--pg-text-2); }
 .pg-console-link[aria-current="page"] { background: var(--pg-active); color: var(--pg-text-1); font-weight: 600; }
