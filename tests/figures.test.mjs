@@ -27,9 +27,26 @@ test("bytes use decimal units and keep three significant figures", () => {
 	assert.equal(show(f.bytesFigure(48.6e9)), "48.6 GB");
 	assert.equal(show(f.bytesFigure(1284e9)), "1.28 TB");
 	assert.equal(show(f.bytesFigure(52e3)), "52 KB");
+	assert.equal(show(f.bytesFigure(600e3)), "600 KB");
+	assert.equal(show(f.bytesFigure(0)), "0 KB");
 });
 
-test("uptime moves from minutes to hours to days to weeks, rounding down", () => {
+test("bytes step up a unit instead of rounding to 1000 or a fourth digit", () => {
+	const b = (n) => show(f.bytesFigure(n));
+	assert.equal(b(999.4e3), "999 KB");
+	assert.equal(b(999.6e3), "1 MB");
+	assert.equal(b(999.4e6), "999 MB");
+	assert.equal(b(999.6e6), "1.00 GB");
+	assert.equal(b(9.994e9), "9.99 GB");
+	assert.equal(b(9.996e9), "10.0 GB");
+	assert.equal(b(99.96e9), "100 GB");
+	assert.equal(b(999.6e9), "1.00 TB");
+	assert.equal(b(9.996e12), "10.0 TB");
+	assert.equal(b(999.6e12), "1.00 PB");
+	assert.equal(b(null), null);
+});
+
+test("uptime moves from minutes to hours, days, weeks, months and years, rounding down", () => {
 	const up = (s) => show(f.durationFigure(s));
 	assert.equal(up(0), "0 MINS");
 	assert.equal(up(60), "1 MIN");
@@ -42,15 +59,21 @@ test("uptime moves from minutes to hours to days to weeks, rounding down", () =>
 	assert.equal(up(13.99 * D), "13 DAYS");
 	assert.equal(up(2 * W), "2 WKS");
 	assert.equal(up(40 * D), "5.7 WKS");
-	assert.equal(up(365 * D), "52 WKS");
+	assert.equal(up(8 * W - 1), "7.9 WKS");
+	assert.equal(up(8 * W), "1.8 MOS");
+	assert.equal(up(91 * D), "2.9 MOS");
+	assert.equal(up(366 * D), "12 MOS");
+	assert.equal(up(730 * D), "23 MOS");
+	assert.equal(up(731 * D), "2 YRS");
+	assert.equal(up(3653 * D), "10 YRS");
 	assert.equal(up(null), null);
 });
 
 test("every figure fits in six characters", () => {
 	const samples = [0, 1, 9, 99, 99999, 100000, 999999, 1e6, 9.99e6, 9.99e7, 9.99e8];
 	for (const n of samples) assert.ok(f.countFigure(n, "X", "XS").fig.length <= 6, String(n));
-	for (const b of [1, 999, 1e6, 999e6, 1e9, 99.9e9, 999e9, 1e12, 999e12]) assert.ok(f.bytesFigure(b).fig.length <= 6, String(b));
-	for (let s = 0; s < 10 * 365 * D; s += 3607) assert.ok(f.durationFigure(s).fig.length <= 6, String(s));
+	for (let b = 1; b < 1e18; b *= 1.0007) assert.ok(f.bytesFigure(b).fig.length <= 4, String(b));
+	for (let s = 0; s < 100 * 365 * D; s += 3607) assert.ok(f.durationFigure(s).fig.length <= 3, String(s));
 });
 
 test("time since a deploy, and what a screen reader hears", () => {

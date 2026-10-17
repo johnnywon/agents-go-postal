@@ -28,25 +28,41 @@ export function countFigure(n: number | null | undefined, one: string, many: str
 	return { fig: `${short(v / 1e6)}M`, unit: many };
 }
 
-/** Bytes in decimal units: 412 MB, 1.39 GB, 48.6 GB, 1.28 TB. Under 1 MB shows KB. */
+const BYTE_UNITS = ["KB", "MB", "GB", "TB", "PB"];
+
+/**
+ * Bytes in decimal units: 600 KB, 412 MB, 1.39 GB, 48.6 GB, 1.28 TB. KB and MB are whole numbers;
+ * GB and up keep three significant figures. A value that would round to 1000 steps up a unit
+ * (999.6 MB is 1.00 GB, not 1000 MB), and so does 9.996 GB (10.0 GB, not 10.00).
+ */
 export function bytesFigure(b: number | null | undefined): Figure | null {
 	if (!known(b)) return null;
-	if (b < 1e6) return { fig: String(Math.round(b / 1e3)), unit: "KB" };
-	if (b < 1e9) return { fig: String(Math.round(b / 1e6)), unit: "MB" };
-	const gb = b / 1e9;
-	if (gb < 1000) return { fig: gb.toFixed(gb < 10 ? 2 : gb < 100 ? 1 : 0), unit: "GB" };
-	return { fig: (gb / 1000).toFixed(2), unit: "TB" };
+	let v = b / 1e3;
+	for (let i = 0; i < BYTE_UNITS.length; i++, v /= 1e3) {
+		const last = i === BYTE_UNITS.length - 1;
+		if (i < 2) {
+			if (Math.round(v) < 1000 || last) return { fig: String(Math.round(v)), unit: BYTE_UNITS[i] };
+			continue;
+		}
+		const fig = v < 9.995 ? v.toFixed(2) : v < 99.95 ? v.toFixed(1) : v.toFixed(0);
+		if (Number(fig) < 1000 || last) return { fig, unit: BYTE_UNITS[i] };
+	}
+	return null;
 }
 
 const MINUTE = 60;
 const HOUR = 60 * MINUTE;
 const DAY = 24 * HOUR;
 const WEEK = 7 * DAY;
+/** The average month and year, so twelve months make a year. */
+const YEAR = 365.2425 * DAY;
+const MONTH = YEAR / 12;
 
 /**
  * A length of time, in the largest unit that still reads as a number you can picture:
- * minutes under an hour, hours under two days, days under two weeks, then weeks.
- * 45 MINS, 3 HRS, 47 HRS, 2 DAYS, 3.2 DAYS, 13 DAYS, 2 WKS, 5.7 WKS, 52 WKS, 104 WKS.
+ * minutes under an hour, hours under two days, days under two weeks, weeks under eight weeks,
+ * months under two years, then years.
+ * 45 MINS, 3 HRS, 47 HRS, 2 DAYS, 3.2 DAYS, 13 DAYS, 2 WKS, 5.7 WKS, 1.8 MOS, 11 MOS, 23 MOS, 2 YRS, 10 YRS.
  * Rounds down, so the figure never claims more time than has passed.
  */
 export function durationFigure(seconds: number | null | undefined): Figure | null {
@@ -59,12 +75,14 @@ export function durationFigure(seconds: number | null | undefined): Figure | nul
 		const h = Math.floor(seconds / HOUR);
 		return { fig: String(h), unit: plural(h, "HR", "HRS") };
 	}
-	if (seconds < 2 * WEEK) {
-		const d = short(seconds / DAY);
-		return { fig: d, unit: d === "1" ? "DAY" : "DAYS" };
-	}
-	const w = short(seconds / WEEK);
-	return { fig: w, unit: w === "1" ? "WK" : "WKS" };
+	const step = (n: number, one: string, many: string): Figure => {
+		const fig = short(n);
+		return { fig, unit: fig === "1" ? one : many };
+	};
+	if (seconds < 2 * WEEK) return step(seconds / DAY, "DAY", "DAYS");
+	if (seconds < 8 * WEEK) return step(seconds / WEEK, "WK", "WKS");
+	if (seconds < 2 * YEAR) return step(seconds / MONTH, "MO", "MOS");
+	return step(seconds / YEAR, "YR", "YRS");
 }
 
 /** Seconds since an ISO time, or null when there is no time to count from. */
