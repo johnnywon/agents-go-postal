@@ -10,7 +10,7 @@ Versions follow [semantic versioning](https://semver.org). Before 1.0, a minor v
 - The rail heads name the view beside the fold mark: All Inboxes in mail, Console in the console, in white beside a white search icon. The logo appears only in the colophon, as the lockup from `public/brand`.
 - Opening the console and going back to mail each have their own move, in the side columns' motion: the console's rail slides out from the left and its page comes in from the right; back to mail, the rails settle in from their edges and the list comes in from the left.
 - By address, Labels and an address's folders open and close in the rail with the side columns' motion: the group eases open, its rows settle in one after another, and the caret turns.
-- The colophon logo comes up as the console opens: a faint recessed watermark, then its colour scans in left to right.
+- The colophon logo comes up as the console opens: a faint recessed watermark, then its colour rises through it and settles into focus.
 - Figures (`shared/figures.ts`): one way to show counts, sizes and lengths of time in six characters or fewer. Uptime steps from minutes to hours, days, weeks, months and years. Sizes step up a unit instead of rounding to 1000 (999.6 MB is 1.00 GB).
 
 ### Upgrading

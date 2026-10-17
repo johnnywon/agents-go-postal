@@ -1418,20 +1418,14 @@ button.pg-model-row:hover { background: var(--pg-hover); }
 .pg-console-colophon-logo { display: block; flex: none; height: calc(64px / 3); width: auto; max-width: none; margin: -1.71px; }
 .pg-console-colophon-logo[data-ground="light"], .postal[data-theme="light"] .pg-console-colophon-logo[data-ground="dark"] { display: none; }
 .postal[data-theme="light"] .pg-console-colophon-logo[data-ground="light"] { display: block; }
-/* The logo comes up once as the console opens. It starts as a grey watermark pressed into the
-   rail, then the colour scans in over it left to right in hard steps, and lands with two quick
-   flickers while the watermark fades out under it. A registered property (--pg-logo-sweep) drives
-   the colour's rectangular reveal. At rest, and with reduced motion, only the colour logo shows. */
-@property --pg-logo-sweep { syntax: "<percentage>"; inherits: true; initial-value: 100%; }
-@keyframes pg-logo-sweep { from { --pg-logo-sweep: 0%; } to { --pg-logo-sweep: 100%; } }
-@keyframes pg-logo-ghost { 0%, 72% { opacity: .16; } 100% { opacity: 0; } }
-@keyframes pg-logo-flicker { 0%, 64% { opacity: 1; } 70% { opacity: .5; } 75% { opacity: 1; } 81% { opacity: .72; } 86%, 100% { opacity: 1; } }
-.pg-console-colophon-mark { animation: pg-logo-sweep .9s steps(18, end) .45s both; }
-.pg-console-colophon-logo:not([data-layer]) {
-  clip-path: inset(-2px calc(100% - var(--pg-logo-sweep)) -2px -2px);
-  animation: pg-logo-flicker 1.6s linear .45s both;
-}
-.pg-console-colophon-logo[data-layer="ghost"] { opacity: 0; filter: grayscale(1) drop-shadow(0 -1px 0 rgba(0, 0, 0, .8)) drop-shadow(0 1px 0 rgba(255, 255, 255, .1)); animation: pg-logo-ghost 1.6s ease-out both; }
+/* The logo comes up once as the console opens, quietly: a grey watermark pressed into the rail
+   holds a beat, then the colour rises through it, soft at first and settling into focus, while
+   the watermark gives way. One long ease-out, no steps. At rest, and with reduced motion, only the
+   colour logo shows. */
+@keyframes pg-logo-ghost { 0%, 40% { opacity: .14; } 100% { opacity: 0; } }
+@keyframes pg-logo-rise { from { opacity: 0; filter: blur(1.5px) saturate(.4); } 60% { filter: blur(0) saturate(.85); } to { opacity: 1; filter: none; } }
+.pg-console-colophon-logo:not([data-layer]) { animation: pg-logo-rise 1.8s cubic-bezier(.45, 0, .25, 1) .6s both; }
+.pg-console-colophon-logo[data-layer="ghost"] { opacity: 0; filter: grayscale(1) drop-shadow(0 -1px 0 rgba(0, 0, 0, .8)) drop-shadow(0 1px 0 rgba(255, 255, 255, .1)); animation: pg-logo-ghost 2.4s ease-in-out both; }
 .postal[data-theme="light"] .pg-console-colophon-logo[data-layer="ghost"] { filter: grayscale(1) drop-shadow(0 -1px 0 rgba(20, 20, 19, .25)) drop-shadow(0 1px 0 rgba(255, 255, 255, .9)); }
 .pg-console-colophon-version { display: flex; align-items: center; gap: 6px; padding-bottom: 5px; font: 500 9px/12px var(--pg-mono); letter-spacing: .08em; color: var(--pg-text-7); }
 .pg-console-colophon-version a { display: grid; place-items: center; width: 24px; height: 24px; margin: -6px -7px -6px -3px; color: var(--pg-text-7); }
