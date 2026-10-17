@@ -29,6 +29,7 @@ import { McpTab } from "./McpTab";
 import { dayKey, dayLabel, timeLabel } from "./model";
 import { OverviewTab } from "./OverviewTab";
 import type { Prefs } from "./prefs";
+import { Keys } from "./shortcuts";
 
 const MODES: { value: AgentMode; label: string; disabled?: boolean; title?: string }[] = [
 	{ value: "watch", label: "Watch" },
@@ -171,7 +172,7 @@ export function ConsolePage(props: {
 		<div className="pg-console" data-nav-open={navOpen || undefined}>
 			<nav className="pg-console-nav" aria-label="Console">
 				<div className="pg-rail-head pg-console-brand"><FoldMark size={14} /><b>Console</b></div>
-				<button type="button" className="pg-console-mail" onClick={onClose}><ArrowLeftIcon size={14} /><span>Back to mail</span><kbd>esc</kbd></button>
+				<button type="button" className="pg-console-mail" onClick={onClose}><ArrowLeftIcon size={14} /><span>Back to mail</span><Keys id="back" /></button>
 				<div className="pg-console-links">
 					{rail.map((g) => (
 						<div key={g.group ?? "top"} className="pg-console-links-group">

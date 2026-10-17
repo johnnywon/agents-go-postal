@@ -20,7 +20,7 @@ Versions follow [semantic versioning](https://semver.org). Before 1.0, a minor v
 
 ### Fixed
 
-- Show key hints off now hides the keys in tooltips too. The switch is also on Console > Keyboard shortcuts.
+- Show key hints off now hides every key hint: the keys in tooltips and the Esc on Back to mail, which also follows its binding now. The switch is also on Console > Keyboard shortcuts.
 - `npm run smoke` checks MCP sign-in: `/mcp` answers 401 with an OAuth challenge, the OAuth metadata under `/.well-known` loads, and `/authorize` stays behind Access. When Access still blocks `/mcp`, it says to add the bypass.
 - Activity log: "Keep for" is a dropdown, the Actions toolbar no longer sits on the line above it, and a filter keeps the rows (dimmed) until its own load instead of flashing "Loading". The picked filter in console toggles is marked in purple, like a picked choice.
 - An agent shows Working only while a run moved in the last 10 minutes. A run that died no longer keeps the badge until the hourly cleanup, and the sample data gives one agent a live run instead of all of them.

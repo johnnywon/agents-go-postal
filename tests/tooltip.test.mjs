@@ -34,6 +34,18 @@ test("with key hints off, tooltips leave out their keys", async () => {
 	const tooltip = readFileSync(new URL("../app/components/postal/Tooltip.tsx", import.meta.url), "utf8");
 	const css = readFileSync(new URL("../app/components/postal/postal.css", import.meta.url), "utf8");
 	assert.match(tooltip, /closest\("\.postal"\)\?\.getAttribute\("data-keys"\) === "off"\) tip\.keys = \[\]/);
-	const rule = css.split("\n").find((l) => l.startsWith('.postal[data-keys="off"] :is(.pg-kbd, .pg-keyhint)'));
-	assert.ok(rule && !rule.includes(".pg-tip"), "the hide rule must not exempt tooltips");
+	const rule = css.split("\n").find((l) => l.startsWith('.postal[data-keys="off"] :is(.pg-kbd, .pg-keyhint, kbd)'));
+	assert.ok(rule && !rule.includes(".pg-tip"), "the hide rule must cover every kbd and not exempt tooltips");
+});
+
+test("key hints come from shared/shortcuts, never a typed key", async () => {
+	const { readdirSync, readFileSync } = await import("node:fs");
+	const dir = new URL("../app/components/postal/", import.meta.url);
+	const typed = [];
+	for (const f of readdirSync(dir).filter((f) => f.endsWith(".tsx"))) {
+		readFileSync(new URL(f, dir), "utf8").split("\n").forEach((line, i) => {
+			if (/<kbd[^>]*>[^<{]+<\/kbd>/.test(line)) typed.push(`${f}:${i + 1}`);
+		});
+	}
+	assert.deepEqual(typed, [], "Use <Keys id=...> so the hint follows rebinding and Show key hints");
 });
