@@ -10,7 +10,8 @@ import type { ConsoleTab } from "./console-tabs";
 import { List, Note, Section, Stat, Stats, Table } from "./ConsoleUI";
 import { AddressText, type Identities } from "./identity";
 
-const RUN_ORDER = ["drafted", "skipped", "failed", "queued", "running", "superseded"] as const;
+// Failed comes second so the card never hides it.
+const RUN_ORDER = ["drafted", "failed", "watched", "sent", "skipped", "queued", "running", "superseded"] as const;
 
 /** The last day at a glance: sends against each limit, auto-draft runs, and failed agent actions. */
 export function OverviewTab({ identities, autoDraft, onTab, agents }: { identities: Identities; autoDraft: boolean; onTab: (tab: ConsoleTab) => void; agents?: React.ReactNode }) {
@@ -19,7 +20,8 @@ export function OverviewTab({ identities, autoDraft, onTab, agents }: { identiti
 	if (overview.isPending) return <Note>Loading</Note>;
 	if (overview.error || !data) return <Note tone="error">{overview.error?.message ?? "Could not load the overview."}</Note>;
 	const agentSends = data.addresses.reduce((n, a) => n + a.agentDay, 0);
-	const runs = RUN_ORDER.filter((s) => data.runs[s]).map((s) => `${data.runs[s]} ${RUN_LABELS[s].toLowerCase()}`);
+	// The card fits two states; the Activity log has the rest.
+	const runs = RUN_ORDER.filter((s) => data.runs[s]).slice(0, 2).map((s) => `${data.runs[s]} ${RUN_LABELS[s].toLowerCase()}`);
 	const usage = (used: number, limit: number) => ({ quiet: used === 0, bad: limit > 0 && used >= limit, text: `${used} / ${limit}` });
 	type Row = (typeof data.addresses)[number];
 	const col = (key: string, label: string, pick: (a: Row) => [number, number]) => ({

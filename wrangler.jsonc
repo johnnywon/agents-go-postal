@@ -51,6 +51,8 @@
 	"ai": {
 		"binding": "AI"
 	},
+	// The running version and its deploy time, for the console colophon's uptime.
+	"version_metadata": { "binding": "CF_VERSION_METADATA" },
 	// OAuth for the MCP server: registered clients, grants and tokens (workers/mcp/oauth.ts).
 	// Deploy and the Deploy to Cloudflare button create the namespace.
 	"kv_namespaces": [

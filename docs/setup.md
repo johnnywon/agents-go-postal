@@ -37,6 +37,15 @@ Requirements: a domain on Cloudflare, R2, and Workers Paid for outbound email. T
    - `/mcp`
    - `/.well-known`
 
+   Or add it with the API, using a token with Access: Apps and Policies Edit. The policy id is an existing reusable Bypass policy for Everyone (list them with `GET .../access/policies`):
+   ```sh
+   curl -X POST "https://api.cloudflare.com/client/v4/accounts/$ACCOUNT_ID/access/apps" \
+     -H "Authorization: Bearer $CF_API_TOKEN" -H "Content-Type: application/json" \
+     -d '{"name":"Mail MCP bypass","type":"self_hosted","domain":"mail.example.com/mcp",
+          "destinations":[{"type":"public","uri":"mail.example.com/mcp"},{"type":"public","uri":"mail.example.com/.well-known"}],
+          "app_launcher_visible":false,"policies":[{"id":"<bypass policy id>","precedence":1}]}'
+   ```
+
    Console > MCP checks this and shows the two paths with your hostname while Access still blocks clients. `/mcp` covers the OAuth endpoints under it (`/mcp/oauth/token`, `/mcp/oauth/register`). Leave `/authorize` behind Access: it is the consent page, and who passes Access there is who the client acts for.
 6. **Route mail to the Worker.** Enable Email Routing for the domain, then add one rule per address in `EMAIL_ADDRESSES`:
    ```sh
@@ -51,7 +60,7 @@ Requirements: a domain on Cloudflare, R2, and Workers Paid for outbound email. T
    npx wrangler@latest email sending enable example.com
    ```
    This works for a subdomain too, for example `mail.example.com`.
-8. **Check it.** `npm run smoke` expects every request to redirect to the Access login. It reads the hostname from `routes`; without one, run `SMOKE_URL=https://<your worker URL> npm run smoke`. Then send a message to one of your addresses. A configured address gets its mailbox on first delivery, so mail is kept even if nobody has opened the app yet.
+8. **Check it.** `npm run smoke` expects the app and its API to redirect to the Access login, `/mcp` to answer 401 with an OAuth challenge, the OAuth metadata under `/.well-known` to load, and `/authorize` to stay behind Access. It reads the hostname from `routes`; without one, run `SMOKE_URL=https://<your worker URL> npm run smoke`. Then send a message to one of your addresses. A configured address gets its mailbox on first delivery, so mail is kept even if nobody has opened the app yet.
 
 ### Troubleshooting Access
 

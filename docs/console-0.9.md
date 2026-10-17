@@ -50,11 +50,24 @@ Decline pitches, ask for missing details, acknowledge new senders, answer FAQs.
 ## Releases
 
 - 0.9: console, agents in Watch and Draft, Draft review, MCP page, MCP sign-in with OAuth 2.1 and a separate send grant.
-- 0.10: the workbench (setup beside what the agent does), Test on past mail, promotion evidence, then Send.
+- 0.10: the workbench (setup beside what the agent does), Test on past mail, promotion evidence, action agents, then Send.
+
+## Action agents (0.10, WON-453)
+
+An agent can do something to mail instead of replying: "favorite emails from higgsfield", "label invoices", "archive newsletters". In 0.9 an agent can only write a reply, so a job like that matches mail and does nothing.
+
+- **Does.** Each agent has a Does field: Reply, Star, Label (one label, picked when the agent is set up), Archive, or Mark read. Reply is the 0.9 behaviour. An agent does one of these, never several.
+- **Rules-only fast path.** An action agent whose rules say exactly which mail it takes runs without a model: when the rules pass, the action happens. No model call, no cost, no delay. The setup offers a rule from the job ("from higgsfield" suggests From domain). An action agent with no rules asks the model only whether the job fits, and gets no reply tools.
+- **Watch, then On.** The ladder for action agents has two steps. Watch logs what it would do ("Would star"). On does it. Draft and Send stay for reply agents. The move to On uses the same evidence as Watch to Draft.
+- **Undo from the Activity log.** Every action shows in the Activity log with Undo: unstar, remove the label, move back to the inbox, mark unread. Undo is offered for 30 days.
+- **No competition with reply agents.** Every action agent whose rules and job fit acts. One reply agent at most replies, chosen by list order as in 0.9. Starring a message never stops it getting a reply.
+- **Limits.** An action agent has a daily limit (100 by default), so a loose rule can't archive a whole inbox in one run.
+- **Tools.** The drafting run gets one tool per action (`star_email`, `label_email`, `archive_email`, `mark_read`) only for an agent whose Does field names it. A message is acted on once per agent; a second run on the same message does nothing.
 
 ## Build order
 
 1. Console page and navigation (0.9.0)
 2. Agents in Watch and Draft, and Review (0.9.0)
 3. Test on past mail (0.10)
-4. Send (0.10)
+4. Action agents (0.10)
+5. Send (0.10)

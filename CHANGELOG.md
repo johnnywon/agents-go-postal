@@ -2,6 +2,38 @@
 
 Versions follow [semantic versioning](https://semver.org). Before 1.0, a minor version can break things. Each entry names any new D1 migration. `npm run deploy` applies it; if you deploy another way, run `wrangler d1 migrations apply DB --remote` before you deploy that version.
 
+## 0.9.1
+
+### Added
+
+- The console rail ends with a colophon: messages, storage, addresses and uptime, then the mark, the version and a link to the source. `/api/v1/config` returns `version` and `deployedAt`, and `/api/v1/storage/status` returns `bytes`.
+- The rail heads name the view beside the fold mark: All Inboxes in mail, Console in the console, in white beside a white search icon. The logo appears only in the colophon, as the lockup from `public/brand`.
+- Opening the console and going back to mail each have their own move, in the side columns' motion: the console's rail slides out from the left and its page comes in from the right; back to mail, the rails settle in from their edges and the list comes in from the left.
+- By address, Labels and an address's folders open and close in the rail with the side columns' motion: the group eases open, its rows settle in one after another, and the caret turns.
+- AI models moves in the same language. Change model slides the picker in from the right and Back brings the summary in from the left, with focus back on Change model. The key row under Providers eases open and focuses its field. Test keeps its width while it runs and shows a steady dot; its result settles in with a check or a warning.
+- The colophon logo comes up as the console opens: a faint recessed watermark, then its colour rises through it and settles into focus.
+- Console > Keyboard shortcuts opens with the keyboard map from the ? dialog. Click a key on the map to change it; the list below follows.
+- Figures (`shared/figures.ts`): one way to show counts, sizes and lengths of time in six characters or fewer. Uptime steps from minutes to hours, days, weeks, months and years. Sizes step up a unit instead of rounding to 1000 (999.6 MB is 1.00 GB).
+
+### Upgrading
+
+- Add `"version_metadata": { "binding": "CF_VERSION_METADATA" }` to a deployment's Wrangler config for the colophon's uptime. Without it, uptime shows "—".
+
+### Fixed
+
+- Show key hints off now hides every key hint: the keys in tooltips and the Esc on Back to mail, which also follows its binding now. The switch is also on Console > Keyboard shortcuts.
+- `npm run smoke` checks MCP sign-in: `/mcp` answers 401 with an OAuth challenge, the OAuth metadata under `/.well-known` loads, and `/authorize` stays behind Access. When Access still blocks `/mcp`, it says to add the bypass.
+- Activity log: "Keep for" is a dropdown, the Actions toolbar no longer sits on the line above it, and a filter keeps the rows (dimmed) until its own load instead of flashing "Loading". The picked filter in console toggles is marked in purple, like a picked choice.
+- An agent shows Working only while a run moved in the last 10 minutes. A run that died no longer keeps the badge until the hourly cleanup, and the sample data gives one agent a live run instead of all of them.
+- The Overview's Auto-drafts card names two states, failed first after drafted, instead of a cut-off list.
+- Keyboard shortcuts loses the empty row above the list; it shows only to hold Reset all. Mail storage puts 32px between the total and the table.
+- Addresses, Signatures and Labels lose their explaining lines.
+- The sidebar footer buttons (Console, Keyboard shortcuts, Log out) are flat recessed wells set into the rail, deeper while held.
+- New agent: the name is a one-line field instead of a tall box, and the Watch badge no longer stretches across its row.
+- Setup and the README name both bypass paths, `/mcp` and `/.well-known`, and setup shows how to add the bypass application with the Cloudflare API.
+
+No D1 migration.
+
 ## 0.9.0
 
 The Console is a page of its own, with hired agents, and MCP clients sign in with OAuth.

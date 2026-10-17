@@ -8,6 +8,7 @@
  * Buttons keep using `title` (or `data-tip`). On first hover the title moves
  * to `data-tip` so the browser's own tooltip never shows. Titles follow
  * "Label (Key) · hint": the key becomes keycaps, the hint a second line.
+ * With key hints off (data-keys="off" on .postal) the keycaps are left out.
  * `data-tip-hint` adds a hint without touching the title. Icon-only buttons
  * with only an `aria-label` get a tooltip from that.
  */
@@ -88,6 +89,7 @@ function tipFor(el: HTMLElement): TipContent | null {
 	if (!text) return null;
 	const tip = parseTip(text, el.getAttribute("data-tip-hint"));
 	if (!tip) return null;
+	if (el.closest(".postal")?.getAttribute("data-keys") === "off") tip.keys = [];
 	// A tooltip that repeats the button's own text adds nothing.
 	const visible = el.textContent?.trim().toLowerCase() ?? "";
 	if (!tip.keys.length && !tip.hint && visible === tip.label.toLowerCase()) return null;

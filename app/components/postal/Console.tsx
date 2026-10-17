@@ -16,6 +16,8 @@ import type { AddressInfo } from "./compose";
 import { ConsoleMessageContext, type MessageRef, useOpenMessage } from "./console-message";
 import { CONSOLE_LABELS, CONSOLE_RAIL, type ConsoleTab, isSettingsTab } from "./console-tabs";
 import { ConsoleMessage } from "./ConsoleMessage";
+import { ConsoleColophon } from "./ConsoleColophon";
+import { FoldMark } from "./NavIcons";
 import { type ConsoleHit, ConsoleSearch, type ConsoleSearchHandle } from "./ConsoleSearch";
 import {
 	Async, Badge, Button, Choices, DialogHead, InlineText, Picker, Summary, SummaryRow, Track, Section, Field, Fields, Modal, Name, Note, NumberInput, Page, Row, SaveBar, Segmented, Split, Table,
@@ -27,6 +29,7 @@ import { McpTab } from "./McpTab";
 import { dayKey, dayLabel, timeLabel } from "./model";
 import { OverviewTab } from "./OverviewTab";
 import type { Prefs } from "./prefs";
+import { Keys } from "./shortcuts";
 
 const MODES: { value: AgentMode; label: string; disabled?: boolean; title?: string }[] = [
 	{ value: "watch", label: "Watch" },
@@ -67,7 +70,7 @@ export function ModeBadge({ mode }: { mode: AgentMode }) {
 
 /** Working: the agent has a message running or queued right now. */
 function WorkingBadge({ stats }: { stats: AgentStats | undefined }) {
-	const n = (stats?.runs.running ?? 0) + (stats?.runs.queued ?? 0);
+	const n = stats?.live ?? 0;
 	return n ? <Badge tone="draft" live>Working{n > 1 ? ` · ${n}` : ""}</Badge> : null;
 }
 
@@ -168,8 +171,8 @@ export function ConsolePage(props: {
 		<ConsoleMessageContext.Provider value={setMessage}>
 		<div className="pg-console" data-nav-open={navOpen || undefined}>
 			<nav className="pg-console-nav" aria-label="Console">
-				<div className="pg-rail-head pg-console-brand">PluraMail <b>Console</b></div>
-				<button type="button" className="pg-console-mail" onClick={onClose}><ArrowLeftIcon size={14} /><span>Back to mail</span><kbd>esc</kbd></button>
+				<div className="pg-rail-head pg-console-brand"><FoldMark size={14} /><b>Console</b></div>
+				<button type="button" className="pg-console-mail" onClick={onClose}><ArrowLeftIcon size={14} /><span>Back to mail</span><Keys id="back" /></button>
 				<div className="pg-console-links">
 					{rail.map((g) => (
 						<div key={g.group ?? "top"} className="pg-console-links-group">
@@ -182,6 +185,7 @@ export function ConsolePage(props: {
 						</div>
 					))}
 				</div>
+				<ConsoleColophon />
 			</nav>
 			{navOpen && <div className="pg-drawer-scrim pg-console-scrim" onClick={() => setNavOpen(false)} aria-hidden />}
 			<div className="pg-console-center">

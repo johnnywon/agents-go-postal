@@ -3,15 +3,16 @@
 //     https://opensource.org/licenses/Apache-2.0
 
 import {
-	BookmarkSimpleIcon, CaretDoubleLeftIcon, KeyboardIcon, CaretDoubleRightIcon, CaretDownIcon, CaretRightIcon,
+	BookmarkSimpleIcon, CaretDoubleLeftIcon, KeyboardIcon, CaretDoubleRightIcon, CaretRightIcon,
 	PencilSimpleIcon, PlusIcon, SignOutIcon, TerminalWindowIcon,
 } from "@phosphor-icons/react";
 import { AgentIcon } from "./AgentIcon";
+import { Reveal } from "./Reveal";
 import {
 	ADDRESS_FOLDERS, ByAddressIcon, FoldMark, InboxIcon, LabelsIcon, SECONDARY_VIEWS, UnreadIcon,
 } from "./NavIcons";
 import { useShortcuts } from "./shortcuts";
-import { type AnchorHTMLAttributes, type FormEvent, useState } from "react";
+import { type AnchorHTMLAttributes, type FormEvent, type ReactNode, useState } from "react";
 import { type MailFilter, toSearch } from "~/lib/mail-filter";
 import type { Label, SavedSearch } from "~/services/api";
 import { AddressText, type Identities, LabelTag, Swatch } from "./identity";
@@ -76,6 +77,9 @@ function viewLink(go: (filter: MailFilter) => void, next: MailFilter) {
 	return { href: toSearch(next), onGo: () => go(next) };
 }
 
+/** The caret beside a group: one glyph that turns a quarter as the group opens. */
+const GroupCaret = () => <CaretRightIcon className="pg-caret" size={10} weight="bold" color="var(--pg-text-8)" />;
+
 export function Sidebar(props: SidebarProps) {
 	const { identities, filter, go, unreadByAddress, labels } = props;
 	const scope = scopeOf(filter);
@@ -98,7 +102,7 @@ export function Sidebar(props: SidebarProps) {
 		<nav className="pg-nav" aria-label="Mail" data-overlay={props.overlay || undefined} data-drawer={props.drawer} inert={props.inert}>
 			<button type="button" className="pg-rail-head" onClick={props.onCollapse} title={tip("sidebar", "Collapse sidebar")}>
 				<FoldMark size={14} />
-				<span className="pg-flex" style={{ lineHeight: 1, textAlign: "left" }}>PLURAMAIL</span>
+				<span className="pg-flex" style={{ lineHeight: 1, textAlign: "left", textTransform: "uppercase" }}>All Inboxes</span>
 				<CaretDoubleLeftIcon size={14} weight="bold" />
 			</button>
 			<div className="pg-nav-scroll">
@@ -128,9 +132,10 @@ export function Sidebar(props: SidebarProps) {
 					<span style={{ display: "flex", gap: 3 }}>
 						{identities.groups.map((g) => <Swatch key={g.identity.domain} identity={g.identity} />)}
 					</span>
-					{props.mailboxesOpen ? <CaretDownIcon size={10} weight="bold" color="var(--pg-text-8)" /> : <CaretRightIcon size={10} weight="bold" color="var(--pg-text-8)" />}
+					<GroupCaret />
 				</button>
-				{props.mailboxesOpen && identities.groups.map(({ identity, addresses }) => (
+				<Reveal open={!!props.mailboxesOpen} kind="group">
+				{identities.groups.map(({ identity, addresses }) => (
 					<div key={identity.domain} style={{ display: "flex", flexDirection: "column", gap: 1 }}>
 						<NavLink
 							className="pg-nav-domain"
@@ -159,7 +164,7 @@ export function Sidebar(props: SidebarProps) {
 										{/* TODO(roadmap): per-address agent autonomy pill (off / draft / rules / auto) returns with rules. */}
 										<span className="pg-n">{count(unreadByAddress.get(address))}</span>
 									</NavLink>
-									{open && (
+									<Reveal open={open} kind="folders">
 										<div className="pg-nav-folders">
 											{ADDRESS_FOLDERS.map(({ view, label, Icon }) => (
 												<NavLink
@@ -173,21 +178,21 @@ export function Sidebar(props: SidebarProps) {
 												</NavLink>
 											))}
 										</div>
-									)}
+									</Reveal>
 								</div>
 							);
 						})}
 					</div>
 				))}
+				</Reveal>
 
 				<div className="pg-nav-divider" />
 				<button type="button" className="pg-nav-item" aria-expanded={props.labelsOpen} onClick={() => props.setLayout({ labelsOpen: !props.labelsOpen })}>
 					<LabelsIcon size={16} />
 					<span className="pg-flex">Labels</span>
-					{props.labelsOpen ? <CaretDownIcon size={10} weight="bold" color="var(--pg-text-8)" /> : <CaretRightIcon size={10} weight="bold" color="var(--pg-text-8)" />}
+					<GroupCaret />
 				</button>
-				{props.labelsOpen && (
-					<>
+				<Reveal open={!!props.labelsOpen} kind="group">
 						{labels.map((label) => {
 							const on = labelView === label.id;
 							return (
@@ -245,8 +250,7 @@ export function Sidebar(props: SidebarProps) {
 								/>
 							</form>
 						)}
-					</>
-				)}
+				</Reveal>
 				{props.saved.length > 0 && (
 					<>
 						<div className="pg-nav-divider" />

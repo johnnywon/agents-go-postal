@@ -98,6 +98,7 @@ html:has(.postal), html:has(.postal) body { background: var(--pg-base, #141518);
   .pg-ui-picker-row,
   .pg-ui-picker-search,
   .pg-ui-sum-row + .pg-ui-sum-row,
+  .pg-console-colophon,
   .pg-ui-rungs > li + li,
   .pg-ui-gate,
   .pg-ui-rung-n,
@@ -180,7 +181,8 @@ html:has(.postal), html:has(.postal) body { background: var(--pg-base, #141518);
   line-height: 1.3;
 }
 /* Key hints off hides the keys next to controls. Tooltips and Settings > Shortcuts still show them: there the keys are the content. */
-.postal[data-keys="off"] :is(.pg-kbd, .pg-keyhint):not(.pg-tip *, .pg-keys-caps *) { display: none !important; }
+/* Show key hints off hides every key hint in the app, any kbd included. Only the keyboard map and the shortcut list, where the keys are the content, keep theirs. */
+.postal[data-keys="off"] :is(.pg-kbd, .pg-keyhint, kbd):not(.pg-keys-caps *, .pg-map *) { display: none !important; }
 .pg-caption { font: 600 10px var(--pg-mono); letter-spacing: .08em; color: var(--pg-text-8); text-transform: uppercase; }
 .pg-icon-btn {
   width: 30px; height: 26px; flex: none;
@@ -297,7 +299,37 @@ html:has(.postal), html:has(.postal) body { background: var(--pg-base, #141518);
 .pg-nav-address:hover { background: var(--pg-hover); color: var(--pg-text-2); }
 .pg-nav-address[data-open="true"] { color: var(--pg-text-1); }
 .pg-nav-address .pg-n { width: 16px; text-align: right; color: var(--pg-text-6); flex: none; }
-.pg-nav-folders { display: flex; flex-direction: column; gap: 1px; margin: 1px 0 4px; animation: pg-drop .2s var(--pg-side-ease); }
+.pg-nav-folders { display: flex; flex-direction: column; gap: 1px; margin: 1px 0 4px; }
+
+/* Rail groups (By address, Labels, an address's folders) open like the side columns: the group's
+   height eases on --pg-side-ease while its rows settle in top to bottom, 14ms apart; closing is
+   quicker and all at once. The rows stay mounted, so a click mid-move reverses from where it is.
+   The closed group still sits in its column, so it gives back the column's gap (--pg-reveal-gap). */
+.pg-reveal {
+  display: grid; grid-template-rows: 1fr; align-self: start; --pg-reveal-gap: 2px;
+  transition: grid-template-rows var(--pg-side-ms) var(--pg-side-ease), margin-top var(--pg-side-ms) var(--pg-side-ease);
+}
+.pg-reveal[data-kind="folders"] { --pg-reveal-gap: 1px; }
+.pg-reveal[data-open="false"] { grid-template-rows: 0fr; margin-top: calc(-1 * var(--pg-reveal-gap)); transition-duration: var(--pg-side-out-ms); }
+.pg-reveal-in { min-height: 0; overflow: clip; overflow-clip-margin: 3px; display: flex; flex-direction: column; gap: var(--pg-reveal-gap); }
+.pg-reveal[data-kind="folders"] .pg-reveal-in { display: block; }
+.pg-reveal[data-kind="panel"] { --pg-reveal-gap: 0px; }
+:is(.pg-reveal[data-kind="group"], .pg-reveal[data-kind="panel"]) > .pg-reveal-in > *, .pg-reveal[data-kind="folders"] .pg-nav-folders > * {
+  transition: opacity .26s ease-out, translate var(--pg-side-ms) var(--pg-side-ease);
+  transition-delay: calc(var(--pg-row, 0) * 14ms + 40ms);
+}
+:is(.pg-reveal[data-kind="group"], .pg-reveal[data-kind="panel"])[data-open="false"] > .pg-reveal-in > *, .pg-reveal[data-kind="folders"][data-open="false"] .pg-nav-folders > * {
+  opacity: 0; translate: 0 -4px; transition: opacity .14s ease-in, translate var(--pg-side-out-ms) var(--pg-side-ease);
+}
+:is(.pg-reveal-in, .pg-nav-folders) > :nth-child(2) { --pg-row: 1; }
+:is(.pg-reveal-in, .pg-nav-folders) > :nth-child(3) { --pg-row: 2; }
+:is(.pg-reveal-in, .pg-nav-folders) > :nth-child(4) { --pg-row: 3; }
+:is(.pg-reveal-in, .pg-nav-folders) > :nth-child(5) { --pg-row: 4; }
+:is(.pg-reveal-in, .pg-nav-folders) > :nth-child(6) { --pg-row: 5; }
+:is(.pg-reveal-in, .pg-nav-folders) > :nth-child(7) { --pg-row: 6; }
+:is(.pg-reveal-in, .pg-nav-folders) > :nth-child(n+8) { --pg-row: 7; }
+.pg-caret { flex: none; transition: rotate var(--pg-side-ms) var(--pg-side-ease); }
+[aria-expanded="true"] > .pg-caret { rotate: 90deg; }
 .pg-nav-folder {
   display: flex; align-items: center; gap: 8px; height: 26px; margin-left: 38px; padding: 0 9px 0 10px;
   width: calc(100% - 38px); font-size: 12px; color: var(--pg-text-6); text-align: left;
@@ -332,7 +364,10 @@ html:has(.postal), html:has(.postal) body { background: var(--pg-base, #141518);
   display: flex; align-items: center; gap: 6px; height: 26px; padding: 0 9px; white-space: nowrap;
   font-size: 12px; color: var(--pg-text-5); border: 1px solid var(--pg-line-2); background: var(--pg-input);
 }
-.pg-foot-btn:hover { background: var(--pg-hover); border-color: var(--pg-line-4); color: var(--pg-text-2); }
+/* Recessed: flat wells set into the rail, pressed deeper while held. */
+.pg-foot-btn { background: var(--pg-recess-face); border-color: transparent; box-shadow: var(--pg-recess); transition: box-shadow .12s, background-color .12s, color .12s; }
+.pg-foot-btn:hover { background: var(--pg-recess-face); border-color: transparent; color: var(--pg-text-2); }
+.pg-foot-btn:active { box-shadow: var(--pg-recess-pressed); }
 .pg-foot-btn.is-square { width: 26px; padding: 0; justify-content: center; }
 
 /* Collapsed rail */
@@ -365,7 +400,9 @@ html:has(.postal), html:has(.postal) body { background: var(--pg-base, #141518);
 .pg-search { transition: box-shadow var(--pg-pop-ms) var(--pg-side-ease), border-color var(--pg-pop-ms) var(--pg-side-ease); }
 .pg-search-wrap:focus-within .pg-search { box-shadow: var(--pg-shadow-lift); }
 .pg-search-wrap:focus-within .pg-sw { box-shadow: var(--pg-shadow-lift), var(--pg-shadow-pop); }
-.pg-search > svg.pg-search-icon { flex: none; }
+/* The rail heads and the search icon are the bar's white, so the top edge reads as one line. */
+.pg-search > svg.pg-search-icon { flex: none; color: var(--pg-text-1); }
+.pg-nav .pg-rail-head, .pg-nav .pg-rail-head:hover { color: var(--pg-text-1); }
 .pg-search[data-active="true"] > svg.pg-search-icon { color: var(--pg-text-2); }
 .pg-search input {
   flex: 1; min-width: 0; height: 100%; padding: 0; margin: 0;
@@ -985,7 +1022,8 @@ html:has(.postal), html:has(.postal) body { background: var(--pg-base, #141518);
 .pg-keys-none, .pg-keys-wait { font: 11px var(--pg-mono); color: var(--pg-text-7); }
 .pg-keys-wait { color: var(--pg-mail); }
 .pg-modal.is-shortcuts { width: min(1060px, 100%); height: auto; max-height: min(760px, 100%); }
-.pg-map { display: flex; flex-direction: column; gap: 8px; padding-top: 16px; }
+.pg-map { display: flex; flex-direction: column; gap: 8px; padding-top: 16px; container-type: inline-size; }
+
 .pg-map-search, .pg-map-col { border: 1px solid var(--pg-line-2); background: var(--pg-base); }
 .pg-map-search { display: flex; align-items: center; gap: 8px; height: 44px; padding: 0 8px 0 12px; color: var(--pg-text-6); }
 .pg-map-cols { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 2.4fr) minmax(0, .9fr); gap: 8px; }
@@ -1024,9 +1062,19 @@ html:has(.postal), html:has(.postal) body { background: var(--pg-base, #141518);
 .pg-map-composer { display: flex; align-items: center; gap: 8px; align-self: flex-end; width: 180px; margin: 0 10px 10px; padding: 6px 8px; border: 1px solid var(--pg-line-4); background: var(--pg-raised); color: var(--pg-text-4); }
 .pg-map-more { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 18px; margin-top: 6px; padding-top: 12px; border-top: 1px solid var(--pg-line-soft); }
 .pg-map-more .pg-map-nav { padding: 0; font-size: 12px; color: var(--pg-text-5); }
+/* In Settings > Keyboard shortcuts the map edits: a rebindable key is a button, and the one waiting for a key pulses in the accent. */
+.pg-map-keys[data-pick] { padding: 2px; margin: -2px; border: 0; background: none; }
+.pg-map-keys[data-pick]:hover .pg-map-cap { border-color: var(--pg-text-7); color: var(--pg-text-1); }
+.pg-map-keys[data-pick][aria-pressed="true"] .pg-map-cap { border-color: var(--pg-green); color: var(--pg-text-1); animation: pg-pulse 1.2s ease-in-out infinite; }
 .pg-map-all { font-size: 12px; color: var(--pg-text-6); text-decoration: underline; text-underline-offset: 3px; }
 .pg-map-all:hover { color: var(--pg-text-2); }
-.pg-keys-scroll { flex: 1; min-height: 0; overflow-y: auto; padding: 0 20px 20px; }
+/* Narrower than the ? dialog (the console page, a phone), the message column goes on top across the map,
+   the sidebar and list sit side by side under it, and the agent takes the last row. By the map's width, not the window's. */
+@container (max-width: 900px) {
+  .pg-map-cols { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  .pg-map-col[data-area="reader"] { grid-column: 1 / -1; order: -1; }
+  .pg-map-col[data-area="agent"] { grid-column: 1 / -1; }
+}.pg-keys-scroll { flex: 1; min-height: 0; overflow-y: auto; padding: 0 20px 20px; }
 .pg-input { flex: 1; min-width: 0; height: 30px; padding: 0 10px; border: 1px solid var(--pg-line-2); background: var(--pg-raised); color: var(--pg-text-2); font: 13px var(--pg-font); outline: none; }
 .pg-input:focus { border-color: var(--pg-line-4); }
 .pg-textarea { width: 100%; resize: vertical; padding: 10px 12px; border: 1px solid var(--pg-line-2); background: var(--pg-raised); color: var(--pg-text-2); font: 12px/1.6 var(--pg-mono); outline: none; }
@@ -1152,9 +1200,6 @@ html:has(.postal), html:has(.postal) body { background: var(--pg-base, #141518);
   .pg-modal-scrim { padding: 0; }
   .pg-modal, .pg-modal.is-settings, .pg-modal.is-shortcuts { width: 100%; height: 100%; border: 0; }
   .pg-keys-row { min-height: 48px; }
-  .pg-map-cols { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
-  .pg-map-col[data-area="reader"] { grid-column: 1 / -1; order: -1; }
-  .pg-map-col[data-area="agent"] { grid-column: 1 / -1; }
   .pg-keys-edit { min-height: 44px; }
   .pg-keys-off { width: 44px; height: 44px; }
   .pg-modal-head { height: auto; min-height: 56px; padding-top: 8px; padding-bottom: 8px; }
@@ -1175,6 +1220,23 @@ html:has(.postal), html:has(.postal) body { background: var(--pg-base, #141518);
   .pg-group { padding: 0; }
   .pg-switch { min-height: 20px; }
 }
+/* ── Moving between mail and the console ──────────────────────────────
+   The switch moves like the side columns: their curve and timing, translate and opacity only.
+   PostalMail sets data-arrive on .postal for ARRIVE_MS after a switch, never on first load.
+   Into the console, one move from the left: its rail slides out from the edge like a column
+   opening, its items fade in late, and the page comes in from the right, as forward does.
+   Back to mail, the other way: each rail settles in from its own edge and the list comes in
+   from the left, as back does. Reduced motion turns both off with every other animation. */
+@keyframes pg-arrive-rail { from { translate: -28px 0; } }
+@keyframes pg-arrive-edge { from { translate: calc(var(--pg-side-dir, -1) * 16px) 0; opacity: 0; } }
+@keyframes pg-arrive-forward { from { translate: 20px 0; opacity: 0; } }
+@keyframes pg-arrive-back { from { translate: -20px 0; opacity: 0; } }
+@keyframes pg-arrive-late { 0%, 15% { opacity: 0; } }
+.postal[data-arrive="console"] .pg-console-nav { animation: pg-arrive-rail var(--pg-side-ms) var(--pg-side-ease); }
+.postal[data-arrive="console"] .pg-console-nav > * { animation: pg-arrive-late .32s ease-out; }
+.postal[data-arrive="console"] .pg-console-center { animation: pg-arrive-forward var(--pg-side-ms) var(--pg-side-ease); }
+.postal[data-arrive="mail"] .pg-side > * { animation: pg-arrive-edge var(--pg-side-ms) var(--pg-side-ease); }
+.postal[data-arrive="mail"] .pg-center { animation: pg-arrive-back var(--pg-side-ms) var(--pg-side-ease) .04s both; }
 @media (prefers-reduced-motion: reduce) {
   .postal *, .postal *::before, .postal *::after { animation: none !important; transition: none !important; }
 }
@@ -1198,7 +1260,8 @@ html:has(.postal), html:has(.postal) body { background: var(--pg-base, #141518);
 .pg-model-price b { font-weight: 500; color: var(--pg-text-2); }
 .pg-model-price[data-none] { color: var(--pg-text-8); }
 .pg-model-slash { margin: 0 4px; color: var(--pg-text-8); }
-.pg-model-current-msg { grid-column: 1 / -1; margin: 0; display: flex; align-items: center; gap: 6px; font-size: var(--pg-t-12); color: var(--pg-green-text); }
+.pg-model-current-msg { margin: 0; font-size: var(--pg-t-12); color: var(--pg-green-text); }
+.pg-model-current-msg > span { display: inline-flex; align-items: center; gap: 6px; }
 .pg-model-current-msg[data-ok="false"] { color: var(--pg-yellow-text); }
 .pg-select { height: 30px; padding: 0 8px; font-size: var(--pg-t-12); color: var(--pg-text-2); border: 1px solid var(--pg-line-2); background: var(--pg-raised); }
 
@@ -1213,12 +1276,34 @@ html:has(.postal), html:has(.postal) body { background: var(--pg-base, #141518);
 .pg-model-facts code { font: 12px var(--pg-mono); color: var(--pg-text-4); overflow-wrap: anywhere; }
 .pg-model-unit { margin-left: 4px; color: var(--pg-text-7); }
 .pg-model-card-actions { display: flex; gap: 8px; }
+
+/* Motion on the model page, in the side columns' language (--pg-side-ease, translate only).
+   Change model slides the picker in from the right; Back brings the summary in from the left.
+   The test message and the key row ease open as Reveal panels. A new test result settles in
+   from 3px below, its mark a beat ahead of the words. Test keeps its width while it works: both
+   faces share one cell and cross over, the busy face with a steady dot. */
+.pg-model-view[data-enter="forward"] { animation: pg-arrive-forward var(--pg-side-ms) var(--pg-side-ease); }
+.pg-model-view[data-enter="back"] { animation: pg-arrive-back var(--pg-side-ms) var(--pg-side-ease); }
+.pg-model-card > .pg-reveal { --pg-reveal-gap: 14px; }
+@keyframes pg-model-settle { from { opacity: 0; translate: 0 3px; } }
+@keyframes pg-model-mark { from { opacity: 0; scale: .6; } }
+.pg-model-current-msg > span { animation: pg-model-settle .36s var(--pg-side-ease); }
+.pg-model-current-msg > span > svg { flex: none; animation: pg-model-mark .3s var(--pg-side-ease); }
+.pg-model-test { display: inline-grid; place-items: center; }
+.pg-model-test > span { grid-area: 1 / 1; display: inline-flex; align-items: center; gap: 6px; transition: opacity .18s ease-out, translate var(--pg-side-ms) var(--pg-side-ease); }
+.pg-model-test > [data-face="busy"], .pg-model-test[aria-busy="true"] > [data-face="idle"] { opacity: 0; translate: 0 4px; }
+.pg-model-test[aria-busy="true"] > [data-face="idle"] { translate: 0 -4px; }
+.pg-model-test[aria-busy="true"] > [data-face="busy"] { opacity: 1; translate: 0 0; }
+.pg-model-test[aria-busy="true"]:disabled { opacity: 1; color: var(--pg-text-4); }
+.pg-model-test i { width: 5px; height: 5px; background: var(--pg-green); animation: pg-pulse 1.1s ease-in-out infinite; }
+.pg-prov-table tr { transition: background-color var(--pg-side-ms) var(--pg-side-ease); }
+.pg-prov-status { animation: pg-fade .3s ease-out; }
 .pg-prov-links { display: flex; gap: 12px; }
 .pg-prov-key { display: inline-flex; align-items: center; justify-content: flex-end; gap: 10px; }
 .pg-prov-status { font: 11px var(--pg-mono); color: var(--pg-text-7); white-space: nowrap; }
 .pg-prov-status[data-on="true"] { color: var(--pg-green-text); }
 .pg-prov-table tr[data-highlight] { background: color-mix(in oklch, var(--pg-yellow) 9%, transparent); }
-.pg-prov-table + .pg-prov-row-key { margin-top: 8px; padding: 12px; border: 1px solid var(--pg-line); background: var(--pg-raised); }
+.pg-prov-table + .pg-reveal .pg-prov-row-key { margin-top: 8px; padding: 12px; border: 1px solid var(--pg-line); background: var(--pg-raised); }
 .pg-prov-table ~ .pg-ui-note { margin-top: 10px; }
 .pg-zdr { display: inline-flex; align-items: center; gap: 4px; color: var(--pg-green-text); }
 /* Notes inside the picker list sit flush with its rows. */
@@ -1327,20 +1412,59 @@ button.pg-model-row:hover { background: var(--pg-hover); }
   flex: 1; min-width: 0; min-height: 0; display: grid; grid-template-columns: 236px minmax(0, 1fr); background: var(--pg-base); color: var(--pg-text-3);
 }
 .pg-console :focus-visible, .pg-console .pg-models-search:has(input:focus-visible) { outline-color: var(--pg-con-accent); }
+.pg-console .pg-segmented > button { transition: background .12s, color .12s, box-shadow .12s; }
+.pg-console .pg-segmented > button:hover:not([aria-checked="true"]) { background: var(--pg-hover-raised); }
+.pg-console .pg-segmented > button:active { background: var(--pg-active); }
+.pg-console .pg-segmented > button[aria-checked="true"] { background: var(--pg-active); color: var(--pg-text-1); box-shadow: inset 0 0 0 1px oklch(from var(--pg-con-accent) l c h / .6); }
 .pg-console-nav { display: flex; flex-direction: column; min-height: 0; background: var(--pg-rail); border-right: 1px solid var(--pg-line); }
-.pg-console-brand { padding: 0 12px; gap: 5px; text-transform: uppercase; color: var(--pg-text-3); }
+.pg-console-brand { padding: 0 12px; gap: 6px; text-transform: uppercase; color: var(--pg-text-3); }
 .pg-console-brand:hover { background: var(--pg-raised); color: var(--pg-text-3); }
-.pg-console-brand b { font-weight: 600; color: var(--pg-con-accent-text); }
+.pg-console-brand b { font-weight: 600; color: var(--pg-text-1); }
 .pg-console-center { min-width: 0; min-height: 0; display: flex; flex-direction: column; }
-.pg-console-search .pg-search-icon { color: var(--pg-con-accent-text); }
+.pg-console-search .pg-search-icon { color: var(--pg-text-1); }
 .pg-console-search .pg-sw-icon { display: inline-flex; }
 .pg-console-sw-none { margin: 0; padding: 8px; font-size: var(--pg-t-13); color: var(--pg-text-6); }
 .pg-console-mail { flex: none; display: flex; align-items: center; gap: 10px; height: 40px; margin: 8px 8px 0; padding: 0 10px; border: 1px solid var(--pg-line-3); background: var(--pg-raised); color: var(--pg-text-2); font-weight: 600; }
 .pg-console-mail span { flex: 1; text-align: left; }
-.pg-console-mail kbd { font: var(--pg-t-10) var(--pg-mono); color: var(--pg-text-7); }
+.pg-console-mail .pg-kbd { padding: 0; border: 0; background: none; font: var(--pg-t-10) var(--pg-mono); text-transform: lowercase; color: var(--pg-text-7); }
 .pg-console-mail:hover { border-color: var(--pg-con-accent); color: var(--pg-text-1); }
 .pg-console-mail:hover svg { color: var(--pg-con-accent-text); }
 .pg-console-links { flex: 1; overflow-y: auto; padding: 10px 8px; display: flex; flex-direction: column; gap: 1px; }
+/* Colophon: closes the rail. Four figures, then the mark and the version, on a 4px grid. Nothing raised or boxed. */
+/* The groove is 2px, a cut and its lit edge; the colophon is 116px on the 4px grid. */
+/* Colours step with the rail: figures one shade over the links, units and glyphs the links' grey, the version the group labels'. */
+.pg-console-colophon { flex: none; color: var(--pg-text-5); border-top: 1px solid var(--pg-con-groove); }
+.pg-console-colophon::before { content: ""; display: block; height: 1px; background: var(--pg-con-groove-edge); }
+.pg-console-colophon-figures { display: grid; grid-template-columns: repeat(4, auto); justify-content: space-between; column-gap: 12px; padding: 16px 20px; }
+.pg-console-colophon-cell { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.pg-console-colophon-cell b { height: 20px; font: 400 16px/20px var(--pg-font); letter-spacing: -.05em; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.pg-console-colophon-cell b { color: var(--pg-text-3); }
+.pg-console-colophon-cell b[data-unknown] { color: var(--pg-text-8); }
+.pg-console-colophon-cell span { display: flex; align-items: center; gap: 4px; height: 12px; font: 500 9px/12px var(--pg-mono); letter-spacing: .08em; white-space: nowrap; }
+.pg-console-colophon-cell svg { flex: none; display: block; overflow: visible; }
+/* No groove between the figures and the imprint; 6px of space separates them, 116px in all on the 4px grid. */
+.pg-console-colophon-imprint { display: flex; justify-content: space-between; align-items: flex-end; margin: 0 20px; padding: 6px 0 16px; }
+.pg-console-colophon-mark { display: grid; align-items: center; height: 24px; }
+.pg-console-colophon-mark > img { grid-area: 1 / 1; }
+/* The lockup PNG is 3x with transparent room around the art, so the round flap ends never touch its edge.
+   21.33px tall shows the art at 18px; the negative margin puts the art, not the padding, on the 20px inset. */
+.pg-console-colophon-logo { display: block; flex: none; height: calc(64px / 3); width: auto; max-width: none; margin: -1.71px; }
+/* Both grounds stay laid out in one cell and the other theme's is only invisible: display: none would restart
+   the logo's animation on a theme switch. */
+.pg-console-colophon-logo[data-ground="light"], .postal[data-theme="light"] .pg-console-colophon-logo[data-ground="dark"] { visibility: hidden; }
+.postal[data-theme="light"] .pg-console-colophon-logo[data-ground="light"] { visibility: visible; }
+/* The logo comes up once as the console opens, quietly: a grey watermark pressed into the rail
+   holds a beat, then the colour lifts 1px out of it, soft at first and settling into focus, while
+   the watermark gives way. One long ease-out, no steps. At rest, and with reduced motion, only the
+   colour logo shows. */
+@keyframes pg-logo-ghost { 0%, 40% { opacity: .14; } 100% { opacity: 0; } }
+@keyframes pg-logo-rise { from { opacity: 0; translate: 0 1px; filter: blur(.8px) saturate(.6); } 55% { filter: blur(0) saturate(.95); } to { opacity: 1; translate: 0 0; filter: none; } }
+.pg-console-colophon-logo:not([data-layer]) { animation: pg-logo-rise 1.8s cubic-bezier(.45, 0, .25, 1) .6s both; }
+.pg-console-colophon-logo[data-layer="ghost"] { opacity: 0; filter: grayscale(1) drop-shadow(0 -1px 0 rgba(0, 0, 0, .8)) drop-shadow(0 1px 0 rgba(255, 255, 255, .1)); animation: pg-logo-ghost 2.4s ease-in-out both; }
+.postal[data-theme="light"] .pg-console-colophon-logo[data-layer="ghost"] { filter: grayscale(1) drop-shadow(0 -1px 0 rgba(20, 20, 19, .25)) drop-shadow(0 1px 0 rgba(255, 255, 255, .9)); }
+.pg-console-colophon-version { display: flex; align-items: center; gap: 6px; padding-bottom: 5px; font: 500 9px/12px var(--pg-mono); letter-spacing: .08em; color: var(--pg-text-7); }
+.pg-console-colophon-version a { display: grid; place-items: center; width: 24px; height: 24px; margin: -6px -7px -6px -3px; color: var(--pg-text-7); }
+.pg-console-colophon-version a:hover { color: var(--pg-text-2); }
 .pg-console-link { display: flex; align-items: center; gap: 10px; height: 30px; padding: 0 10px; color: var(--pg-text-5); text-align: left; }
 .pg-console-link:hover { background: var(--pg-hover); color: var(--pg-text-2); }
 .pg-console-link[aria-current="page"] { background: var(--pg-active); color: var(--pg-text-1); font-weight: 600; }
@@ -1407,6 +1531,14 @@ button.pg-model-row:hover { background: var(--pg-hover); }
 .pg-ui-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 
 .pg-ui-section { display: flex; flex-direction: column; gap: 10px; }
+.pg-ui-field + .pg-ui-section { margin-top: 32px; }
+/* 32px from stats to the next section, inside a Page's 20px gap or not. */
+.pg-ui-stats + .pg-ui-section { margin-top: 32px; }
+.pg-ui-page > .pg-ui-stats + .pg-ui-section { margin-top: 12px; }
+.pg-ui-section-head:has(.pg-ui-toolbar) { padding-bottom: 4px; }
+.pg-ui-keep.pg-select { min-width: 132px; }
+.pg-ui-list { transition: opacity .15s; }
+.pg-ui-list[aria-busy="true"] { opacity: .5; }
 .pg-ui-section-head { display: flex; align-items: center; gap: 12px; min-height: 26px; }
 .pg-ui-section-head h2 { flex: 1; margin: 0; font: 600 var(--pg-t-11) var(--pg-mono); letter-spacing: .06em; text-transform: uppercase; color: var(--pg-text-6); }
 .pg-ui-lede { margin: -4px 0 0; max-width: 72ch; font-size: var(--pg-t-12); color: var(--pg-text-6); text-wrap: pretty; }
@@ -1553,9 +1685,10 @@ button.pg-ui-stat:hover { border-color: var(--pg-line-3); }
 .pg-ui-wiz-panel[inert] { opacity: 0; }
 .pg-ui-wiz-q:focus { outline: none; }
 .pg-ui-wiz-q { font-size: 19px; font-weight: 600; letter-spacing: -.01em; line-height: 1.3; color: var(--pg-text-1); margin-bottom: 4px; }
+.pg-ui-wiz-name.pg-input { flex: none; height: 48px; padding: 0 16px; font: 15px var(--pg-font); }
 .pg-ui-ask-input.pg-textarea { min-height: 112px; padding: 14px 16px; font: 15px/1.55 var(--pg-font); resize: none; field-sizing: content; max-height: 220px; }
 .pg-ui-track-name.pg-input { flex: none; height: 46px; padding: 0 14px; font-size: 16px; }
-.pg-ui-ask-input.pg-textarea:focus, .pg-ui-track-name.pg-input:focus { border-color: oklch(from var(--pg-con-accent) l c h / .7); box-shadow: 0 0 0 3px oklch(from var(--pg-con-accent) l c h / .15); }
+.pg-ui-ask-input.pg-textarea:focus, .pg-ui-track-name.pg-input:focus, .pg-ui-wiz-name.pg-input:focus { border-color: oklch(from var(--pg-con-accent) l c h / .7); box-shadow: 0 0 0 3px oklch(from var(--pg-con-accent) l c h / .15); }
 .pg-modal-head:has(.pg-ui-track) h2 { white-space: nowrap; }
 .pg-ui-track { display: flex; align-items: center; gap: 2px; margin: 0 6px 0 0; padding: 0; list-style: none; }
 .pg-ui-track li { display: flex; align-items: center; gap: 2px; }
@@ -1575,6 +1708,7 @@ button.pg-ui-stat:hover { border-color: var(--pg-line-3); }
 .pg-ui-sum-row { display: grid; grid-template-columns: 88px minmax(0, 1fr) auto; align-items: baseline; gap: 4px 16px; min-height: 52px; padding: 15px 10px 15px 18px; }
 .pg-ui-sum-row + .pg-ui-sum-row { border-top: 1px solid var(--pg-line-soft); }
 .pg-ui-sum-row[data-open] { background: var(--pg-raised); }
+.pg-ui-sum-row dd > .pg-ui-badge { width: fit-content; }
 .pg-ui-sum dt { font: var(--pg-t-11) var(--pg-mono); text-transform: uppercase; letter-spacing: .04em; color: var(--pg-text-7); }
 .pg-ui-sum dd { margin: 0; min-width: 0; display: flex; flex-direction: column; gap: 3px; font-size: var(--pg-t-13); line-height: 1.5; color: var(--pg-text-2); overflow-wrap: anywhere; }
 .pg-ui-sum-sub { font-size: var(--pg-t-12); color: var(--pg-text-6); }

@@ -23,7 +23,7 @@ import type { Prefs } from "./prefs";
 import { ShortcutMap } from "./ShortcutMap";
 import { samePrefs } from "shared/prefs";
 import { Keys } from "./shortcuts";
-import { ShortcutList } from "./ShortcutsTab";
+import { ShortcutsPage } from "./ShortcutsTab";
 import { Badge, Button, CopyField, Field, Fields, Item, List, Note, SaveBar, Section, Summary, SummaryRow, Table } from "./ConsoleUI";
 import { SEND_LIMITS } from "shared/send-limits";
 
@@ -63,8 +63,6 @@ export function ConsoleSettings({ tab, onTab, prefs, setPrefs, addresses, identi
 	const [sigs, setSigs] = useState<Record<string, { html: string; enabled: boolean }>>(loadedSigs);
 	// What the server holds. Moves forward after each save, ahead of the mailbox refetch.
 	const [initialSigs, setInitialSigs] = useState(loadedSigs);
-	const sigCount = addresses.filter((a) => hasText(sigs[a]?.html ?? "")).length;
-	const sigOnCount = addresses.filter((a) => sigs[a]?.enabled && hasText(sigs[a].html)).length;
 	// With no signatures anywhere, open the first address so there is somewhere to start.
 	const [sigOpen, setSigOpen] = useState<string | null>(() => addresses.some((a) => loadedSigs[a]?.html) ? null : addresses[0] ?? null);
 	const [sigFocus, setSigFocus] = useState(false);
@@ -238,7 +236,6 @@ export function ConsoleSettings({ tab, onTab, prefs, setPrefs, addresses, identi
 					)}
 					{tab === "addresses" && (
 						<>
-							<Note>The sender name recipients see on mail from each address. Left empty, they see the part before the @.</Note>
 							{identities.groups.map(({ identity, addresses: group }) => {
 								const list = group.filter((a) => addresses.includes(a));
 								if (!list.length) return null;
@@ -274,12 +271,6 @@ export function ConsoleSettings({ tab, onTab, prefs, setPrefs, addresses, identi
 					)}
 					{tab === "signatures" && (
 						<>
-							<Note>
-								{sigCount === 0
-									? "No address has a signature yet."
-									: `${sigCount} of ${addresses.length} addresses have a signature, ${sigOnCount} added by default.`}
-								{" "}The signature button in the composer adds or removes it on any message.
-							</Note>
 							<List label="Signatures">
 								{addresses.map((a) => {
 									const id = identities.of(a);
@@ -353,7 +344,15 @@ export function ConsoleSettings({ tab, onTab, prefs, setPrefs, addresses, identi
 					)}
 					{tab === "models" && <AgentModelSection draft={agentModel} />}
 					{tab === "labels" && <LabelsTab />}
-					{tab === "shortcuts" && <ShortcutList overrides={draft.shortcuts} onChange={(shortcuts) => setDraft({ ...draft, shortcuts })} />}
+					{tab === "shortcuts" && (
+						<>
+							{/* The same switch as Preferences: key hints beside buttons and keys in tooltips. */}
+							<Setting title="Show key hints">
+								<Switch label="Show key hints" on={draft.keys} onChange={(keys) => setDraft({ ...draft, keys })} />
+							</Setting>
+							<ShortcutsPage overrides={draft.shortcuts} onChange={(shortcuts) => setDraft({ ...draft, shortcuts })} />
+						</>
+					)}
 					{tab === "logs" && (
 						<ActivityTab
 							addresses={addresses}

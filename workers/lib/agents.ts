@@ -14,6 +14,7 @@
  * Test on past mail and a record of drafts sent unchanged.
  */
 import { z } from "zod";
+import { RUN_STALE_MS } from "../agent/runs";
 import type { Sql } from "../store/sql";
 import { htmlToText } from "./message-meta";
 
@@ -240,20 +241,24 @@ export interface AgentStats {
 	/** Runs in the last 7 days by state. */
 	runs: Partial<Record<string, number>>;
 	today: number;
+	/** Runs queued or running that moved in the last RUN_STALE_MS: the agent is working now. */
+	live: number;
 }
 
 /** Each agent's runs in the last 7 days, and today's count, for the Console. */
 export async function agentStats(sql: Sql, now = Date.now()): Promise<AgentStats[]> {
 	const rows = await sql.all(
-		`SELECT agent_id, state, COUNT(*) AS n, SUM(CASE WHEN created_at >= ?2 THEN 1 ELSE 0 END) AS today FROM auto_draft_runs
-		WHERE agent_id IS NOT NULL AND created_at >= ?1 GROUP BY agent_id, state`,
-		new Date(now - 7 * 86_400_000).toISOString(), new Date(now - 86_400_000).toISOString(),
+		`SELECT agent_id, state, COUNT(*) AS n, SUM(CASE WHEN created_at >= ?2 THEN 1 ELSE 0 END) AS today,
+			SUM(CASE WHEN state IN ('queued', 'running') AND COALESCE(updated_at, created_at) >= ?3 THEN 1 ELSE 0 END) AS live
+		FROM auto_draft_runs WHERE agent_id IS NOT NULL AND created_at >= ?1 GROUP BY agent_id, state`,
+		new Date(now - 7 * 86_400_000).toISOString(), new Date(now - 86_400_000).toISOString(), new Date(now - RUN_STALE_MS).toISOString(),
 	);
 	const byAgent = new Map<string, AgentStats>();
 	for (const r of rows) {
 		const id = String(r.agent_id);
-		const stats = byAgent.get(id) ?? { agentId: id, runs: {}, today: 0 };
+		const stats = byAgent.get(id) ?? { agentId: id, runs: {}, today: 0, live: 0 };
 		stats.runs[String(r.state)] = Number(r.n);
+		stats.live += Number(r.live ?? 0);
 		if (["watched", "drafted", "sent"].includes(String(r.state))) stats.today += Number(r.today ?? 0);
 		byAgent.set(id, stats);
 	}

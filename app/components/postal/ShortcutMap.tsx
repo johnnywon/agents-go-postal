@@ -16,8 +16,8 @@ import {
 	CaretDoubleLeftIcon, CaretDoubleRightIcon, EnvelopeOpenIcon, EnvelopeSimpleIcon, type Icon, MagnifyingGlassIcon, PaperPlaneTiltIcon,
 	PencilSimpleLineIcon, SquareIcon, StarIcon, TagIcon, TrashIcon, TrayIcon, WarningOctagonIcon,
 } from "@phosphor-icons/react";
-import { Fragment } from "react";
-import { keycaps, SHORTCUTS, type ShortcutArea, type ShortcutDef, type ShortcutId } from "shared/shortcuts";
+import { createContext, Fragment, useContext } from "react";
+import { isRebindable, keycaps, type RebindableId, SHORTCUTS, type ShortcutArea, type ShortcutDef, type ShortcutId } from "shared/shortcuts";
 import { AgentIcon } from "./AgentIcon";
 import { AllAddressesIcon, DraftsIcon, InboxIcon, SentIcon, StarredIcon } from "./NavIcons";
 import { useShortcuts } from "./shortcuts";
@@ -38,20 +38,35 @@ const ICONS: Partial<Record<ShortcutId, AnyIcon>> = {
 const inArea = (area: ShortcutArea) => ALL.filter((s) => s.area === area && (s.scope === "mail" || s.primary));
 const name = (s: ShortcutDef) => s.short ?? s.label;
 
+/**
+ * How the map is being used. The ? dialog reads the saved keys. Settings > Keyboard shortcuts passes
+ * the keys being edited and onPick, so each rebindable key on the map is a button that starts
+ * changing it, and the one being recorded is marked.
+ */
+interface MapEdit { bindings?: ReadonlyMap<ShortcutId, readonly string[]>; onPick?: (id: RebindableId) => void; recording?: RebindableId | null }
+const MapEditContext = createContext<MapEdit>({});
+
 function Keys({ id, big, first }: { id: ShortcutId; big?: boolean; first?: boolean }) {
-	const { bindings, mac } = useShortcuts();
+	const { bindings: saved, mac } = useShortcuts();
+	const { bindings = saved, onPick, recording } = useContext(MapEditContext);
 	const all = bindings.get(id) ?? [];
 	const keys = first ? all.slice(0, 1) : all;
-	if (!keys.length) return <span className="pg-map-none">–</span>;
-	return (
-		<span className="pg-map-keys">
-			{keys.map((k) => (
-				<span key={k} className="pg-map-binding">
-					{keycaps(k, mac).map((cap, j) => <kbd key={j} className="pg-map-cap" data-big={big || undefined}>{cap}</kbd>)}
-				</span>
-			))}
-		</span>
-	);
+	const caps = keys.length
+		? keys.map((k) => (
+			<span key={k} className="pg-map-binding">
+				{keycaps(k, mac).map((cap, j) => <kbd key={j} className="pg-map-cap" data-big={big || undefined}>{cap}</kbd>)}
+			</span>
+		))
+		: <span className="pg-map-none">–</span>;
+	if (onPick && isRebindable(id)) {
+		const on = recording === id;
+		return (
+			<button type="button" className="pg-map-keys" data-pick aria-pressed={on} aria-label={on ? "Press a key" : `Change the keys for ${ALL.find((s) => s.id === id)?.label ?? id}`} onClick={() => onPick(id)}>
+				{caps}
+			</button>
+		);
+	}
+	return keys.length ? <span className="pg-map-keys">{caps}</span> : caps;
 }
 
 function Glyph({ def, size = 15 }: { def: ShortcutDef; size?: number }) {
@@ -167,9 +182,10 @@ function Agent() {
 	);
 }
 
-export function ShortcutMap({ onAll }: { onAll: () => void }) {
+export function ShortcutMap({ onAll, edit }: { onAll?: () => void; edit?: MapEdit }) {
 	return (
-		<div className="pg-map">
+		<MapEditContext.Provider value={edit ?? {}}>
+		<div className="pg-map" data-edit={edit?.onPick ? true : undefined}>
 			<div className="pg-map-search" title="Search">
 				<MagnifyingGlassIcon size={14} aria-hidden="true" />
 				<span className="pg-flex" />
@@ -189,8 +205,9 @@ export function ShortcutMap({ onAll }: { onAll: () => void }) {
 					</div>
 				))}
 				<span className="pg-flex" />
-				<button type="button" className="pg-map-all" onClick={onAll}>All keys</button>
+				{onAll && <button type="button" className="pg-map-all" onClick={onAll}>All keys</button>}
 			</div>
 		</div>
+		</MapEditContext.Provider>
 	);
 }

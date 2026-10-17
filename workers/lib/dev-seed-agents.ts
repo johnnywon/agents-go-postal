@@ -94,7 +94,8 @@ const CREW: Crew[] = [
 
 /** The life of each message, newest first: the newest are still in flight. */
 function plan(i: number, crew: Crew): { state: State; minutesAgo: number; reason: string | null } {
-	const live = i === 0 ? (crew.mode === "watch" ? "queued" : "running") : null;
+	// One agent is mid-run, so the sample shows a Working badge without every agent looking busy.
+	const live = i === 0 && crew.id === "seed-penny" ? "running" : null;
 	if (live) return { state: live, minutesAgo: live === "running" ? 0.3 : 1, reason: null };
 	if (i === crew.mail.length - 1 && crew.id === "seed-ira") return { state: "failed", minutesAgo: 95, reason: "The model timed out after 3 attempts" };
 	if (i === crew.mail.length - 1 && crew.id === "seed-penny") return { state: "skipped", minutesAgo: 60 * 26, reason: "Not this agent's job: a sales pitch, but about hosting" };
