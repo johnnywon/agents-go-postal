@@ -22,6 +22,7 @@ Versions follow [semantic versioning](https://semver.org). Before 1.0, a minor v
 - The Overview's Auto-drafts card names two states, failed first after drafted, instead of a cut-off list.
 - Keyboard shortcuts loses the empty row above the list; it shows only to hold Reset all. Mail storage puts 32px between the total and the table.
 - Addresses, Signatures and Labels lose their explaining lines.
+- The sidebar footer buttons (Console, Keyboard shortcuts, Log out) are embossed: raised off the rail, pressed in while held.
 - New agent: the name is a one-line field instead of a tall box, and the Watch badge no longer stretches across its row.
 - Setup and the README name both bypass paths, `/mcp` and `/.well-known`, and setup shows how to add the bypass application with the Cloudflare API.
 
