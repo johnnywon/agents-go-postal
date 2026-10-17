@@ -28,3 +28,12 @@ test("keys off a Mac and sequences split into keycaps", () => {
 	assert.deepEqual(splitKeys("#"), ["#"]);
 	assert.deepEqual(parseTip("Search (Ctrl+Shift+K)"), { label: "Search", keys: ["Ctrl", "Shift", "K"], hint: undefined });
 });
+
+test("with key hints off, tooltips leave out their keys", async () => {
+	const { readFileSync } = await import("node:fs");
+	const tooltip = readFileSync(new URL("../app/components/postal/Tooltip.tsx", import.meta.url), "utf8");
+	const css = readFileSync(new URL("../app/components/postal/postal.css", import.meta.url), "utf8");
+	assert.match(tooltip, /closest\("\.postal"\)\?\.getAttribute\("data-keys"\) === "off"\) tip\.keys = \[\]/);
+	const rule = css.split("\n").find((l) => l.startsWith('.postal[data-keys="off"] :is(.pg-kbd, .pg-keyhint)'));
+	assert.ok(rule && !rule.includes(".pg-tip"), "the hide rule must not exempt tooltips");
+});

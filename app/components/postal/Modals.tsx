@@ -344,7 +344,15 @@ export function ConsoleSettings({ tab, onTab, prefs, setPrefs, addresses, identi
 					)}
 					{tab === "models" && <AgentModelSection draft={agentModel} />}
 					{tab === "labels" && <LabelsTab />}
-					{tab === "shortcuts" && <ShortcutsPage overrides={draft.shortcuts} onChange={(shortcuts) => setDraft({ ...draft, shortcuts })} />}
+					{tab === "shortcuts" && (
+						<>
+							{/* The same switch as Preferences: key hints beside buttons and keys in tooltips. */}
+							<Setting title="Show key hints">
+								<Switch label="Show key hints" on={draft.keys} onChange={(keys) => setDraft({ ...draft, keys })} />
+							</Setting>
+							<ShortcutsPage overrides={draft.shortcuts} onChange={(shortcuts) => setDraft({ ...draft, shortcuts })} />
+						</>
+					)}
 					{tab === "logs" && (
 						<ActivityTab
 							addresses={addresses}
