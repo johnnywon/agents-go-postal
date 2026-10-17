@@ -1362,7 +1362,9 @@ button.pg-model-row:hover { background: var(--pg-hover); }
 /* No groove between the figures and the imprint; 6px of space separates them, 116px in all on the 4px grid. */
 .pg-console-colophon-imprint { display: flex; justify-content: space-between; align-items: flex-end; margin: 0 20px; padding: 6px 0 16px; }
 .pg-console-colophon-mark { display: flex; align-items: center; height: 24px; }
-.pg-console-colophon-logo { display: block; height: 18px; width: auto; }
+/* The lockup PNG is 3x with transparent room around the art, so the round flap ends never touch its edge.
+   21.33px tall shows the art at 18px; the negative margin puts the art, not the padding, on the 20px inset. */
+.pg-console-colophon-logo { display: block; flex: none; height: calc(64px / 3); width: auto; max-width: none; margin: -1.71px; }
 .pg-console-colophon-logo[data-ground="light"], .postal[data-theme="light"] .pg-console-colophon-logo[data-ground="dark"] { display: none; }
 .postal[data-theme="light"] .pg-console-colophon-logo[data-ground="light"] { display: block; }
 .pg-console-colophon-version { display: flex; align-items: center; gap: 6px; padding-bottom: 5px; font: 600 9px/12px var(--pg-mono); letter-spacing: .08em; color: var(--pg-text-6); }
