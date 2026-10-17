@@ -145,8 +145,8 @@ A count, a size or a length of time shown in a small space is a figure: a number
 The console rail ends with the colophon (`ConsoleColophon.tsx`): four figures, then the mark and the version. It is 116px on a 4px grid, pressed into the rail with one 2px groove at its top (`--pg-con-groove`, `--pg-con-groove-edge`) and nothing raised or boxed. No line between the figures and the imprint: 6px of space separates them.
 
 - Figures in a fixed order: messages, storage (every message's size, D1 and R2), addresses, uptime (since the running version was deployed, from the `version_metadata` binding). No fifth figure: a fifth stat belongs on a page.
-- Four auto columns, space-between, at least 12px apart, 20px in from the rail's edges. Figures are 16px at weight 500 in the 236px rail; the widest values (99,999 · 48.6 · 1,206 · 104) still keep the 12px gap.
-- Units are the mono caps at 9px with an 8px unit glyph, 4px apart.
+- Four auto columns, space-between, at least 12px apart, 20px in from the rail's edges. Figures are 16px at weight 400, the rail links' weight, in the 236px rail; the widest values (99,999 · 48.6 · 1,206 · 104) still keep the 12px gap.
+- Units are the mono caps at 9px, weight 500 like the rail's group labels, with an 8px unit glyph, 4px apart.
 - The imprint: the logo lockup (`public/brand/lockup-dark.png` on the dark console, `lockup-light.png` on the light one) at 18px, then the version and the GitHub glyph, the colophon's only link, with a 24px hit area. The lockup is the real logo; don't rebuild it from type.
 
 ### Error pages
