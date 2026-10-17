@@ -60,8 +60,11 @@ export function ConsoleColophon() {
 			</div>
 			<div className="pg-console-colophon-imprint">
 				<span className="pg-console-colophon-mark">
-					{/* The logo lockup from public/brand: Paper on the dark console, Ink on the light one. */}
+					{/* The logo lockup from public/brand: Paper on the dark console, Ink on the light one. Each has a grey
+					    copy under it, the watermark the colour sweeps in over when the console opens. */}
+					<img className="pg-console-colophon-logo" data-ground="dark" data-layer="ghost" src="/brand/lockup-dark.png" alt="" aria-hidden="true" width={103} height={21} />
 					<img className="pg-console-colophon-logo" data-ground="dark" src="/brand/lockup-dark.png" alt="PluraMail" width={103} height={21} />
+					<img className="pg-console-colophon-logo" data-ground="light" data-layer="ghost" src="/brand/lockup-light.png" alt="" aria-hidden="true" width={103} height={21} />
 					<img className="pg-console-colophon-logo" data-ground="light" src="/brand/lockup-light.png" alt="" width={103} height={21} />
 				</span>
 				<span className="pg-console-colophon-version">

@@ -1084,6 +1084,7 @@ test("postal domain shapes come from clip-path on .pg-shape-* only, and none is 
 			if (prop !== "clip-path" && !/^(-webkit-)?mask/.test(prop)) continue;
 			if (/^(-webkit-)?mask/.test(prop) && /pg-reader-to|pg-attach-name/.test(selector)) continue; // text fades, not shapes
 			if (prop === "clip-path" && /^\.pg-sw(\[data-open="false"\])?$/.test(selector) && /^inset\([^)]*\)$/.test(value)) continue; // the search window's reveal, a rectangle, not a shape
+			if (prop === "clip-path" && selector === ".pg-console-colophon-logo:not([data-layer])" && /^inset\(.*\)$/.test(value)) continue; // the logo's scan-in, a rectangle, not a shape
 			if (!/^\.pg-shape-[a-z]+$/.test(selector)) problems.push(`${selector} { ${prop}: ${value} }`);
 			else if (/circle|ellipse|round/.test(value)) problems.push(`${selector} is round`);
 			else shapes.add(selector);

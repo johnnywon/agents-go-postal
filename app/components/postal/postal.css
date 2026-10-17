@@ -1411,12 +1411,28 @@ button.pg-model-row:hover { background: var(--pg-hover); }
 .pg-console-colophon-cell svg { flex: none; display: block; overflow: visible; }
 /* No groove between the figures and the imprint; 6px of space separates them, 116px in all on the 4px grid. */
 .pg-console-colophon-imprint { display: flex; justify-content: space-between; align-items: flex-end; margin: 0 20px; padding: 6px 0 16px; }
-.pg-console-colophon-mark { display: flex; align-items: center; height: 24px; }
+.pg-console-colophon-mark { display: grid; align-items: center; height: 24px; }
+.pg-console-colophon-mark > img { grid-area: 1 / 1; }
 /* The lockup PNG is 3x with transparent room around the art, so the round flap ends never touch its edge.
    21.33px tall shows the art at 18px; the negative margin puts the art, not the padding, on the 20px inset. */
 .pg-console-colophon-logo { display: block; flex: none; height: calc(64px / 3); width: auto; max-width: none; margin: -1.71px; }
 .pg-console-colophon-logo[data-ground="light"], .postal[data-theme="light"] .pg-console-colophon-logo[data-ground="dark"] { display: none; }
 .postal[data-theme="light"] .pg-console-colophon-logo[data-ground="light"] { display: block; }
+/* The logo comes up once as the console opens. It starts as a grey watermark pressed into the
+   rail, then the colour scans in over it left to right in hard steps, and lands with two quick
+   flickers while the watermark fades out under it. A registered property (--pg-logo-sweep) drives
+   the colour's rectangular reveal. At rest, and with reduced motion, only the colour logo shows. */
+@property --pg-logo-sweep { syntax: "<percentage>"; inherits: true; initial-value: 100%; }
+@keyframes pg-logo-sweep { from { --pg-logo-sweep: 0%; } to { --pg-logo-sweep: 100%; } }
+@keyframes pg-logo-ghost { 0%, 72% { opacity: .16; } 100% { opacity: 0; } }
+@keyframes pg-logo-flicker { 0%, 64% { opacity: 1; } 70% { opacity: .5; } 75% { opacity: 1; } 81% { opacity: .72; } 86%, 100% { opacity: 1; } }
+.pg-console-colophon-mark { animation: pg-logo-sweep .9s steps(18, end) .45s both; }
+.pg-console-colophon-logo:not([data-layer]) {
+  clip-path: inset(-2px calc(100% - var(--pg-logo-sweep)) -2px -2px);
+  animation: pg-logo-flicker 1.6s linear .45s both;
+}
+.pg-console-colophon-logo[data-layer="ghost"] { opacity: 0; filter: grayscale(1) drop-shadow(0 -1px 0 rgba(0, 0, 0, .8)) drop-shadow(0 1px 0 rgba(255, 255, 255, .1)); animation: pg-logo-ghost 1.6s ease-out both; }
+.postal[data-theme="light"] .pg-console-colophon-logo[data-layer="ghost"] { filter: grayscale(1) drop-shadow(0 -1px 0 rgba(20, 20, 19, .25)) drop-shadow(0 1px 0 rgba(255, 255, 255, .9)); }
 .pg-console-colophon-version { display: flex; align-items: center; gap: 6px; padding-bottom: 5px; font: 500 9px/12px var(--pg-mono); letter-spacing: .08em; color: var(--pg-text-7); }
 .pg-console-colophon-version a { display: grid; place-items: center; width: 24px; height: 24px; margin: -6px -7px -6px -3px; color: var(--pg-text-7); }
 .pg-console-colophon-version a:hover { color: var(--pg-text-2); }

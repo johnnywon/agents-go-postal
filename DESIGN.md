@@ -151,6 +151,7 @@ The console rail ends with the colophon (`ConsoleColophon.tsx`): four figures, t
 - Units are the mono caps at 9px, weight 500 like the rail's group labels, with an 8px unit glyph, 4px apart.
 - Colours step with the rail: figures `--pg-text-3`, one shade over the links; units and glyphs `--pg-text-5`, the links' grey; the version and GitHub glyph `--pg-text-7`, the group labels' grey; an unknown dash `--pg-text-8`. The logo keeps its own full contrast.
 - The imprint: the logo lockup (`public/brand/lockup-dark.png` on the dark console, `lockup-light.png` on the light one) at 18px, then the version and the GitHub glyph, the colophon's only link, with a 24px hit area. The lockup is the real logo; don't rebuild it from type.
+- The logo comes up once when the console opens: a grey watermark pressed into the rail (a dark top edge and a light bottom edge), then the colour scans in over it left to right in 18 hard steps over 0.9s, after the console's own entrance, and lands with two quick flickers while the watermark fades out. A rectangular `clip-path: inset()` reveal, not a mask. Reduced motion shows only the finished logo.
 
 ### Error pages
 
