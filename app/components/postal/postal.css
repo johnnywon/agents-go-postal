@@ -298,7 +298,36 @@ html:has(.postal), html:has(.postal) body { background: var(--pg-base, #141518);
 .pg-nav-address:hover { background: var(--pg-hover); color: var(--pg-text-2); }
 .pg-nav-address[data-open="true"] { color: var(--pg-text-1); }
 .pg-nav-address .pg-n { width: 16px; text-align: right; color: var(--pg-text-6); flex: none; }
-.pg-nav-folders { display: flex; flex-direction: column; gap: 1px; margin: 1px 0 4px; animation: pg-drop .2s var(--pg-side-ease); }
+.pg-nav-folders { display: flex; flex-direction: column; gap: 1px; margin: 1px 0 4px; }
+
+/* Rail groups (By address, Labels, an address's folders) open like the side columns: the group's
+   height eases on --pg-side-ease while its rows settle in top to bottom, 14ms apart; closing is
+   quicker and all at once. The rows stay mounted, so a click mid-move reverses from where it is.
+   The closed group still sits in its column, so it gives back the column's gap (--pg-reveal-gap). */
+.pg-reveal {
+  display: grid; grid-template-rows: 1fr; align-self: start; --pg-reveal-gap: 2px;
+  transition: grid-template-rows var(--pg-side-ms) var(--pg-side-ease), margin-top var(--pg-side-ms) var(--pg-side-ease);
+}
+.pg-reveal[data-kind="folders"] { --pg-reveal-gap: 1px; }
+.pg-reveal[data-open="false"] { grid-template-rows: 0fr; margin-top: calc(-1 * var(--pg-reveal-gap)); transition-duration: var(--pg-side-out-ms); }
+.pg-reveal-in { min-height: 0; overflow: clip; overflow-clip-margin: 3px; display: flex; flex-direction: column; gap: var(--pg-reveal-gap); }
+.pg-reveal[data-kind="folders"] .pg-reveal-in { display: block; }
+.pg-reveal[data-kind="group"] > .pg-reveal-in > *, .pg-reveal[data-kind="folders"] .pg-nav-folders > * {
+  transition: opacity .26s ease-out, translate var(--pg-side-ms) var(--pg-side-ease);
+  transition-delay: calc(var(--pg-row, 0) * 14ms + 40ms);
+}
+.pg-reveal[data-kind="group"][data-open="false"] > .pg-reveal-in > *, .pg-reveal[data-kind="folders"][data-open="false"] .pg-nav-folders > * {
+  opacity: 0; translate: 0 -4px; transition: opacity .14s ease-in, translate var(--pg-side-out-ms) var(--pg-side-ease);
+}
+:is(.pg-reveal-in, .pg-nav-folders) > :nth-child(2) { --pg-row: 1; }
+:is(.pg-reveal-in, .pg-nav-folders) > :nth-child(3) { --pg-row: 2; }
+:is(.pg-reveal-in, .pg-nav-folders) > :nth-child(4) { --pg-row: 3; }
+:is(.pg-reveal-in, .pg-nav-folders) > :nth-child(5) { --pg-row: 4; }
+:is(.pg-reveal-in, .pg-nav-folders) > :nth-child(6) { --pg-row: 5; }
+:is(.pg-reveal-in, .pg-nav-folders) > :nth-child(7) { --pg-row: 6; }
+:is(.pg-reveal-in, .pg-nav-folders) > :nth-child(n+8) { --pg-row: 7; }
+.pg-caret { flex: none; transition: rotate var(--pg-side-ms) var(--pg-side-ease); }
+[aria-expanded="true"] > .pg-caret { rotate: 90deg; }
 .pg-nav-folder {
   display: flex; align-items: center; gap: 8px; height: 26px; margin-left: 38px; padding: 0 9px 0 10px;
   width: calc(100% - 38px); font-size: 12px; color: var(--pg-text-6); text-align: left;
