@@ -333,10 +333,10 @@ html:has(.postal), html:has(.postal) body { background: var(--pg-base, #141518);
   display: flex; align-items: center; gap: 6px; height: 26px; padding: 0 9px; white-space: nowrap;
   font-size: 12px; color: var(--pg-text-5); border: 1px solid var(--pg-line-2); background: var(--pg-input);
 }
-/* Embossed: raised off the rail, and pressed in while held. */
-.pg-foot-btn { background-image: var(--pg-emboss-face); box-shadow: var(--pg-emboss); transition: box-shadow .12s, background-color .12s; }
-.pg-foot-btn:hover { background-color: var(--pg-hover); border-color: var(--pg-line-4); color: var(--pg-text-2); }
-.pg-foot-btn:active { background-image: none; box-shadow: var(--pg-emboss-pressed); }
+/* Recessed: flat wells set into the rail, pressed deeper while held. */
+.pg-foot-btn { background: var(--pg-recess-face); border-color: transparent; box-shadow: var(--pg-recess); transition: box-shadow .12s, background-color .12s, color .12s; }
+.pg-foot-btn:hover { background: var(--pg-recess-face); border-color: transparent; color: var(--pg-text-2); }
+.pg-foot-btn:active { box-shadow: var(--pg-recess-pressed); }
 .pg-foot-btn.is-square { width: 26px; padding: 0; justify-content: center; }
 
 /* Collapsed rail */

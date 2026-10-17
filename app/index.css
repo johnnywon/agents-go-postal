@@ -187,10 +187,10 @@ button:disabled {
   --pg-scroll-hover: oklch(0.58 0.08 250);
   --pg-shadow-pop: 0 16px 32px rgba(0, 0, 0, .45);
   --pg-shadow-lift: -12px 0 22px -6px rgba(0, 0, 0, .6), 12px 0 22px -6px rgba(0, 0, 0, .6);
-  /* Embossed controls: a lit top edge, a face a shade lighter at the top, a soft shadow under. */
-  --pg-emboss-face: linear-gradient(rgba(255, 255, 255, .05), rgba(255, 255, 255, 0));
-  --pg-emboss: inset 0 1px 0 rgba(255, 255, 255, .07), 0 1px 2px rgba(0, 0, 0, .55), 0 1px 0 rgba(0, 0, 0, .4);
-  --pg-emboss-pressed: inset 0 1px 2px rgba(0, 0, 0, .55);
+  /* Recessed controls: flat, set into the rail. A well a shade darker, a shadow along the inside top edge, a lit edge below. */
+  --pg-recess-face: #0e0f11;
+  --pg-recess: inset 0 1px 1.5px rgba(0, 0, 0, .6), 0 1px 0 rgba(255, 255, 255, .05);
+  --pg-recess-pressed: inset 0 1px 3px rgba(0, 0, 0, .75), 0 1px 0 rgba(255, 255, 255, .05);
   --pg-shadow-modal: 0 24px 64px rgba(0, 0, 0, .55);
   --pg-scrim: rgba(6, 7, 8, .64);
   /* Console: a darker black of the mail's own neutrals. Purple marks its highlights; orange stays mail. */
@@ -259,9 +259,9 @@ button:disabled {
   --pg-scroll-hover: oklch(0.65 0.07 250);
   --pg-shadow-pop: 0 16px 32px rgba(20, 22, 26, .14);
   --pg-shadow-lift: -12px 0 22px -6px rgba(20, 22, 26, .16), 12px 0 22px -6px rgba(20, 22, 26, .16);
-  --pg-emboss-face: linear-gradient(rgba(255, 255, 255, .9), rgba(255, 255, 255, 0));
-  --pg-emboss: inset 0 1px 0 rgba(255, 255, 255, .95), 0 1px 2px rgba(20, 20, 19, .14), 0 1px 0 rgba(20, 20, 19, .06);
-  --pg-emboss-pressed: inset 0 1px 2px rgba(20, 20, 19, .16);
+  --pg-recess-face: #e8e7e2;
+  --pg-recess: inset 0 1px 1.5px rgba(20, 20, 19, .14), 0 1px 0 rgba(255, 255, 255, .9);
+  --pg-recess-pressed: inset 0 1px 3px rgba(20, 20, 19, .22), 0 1px 0 rgba(255, 255, 255, .9);
   --pg-shadow-modal: 0 24px 64px rgba(20, 22, 26, .2);
   --pg-scrim: rgba(20, 22, 26, .32);
   --pg-con-base: #fbfbfa;
