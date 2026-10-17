@@ -1181,6 +1181,23 @@ html:has(.postal), html:has(.postal) body { background: var(--pg-base, #141518);
   .pg-group { padding: 0; }
   .pg-switch { min-height: 20px; }
 }
+/* ── Moving between mail and the console ──────────────────────────────
+   The switch moves like the side columns: their curve and timing, translate and opacity only.
+   PostalMail sets data-arrive on .postal for ARRIVE_MS after a switch, never on first load.
+   Into the console, one move from the left: its rail slides out from the edge like a column
+   opening, its items fade in late, and the page comes in from the right, as forward does.
+   Back to mail, the other way: each rail settles in from its own edge and the list comes in
+   from the left, as back does. Reduced motion turns both off with every other animation. */
+@keyframes pg-arrive-rail { from { translate: -28px 0; } }
+@keyframes pg-arrive-edge { from { translate: calc(var(--pg-side-dir, -1) * 16px) 0; opacity: 0; } }
+@keyframes pg-arrive-forward { from { translate: 20px 0; opacity: 0; } }
+@keyframes pg-arrive-back { from { translate: -20px 0; opacity: 0; } }
+@keyframes pg-arrive-late { 0%, 15% { opacity: 0; } }
+.postal[data-arrive="console"] .pg-console-nav { animation: pg-arrive-rail var(--pg-side-ms) var(--pg-side-ease); }
+.postal[data-arrive="console"] .pg-console-nav > * { animation: pg-arrive-late .32s ease-out; }
+.postal[data-arrive="console"] .pg-console-center { animation: pg-arrive-forward var(--pg-side-ms) var(--pg-side-ease); }
+.postal[data-arrive="mail"] .pg-side > * { animation: pg-arrive-edge var(--pg-side-ms) var(--pg-side-ease); }
+.postal[data-arrive="mail"] .pg-center { animation: pg-arrive-back var(--pg-side-ms) var(--pg-side-ease) .04s both; }
 @media (prefers-reduced-motion: reduce) {
   .postal *, .postal *::before, .postal *::after { animation: none !important; transition: none !important; }
 }

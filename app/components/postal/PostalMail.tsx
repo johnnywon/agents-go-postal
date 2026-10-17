@@ -4,7 +4,7 @@
 
 import { ArchiveIcon, BookmarkSimpleIcon, ClockIcon, EnvelopeOpenIcon, EnvelopeSimpleIcon, FileIcon, KeyboardIcon, PaperPlaneTiltIcon, StarIcon, TagIcon, TrashIcon, TrayArrowUpIcon, WarningIcon } from "@phosphor-icons/react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router";
 import { LABEL_COLORS } from "shared/label-colors";
 import { cleanOverrides, cycleView, describeChanges, KeyMatcher, type KeyLike, type MailShortcutId, ownerOf, resolveBindings, type ShortcutOverrides, stepOf } from "shared/shortcuts";
@@ -45,6 +45,8 @@ const EDITABLE = "input, textarea, select, [contenteditable=''], [contenteditabl
 const ICON = 15;
 /** The longest side-column motion in postal.css (--pg-side-ms). */
 const SIDE_MS = 420;
+/** How long data-arrive stays on after a switch: the longest arrive animation (.42s) and a frame or two. */
+const ARRIVE_MS = 480;
 /** Keys that still work in the console. The rest act on mail. */
 const CONSOLE_KEYS = new Set<MailShortcutId>(["compose", "agent", "help", "undo", "back"]);
 
@@ -231,6 +233,19 @@ function PostalApp({ addresses, domains, autoDraft, demo }: PostalProps) {
 		next.delete("agent");
 		return next;
 	});
+	// Opening and closing the console moves like the side columns (postal.css, Moving between mail and the console).
+	// data-arrive is set before paint on the switch only, never on first load, and cleared once the move is done.
+	const shellRef = useRef<HTMLDivElement>(null);
+	const inConsole = !!consoleTab;
+	const wasConsole = useRef(inConsole);
+	useLayoutEffect(() => {
+		const el = shellRef.current;
+		if (!el || wasConsole.current === inConsole) return;
+		wasConsole.current = inConsole;
+		el.dataset.arrive = inConsole ? "console" : "mail";
+		const t = setTimeout(() => { delete el.dataset.arrive; }, ARRIVE_MS);
+		return () => clearTimeout(t);
+	}, [inConsole]);
 	const [prefill, setPrefill] = useState<{ text: string; id: number } | null>(null);
 	const [agentBusy, setAgentBusy] = useState(false);
 	const [replyRequest, setReplyRequest] = useState<{ mode: Exclude<ComposeMode, "new">; id: number } | null>(null);
@@ -657,7 +672,7 @@ function PostalApp({ addresses, domains, autoDraft, demo }: PostalProps) {
 
 	return (
 		<ShortcutsProvider overrides={prefs.shortcuts}>
-			<div className="postal" data-theme={theme} data-keys={prefs.keys ? "on" : "off"} data-pane={mobile && open ? "reader" : "list"}>
+			<div ref={shellRef} className="postal" data-theme={theme} data-keys={prefs.keys ? "on" : "off"} data-pane={mobile && open ? "reader" : "list"}>
 				<TooltipLayer />
 				<div className="pg-body">
 					{consoleTab ? (
