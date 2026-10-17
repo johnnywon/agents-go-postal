@@ -1416,14 +1416,16 @@ button.pg-model-row:hover { background: var(--pg-hover); }
 /* The lockup PNG is 3x with transparent room around the art, so the round flap ends never touch its edge.
    21.33px tall shows the art at 18px; the negative margin puts the art, not the padding, on the 20px inset. */
 .pg-console-colophon-logo { display: block; flex: none; height: calc(64px / 3); width: auto; max-width: none; margin: -1.71px; }
-.pg-console-colophon-logo[data-ground="light"], .postal[data-theme="light"] .pg-console-colophon-logo[data-ground="dark"] { display: none; }
-.postal[data-theme="light"] .pg-console-colophon-logo[data-ground="light"] { display: block; }
+/* Both grounds stay laid out in one cell and the other theme's is only invisible: display: none would restart
+   the logo's animation on a theme switch. */
+.pg-console-colophon-logo[data-ground="light"], .postal[data-theme="light"] .pg-console-colophon-logo[data-ground="dark"] { visibility: hidden; }
+.postal[data-theme="light"] .pg-console-colophon-logo[data-ground="light"] { visibility: visible; }
 /* The logo comes up once as the console opens, quietly: a grey watermark pressed into the rail
-   holds a beat, then the colour rises through it, soft at first and settling into focus, while
+   holds a beat, then the colour lifts 1px out of it, soft at first and settling into focus, while
    the watermark gives way. One long ease-out, no steps. At rest, and with reduced motion, only the
    colour logo shows. */
 @keyframes pg-logo-ghost { 0%, 40% { opacity: .14; } 100% { opacity: 0; } }
-@keyframes pg-logo-rise { from { opacity: 0; filter: blur(1.5px) saturate(.4); } 60% { filter: blur(0) saturate(.85); } to { opacity: 1; filter: none; } }
+@keyframes pg-logo-rise { from { opacity: 0; translate: 0 1px; filter: blur(.8px) saturate(.6); } 55% { filter: blur(0) saturate(.95); } to { opacity: 1; translate: 0 0; filter: none; } }
 .pg-console-colophon-logo:not([data-layer]) { animation: pg-logo-rise 1.8s cubic-bezier(.45, 0, .25, 1) .6s both; }
 .pg-console-colophon-logo[data-layer="ghost"] { opacity: 0; filter: grayscale(1) drop-shadow(0 -1px 0 rgba(0, 0, 0, .8)) drop-shadow(0 1px 0 rgba(255, 255, 255, .1)); animation: pg-logo-ghost 2.4s ease-in-out both; }
 .postal[data-theme="light"] .pg-console-colophon-logo[data-layer="ghost"] { filter: grayscale(1) drop-shadow(0 -1px 0 rgba(20, 20, 19, .25)) drop-shadow(0 1px 0 rgba(255, 255, 255, .9)); }
