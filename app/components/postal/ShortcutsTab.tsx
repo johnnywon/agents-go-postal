@@ -3,16 +3,18 @@
 //     https://opensource.org/licenses/Apache-2.0
 
 /**
- * The list of every shortcut, by group. Settings > Shortcuts edits it: click
- * a shortcut's keys, press the new key. The ? dialog shows it read-only.
+ * The list of every shortcut, by group. Settings > Shortcuts edits it under the
+ * keyboard map (ShortcutsPage): click a shortcut's keys, in the list or on the
+ * map, then press the new key. The ? dialog shows it read-only.
  */
 
 import { XIcon } from "@phosphor-icons/react";
-import { Fragment, useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import {
 	cannotBind, isRebindable, keycaps, ownerOf, type RebindableId, rebind, resolveBindings, SHORTCUT_GROUPS, SHORTCUTS,
 	type ShortcutDef, type ShortcutId, type ShortcutOverrides, shortcut, stepOf,
 } from "shared/shortcuts";
+import { ShortcutMap } from "./ShortcutMap";
 import { isMac } from "./shortcuts";
 
 const SCOPE_NOTE: Record<ShortcutDef["scope"], string | null> = { mail: null, compose: "In the composer", search: "In the search box" };
@@ -25,10 +27,38 @@ function Caps({ binding, mac }: { binding: string; mac: boolean }) {
 	);
 }
 
-export function ShortcutList({ overrides, onChange }: { overrides: ShortcutOverrides; onChange?: (next: ShortcutOverrides) => void }) {
-	const mac = useMemo(isMac, []);
+/** Settings > Keyboard shortcuts: the keyboard map, live with the keys being edited, over the full list. */
+export function ShortcutsPage({ overrides, onChange }: { overrides: ShortcutOverrides; onChange: (next: ShortcutOverrides) => void }) {
 	const bindings = useMemo(() => resolveBindings(overrides), [overrides]);
 	const [recording, setRecording] = useState<RebindableId | null>(null);
+	const [picked, setPicked] = useState(0);
+	const pick = (id: RebindableId) => { setRecording(recording === id ? null : id); setPicked((n) => n + 1); };
+	return (
+		<>
+			<ShortcutMap edit={{ bindings, onPick: pick, recording }} />
+			<ShortcutList overrides={overrides} onChange={onChange} recording={recording} onRecording={setRecording} reveal={picked} />
+		</>
+	);
+}
+
+export function ShortcutList({ overrides, onChange, recording: heldRecording, onRecording, reveal }: {
+	overrides: ShortcutOverrides;
+	onChange?: (next: ShortcutOverrides) => void;
+	/** Held by ShortcutsPage, so a key picked on the map records here. */
+	recording?: RebindableId | null;
+	onRecording?: (id: RebindableId | null) => void;
+	/** Bumped when the map picks a key: the row being recorded scrolls into view. */
+	reveal?: number;
+}) {
+	const mac = useMemo(isMac, []);
+	const bindings = useMemo(() => resolveBindings(overrides), [overrides]);
+	const [ownRecording, setOwnRecording] = useState<RebindableId | null>(null);
+	const recording = onRecording ? heldRecording ?? null : ownRecording;
+	const setRecording = onRecording ?? setOwnRecording;
+	const rows = useRef(new Map<ShortcutId, HTMLDivElement>());
+	useEffect(() => {
+		if (reveal && recording) rows.current.get(recording)?.scrollIntoView({ block: "center", behavior: "smooth" });
+	}, [reveal]); // eslint-disable-line react-hooks/exhaustive-deps
 	const [note, setNote] = useState<{ id: ShortcutId; text: string; error?: boolean } | null>(null);
 
 	// While recording, the next key is the new binding. Capturing on window runs before the dialog's own Escape and Tab handling.
@@ -84,7 +114,7 @@ export function ShortcutList({ overrides, onChange }: { overrides: ShortcutOverr
 							? keys.map((k, i) => <Fragment key={k}>{i > 0 && <span className="pg-keys-or">or</span>}<Caps binding={k} mac={mac} /></Fragment>)
 							: <span className="pg-keys-none">None</span>;
 						return (
-							<div key={id} className="pg-keys-row" data-recording={isRecording || undefined}>
+							<div key={id} ref={(el) => { if (el) rows.current.set(id, el); else rows.current.delete(id); }} className="pg-keys-row" data-recording={isRecording || undefined}>
 								<div className="pg-keys-text">
 									<span>{s.label}</span>
 									{(s.hint || scope || rowNote) && (

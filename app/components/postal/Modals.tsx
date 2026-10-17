@@ -23,7 +23,7 @@ import type { Prefs } from "./prefs";
 import { ShortcutMap } from "./ShortcutMap";
 import { samePrefs } from "shared/prefs";
 import { Keys } from "./shortcuts";
-import { ShortcutList } from "./ShortcutsTab";
+import { ShortcutsPage } from "./ShortcutsTab";
 import { Badge, Button, CopyField, Field, Fields, Item, List, Note, SaveBar, Section, Summary, SummaryRow, Table } from "./ConsoleUI";
 import { SEND_LIMITS } from "shared/send-limits";
 
@@ -344,7 +344,7 @@ export function ConsoleSettings({ tab, onTab, prefs, setPrefs, addresses, identi
 					)}
 					{tab === "models" && <AgentModelSection draft={agentModel} />}
 					{tab === "labels" && <LabelsTab />}
-					{tab === "shortcuts" && <ShortcutList overrides={draft.shortcuts} onChange={(shortcuts) => setDraft({ ...draft, shortcuts })} />}
+					{tab === "shortcuts" && <ShortcutsPage overrides={draft.shortcuts} onChange={(shortcuts) => setDraft({ ...draft, shortcuts })} />}
 					{tab === "logs" && (
 						<ActivityTab
 							addresses={addresses}

@@ -1020,7 +1020,8 @@ html:has(.postal), html:has(.postal) body { background: var(--pg-base, #141518);
 .pg-keys-none, .pg-keys-wait { font: 11px var(--pg-mono); color: var(--pg-text-7); }
 .pg-keys-wait { color: var(--pg-mail); }
 .pg-modal.is-shortcuts { width: min(1060px, 100%); height: auto; max-height: min(760px, 100%); }
-.pg-map { display: flex; flex-direction: column; gap: 8px; padding-top: 16px; }
+.pg-map { display: flex; flex-direction: column; gap: 8px; padding-top: 16px; container-type: inline-size; }
+
 .pg-map-search, .pg-map-col { border: 1px solid var(--pg-line-2); background: var(--pg-base); }
 .pg-map-search { display: flex; align-items: center; gap: 8px; height: 44px; padding: 0 8px 0 12px; color: var(--pg-text-6); }
 .pg-map-cols { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 2.4fr) minmax(0, .9fr); gap: 8px; }
@@ -1059,9 +1060,19 @@ html:has(.postal), html:has(.postal) body { background: var(--pg-base, #141518);
 .pg-map-composer { display: flex; align-items: center; gap: 8px; align-self: flex-end; width: 180px; margin: 0 10px 10px; padding: 6px 8px; border: 1px solid var(--pg-line-4); background: var(--pg-raised); color: var(--pg-text-4); }
 .pg-map-more { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 18px; margin-top: 6px; padding-top: 12px; border-top: 1px solid var(--pg-line-soft); }
 .pg-map-more .pg-map-nav { padding: 0; font-size: 12px; color: var(--pg-text-5); }
+/* In Settings > Keyboard shortcuts the map edits: a rebindable key is a button, and the one waiting for a key pulses in the accent. */
+.pg-map-keys[data-pick] { padding: 2px; margin: -2px; border: 0; background: none; }
+.pg-map-keys[data-pick]:hover .pg-map-cap { border-color: var(--pg-text-7); color: var(--pg-text-1); }
+.pg-map-keys[data-pick][aria-pressed="true"] .pg-map-cap { border-color: var(--pg-green); color: var(--pg-text-1); animation: pg-pulse 1.2s ease-in-out infinite; }
 .pg-map-all { font-size: 12px; color: var(--pg-text-6); text-decoration: underline; text-underline-offset: 3px; }
 .pg-map-all:hover { color: var(--pg-text-2); }
-.pg-keys-scroll { flex: 1; min-height: 0; overflow-y: auto; padding: 0 20px 20px; }
+/* Narrower than the ? dialog (the console page, a phone), the message column goes on top across the map,
+   the sidebar and list sit side by side under it, and the agent takes the last row. By the map's width, not the window's. */
+@container (max-width: 900px) {
+  .pg-map-cols { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  .pg-map-col[data-area="reader"] { grid-column: 1 / -1; order: -1; }
+  .pg-map-col[data-area="agent"] { grid-column: 1 / -1; }
+}.pg-keys-scroll { flex: 1; min-height: 0; overflow-y: auto; padding: 0 20px 20px; }
 .pg-input { flex: 1; min-width: 0; height: 30px; padding: 0 10px; border: 1px solid var(--pg-line-2); background: var(--pg-raised); color: var(--pg-text-2); font: 13px var(--pg-font); outline: none; }
 .pg-input:focus { border-color: var(--pg-line-4); }
 .pg-textarea { width: 100%; resize: vertical; padding: 10px 12px; border: 1px solid var(--pg-line-2); background: var(--pg-raised); color: var(--pg-text-2); font: 12px/1.6 var(--pg-mono); outline: none; }
@@ -1187,9 +1198,6 @@ html:has(.postal), html:has(.postal) body { background: var(--pg-base, #141518);
   .pg-modal-scrim { padding: 0; }
   .pg-modal, .pg-modal.is-settings, .pg-modal.is-shortcuts { width: 100%; height: 100%; border: 0; }
   .pg-keys-row { min-height: 48px; }
-  .pg-map-cols { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
-  .pg-map-col[data-area="reader"] { grid-column: 1 / -1; order: -1; }
-  .pg-map-col[data-area="agent"] { grid-column: 1 / -1; }
   .pg-keys-edit { min-height: 44px; }
   .pg-keys-off { width: 44px; height: 44px; }
   .pg-modal-head { height: auto; min-height: 56px; padding-top: 8px; padding-bottom: 8px; }
