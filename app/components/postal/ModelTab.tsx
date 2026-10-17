@@ -1,12 +1,13 @@
 import { ArrowLeftIcon, ArrowSquareOutIcon, CaretRightIcon, CheckIcon, MagnifyingGlassIcon, ShieldCheckIcon, WarningIcon } from "@phosphor-icons/react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import api, { type ModelCatalog } from "~/services/api";
 import {
 	type CatalogModel, guessProvider, type KeyedProvider, makerOf, type ModelRef, PROVIDER_INFO, PROVIDERS,
 	type ProviderId, sameModel, validModelId,
 } from "shared/models";
 import { Badge, type Column, Name, Note, Table } from "./ConsoleUI";
+import { Reveal } from "./Reveal";
 
 export function useModelCatalog(enabled = true) {
 	return useQuery({ queryKey: ["agent-model", "catalog"], queryFn: api.getModelCatalog, enabled, staleTime: 3_600_000 });
@@ -172,7 +173,7 @@ function ProviderTable({ draft, counts, zdrCounts, openKey, highlight, onToggle 
 				const open = openKey === p;
 				return (
 					<span className="pg-prov-key">
-						{status && <span className="pg-prov-status" data-on={!k.removing}>{status}</span>}
+						{status && <span key={status} className="pg-prov-status" data-on={!k.removing}>{status}</span>}
 						<button type="button" className="pg-btn pg-btn-sm" onClick={() => onToggle(p)} aria-expanded={open}>
 							{open ? "Done" : k.saved?.set || k.pending ? "Manage" : "Add key"}
 						</button>
@@ -181,29 +182,39 @@ function ProviderTable({ draft, counts, zdrCounts, openKey, highlight, onToggle 
 			},
 		},
 	];
-	const open = openKey && openKey !== "workers-ai" ? keyState(openKey) : null;
-	const info = openKey ? PROVIDER_INFO[openKey] : null;
+	// The key row stays mounted and eases open under the table. It keeps the last provider while it
+	// closes, and opens a frame after mount, so a key asked for on the way back from the picker slides in too.
+	const [ready, setReady] = useState(false);
+	useEffect(() => { const id = requestAnimationFrame(() => setReady(true)); return () => cancelAnimationFrame(id); }, []);
+	const last = useRef<ProviderId | null>(null);
+	if (openKey && openKey !== "workers-ai") last.current = openKey;
+	const shown = last.current;
+	const open = shown ? keyState(shown) : null;
+	const info = shown ? PROVIDER_INFO[shown] : null;
+	const input = useRef<HTMLInputElement>(null);
+	const isOpen = ready && !!openKey && openKey === shown;
+	useEffect(() => { if (isOpen) input.current?.focus({ preventScroll: true }); }, [isOpen, shown]);
 	return (
 		<>
 			<div className="pg-prov-table"><Table label="Providers" columns={columns} rows={[...PROVIDERS]} rowKey={(p) => p} rowProps={(p) => ({ "data-highlight": p === highlight || undefined })} /></div>
-			{openKey && open && info && (
-				<div className="pg-prov-row-key">
+			<Reveal open={isOpen} kind="panel">
+				{shown && open && info && <div className="pg-prov-row-key">
 					<input
+						ref={input}
 						className="pg-input pg-mono"
 						type="password"
 						autoComplete="off"
 						spellCheck={false}
-						autoFocus
 						value={open.edit ?? ""}
 						placeholder={open.saved?.set && !open.removing ? `Replace ····${open.saved.hint}` : info.keyHint ?? ""}
 						aria-label={`${info.label} API key`}
-						onChange={(e) => draft.setKey(openKey as KeyedProvider, e.target.value || undefined)}
+						onChange={(e) => draft.setKey(shown as KeyedProvider, e.target.value || undefined)}
 					/>
-					{open.saved?.set && !open.removing && <button type="button" className="pg-btn pg-btn-sm pg-btn-quiet" onClick={() => draft.setKey(openKey as KeyedProvider, "")}>Remove</button>}
-					{open.removing && <button type="button" className="pg-btn pg-btn-sm pg-btn-quiet" onClick={() => draft.setKey(openKey as KeyedProvider, undefined)}>Undo</button>}
+					{open.saved?.set && !open.removing && <button type="button" className="pg-btn pg-btn-sm pg-btn-quiet" onClick={() => draft.setKey(shown as KeyedProvider, "")}>Remove</button>}
+					{open.removing && <button type="button" className="pg-btn pg-btn-sm pg-btn-quiet" onClick={() => draft.setKey(shown as KeyedProvider, undefined)}>Undo</button>}
 					{info.keyUrl && <a className="pg-btn pg-btn-sm pg-btn-quiet" href={info.keyUrl} target="_blank" rel="noreferrer">Get a key <ArrowSquareOutIcon size={12} /></a>}
-				</div>
-			)}
+				</div>}
+			</Reveal>
 		</>
 	);
 }
@@ -431,8 +442,14 @@ function ModelPicker({ catalog, draft, onPick, onBack }: {
 export function AgentModelSection({ draft }: { draft: AgentModelDraft }) {
 	const { data: catalog, isLoading } = useModelCatalog();
 	const [picking, setPicking] = useState(false);
+	// Which way the last swap went: the picker comes in from the right, the summary from the left.
+	const [enter, setEnter] = useState<"forward" | "back">();
 	const [openKey, setOpenKey] = useState<ProviderId | null>(null);
-	const [test, setTest] = useState<{ busy: boolean; ok?: boolean; text?: string }>({ busy: false });
+	const [test, setTest] = useState<{ busy: boolean; ok?: boolean; text?: string; n: number }>({ busy: false, n: 0 });
+	const change = useRef<HTMLButtonElement>(null);
+	useEffect(() => { if (!picking && enter === "back") change.current?.focus({ preventScroll: true }); }, [picking, enter]);
+	// The message under the facts keeps its last words while it closes.
+	const lastMsg = useRef<{ ok: boolean; text: React.ReactNode; n: number } | null>(null);
 	if (isLoading || !catalog || !draft.stored) return <p className="pg-ui-note">Loading</p>;
 
 	const recommended = catalog.recommended;
@@ -444,33 +461,40 @@ export function AgentModelSection({ draft }: { draft: AgentModelDraft }) {
 
 	if (picking) {
 		return (
-			<ModelPicker
-				catalog={catalog}
-				draft={draft}
-				onBack={() => setPicking(false)}
-				onPick={(ref) => {
-					// Picking marks the model and keeps the list open; Back returns to the summary.
-					draft.select(ref);
-					setTest({ busy: false });
-					if (!draft.hasKey(ref.provider)) setOpenKey(ref.provider);
-				}}
-			/>
+			<div key="picker" className="pg-model-view" data-enter={enter}>
+				<ModelPicker
+					catalog={catalog}
+					draft={draft}
+					onBack={() => { setEnter("back"); setPicking(false); }}
+					onPick={(ref) => {
+						// Picking marks the model and keeps the list open; Back returns to the summary.
+						draft.select(ref);
+						setTest((t) => ({ busy: false, n: t.n }));
+						if (!draft.hasKey(ref.provider)) setOpenKey(ref.provider);
+					}}
+				/>
+			</div>
 		);
 	}
 
 	const runTest = async () => {
-		setTest({ busy: true });
+		setTest((t) => ({ busy: true, n: t.n }));
 		try {
 			const key = effective.provider === "workers-ai" ? undefined : draft.keys[effective.provider as KeyedProvider] || undefined;
 			const r = await api.testAgentModel({ provider: effective.provider, id: effective.id, key });
-			setTest({ busy: false, ok: r.ok, text: r.ok ? `Replied "${r.reply || "(empty)"}" in ${((r.ms ?? 0) / 1000).toFixed(1)} s` : r.error });
+			setTest((t) => ({ busy: false, ok: r.ok, text: r.ok ? `Replied "${r.reply || "(empty)"}" in ${((r.ms ?? 0) / 1000).toFixed(1)} s` : r.error, n: t.n + 1 }));
 		} catch (e) {
-			setTest({ busy: false, ok: false, text: (e as Error).message });
+			setTest((t) => ({ busy: false, ok: false, text: (e as Error).message, n: t.n + 1 }));
 		}
 	};
 
+	const showMsg = needsKey || !!test.text;
+	if (needsKey) lastMsg.current = { ok: false, n: -1, text: <><WarningIcon size={12} aria-hidden="true" /> Add your {PROVIDER_INFO[effective.provider].label} key below, or this model won't run.</> };
+	else if (test.text) lastMsg.current = { ok: !!test.ok, n: test.n, text: <>{test.ok ? <CheckIcon size={12} weight="bold" aria-hidden="true" /> : <WarningIcon size={12} aria-hidden="true" />} {test.text}</> };
+	const msg = lastMsg.current;
+
 	return (
-		<div className="pg-models">
+		<div key="card" className="pg-models pg-model-view" data-enter={enter}>
 			<div className="pg-model-card">
 				<b className="pg-model-card-name">{model.name}</b>
 				<dl className="pg-model-facts">
@@ -486,16 +510,16 @@ export function AgentModelSection({ draft }: { draft: AgentModelDraft }) {
 						: "–"}</dd></div>
 					{model.tools === false && <div><dt>Tools</dt><dd>None</dd></div>}
 				</dl>
-				{(needsKey || test.text) && (
-					<p className="pg-model-current-msg" data-ok={needsKey ? "false" : String(!!test.ok)} role="status">
-						{needsKey
-							? <><WarningIcon size={12} /> Add your {PROVIDER_INFO[effective.provider].label} key below, or this model won't run.</>
-							: test.text}
-					</p>
-				)}
+				<Reveal open={showMsg} kind="panel">
+					{msg && <p className="pg-model-current-msg" data-ok={String(msg.ok)} role="status"><span key={msg.n}>{msg.text}</span></p>}
+				</Reveal>
 				<div className="pg-model-card-actions">
-					<button type="button" className="pg-btn pg-btn-sm pg-btn-primary" onClick={() => setPicking(true)}>Change model</button>
-					<button type="button" className="pg-btn pg-btn-sm" onClick={runTest} disabled={test.busy || needsKey}>{test.busy ? "Testing…" : "Test"}</button>
+					<button ref={change} type="button" className="pg-btn pg-btn-sm pg-btn-primary" onClick={() => { setEnter("forward"); setPicking(true); }}>Change model</button>
+					{/* Both faces share one cell, so the button keeps its width while it works. */}
+					<button type="button" className="pg-btn pg-btn-sm pg-model-test" onClick={runTest} disabled={test.busy || needsKey} aria-busy={test.busy || undefined}>
+						<span data-face="idle" aria-hidden={test.busy || undefined}>Test</span>
+						<span data-face="busy" aria-hidden={!test.busy || undefined}><i aria-hidden="true" />Testing</span>
+					</button>
 				</div>
 			</div>
 

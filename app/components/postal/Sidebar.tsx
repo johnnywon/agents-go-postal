@@ -7,6 +7,7 @@ import {
 	PencilSimpleIcon, PlusIcon, SignOutIcon, TerminalWindowIcon,
 } from "@phosphor-icons/react";
 import { AgentIcon } from "./AgentIcon";
+import { Reveal } from "./Reveal";
 import {
 	ADDRESS_FOLDERS, ByAddressIcon, FoldMark, InboxIcon, LabelsIcon, SECONDARY_VIEWS, UnreadIcon,
 } from "./NavIcons";
@@ -74,15 +75,6 @@ function unreadName(address: string, unread: number | undefined) {
 /** Link props for a view: its URL, and the in-app move to it. */
 function viewLink(go: (filter: MailFilter) => void, next: MailFilter) {
 	return { href: toSearch(next), onGo: () => go(next) };
-}
-
-/** A rail group's rows. They stay mounted, so the group eases open and shut (postal.css, Rail groups); closed, they are inert. */
-function Reveal({ open, kind, children }: { open: boolean; kind: "group" | "folders"; children: ReactNode }) {
-	return (
-		<div className="pg-reveal" data-kind={kind} data-open={open} inert={!open}>
-			<div className="pg-reveal-in">{children}</div>
-		</div>
-	);
 }
 
 /** The caret beside a group: one glyph that turns a quarter as the group opens. */

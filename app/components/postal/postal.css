@@ -313,11 +313,12 @@ html:has(.postal), html:has(.postal) body { background: var(--pg-base, #141518);
 .pg-reveal[data-open="false"] { grid-template-rows: 0fr; margin-top: calc(-1 * var(--pg-reveal-gap)); transition-duration: var(--pg-side-out-ms); }
 .pg-reveal-in { min-height: 0; overflow: clip; overflow-clip-margin: 3px; display: flex; flex-direction: column; gap: var(--pg-reveal-gap); }
 .pg-reveal[data-kind="folders"] .pg-reveal-in { display: block; }
-.pg-reveal[data-kind="group"] > .pg-reveal-in > *, .pg-reveal[data-kind="folders"] .pg-nav-folders > * {
+.pg-reveal[data-kind="panel"] { --pg-reveal-gap: 0px; }
+:is(.pg-reveal[data-kind="group"], .pg-reveal[data-kind="panel"]) > .pg-reveal-in > *, .pg-reveal[data-kind="folders"] .pg-nav-folders > * {
   transition: opacity .26s ease-out, translate var(--pg-side-ms) var(--pg-side-ease);
   transition-delay: calc(var(--pg-row, 0) * 14ms + 40ms);
 }
-.pg-reveal[data-kind="group"][data-open="false"] > .pg-reveal-in > *, .pg-reveal[data-kind="folders"][data-open="false"] .pg-nav-folders > * {
+:is(.pg-reveal[data-kind="group"], .pg-reveal[data-kind="panel"])[data-open="false"] > .pg-reveal-in > *, .pg-reveal[data-kind="folders"][data-open="false"] .pg-nav-folders > * {
   opacity: 0; translate: 0 -4px; transition: opacity .14s ease-in, translate var(--pg-side-out-ms) var(--pg-side-ease);
 }
 :is(.pg-reveal-in, .pg-nav-folders) > :nth-child(2) { --pg-row: 1; }
@@ -1259,7 +1260,8 @@ html:has(.postal), html:has(.postal) body { background: var(--pg-base, #141518);
 .pg-model-price b { font-weight: 500; color: var(--pg-text-2); }
 .pg-model-price[data-none] { color: var(--pg-text-8); }
 .pg-model-slash { margin: 0 4px; color: var(--pg-text-8); }
-.pg-model-current-msg { grid-column: 1 / -1; margin: 0; display: flex; align-items: center; gap: 6px; font-size: var(--pg-t-12); color: var(--pg-green-text); }
+.pg-model-current-msg { margin: 0; font-size: var(--pg-t-12); color: var(--pg-green-text); }
+.pg-model-current-msg > span { display: inline-flex; align-items: center; gap: 6px; }
 .pg-model-current-msg[data-ok="false"] { color: var(--pg-yellow-text); }
 .pg-select { height: 30px; padding: 0 8px; font-size: var(--pg-t-12); color: var(--pg-text-2); border: 1px solid var(--pg-line-2); background: var(--pg-raised); }
 
@@ -1274,12 +1276,34 @@ html:has(.postal), html:has(.postal) body { background: var(--pg-base, #141518);
 .pg-model-facts code { font: 12px var(--pg-mono); color: var(--pg-text-4); overflow-wrap: anywhere; }
 .pg-model-unit { margin-left: 4px; color: var(--pg-text-7); }
 .pg-model-card-actions { display: flex; gap: 8px; }
+
+/* Motion on the model page, in the side columns' language (--pg-side-ease, translate only).
+   Change model slides the picker in from the right; Back brings the summary in from the left.
+   The test message and the key row ease open as Reveal panels. A new test result settles in
+   from 3px below, its mark a beat ahead of the words. Test keeps its width while it works: both
+   faces share one cell and cross over, the busy face with a steady dot. */
+.pg-model-view[data-enter="forward"] { animation: pg-arrive-forward var(--pg-side-ms) var(--pg-side-ease); }
+.pg-model-view[data-enter="back"] { animation: pg-arrive-back var(--pg-side-ms) var(--pg-side-ease); }
+.pg-model-card > .pg-reveal { --pg-reveal-gap: 14px; }
+@keyframes pg-model-settle { from { opacity: 0; translate: 0 3px; } }
+@keyframes pg-model-mark { from { opacity: 0; scale: .6; } }
+.pg-model-current-msg > span { animation: pg-model-settle .36s var(--pg-side-ease); }
+.pg-model-current-msg > span > svg { flex: none; animation: pg-model-mark .3s var(--pg-side-ease); }
+.pg-model-test { display: inline-grid; place-items: center; }
+.pg-model-test > span { grid-area: 1 / 1; display: inline-flex; align-items: center; gap: 6px; transition: opacity .18s ease-out, translate var(--pg-side-ms) var(--pg-side-ease); }
+.pg-model-test > [data-face="busy"], .pg-model-test[aria-busy="true"] > [data-face="idle"] { opacity: 0; translate: 0 4px; }
+.pg-model-test[aria-busy="true"] > [data-face="idle"] { translate: 0 -4px; }
+.pg-model-test[aria-busy="true"] > [data-face="busy"] { opacity: 1; translate: 0 0; }
+.pg-model-test[aria-busy="true"]:disabled { opacity: 1; color: var(--pg-text-4); }
+.pg-model-test i { width: 5px; height: 5px; background: var(--pg-green); animation: pg-pulse 1.1s ease-in-out infinite; }
+.pg-prov-table tr { transition: background-color var(--pg-side-ms) var(--pg-side-ease); }
+.pg-prov-status { animation: pg-fade .3s ease-out; }
 .pg-prov-links { display: flex; gap: 12px; }
 .pg-prov-key { display: inline-flex; align-items: center; justify-content: flex-end; gap: 10px; }
 .pg-prov-status { font: 11px var(--pg-mono); color: var(--pg-text-7); white-space: nowrap; }
 .pg-prov-status[data-on="true"] { color: var(--pg-green-text); }
 .pg-prov-table tr[data-highlight] { background: color-mix(in oklch, var(--pg-yellow) 9%, transparent); }
-.pg-prov-table + .pg-prov-row-key { margin-top: 8px; padding: 12px; border: 1px solid var(--pg-line); background: var(--pg-raised); }
+.pg-prov-table + .pg-reveal .pg-prov-row-key { margin-top: 8px; padding: 12px; border: 1px solid var(--pg-line); background: var(--pg-raised); }
 .pg-prov-table ~ .pg-ui-note { margin-top: 10px; }
 .pg-zdr { display: inline-flex; align-items: center; gap: 4px; color: var(--pg-green-text); }
 /* Notes inside the picker list sit flush with its rows. */
